@@ -1,4 +1,4 @@
-"""Summarize source documents into entries using an LLM."""
+"""Summarize source documents into summaries using an LLM."""
 
 import asyncio
 import sys
@@ -53,12 +53,12 @@ def _prepare_source(source_path):
 
 
 def _write_entry(source_path, summary, source_url, source_id):
-    """Write entry file with provenance frontmatter."""
+    """Write summary file with provenance frontmatter."""
     topic = source_path.stem
     today = date.today()
-    entry_dir = Path("entries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
-    entry_dir.mkdir(parents=True, exist_ok=True)
-    entry_path = entry_dir / f"{topic}.md"
+    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir.mkdir(parents=True, exist_ok=True)
+    entry_path = summary_dir / f"{topic}.md"
 
     fm_lines = [f"source: {source_path}"]
     if source_url:
@@ -98,7 +98,7 @@ async def _summarize_one(source_path, model, semaphore, manifest, done):
 
 
 def cmd_summarize(args):
-    """Generate entries from source documents."""
+    """Generate summaries from source documents."""
     from .caffeinate import hold as _caffeinate
     _caffeinate()
     input_dir = Path(args.input_dir)

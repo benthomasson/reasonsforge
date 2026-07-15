@@ -54,7 +54,131 @@ def register_forge_type_commands(parent_subparsers):
     p.add_argument("--repo", default=".", help="Path to git repository")
     p.add_argument("--domain", help="Domain description")
     p.add_argument("--since", help="Analyze commits since this date or SHA")
+    p.add_argument("--limit", type=int, default=500,
+                   help="Max files to explore (0 = unlimited)")
     _add_common_pipeline_args(p)
+
+    code_sub = p.add_subparsers(dest="code_command")
+
+    # code scan
+    cs = code_sub.add_parser("scan", help="Scan repo structure and populate topic queue")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+
+    # code explore
+    cs = code_sub.add_parser("explore", help="Explore next topic(s) in queue")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--loop", type=int, default=None, help="Explore up to N topics")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--parallel", type=int, default=1)
+
+    # code explain
+    cs = code_sub.add_parser("explain", help="Explain a file, function, or diff")
+    cs.add_argument("kind", choices=["file", "function", "diff"],
+                    help="What to explain")
+    cs.add_argument("target", nargs="?", help="File path or file:symbol")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--branch", default=None)
+    cs.add_argument("--base", default="main")
+    cs.add_argument("--since", default=None)
+    cs.add_argument("--since-last", action="store_true", dest="since_last")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code walk-commits
+    cs = code_sub.add_parser("walk-commits",
+                             help="Walk recent commits and explore changed files")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--since", default=None)
+    cs.add_argument("--since-commit", default=None)
+    cs.add_argument("--since-last", action="store_true", dest="since_last")
+    cs.add_argument("--dry-run", action="store_true", dest="dry_run")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code propose-beliefs
+    cs = code_sub.add_parser("propose-beliefs",
+                             help="Extract candidate beliefs from entries")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--batch-size", type=int, default=5)
+    cs.add_argument("--proposals-output", default="proposed-beliefs.md")
+    cs.add_argument("--all", action="store_true")
+    cs.add_argument("--auto", action="store_true")
+    cs.add_argument("--since", default=None)
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code accept-beliefs
+    cs = code_sub.add_parser("accept-beliefs",
+                             help="Import accepted beliefs from proposals file")
+    cs.add_argument("--proposals-file", default="proposed-beliefs.md")
+    cs.add_argument("--output", default="reasons.db")
+
+    # code review-proposals
+    cs = code_sub.add_parser("review-proposals",
+                             help="Filter low-quality proposals using LLM review")
+    cs.add_argument("--proposals-file", default="proposed-beliefs.md")
+    cs.add_argument("--batch-size", type=int, default=20)
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code verify
+    cs = code_sub.add_parser("verify",
+                             help="Check beliefs against current source code")
+    cs.add_argument("belief_ids", nargs="*", default=[])
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--category", default=None)
+    cs.add_argument("--all", action="store_true")
+    cs.add_argument("--retract", action="store_true")
+    cs.add_argument("--dry-run", action="store_true", dest="dry_run")
+    cs.add_argument("--batch-size", type=int, default=10)
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code derive
+    cs = code_sub.add_parser("derive",
+                             help="Derive reasoning chains from existing beliefs")
+    cs.add_argument("--auto", action="store_true")
+    cs.add_argument("--exhaust", action="store_true")
+    cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--budget", type=int, default=300)
+    cs.add_argument("--domain", default=None)
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--output", default="reasons.db")
+
+    # code topics
+    cs = code_sub.add_parser("topics", help="Show exploration queue")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--all", action="store_true")
+
+    # code status
+    cs = code_sub.add_parser("status", help="Show code forge dashboard")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--output", default="reasons.db")
+
+    # code update
+    cs = code_sub.add_parser("update",
+                             help="Incremental update: walk-commits + propose + derive")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--since", default=None)
+    cs.add_argument("--since-commit", default=None)
+    cs.add_argument("--since-last", action="store_true", dest="since_last")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--rounds", type=int, default=3)
+    cs.add_argument("--max-derive-rounds", type=int, default=10)
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
@@ -135,12 +259,57 @@ def _cmd_document(args):
 
 
 def _cmd_code(args):
-    """Run the code forge pipeline."""
-    print(f"Code forge: analyzing {args.repo}", file=sys.stderr)
-    print("Not yet implemented — coming in a future release.", file=sys.stderr)
-    print("Use 'reasonsforge document' with source files for now.",
-          file=sys.stderr)
-    sys.exit(1)
+    """Run the code forge pipeline or dispatch to a subcommand."""
+    from .code.commands import (
+        cmd_accept_beliefs as _code_accept,
+        cmd_derive as _code_derive,
+        cmd_explore as _code_explore,
+        cmd_explain_diff as _code_explain_diff,
+        cmd_explain_file as _code_explain_file,
+        cmd_explain_function as _code_explain_func,
+        cmd_init as _code_init,
+        cmd_propose_beliefs as _code_propose,
+        cmd_review_proposals as _code_review,
+        cmd_scan as _code_scan,
+        cmd_status as _code_status,
+        cmd_topics as _code_topics,
+        cmd_verify as _code_verify,
+        cmd_walk_commits as _code_walk,
+    )
+    from .code.pipeline import cmd_analyze, cmd_update
+
+    code_command = getattr(args, "code_command", None)
+
+    _code_dispatch = {
+        "scan": _code_scan,
+        "explore": _code_explore,
+        "walk-commits": _code_walk,
+        "propose-beliefs": _code_propose,
+        "accept-beliefs": _code_accept,
+        "review-proposals": _code_review,
+        "verify": _code_verify,
+        "derive": _code_derive,
+        "topics": _code_topics,
+        "status": _code_status,
+        "update": cmd_update,
+    }
+
+    if code_command == "explain":
+        kind = getattr(args, "kind", "file")
+        if kind == "file":
+            _code_explain_file(args)
+        elif kind == "function":
+            _code_explain_func(args)
+        elif kind == "diff":
+            _code_explain_diff(args)
+        return
+
+    if code_command and code_command in _code_dispatch:
+        _code_dispatch[code_command](args)
+        return
+
+    # No subcommand — run full analyze pipeline
+    cmd_analyze(args)
 
 
 def _cmd_product(args):
@@ -215,7 +384,7 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--dry-run", action="store_true")
 
     # summarize
-    p = sub.add_parser("summarize", help="Generate entries from source documents")
+    p = sub.add_parser("summarize", help="Generate summaries from source documents")
     p.add_argument("--input-dir", default="sources")
     p.add_argument("--recursive", "-r", action="store_true")
     p.add_argument("--parallel", type=int, default=1)
@@ -224,8 +393,8 @@ def register_forge_commands(parent_subparsers):
 
     # propose-beliefs
     p = sub.add_parser("propose-beliefs",
-                       help="Extract candidate beliefs from entries")
-    p.add_argument("--input-dir", default="entries")
+                       help="Extract candidate beliefs from summaries")
+    p.add_argument("--input-dir", default="summaries")
     p.add_argument("--output", default="proposed-beliefs.md")
     p.add_argument("--model", default="claude")
     p.add_argument("--parallel", type=int, default=1)

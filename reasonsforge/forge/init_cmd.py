@@ -26,7 +26,7 @@ def cmd_init(args):
         subprocess.run(["git", "init"], check=True)
         print("Initialized git repo")
 
-    for d in ["entries", "sources"]:
+    for d in ["summaries", "sources"]:
         (cwd / d).mkdir(exist_ok=True)
 
     forge_dir = cwd / PROJECT_DIR
@@ -67,10 +67,10 @@ def cmd_status(args):
     sources_dir = cwd / "sources"
     source_count = len(list(sources_dir.glob("*.md"))) if sources_dir.exists() else 0
 
-    entries_dir = cwd / "entries"
-    entry_count = 0
-    if entries_dir.exists():
-        entry_count = len(list(entries_dir.rglob("*.md")))
+    summaries_dir = cwd / "summaries"
+    summary_count = 0
+    if summaries_dir.exists():
+        summary_count = len(list(summaries_dir.rglob("*.md")))
 
     belief_count = 0
     nogood_count = 0
@@ -105,7 +105,7 @@ def cmd_status(args):
 
     print(f"=== Forge Status: {domain} ===")
     print(f"Sources:     {source_count} documents")
-    print(f"Entries:     {entry_count} entries")
+    print(f"Summaries:   {summary_count} summaries")
     print(f"Beliefs:     {belief_count} IN")
     print(f"Nogoods:     {nogood_count} recorded")
     if proposed:

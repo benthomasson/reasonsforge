@@ -35,9 +35,9 @@ def make_args(input_dir, model="test-model", limit=None, recursive=False, parall
 
 
 def _find_entry(work_dir):
-    """Find the generated entry file under entries/."""
-    entries = list((work_dir / "entries").rglob("*.md"))
-    assert len(entries) == 1, f"Expected 1 entry, found {len(entries)}: {entries}"
+    """Find the generated summary file under summaries/."""
+    entries = list((work_dir / "summaries").rglob("*.md"))
+    assert len(entries) == 1, f"Expected 1 summary, found {len(entries)}: {entries}"
     return entries[0]
 
 
@@ -77,7 +77,7 @@ def test_discovers_both_md_and_py(source_dir, work_dir):
         cmd_summarize(args)
 
     assert mock_llm.call_count == 2
-    entries = list((work_dir / "entries").rglob("*.md"))
+    entries = list((work_dir / "summaries").rglob("*.md"))
     assert len(entries) == 2
 
 
@@ -93,7 +93,7 @@ def test_recursive_discovers_nested_files(source_dir, work_dir):
         cmd_summarize(args)
 
     assert mock_llm.call_count == 2
-    entries = list((work_dir / "entries").rglob("*.md"))
+    entries = list((work_dir / "summaries").rglob("*.md"))
     assert len(entries) == 2
 
 
@@ -335,7 +335,7 @@ def test_entry_contains_llm_summary(source_dir, work_dir):
 
 
 def test_entry_directory_structure(source_dir, work_dir):
-    """Entries are written to entries/YYYY/MM/DD/topic.md."""
+    """Summaries are written to summaries/YYYY/MM/DD/topic.md."""
     (source_dir / "my-topic.md").write_text("# Topic\nContent")
     args = make_args(source_dir)
 
@@ -346,7 +346,7 @@ def test_entry_directory_structure(source_dir, work_dir):
     entry = _find_entry(work_dir)
     assert entry.name == "my-topic.md"
     parts = entry.relative_to(work_dir).parts
-    assert parts[0] == "entries"
+    assert parts[0] == "summaries"
 
 
 # --- Prompt template tests ---
@@ -378,7 +378,7 @@ def test_parallel_summarizes_multiple_files(source_dir, work_dir):
          patch("reasonsforge.forge.summarize.invoke", new_callable=AsyncMock, return_value="## Title\nSummary"):
         cmd_summarize(args)
 
-    entries = list((work_dir / "entries").rglob("*.md"))
+    entries = list((work_dir / "summaries").rglob("*.md"))
     assert len(entries) == 4
 
 

@@ -259,12 +259,12 @@ def auto_accept_proposals(filepath: str):
 
 
 def cmd_propose_beliefs(args):
-    """Extract candidate beliefs from entries for human review."""
+    """Extract candidate beliefs from summaries for human review."""
     from .caffeinate import hold as _caffeinate
     _caffeinate()
     input_dir = Path(args.input_dir)
     if not input_dir.exists():
-        print(f"Entries directory not found: {input_dir}")
+        print(f"Summaries directory not found: {input_dir}")
         sys.exit(1)
 
     if not check_model_available(args.model):

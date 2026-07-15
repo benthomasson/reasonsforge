@@ -28,7 +28,7 @@ reasonsforge = "reasonsforge.cli:main"
 reasonsforge-mcp = "reasonsforge.mcp_server:main"
 
 [tool.setuptools]
-packages = ["reasonsforge", "reasonsforge.forge"]
+packages = ["reasonsforge", "reasonsforge.forge", "reasonsforge.forge.code", "reasonsforge.forge.code.prompts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

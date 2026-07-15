@@ -117,11 +117,11 @@ def _stage_summarize(args):
 
 
 def _stage_extract(args):
-    """Stage 3: Extract beliefs from entries and optionally auto-accept."""
+    """Stage 3: Extract beliefs from summaries and optionally auto-accept."""
     from .propose import cmd_propose_beliefs, cmd_accept_beliefs
 
     prop_args = SimpleNamespace(
-        input_dir="entries",
+        input_dir="summaries",
         output="proposed-beliefs.md",
         model=args.model,
         parallel=getattr(args, "parallel", 1),
@@ -314,11 +314,11 @@ def _stage_export(args):
 
 
 def _stage_index(args):
-    """Stage 9: Build FTS5 index from sources and entries."""
+    """Stage 9: Build FTS5 index from sources and summaries."""
     from .index_sources import cmd_index_sources
 
     sources_dir = Path(args.sources_dir)
-    entries_dir = Path("entries")
+    summaries_dir = Path("summaries")
     db_path = getattr(args, "index_db", "rag_fts.db")
 
     if sources_dir.exists():
@@ -333,10 +333,10 @@ def _stage_index(args):
         )
         cmd_index_sources(idx_args)
 
-    if entries_dir.exists():
-        print(f"Indexing entries from {entries_dir}...", file=sys.stderr)
+    if summaries_dir.exists():
+        print(f"Indexing summaries from {summaries_dir}...", file=sys.stderr)
         idx_args = SimpleNamespace(
-            input_dir=str(entries_dir),
+            input_dir=str(summaries_dir),
             recursive=True,
             db=db_path,
             type="summary",
