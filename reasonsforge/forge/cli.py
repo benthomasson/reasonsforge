@@ -210,6 +210,155 @@ def register_forge_type_commands(parent_subparsers):
     p.add_argument("--since", help="Analyze issues since this date")
     _add_common_pipeline_args(p)
 
+    project_sub = p.add_subparsers(dest="project_command")
+
+    # project init
+    ps = project_sub.add_parser("init", help="Initialize project forge")
+    ps.add_argument("--github", metavar="OWNER/REPO")
+    ps.add_argument("--gitlab", metavar="OWNER/REPO")
+    ps.add_argument("--jira", metavar="PROJECT_KEY")
+    ps.add_argument("--jira-url", help="Jira base URL")
+    ps.add_argument("--domain", help="Domain description")
+    ps.add_argument("--output", default="reasons.db")
+
+    # project scan
+    ps = project_sub.add_parser("scan", help="Scan issues/PRs")
+    ps.add_argument("--state", default="open",
+                    choices=["open", "closed", "all"])
+    ps.add_argument("--labels", default=None)
+    ps.add_argument("--limit", type=int, default=100)
+    ps.add_argument("--page", type=int, default=1)
+    ps.add_argument("--all-pages", action="store_true", dest="all_pages")
+    ps.add_argument("--jql", default=None)
+    ps.add_argument("--per-issue", action="store_true", dest="per_issue")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project explore
+    ps = project_sub.add_parser("explore", help="Explore topics in queue")
+    ps.add_argument("--skip", type=int, default=None)
+    ps.add_argument("--pick", type=int, nargs="*", default=None)
+    ps.add_argument("--loop", type=int, default=None)
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+
+    # project propose-beliefs
+    ps = project_sub.add_parser("propose-beliefs",
+                                help="Extract candidate beliefs from entries")
+    ps.add_argument("--batch-size", type=int, default=5)
+    ps.add_argument("--proposals-output", default="proposed-beliefs.md")
+    ps.add_argument("--all", action="store_true")
+    ps.add_argument("--auto", action="store_true")
+    ps.add_argument("--since", default=None)
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project accept-beliefs
+    ps = project_sub.add_parser("accept-beliefs",
+                                help="Import accepted beliefs from proposals")
+    ps.add_argument("--proposals-file", default="proposed-beliefs.md")
+    ps.add_argument("--output", default="reasons.db")
+
+    # project review-proposals
+    ps = project_sub.add_parser("review-proposals",
+                                help="Filter low-quality proposals using LLM review")
+    ps.add_argument("--proposals-file", default="proposed-beliefs.md")
+    ps.add_argument("--batch-size", type=int, default=20)
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project research
+    ps = project_sub.add_parser("research",
+                                help="Verify beliefs against live tracker data")
+    ps.add_argument("belief_id", nargs="?", default=None)
+    ps.add_argument("--negative", action="store_true")
+    ps.add_argument("--high-impact", action="store_true", dest="high_impact")
+    ps.add_argument("--limit", type=int, default=5)
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project derive
+    ps = project_sub.add_parser("derive",
+                                help="Derive reasoning chains from existing beliefs")
+    ps.add_argument("--auto", action="store_true")
+    ps.add_argument("--exhaust", action="store_true")
+    ps.add_argument("--max-derive-rounds", type=int, default=10)
+    ps.add_argument("--budget", type=int, default=300)
+    ps.add_argument("--domain", default=None)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project review-beliefs
+    ps = project_sub.add_parser("review-beliefs",
+                                help="Review derived beliefs for quality")
+    ps.add_argument("--auto-retract", action="store_true", dest="auto_retract")
+    ps.add_argument("--sample", type=int, default=None)
+    ps.add_argument("--min-depth", type=int, default=None, dest="min_depth")
+    ps.add_argument("--dry-run", action="store_true", dest="dry_run")
+    ps.add_argument("--review-output", default=None, dest="review_output")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project repair
+    ps = project_sub.add_parser("repair",
+                                help="Repair flagged beliefs")
+    ps.add_argument("--review-file", default=None, dest="review_file")
+    ps.add_argument("--dry-run", action="store_true", dest="dry_run")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project summary
+    ps = project_sub.add_parser("summary",
+                                help="Synthesize project summary from beliefs")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project sprint-plan
+    ps = project_sub.add_parser("sprint-plan",
+                                help="Generate prioritized sprint plan")
+    ps.add_argument("--sprint-length", default="2w", dest="sprint_length")
+    ps.add_argument("--team-size", type=int, default=None, dest="team_size")
+    ps.add_argument("--dry-run", action="store_true", dest="dry_run")
+    ps.add_argument("--sprint-output", default=None, dest="sprint_output")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # project topics
+    ps = project_sub.add_parser("topics", help="Show exploration queue")
+    ps.add_argument("--all", action="store_true")
+
+    # project status
+    ps = project_sub.add_parser("status", help="Show project forge dashboard")
+    ps.add_argument("--output", default="reasons.db")
+
+    # project update
+    ps = project_sub.add_parser("update",
+                                help="Incremental update pipeline")
+    ps.add_argument("--since", default=None)
+    ps.add_argument("--since-last", action="store_true", dest="since_last")
+    ps.add_argument("--state", default=None,
+                    choices=["open", "closed", "all"])
+    ps.add_argument("--limit", type=int, default=100)
+    ps.add_argument("--all-pages", action="store_true", dest="all_pages")
+    ps.add_argument("--max-explore", type=int, default=None, dest="max_explore")
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
     # paper — academic papers
     p = parent_subparsers.add_parser(
         "paper",
@@ -324,14 +473,56 @@ def _cmd_product(args):
 
 
 def _cmd_project(args):
-    """Run the project forge pipeline."""
+    """Run the project forge pipeline or dispatch to a subcommand."""
+    from .project.commands import (
+        cmd_accept_beliefs as _proj_accept,
+        cmd_derive as _proj_derive,
+        cmd_explore as _proj_explore,
+        cmd_init as _proj_init,
+        cmd_propose_beliefs as _proj_propose,
+        cmd_repair as _proj_repair,
+        cmd_research as _proj_research,
+        cmd_review_beliefs as _proj_review_beliefs,
+        cmd_review_proposals as _proj_review,
+        cmd_scan as _proj_scan,
+        cmd_sprint_plan as _proj_sprint,
+        cmd_status as _proj_status,
+        cmd_summary as _proj_summary,
+        cmd_topics as _proj_topics,
+        cmd_update as _proj_update,
+    )
+    from .project.pipeline import cmd_analyze
+
+    project_command = getattr(args, "project_command", None)
+
+    _proj_dispatch = {
+        "init": _proj_init,
+        "scan": _proj_scan,
+        "explore": _proj_explore,
+        "propose-beliefs": _proj_propose,
+        "accept-beliefs": _proj_accept,
+        "review-proposals": _proj_review,
+        "research": _proj_research,
+        "derive": _proj_derive,
+        "review-beliefs": _proj_review_beliefs,
+        "repair": _proj_repair,
+        "summary": _proj_summary,
+        "sprint-plan": _proj_sprint,
+        "topics": _proj_topics,
+        "status": _proj_status,
+        "update": _proj_update,
+    }
+
+    if project_command and project_command in _proj_dispatch:
+        _proj_dispatch[project_command](args)
+        return
+
+    # No subcommand — run full analyze pipeline
     source = args.github or args.gitlab or args.jira
     if not source:
         print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
         sys.exit(1)
-    print(f"Project forge: analyzing {source}", file=sys.stderr)
-    print("Not yet implemented — coming in a future release.", file=sys.stderr)
-    sys.exit(1)
+    cmd_analyze(args)
 
 
 def _cmd_paper(args):
