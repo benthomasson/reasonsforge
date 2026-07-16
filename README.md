@@ -4,7 +4,7 @@ A belief forge built on Doyle's (1979) Truth Maintenance System. Ingest domain s
 
 ## What It Does
 
-Reasons Forge analyzes domain-specific sources (codebases, issue trackers, academic papers, documents) and builds a dependency network of beliefs. The TMS engine tracks which beliefs are IN (believed) or OUT (retracted), automatically propagating changes when evidence shifts.
+Reasons Forge analyzes domain-specific sources (codebases, issue trackers, product data, documents) and builds a dependency network of beliefs. The TMS engine tracks which beliefs are IN (believed) or OUT (retracted), automatically propagating changes when evidence shifts.
 
 **Core TMS engine:**
 - Nodes with SL/CP justifications and non-monotonic reasoning (outlist)
@@ -12,6 +12,13 @@ Reasons Forge analyzes domain-specific sources (codebases, issue trackers, acade
 - Nogoods with dependency-directed backtracking
 - Dialectical argumentation (challenge/defend)
 - Merkle integrity verification
+
+**Domain-specific forges:**
+- `document` — PDFs, markdown, and code files with section-based chunking
+- `code` — Codebase architecture, patterns, invariants, and technical debt
+- `project` — Team velocity, milestone health, and delivery risks from issue trackers
+- `product` — Feature readiness, user experience, and product-market fit
+- `meta` — Cross-domain reasoning across expert belief networks
 
 **LLM-powered analysis:**
 - `derive` — generate new beliefs from existing ones
@@ -34,7 +41,15 @@ Or with uv:
 uv tool install reasonsforge
 ```
 
+For forge features (PDF chunking, issue tracker sources):
+
+```bash
+pip install reasonsforge[forge]
+```
+
 ## Quick Start
+
+### Core TMS
 
 ```bash
 # Initialize database
@@ -74,25 +89,52 @@ reasonsforge nogood topology-is-static graph-is-dynamic
 # Explain why a node is IN or OUT
 reasonsforge explain no-runtime-modification
 
-# Challenge a belief — target goes OUT
-reasonsforge challenge velocity-constraint "Not derived — postulated"
-
-# Defend against a challenge — target restored
-reasonsforge defend velocity-constraint challenge-velocity-constraint \
-  "Follows from variational principle"
-
 # Non-monotonic reasoning: believe X unless Y
 reasonsforge add default-approx "Newtonian approximation holds" --unless strong-field
 
 # LLM-powered derivation
 reasonsforge derive --sample -m claude
 
-# Review derived beliefs
-reasonsforge review-beliefs -m claude
-
 # Export
 reasonsforge export -o network.json
 reasonsforge export-markdown -o beliefs.md
+```
+
+### Forges
+
+Forges are domain-specific pipelines that automate the full cycle: ingest sources, summarize, extract beliefs, derive, review, and repair.
+
+```bash
+# Analyze a codebase
+reasonsforge forge code --repo /path/to/repo
+
+# Analyze a codebase step by step
+reasonsforge forge code scan --repo /path/to/repo
+reasonsforge forge code explore --repo /path/to/repo --loop 50
+reasonsforge forge code propose-beliefs --auto
+reasonsforge forge code derive --exhaust --auto
+
+# Analyze project state from GitHub issues
+reasonsforge forge project --github owner/repo
+
+# Analyze product data from an issue tracker
+reasonsforge forge product --github owner/repo
+
+# Ingest product documents
+reasonsforge forge product ingest docs/ --glob-pattern "**/*.md"
+
+# Analyze a PDF (chunked by section, then summarized)
+reasonsforge forge document --pdf paper.pdf
+
+# Cross-domain synthesis across expert belief networks
+reasonsforge forge meta init code=/path/to/code-expert project=/path/to/project-expert
+reasonsforge forge meta import
+reasonsforge forge meta derive --auto
+reasonsforge forge meta contradictions --auto
+reasonsforge forge meta summary
+
+# Full meta pipeline in one command
+reasonsforge forge meta update
 ```
 
 ## Commands
@@ -154,13 +196,37 @@ reasonsforge export-markdown -o beliefs.md
 | `check-stale` | Check for source file changes |
 | `hash-sources` | Backfill source hashes |
 
+### Forge Commands
+
+| Forge | Subcommands |
+|-------|-------------|
+| `forge document` | Full pipeline from PDFs/markdown with chunking |
+| `forge code` | `scan`, `explore`, `explain`, `walk-commits`, `propose-beliefs`, `accept-beliefs`, `review-proposals`, `verify`, `derive`, `topics`, `status`, `update` |
+| `forge project` | `init`, `scan`, `explore`, `propose-beliefs`, `accept-beliefs`, `review-proposals`, `research`, `derive`, `review-beliefs`, `repair`, `summary`, `sprint-plan`, `topics`, `status`, `update` |
+| `forge product` | `init`, `scan`, `ingest`, `explore`, `propose-beliefs`, `accept-beliefs`, `review-proposals`, `derive`, `generate-summary`, `summary`, `topics`, `status`, `update` |
+| `forge meta` | `init`, `import`, `derive`, `ask`, `contradictions`, `summary`, `topics`, `status`, `update` |
+
+### Forge Pipeline Steps
+
+| Command | Description |
+|---------|-------------|
+| `forge init NAME` | Initialize a forge project |
+| `forge chunk-pdf FILE` | Chunk a PDF into section entries |
+| `forge chunk-docs` | Chunk large documents by heading |
+| `forge summarize` | Summarize source documents with LLM |
+| `forge propose-beliefs` | Extract candidate beliefs from summaries |
+| `forge accept-beliefs` | Import accepted beliefs |
+| `forge pipeline` | End-to-end belief construction |
+| `forge derive-review-repair` | Convergence loop |
+| `forge index-sources` | Build FTS5 search index |
+
 ## Tests
 
 ```bash
 uv run --extra test pytest tests/ -v
 ```
 
-1613 tests covering propagation, retraction cascades, restoration, multiple justifications, diamond dependencies, nogoods, dependency-directed backtracking, non-monotonic justifications, dialectical argumentation, Merkle integrity, SQLite round-trips, import/export, and more.
+1,732 tests covering propagation, retraction cascades, restoration, multiple justifications, diamond dependencies, nogoods, dependency-directed backtracking, non-monotonic justifications, dialectical argumentation, Merkle integrity, SQLite round-trips, import/export, and more.
 
 ## References
 
