@@ -473,6 +473,83 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
 
+    # meta — cross-domain reasoning
+    p = parent_subparsers.add_parser(
+        "meta",
+        help="Cross-domain reasoning across expert belief networks")
+    p.add_argument("--domain", help="Domain description")
+    _add_common_pipeline_args(p)
+
+    meta_sub = p.add_subparsers(dest="meta_command")
+
+    # meta init
+    ms = meta_sub.add_parser("init", help="Initialize meta forge with expert repos")
+    ms.add_argument("experts", nargs="+", metavar="NAME=PATH",
+                    help="Expert repos as NAME=PATH pairs")
+    ms.add_argument("--domain", help="Domain description")
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta import
+    ms = meta_sub.add_parser("import", help="Import beliefs from expert repos")
+    ms.add_argument("--expert", default=None,
+                    help="Import from a single expert only")
+    ms.add_argument("--only-in", action="store_true", dest="only_in",
+                    help="Only import IN beliefs")
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta derive
+    ms = meta_sub.add_parser("derive",
+                              help="Cross-domain derivation from combined beliefs")
+    ms.add_argument("--auto", action="store_true")
+    ms.add_argument("--exhaust", action="store_true")
+    ms.add_argument("--dry-run", action="store_true", dest="dry_run")
+    ms.add_argument("--budget", type=int, default=300)
+    ms.add_argument("--seed", type=int, default=None)
+    ms.add_argument("--model", default="claude")
+    ms.add_argument("--timeout", type=int, default=600)
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta ask
+    ms = meta_sub.add_parser("ask", help="Ask a question across all expert domains")
+    ms.add_argument("question", help="Question to answer")
+    ms.add_argument("--model", default="claude")
+    ms.add_argument("--timeout", type=int, default=300)
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta contradictions
+    ms = meta_sub.add_parser("contradictions",
+                              help="Detect cross-domain contradictions")
+    ms.add_argument("--auto", action="store_true")
+    ms.add_argument("--model", default="claude")
+    ms.add_argument("--timeout", type=int, default=600)
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta summary
+    ms = meta_sub.add_parser("summary",
+                              help="Executive synthesis across all domains")
+    ms.add_argument("--model", default="claude")
+    ms.add_argument("--timeout", type=int, default=600)
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta topics
+    ms = meta_sub.add_parser("topics", help="Show investigation queue")
+    ms.add_argument("--all", action="store_true")
+
+    # meta status
+    ms = meta_sub.add_parser("status", help="Show meta forge dashboard")
+    ms.add_argument("--output", default="reasons.db")
+
+    # meta update
+    ms = meta_sub.add_parser("update",
+                              help="Pipeline: import → derive → contradictions → summary")
+    ms.add_argument("--skip", nargs="*", default=[],
+                    help="Steps to skip (import, derive, contradictions, summary)")
+    ms.add_argument("--budget", type=int, default=300)
+    ms.add_argument("--seed", type=int, default=None)
+    ms.add_argument("--model", default="claude")
+    ms.add_argument("--timeout", type=int, default=600)
+    ms.add_argument("--output", default="reasons.db")
+
     # paper — academic papers
     p = parent_subparsers.add_parser(
         "paper",
@@ -492,7 +569,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "paper"],
+                   choices=["document", "code", "product", "project", "meta", "paper"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -502,6 +579,7 @@ def register_forge_type_commands(parent_subparsers):
         "code": _cmd_code,
         "product": _cmd_product,
         "project": _cmd_project,
+        "meta": _cmd_meta,
         "paper": _cmd_paper,
         "run": _cmd_run,
     }
@@ -674,6 +752,43 @@ def _cmd_project(args):
     if not source:
         print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
         sys.exit(1)
+    cmd_analyze(args)
+
+
+def _cmd_meta(args):
+    """Run the meta forge pipeline or dispatch to a subcommand."""
+    from .meta.commands import (
+        cmd_ask as _meta_ask,
+        cmd_contradictions as _meta_contradictions,
+        cmd_derive as _meta_derive,
+        cmd_import_beliefs as _meta_import,
+        cmd_init as _meta_init,
+        cmd_status as _meta_status,
+        cmd_summary as _meta_summary,
+        cmd_topics as _meta_topics,
+        cmd_update as _meta_update,
+    )
+    from .meta.pipeline import cmd_analyze
+
+    meta_command = getattr(args, "meta_command", None)
+
+    _meta_dispatch = {
+        "init": _meta_init,
+        "import": _meta_import,
+        "derive": _meta_derive,
+        "ask": _meta_ask,
+        "contradictions": _meta_contradictions,
+        "summary": _meta_summary,
+        "topics": _meta_topics,
+        "status": _meta_status,
+        "update": _meta_update,
+    }
+
+    if meta_command and meta_command in _meta_dispatch:
+        _meta_dispatch[meta_command](args)
+        return
+
+    # No subcommand — run full analyze pipeline
     cmd_analyze(args)
 
 
