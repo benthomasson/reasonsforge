@@ -550,17 +550,6 @@ def register_forge_type_commands(parent_subparsers):
     ms.add_argument("--timeout", type=int, default=600)
     ms.add_argument("--output", default="reasons.db")
 
-    # paper — academic papers
-    p = parent_subparsers.add_parser(
-        "paper",
-        help="Process academic papers and extract claims")
-    p.add_argument("--arxiv", metavar="ID",
-                   help="arXiv paper ID (e.g., 2301.12345)")
-    p.add_argument("--pdf", action="append",
-                   help="PDF files to process (repeatable)")
-    p.add_argument("--domain", help="Domain description")
-    _add_common_pipeline_args(p)
-
     # run — sandbox wrapper (Phase 3)
     p = parent_subparsers.add_parser(
         "run",
@@ -569,7 +558,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta", "paper"],
+                   choices=["document", "code", "product", "project", "meta"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -580,7 +569,6 @@ def register_forge_type_commands(parent_subparsers):
         "product": _cmd_product,
         "project": _cmd_project,
         "meta": _cmd_meta,
-        "paper": _cmd_paper,
         "run": _cmd_run,
     }
 
@@ -791,16 +779,6 @@ def _cmd_meta(args):
     # No subcommand — run full analyze pipeline
     cmd_analyze(args)
 
-
-def _cmd_paper(args):
-    """Run the paper forge pipeline."""
-    source = args.arxiv or (args.pdf and args.pdf[0])
-    if not source:
-        print("Error: specify --arxiv or --pdf", file=sys.stderr)
-        sys.exit(1)
-    print(f"Paper forge: processing {source}", file=sys.stderr)
-    print("Not yet implemented — coming in a future release.", file=sys.stderr)
-    sys.exit(1)
 
 
 def _cmd_run(args):
