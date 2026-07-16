@@ -195,6 +195,120 @@ def register_forge_type_commands(parent_subparsers):
     p.add_argument("--since", help="Analyze issues since this date")
     _add_common_pipeline_args(p)
 
+    product_sub = p.add_subparsers(dest="product_command")
+
+    # product init
+    ps = product_sub.add_parser("init", help="Initialize product forge")
+    ps.add_argument("--github", metavar="OWNER/REPO")
+    ps.add_argument("--gitlab", metavar="OWNER/REPO")
+    ps.add_argument("--jira", metavar="PROJECT_KEY")
+    ps.add_argument("--jira-url", help="Jira base URL")
+    ps.add_argument("--domain", help="Domain description")
+    ps.add_argument("--output", default="reasons.db")
+
+    # product scan
+    ps = product_sub.add_parser("scan", help="Scan issues")
+    ps.add_argument("--state", default="open",
+                    choices=["open", "closed", "all"])
+    ps.add_argument("--labels", default=None)
+    ps.add_argument("--limit", type=int, default=100)
+    ps.add_argument("--page", type=int, default=1)
+    ps.add_argument("--all-pages", action="store_true", dest="all_pages")
+    ps.add_argument("--jql", default=None)
+    ps.add_argument("--since", default=None)
+    ps.add_argument("--since-last", action="store_true", dest="since_last")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # product ingest
+    ps = product_sub.add_parser("ingest",
+                                help="Ingest markdown documents for product analysis")
+    ps.add_argument("docs_dir", help="Directory containing documents")
+    ps.add_argument("--glob-pattern", default="**/*.md", dest="glob_pattern")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+
+    # product explore
+    ps = product_sub.add_parser("explore", help="Explore topics in queue")
+    ps.add_argument("--skip", type=int, default=None)
+    ps.add_argument("--pick", type=int, nargs="*", default=None)
+    ps.add_argument("--loop", type=int, default=None)
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+
+    # product propose-beliefs
+    ps = product_sub.add_parser("propose-beliefs",
+                                help="Extract candidate beliefs from entries")
+    ps.add_argument("--batch-size", type=int, default=5)
+    ps.add_argument("--proposals-output", default="proposed-beliefs.md")
+    ps.add_argument("--all", action="store_true")
+    ps.add_argument("--auto", action="store_true")
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # product accept-beliefs
+    ps = product_sub.add_parser("accept-beliefs",
+                                help="Import accepted beliefs from proposals")
+    ps.add_argument("--proposals-file", default="proposed-beliefs.md")
+    ps.add_argument("--output", default="reasons.db")
+
+    # product review-proposals
+    ps = product_sub.add_parser("review-proposals",
+                                help="Filter low-quality proposals using LLM review")
+    ps.add_argument("--proposals-file", default="proposed-beliefs.md")
+    ps.add_argument("--batch-size", type=int, default=20)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # product derive
+    ps = product_sub.add_parser("derive",
+                                help="Derive reasoning chains from existing beliefs")
+    ps.add_argument("--auto", action="store_true")
+    ps.add_argument("--exhaust", action="store_true")
+    ps.add_argument("--max-derive-rounds", type=int, default=10)
+    ps.add_argument("--budget", type=int, default=300)
+    ps.add_argument("--domain", default=None)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # product generate-summary
+    ps = product_sub.add_parser("generate-summary",
+                                help="Programmatic summary of belief state (no LLM)")
+    ps.add_argument("--output", default="reasons.db")
+
+    # product summary
+    ps = product_sub.add_parser("summary",
+                                help="LLM-synthesized product summary from beliefs")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
+    # product topics
+    ps = product_sub.add_parser("topics", help="Show exploration queue")
+    ps.add_argument("--all", action="store_true")
+
+    # product status
+    ps = product_sub.add_parser("status", help="Show product forge dashboard")
+    ps.add_argument("--output", default="reasons.db")
+
+    # product update
+    ps = product_sub.add_parser("update",
+                                help="Incremental update pipeline")
+    ps.add_argument("--since", default=None)
+    ps.add_argument("--since-last", action="store_true", dest="since_last")
+    ps.add_argument("--limit", type=int, default=100)
+    ps.add_argument("--all-pages", action="store_true", dest="all_pages")
+    ps.add_argument("--parallel", type=int, default=1)
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
     # project — project management from issue trackers
     p = parent_subparsers.add_parser(
         "project",
@@ -462,14 +576,52 @@ def _cmd_code(args):
 
 
 def _cmd_product(args):
-    """Run the product forge pipeline."""
+    """Run the product forge pipeline or dispatch to a subcommand."""
+    from .product.commands import (
+        cmd_accept_beliefs as _prod_accept,
+        cmd_derive as _prod_derive,
+        cmd_explore as _prod_explore,
+        cmd_generate_summary as _prod_gen_summary,
+        cmd_ingest as _prod_ingest,
+        cmd_init as _prod_init,
+        cmd_propose_beliefs as _prod_propose,
+        cmd_review_proposals as _prod_review,
+        cmd_scan as _prod_scan,
+        cmd_status as _prod_status,
+        cmd_summary as _prod_summary,
+        cmd_topics as _prod_topics,
+        cmd_update as _prod_update,
+    )
+    from .product.pipeline import cmd_analyze
+
+    product_command = getattr(args, "product_command", None)
+
+    _prod_dispatch = {
+        "init": _prod_init,
+        "scan": _prod_scan,
+        "ingest": _prod_ingest,
+        "explore": _prod_explore,
+        "propose-beliefs": _prod_propose,
+        "accept-beliefs": _prod_accept,
+        "review-proposals": _prod_review,
+        "derive": _prod_derive,
+        "generate-summary": _prod_gen_summary,
+        "summary": _prod_summary,
+        "topics": _prod_topics,
+        "status": _prod_status,
+        "update": _prod_update,
+    }
+
+    if product_command and product_command in _prod_dispatch:
+        _prod_dispatch[product_command](args)
+        return
+
+    # No subcommand — run full analyze pipeline
     source = args.github or args.gitlab or args.jira
     if not source:
         print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
         sys.exit(1)
-    print(f"Product forge: analyzing {source}", file=sys.stderr)
-    print("Not yet implemented — coming in a future release.", file=sys.stderr)
-    sys.exit(1)
+    cmd_analyze(args)
 
 
 def _cmd_project(args):
