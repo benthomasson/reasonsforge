@@ -424,7 +424,7 @@ class TestLookupDispatch:
             MockPgApi.return_value.__enter__ = MagicMock(return_value=mock_pg)
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
             result = lookup("alpha", pg_conninfo="postgresql://...", project_id="test")
-        mock_pg.lookup.assert_called_once_with(query="alpha", visible_to=None)
+        mock_pg.lookup.assert_called_once_with(query="alpha", visible_to=None, include_out=False)
         assert "alpha" in result.lower()
 
     def test_passes_visible_to(self):
@@ -435,7 +435,7 @@ class TestLookupDispatch:
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
             result = lookup("secret", visible_to=["admin"],
                             pg_conninfo="postgresql://...", project_id="test")
-        mock_pg.lookup.assert_called_once_with(query="secret", visible_to=["admin"])
+        mock_pg.lookup.assert_called_once_with(query="secret", visible_to=["admin"], include_out=False)
 
 
 class TestMaintenanceCliNoLongerBlocked:

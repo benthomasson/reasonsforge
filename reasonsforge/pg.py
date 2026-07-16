@@ -732,7 +732,7 @@ class PgApi:
             "retracted_at": _fmt_ts(retracted_at),
         }
 
-    def search(self, query, visible_to=None, format="markdown"):
+    def search(self, query, visible_to=None, format="markdown", include_out=False):
         pid = self.project_id
 
         with self.conn.cursor() as cur:
@@ -763,12 +763,14 @@ class PgApi:
                 return {"results": [], "count": 0}
             return "No results found."
 
-        # Apply visibility filter
+        # Apply visibility and OUT filters
         matched = []
         for row in matched_rows:
             nid, text, tv, source, meta = row
             if isinstance(meta, str):
                 meta = json.loads(meta)
+            if not include_out and tv == "OUT":
+                continue
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 continue
             matched.append({
@@ -934,7 +936,7 @@ class PgApi:
             "sha_bumped": 0,
         }
 
-    def lookup(self, query, visible_to=None):
+    def lookup(self, query, visible_to=None, include_out=False):
         """Simple all-terms substring search over full belief blocks."""
         pid = self.project_id
         query_terms = query.lower().split()
@@ -971,6 +973,8 @@ class PgApi:
         for nid, text, tv, source, source_hash, date, meta in node_rows:
             if isinstance(meta, str):
                 meta = json.loads(meta) if meta else {}
+            if not include_out and tv == "OUT":
+                continue
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 continue
 
@@ -1836,7 +1840,7 @@ class PgApi:
                 ]
         return {"entries": entries}
 
-    def compact(self, budget=500, truncate=True, visible_to=None):
+    def compact(self, budget=500, truncate=True, visible_to=None, include_out=False):
         from datetime import date as _date
 
         pid = self.project_id
@@ -1853,6 +1857,8 @@ class PgApi:
                 nid, text, tv, source, meta = row
                 if isinstance(meta, str):
                     meta = json.loads(meta)
+                if not include_out and tv == "OUT":
+                    continue
                 if visible_to is not None and not self._is_visible(meta, visible_to):
                     continue
                 all_nodes.append({

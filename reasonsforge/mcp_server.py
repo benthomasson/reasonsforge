@@ -55,15 +55,18 @@ def _get_db() -> str:
 
 
 @mcp.tool()
-def search(query: str, output_format: str = "markdown", depth: int = 1) -> str:
+def search(query: str, output_format: str = "markdown", depth: int = 1,
+           include_out: bool = False) -> str:
     """Search beliefs by text with neighbor expansion.
 
     Args:
         query: Search terms (matches all terms in any order)
         output_format: Output format — "markdown", "json", or "minimal"
         depth: Hops to expand along justification chains (default 1)
+        include_out: Include OUT (retracted) beliefs in results (default: false)
     """
-    return api.search(query, db_path=_get_db(), format=output_format, depth=depth)
+    return api.search(query, db_path=_get_db(), format=output_format, depth=depth,
+                      include_out=include_out)
 
 
 @mcp.tool()
@@ -226,13 +229,14 @@ def trace(node_id: str) -> str:
 
 
 @mcp.tool()
-def compact(budget: int = 500) -> str:
+def compact(budget: int = 500, include_out: bool = False) -> str:
     """Get a token-budgeted summary of the entire belief network.
 
     Args:
         budget: Maximum token budget for the summary
+        include_out: Include OUT (retracted) beliefs in summary (default: false)
     """
-    return api.compact(budget=budget, db_path=_get_db())
+    return api.compact(budget=budget, include_out=include_out, db_path=_get_db())
 
 
 # --- Tier 3: Data management ---

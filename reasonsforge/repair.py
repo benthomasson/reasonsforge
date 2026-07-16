@@ -370,7 +370,7 @@ def repair_beliefs(review_results, nodes, model="claude",
     from . import api
 
     if search_fn is None:
-        search_fn = lambda query, **kw: api.search(query, **kw)
+        search_fn = lambda query, **kw: api.search(query, include_out=True, **kw)
 
     invalid = [r for r in review_results if not r.get("valid", True)]
     invalid_ids = {r["id"] for r in invalid}
@@ -513,7 +513,7 @@ def repair_smuggled_beliefs(review_results, nodes, model="claude",
     from . import api
 
     if search_fn is None:
-        search_fn = lambda query, **kw: api.search(query, **kw)
+        search_fn = lambda query, **kw: api.search(query, include_out=True, **kw)
 
     invalid = [r for r in review_results if not r.get("valid", True)]
     repairs = []

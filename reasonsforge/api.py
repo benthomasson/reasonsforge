@@ -2476,30 +2476,41 @@ def pin_lines(
                           repos=repo_paths, db_dir=db_dir)
 
 
-def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
+def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | None = None,
+            include_out: bool = False,
+            db_path: str = DEFAULT_DB,
             pg_conninfo=None, project_id=None) -> str:
     """Generate a token-budgeted belief state summary.
+
+    Args:
+        include_out: if False (default), exclude OUT beliefs from the summary
 
     Returns: the compact summary string
     """
     if pg_conninfo:
         return _pg_dispatch(pg_conninfo, project_id, "compact",
-                            budget=budget, truncate=truncate, visible_to=visible_to)
+                            budget=budget, truncate=truncate, visible_to=visible_to,
+                            include_out=include_out)
     from .compact import compact as _compact
 
     with _with_network(db_path) as net:
-        if visible_to is not None:
+        needs_filter = visible_to is not None or not include_out
+        if needs_filter:
             from .network import Network
             filtered = Network()
             for nid, node in net.nodes.items():
-                if _is_visible(node, visible_to):
-                    filtered.nodes[nid] = node
+                if not include_out and node.truth_value == "OUT":
+                    continue
+                if visible_to is not None and not _is_visible(node, visible_to):
+                    continue
+                filtered.nodes[nid] = node
             filtered.nogoods = [ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)]
             return _compact(filtered, budget=budget, truncate=truncate)
         return _compact(net, budget=budget, truncate=truncate)
 
 
 def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
+           include_out: bool = False,
            pg_conninfo=None, project_id=None) -> str:
     """Simple all-terms search over the full belief block — ID, text, source,
     dependencies, and metadata. Matches the same search corpus and output
@@ -2509,16 +2520,20 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         query: search terms (all must appear, case-insensitive)
         visible_to: only return nodes whose access_tags are a subset
         db_path: path to RMS database
+        include_out: if False (default), exclude OUT beliefs from results
 
     Returns: formatted string with matching beliefs (full blocks)
     """
     if pg_conninfo:
         return _pg_dispatch(pg_conninfo, project_id, "lookup",
-                            query=query, visible_to=visible_to)
+                            query=query, visible_to=visible_to,
+                            include_out=include_out)
     with _with_network(db_path) as net:
         query_terms = query.lower().split()
         matches = []
         for nid, node in sorted(net.nodes.items()):
+            if not include_out and node.truth_value == "OUT":
+                continue
             if visible_to is not None and not _is_visible(node, visible_to):
                 continue
             # Build the full searchable block — same fields as beliefs.md
@@ -2562,6 +2577,7 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
 def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
            format: str = "markdown", depth: int = 1,
+           include_out: bool = False,
            pg_conninfo=None, project_id=None) -> str:
     """Search nodes using full-text search with neighbor expansion.
 
@@ -2577,6 +2593,7 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         db_path: path to RMS database
         format: output format — "markdown" (default), "json", or "minimal"
         depth: number of hops to expand along justification chains (default: 1)
+        include_out: if False (default), exclude OUT beliefs from results
 
     Returns: formatted string with matched nodes and neighbors
     """
@@ -2584,7 +2601,8 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         if depth != 1:
             raise NotImplementedError("depth is not supported with PostgreSQL")
         return _pg_dispatch(pg_conninfo, project_id, "search",
-                            query=query, visible_to=visible_to, format=format)
+                            query=query, visible_to=visible_to, format=format,
+                            include_out=include_out)
     with _with_network(db_path) as net:
         matched_ids = _fts_search(query, db_path)
 
@@ -2594,6 +2612,13 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
         if not matched_ids:
             return "No results found."
+
+        # Filter OUT beliefs unless explicitly requested
+        if not include_out:
+            matched_ids = [nid for nid in matched_ids
+                           if nid in net.nodes and net.nodes[nid].truth_value != "OUT"]
+            if not matched_ids:
+                return "No results found."
 
         # Apply access filtering
         if visible_to is not None:
@@ -2628,6 +2653,11 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
         # Remove already-matched nodes from neighbors
         neighbor_ids -= set(matched_ids)
+
+        # Filter OUT neighbors too
+        if not include_out:
+            neighbor_ids = {nid for nid in neighbor_ids
+                            if nid in net.nodes and net.nodes[nid].truth_value != "OUT"}
 
         # Apply access filtering to neighbors too
         if visible_to is not None:
