@@ -1908,7 +1908,7 @@ def cmd_research(args):
         if not c.get("sufficient", True):
             status.append("insufficient")
         print(f"  {c['id']} [{', '.join(status)}]", file=sys.stderr)
-        print(f"    {c['comment'][:120]}", file=sys.stderr)
+        print(f"    {(c.get('comment') or '')[:120]}", file=sys.stderr)
 
     # Step 2: Load belief network for claim text
     try:
@@ -1935,7 +1935,7 @@ def cmd_research(args):
         prompts.append(RESEARCH_INFER_FILES_PROMPT.format(
             belief_id=c["id"],
             belief_text=belief_text,
-            comment=c["comment"],
+            comment=c.get("comment") or "",
             repo_tree=repo_tree,
             explored_files=explored_list,
         ))
