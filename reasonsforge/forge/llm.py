@@ -39,7 +39,7 @@ def resolve_model_cmd(model: str) -> list[str]:
     )
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
-DEFAULT_TIMEOUT = 300
+DEFAULT_TIMEOUT = 600
 
 _cost_tracker = {
     "calls": 0,

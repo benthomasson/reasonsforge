@@ -108,10 +108,34 @@ RUST = LanguageProfile(
     decorator_prefix="#[",
 )
 
+GO = LanguageProfile(
+    name="go",
+    source_globs=["*.go"],
+    source_extensions=[".go"],
+    fence_language="go",
+    definition_patterns=[
+        r"^func\s+(\(.*?\)\s+)?{symbol}\s*\(",
+        r"^type\s+{symbol}\s+(struct|interface|func)\b",
+        r"^var\s+{symbol}\b",
+        r"^const\s+{symbol}\b",
+    ],
+    import_line_prefixes=["import "],
+    scope_style="brace",
+    test_globs=["*_test.go"],
+    entry_point_candidates=[
+        "main.go", "cmd/main.go",
+    ],
+    config_files=["go.mod"],
+    primary_extension=".go",
+    config_entry_point_marker=None,
+    decorator_prefix=None,
+)
+
 LANGUAGE_REGISTRY: dict[str, LanguageProfile] = {
     "python": PYTHON,
     "cpp": CPP,
     "rust": RUST,
+    "go": GO,
 }
 
 _CONFIG_TO_LANGUAGE: dict[str, str] = {
