@@ -35,6 +35,7 @@ from .language import PYTHON, detect_language
 from .observations import parse_observation_requests, run_observations
 from .prompts import (
     PROPOSE_BELIEFS_CODE,
+    RESEARCH_INFER_FILES_PROMPT,
     REVIEW_PROMPT,
     VERIFY_INFER_FILE_PROMPT,
     VERIFY_OBSERVE_PROMPT,
@@ -1813,6 +1814,226 @@ def cmd_verify(args):
             except Exception as e:
                 print(f"  Failed to retract {bid}: {e}", file=sys.stderr)
         print("Network updated.", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
+# research
+# ---------------------------------------------------------------------------
+
+
+def _get_explored_files() -> set[str]:
+    """Scan summaries/ for '# File: <path>' headers to find already-explored files."""
+    explored = set()
+    summaries_dir = Path("summaries")
+    if not summaries_dir.exists():
+        return explored
+    for entry_path in summaries_dir.rglob("*.md"):
+        try:
+            for line in entry_path.read_text().splitlines()[:5]:
+                if line.startswith("# File: "):
+                    explored.add(line[8:].strip())
+                    break
+        except OSError:
+            pass
+    return explored
+
+
+def _parse_review_candidates(review_file: str) -> list[dict]:
+    """Parse review JSON and return candidates where sufficient=false or valid=false."""
+    with open(review_file) as f:
+        data = json.load(f)
+    candidates = []
+    for result in data.get("results", []):
+        if not result.get("sufficient", True) or not result.get("valid", True):
+            candidates.append(result)
+    return candidates
+
+
+def _parse_inferred_files(response: str) -> list[str]:
+    """Extract JSON array of file paths from LLM response."""
+    for m in re.finditer(r"\[.*?\]", response, re.DOTALL):
+        try:
+            files = json.loads(m.group(0))
+            if isinstance(files, list) and all(isinstance(f, str) for f in files):
+                return files
+        except json.JSONDecodeError:
+            continue
+    return []
+
+
+def cmd_research(args):
+    """Evidence-driven exploration from belief review gaps.
+
+    Reads a review JSON file (from review-beliefs), identifies beliefs
+    lacking evidence, infers which source files to explore, then runs
+    the explore → propose → accept pipeline.
+    """
+    from ..caffeinate import hold as _caffeinate
+    from ..llm import check_model_available, invoke, invoke_concurrent_sync
+    _caffeinate()
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 600)
+    parallel = getattr(args, "parallel", 1)
+    repo_path = _get_repo(args)
+    abs_repo = os.path.abspath(repo_path)
+    project_dir = _get_project_dir(args)
+    db_path = getattr(args, "output", REASONS_DB)
+    review_file = getattr(args, "review_file", None)
+    limit = getattr(args, "limit", None)
+    dry_run = getattr(args, "dry_run", False)
+
+    if not review_file:
+        print("Error: --review-file is required", file=sys.stderr)
+        sys.exit(1)
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    # Step 1: Parse review and find candidates
+    candidates = _parse_review_candidates(review_file)
+    if not candidates:
+        print("No research candidates found (all beliefs have sufficient evidence).")
+        return
+
+    if limit:
+        candidates = candidates[:limit]
+
+    print(f"Found {len(candidates)} research candidate(s)", file=sys.stderr)
+    for c in candidates:
+        status = []
+        if not c.get("valid", True):
+            status.append("invalid")
+        if not c.get("sufficient", True):
+            status.append("insufficient")
+        print(f"  {c['id']} [{', '.join(status)}]", file=sys.stderr)
+        print(f"    {(c.get('comment') or '')[:120]}", file=sys.stderr)
+
+    # Step 2: Load belief network for claim text
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=db_path)
+        nodes = network.get("nodes", {})
+    except Exception:
+        nodes = {}
+
+    # Step 3: Collect already-explored files
+    explored = _get_explored_files()
+    if explored:
+        print(f"\n{len(explored)} files already explored", file=sys.stderr)
+
+    # Step 4: Infer source files via LLM
+    print(f"\nInferring source files with {model}...", file=sys.stderr)
+    repo_tree = get_repo_structure(abs_repo, max_depth=3)
+    explored_list = "\n".join(f"- {f}" for f in sorted(explored)) if explored else "(none)"
+
+    prompts = []
+    for c in candidates:
+        node = nodes.get(c["id"], {})
+        belief_text = node.get("text", c["id"])
+        prompts.append(RESEARCH_INFER_FILES_PROMPT.format(
+            belief_id=c["id"],
+            belief_text=belief_text,
+            comment=c.get("comment") or "",
+            repo_tree=repo_tree,
+            explored_files=explored_list,
+        ))
+
+    results = invoke_concurrent_sync(prompts, model=model, timeout=timeout, max_concurrent=parallel)
+
+    # Step 5: Collect and deduplicate inferred files
+    all_files: dict[str, list[str]] = {}
+    for i, result in enumerate(results):
+        candidate = candidates[i]
+        if isinstance(result, Exception):
+            print(f"  Error inferring files for {candidate['id']}: {result}", file=sys.stderr)
+            continue
+        files = _parse_inferred_files(result)
+        print(f"  {candidate['id']}: {files}", file=sys.stderr)
+        for f in files:
+            if os.path.isabs(f) or ".." in f.split(os.sep):
+                print(f"    Skipping {f} (unsafe path)", file=sys.stderr)
+                continue
+            abs_path = os.path.join(abs_repo, f)
+            if not os.path.isfile(abs_path):
+                print(f"    Skipping {f} (not found)", file=sys.stderr)
+                continue
+            if f in explored:
+                print(f"    Skipping {f} (already explored)", file=sys.stderr)
+                continue
+            all_files.setdefault(f, []).append(candidate["id"])
+
+    if not all_files:
+        print("\nNo new files to explore.", file=sys.stderr)
+        return
+
+    print(f"\n{len(all_files)} file(s) to explore:", file=sys.stderr)
+    for f, belief_ids in all_files.items():
+        print(f"  {f} (for: {', '.join(belief_ids)})", file=sys.stderr)
+
+    if dry_run:
+        print("\n--dry-run: stopping before exploration.", file=sys.stderr)
+        return
+
+    # Step 6: Build topics and explore
+    lang = _get_lang(args, abs_repo)
+    topics = [
+        Topic(
+            title=f"Research: evidence for {', '.join(belief_ids)}",
+            kind="file",
+            target=file_path,
+            source=f"research:{','.join(belief_ids)}",
+        )
+        for file_path, belief_ids in all_files.items()
+    ]
+
+    print(f"\nExploring {len(topics)} file(s)...", file=sys.stderr)
+    if parallel > 1 and len(topics) > 1:
+        batch_results = asyncio.run(
+            _explore_topics_concurrent(topics, model, abs_repo, timeout, parallel, lang=lang)
+        )
+        for r in batch_results:
+            if isinstance(r, Exception):
+                print(f"  Error: {r}", file=sys.stderr)
+            elif r is not None:
+                _, result, entry_name, entry_title, source = r
+                _finalize_topic(entry_name, entry_title, source, result, project_dir)
+    else:
+        for topic in topics:
+            prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
+            if prepared is None:
+                continue
+            prompt, entry_name, entry_title, source = prepared
+            print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
+            try:
+                result = asyncio.run(invoke(prompt, model, timeout=timeout))
+            except Exception as e:
+                print(f"  Error exploring {topic.target}: {e}", file=sys.stderr)
+                continue
+            _finalize_topic(entry_name, entry_title, source, result, project_dir)
+
+    # Step 7: Propose and accept beliefs from new entries
+    print(f"\n{'=' * 40}", file=sys.stderr)
+    print("Proposing and accepting beliefs from new entries...", file=sys.stderr)
+    print(f"{'=' * 40}", file=sys.stderr)
+
+    try:
+        propose_args = type(args)(**vars(args))
+        propose_args.auto = True
+        propose_args.all = False
+        propose_args.since = None
+        propose_args.proposals_output = "proposed-beliefs.md"
+        propose_args.batch_size = 5
+        cmd_propose_beliefs(propose_args)
+    except SystemExit as e:
+        if e.code and e.code != 0:
+            print(f"WARN: propose-beliefs failed (exit {e.code})", file=sys.stderr)
+    except Exception as e:
+        print(f"WARN: propose-beliefs failed: {e}", file=sys.stderr)
+
+    print("\nResearch complete. Run `reasonsforge code derive` to attempt rejustification.",
+          file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

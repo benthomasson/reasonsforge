@@ -144,6 +144,21 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
+    # code research
+    cs = code_sub.add_parser("research",
+                             help="Evidence-driven exploration from belief review gaps")
+    cs.add_argument("--review-file", required=True, dest="review_file",
+                    help="Path to review JSON file (from review-beliefs)")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--limit", type=int, default=None,
+                    help="Max candidates to research")
+    cs.add_argument("--dry-run", action="store_true", dest="dry_run",
+                    help="Show candidates and inferred files without exploring")
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--output", default="reasons.db")
+
     # code derive
     cs = code_sub.add_parser("derive",
                              help="Derive reasoning chains from existing beliefs")
@@ -609,6 +624,7 @@ def _cmd_code(args):
         cmd_explain_function as _code_explain_func,
         cmd_init as _code_init,
         cmd_propose_beliefs as _code_propose,
+        cmd_research as _code_research,
         cmd_review_proposals as _code_review,
         cmd_scan as _code_scan,
         cmd_status as _code_status,
@@ -628,6 +644,7 @@ def _cmd_code(args):
         "accept-beliefs": _code_accept,
         "review-proposals": _code_review,
         "verify": _code_verify,
+        "research": _code_research,
         "derive": _code_derive,
         "topics": _code_topics,
         "status": _code_status,

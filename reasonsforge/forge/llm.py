@@ -179,6 +179,35 @@ def invoke_sync(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEO
     return asyncio.run(invoke(prompt, model, timeout))
 
 
+async def invoke_concurrent(
+    prompts: list[str],
+    model: str = "claude",
+    timeout: int = DEFAULT_TIMEOUT,
+    max_concurrent: int = 3,
+) -> list[str | Exception]:
+    """Invoke model on multiple prompts concurrently with bounded parallelism."""
+    sem = asyncio.Semaphore(max_concurrent)
+
+    async def _guarded(prompt: str) -> str:
+        async with sem:
+            return await invoke(prompt, model, timeout)
+
+    return await asyncio.gather(
+        *[_guarded(p) for p in prompts],
+        return_exceptions=True,
+    )
+
+
+def invoke_concurrent_sync(
+    prompts: list[str],
+    model: str = "claude",
+    timeout: int = DEFAULT_TIMEOUT,
+    max_concurrent: int = 3,
+) -> list[str | Exception]:
+    """Synchronous wrapper around invoke_concurrent."""
+    return asyncio.run(invoke_concurrent(prompts, model, timeout, max_concurrent))
+
+
 RETRY_JSON = "Your response was not valid JSON. Respond with ONLY the JSON object, no other text."
 
 
