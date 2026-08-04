@@ -64,14 +64,14 @@ def register_forge_type_commands(parent_subparsers):
     cs = code_sub.add_parser("scan", help="Scan repo structure and populate topic queue")
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
 
     # code explore
     cs = code_sub.add_parser("explore", help="Explore next topic(s) in queue")
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--loop", type=int, default=None, help="Explore up to N topics")
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
 
     # code explain
@@ -85,7 +85,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--since", default=None)
     cs.add_argument("--since-last", action="store_true", dest="since_last")
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code walk-commits
@@ -97,7 +97,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--since-last", action="store_true", dest="since_last")
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
 
@@ -111,7 +111,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--auto", action="store_true")
     cs.add_argument("--since", default=None)
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
 
@@ -127,7 +127,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--proposals-file", default="proposed-beliefs.md")
     cs.add_argument("--batch-size", type=int, default=20)
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code verify
@@ -141,7 +141,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--batch-size", type=int, default=10)
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code derive
@@ -153,7 +153,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--budget", type=int, default=300)
     cs.add_argument("--domain", default=None)
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code topics
@@ -174,7 +174,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--since-commit", default=None)
     cs.add_argument("--since-last", action="store_true", dest="since_last")
     cs.add_argument("--model", default="claude")
-    cs.add_argument("--timeout", type=int, default=300)
+    cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=3)
@@ -587,6 +587,14 @@ def _cmd_document(args):
     cmd_pipeline(args)
 
 
+def _print_cost():
+    """Print accumulated LLM cost summary if any calls were made."""
+    from .llm import format_cost_summary
+    cost = format_cost_summary()
+    if cost:
+        print(f"  {cost}", file=sys.stderr)
+
+
 def _cmd_code(args):
     """Run the code forge pipeline or dispatch to a subcommand."""
     from .code.commands import (
@@ -623,22 +631,25 @@ def _cmd_code(args):
         "update": cmd_update,
     }
 
-    if code_command == "explain":
-        kind = getattr(args, "kind", "file")
-        if kind == "file":
-            _code_explain_file(args)
-        elif kind == "function":
-            _code_explain_func(args)
-        elif kind == "diff":
-            _code_explain_diff(args)
-        return
+    try:
+        if code_command == "explain":
+            kind = getattr(args, "kind", "file")
+            if kind == "file":
+                _code_explain_file(args)
+            elif kind == "function":
+                _code_explain_func(args)
+            elif kind == "diff":
+                _code_explain_diff(args)
+            return
 
-    if code_command and code_command in _code_dispatch:
-        _code_dispatch[code_command](args)
-        return
+        if code_command and code_command in _code_dispatch:
+            _code_dispatch[code_command](args)
+            return
 
-    # No subcommand — run full analyze pipeline
-    cmd_analyze(args)
+        # No subcommand — run full analyze pipeline
+        cmd_analyze(args)
+    finally:
+        _print_cost()
 
 
 def _cmd_product(args):

@@ -1375,6 +1375,12 @@ def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tupl
                 set_metadata(belief_id, "accepted_at", now, db_path=db_path)
             except Exception:
                 pass
+            src_file = _extract_source_file(source.strip())
+            if src_file:
+                try:
+                    set_metadata(belief_id, "source_file", src_file, db_path=db_path)
+                except Exception:
+                    pass
         except Exception as e:
             err_str = str(e)
             if "already exists" in err_str:
