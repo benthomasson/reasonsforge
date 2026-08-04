@@ -140,6 +140,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--retract", action="store_true")
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--batch-size", type=int, default=10)
+    cs.add_argument("--no-observe", action="store_true", dest="no_observe",
+                    help="Skip observation pipeline, use simple context gathering")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")

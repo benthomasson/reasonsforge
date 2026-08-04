@@ -1664,6 +1664,183 @@ async def _gather_confirmation_context(beliefs, nodes, repo_path, project_dir=No
     return contexts
 
 
+async def _auto_gather_verify_observations(
+    belief: dict,
+    node: dict,
+    repo_path: str,
+    project_dir: str | None,
+    lang=None,
+) -> tuple[str | None, dict]:
+    """Auto-gather observations for a belief before LLM involvement.
+
+    Reads the source file, finds key symbols, and runs find_usages/grep
+    in parallel. Returns (src_file, observations_dict).
+    """
+    from .observations import find_usages, grep, read_file
+
+    lang = lang or detect_language(repo_path)
+
+    bid = belief["id"]
+    source = node.get("source", "")
+    obs: dict = {}
+
+    src_file = (node.get("metadata") or {}).get("source_file")
+    if not src_file:
+        src_file = _extract_source_file(source, project_dir)
+
+    auto_tasks = []
+    auto_names = []
+
+    if src_file:
+        auto_tasks.append(read_file(src_file, repo_path, max_lines=500))
+        auto_names.append(f"source_file:{src_file}")
+
+    terms = [t for t in bid.replace("-", " ").split() if len(t) > 3]
+    symbols = []
+    for term in terms[:3]:
+        if term[0].isupper() or "_" in term:
+            symbols.append(term)
+
+    for sym in symbols[:2]:
+        auto_tasks.append(find_usages(sym, repo_path, lang=lang))
+        auto_names.append(f"find_usages:{sym}")
+
+    if not symbols and terms:
+        auto_tasks.append(grep(terms[0], repo_path, glob=lang.source_globs, max_results=10))
+        auto_names.append(f"grep:{terms[0]}")
+
+    results = await asyncio.gather(*auto_tasks, return_exceptions=True)
+    for name, result in zip(auto_names, results):
+        if isinstance(result, Exception):
+            continue
+        obs[name] = result
+
+    return src_file, obs
+
+
+async def _verify_belief_with_observations(
+    belief: dict,
+    node: dict,
+    repo_path: str,
+    project_dir: str | None,
+    model: str,
+    timeout: int,
+    db_path: str = REASONS_DB,
+    lang=None,
+) -> tuple[str, str]:
+    """Gather code context for a belief using the observe pattern.
+
+    1. Auto-gather: read source file + find_usages/grep for key symbols
+    2. If no source file, infer via LLM and persist as metadata
+    3. Ask LLM what additional observations it needs
+    4. Execute LLM-requested observations in parallel
+    5. Return combined context
+    """
+    from ..llm import invoke
+    from .observations import parse_observation_requests, read_file, run_observations
+
+    lang = lang or detect_language(repo_path)
+    bid = belief["id"]
+
+    src_file, auto_obs = await _auto_gather_verify_observations(
+        belief, node, repo_path, project_dir, lang=lang,
+    )
+
+    tree = get_repo_structure(repo_path, max_depth=3)
+
+    if src_file is None:
+        try:
+            infer_prompt = VERIFY_INFER_FILE_PROMPT.format(
+                belief_id=bid,
+                belief_text=belief["text"],
+                repo_tree=tree,
+            )
+            infer_response = await invoke(infer_prompt, model, timeout=timeout)
+            inferred = _parse_inferred_files(infer_response)
+            if inferred:
+                candidate = inferred[0]
+                if not os.path.isabs(candidate) and ".." not in candidate.split("/"):
+                    abs_candidate = os.path.join(repo_path, candidate)
+                    if os.path.isfile(abs_candidate):
+                        src_file = candidate
+                        file_result = await read_file(src_file, repo_path, max_lines=500)
+                        auto_obs[f"source_file:{src_file}"] = file_result
+                        print(f"  Inferred source file for {bid}: {src_file}", file=sys.stderr)
+                        try:
+                            from reasonsforge.api import set_metadata
+                            set_metadata(bid, "source_file", src_file, db_path=db_path)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+    seed_context = ""
+    source_key = f"source_file:{src_file}" if src_file else None
+    if source_key and source_key in auto_obs:
+        file_result = auto_obs[source_key]
+        if "content" in file_result:
+            content = file_result["content"]
+            if len(content) > 4000:
+                content = content[:4000] + "\n... (truncated)"
+            seed_context = f"### {src_file}\n```\n{content}\n```"
+
+    observe_prompt = VERIFY_OBSERVE_PROMPT.format(
+        belief_id=bid,
+        belief_text=belief["text"],
+        seed_context=seed_context or "(no initial source file)",
+        tree=tree,
+        default_glob=lang.source_globs[0],
+    )
+    observe_response = await invoke(observe_prompt, model, timeout=timeout)
+    requested_obs = parse_observation_requests(observe_response)
+
+    llm_obs = {}
+    if requested_obs:
+        llm_obs = await run_observations(requested_obs, repo_path)
+
+    all_obs = {**auto_obs, **llm_obs}
+
+    context_parts: list[str] = []
+    if seed_context:
+        context_parts.append(seed_context)
+    if all_obs:
+        display_obs = {k: v for k, v in all_obs.items() if k != source_key}
+        if display_obs:
+            context_parts.append(
+                f"## Observations\n\n```json\n{json.dumps(display_obs, indent=2, default=str)}\n```"
+            )
+
+    return bid, "\n\n".join(context_parts) if context_parts else "(no code context found)"
+
+
+async def _gather_verify_contexts(
+    beliefs: list[dict],
+    nodes: dict,
+    repo_path: str,
+    project_dir: str | None,
+    model: str,
+    timeout: int,
+    db_path: str = REASONS_DB,
+) -> dict[str, str]:
+    """Gather observation-based code context for verifying beliefs."""
+    tasks = [
+        _verify_belief_with_observations(
+            b, nodes.get(b["id"], {}), repo_path, project_dir, model, timeout,
+            db_path=db_path,
+        )
+        for b in beliefs
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    contexts: dict[str, str] = {}
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            print(f"  Error gathering context for {beliefs[i]['id']}: {result}", file=sys.stderr)
+            contexts[beliefs[i]["id"]] = "(error gathering context)"
+        else:
+            contexts[result[0]] = result[1]
+    return contexts
+
+
 def cmd_verify(args):
     """Check whether beliefs still hold against current source code."""
     from ..caffeinate import hold as _caffeinate
@@ -1671,7 +1848,7 @@ def cmd_verify(args):
     _caffeinate()
 
     model = getattr(args, "model", "claude")
-    timeout = getattr(args, "timeout", 300)
+    timeout = getattr(args, "timeout", 600)
     repo_path = _get_repo(args)
     abs_repo = os.path.abspath(repo_path)
     project_dir = _get_project_dir(args)
@@ -1681,6 +1858,7 @@ def cmd_verify(args):
     category = getattr(args, "category", None)
     batch_size = getattr(args, "batch_size", 10)
     dry_run = getattr(args, "dry_run", False)
+    no_observe = getattr(args, "no_observe", False)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -1741,9 +1919,17 @@ def cmd_verify(args):
     for i, batch in enumerate(batches):
         print(f"\nVerifying batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...", file=sys.stderr)
 
-        contexts = asyncio.run(
-            _gather_confirmation_context(batch, nodes, abs_repo, project_dir)
-        )
+        if no_observe:
+            contexts = asyncio.run(
+                _gather_confirmation_context(batch, nodes, abs_repo, project_dir)
+            )
+        else:
+            contexts = asyncio.run(
+                _gather_verify_contexts(
+                    batch, nodes, abs_repo, project_dir, model, timeout,
+                    db_path=db_path,
+                )
+            )
 
         beliefs_section = []
         for belief in batch:
@@ -1789,6 +1975,34 @@ def cmd_verify(args):
 
     print(f"\nResults: {len(confirmed)} confirmed, {len(stale)} stale, "
           f"{len(inconclusive)} inconclusive", file=sys.stderr)
+
+    # List referenced source files (walk justification chain)
+    referenced_files: set[str] = set()
+    visited: set[str] = set()
+
+    def _collect_source_files(nid: str) -> None:
+        if nid in visited:
+            return
+        visited.add(nid)
+        node = nodes.get(nid, {})
+        src = (node.get("metadata") or {}).get("source_file")
+        if src:
+            referenced_files.add(src)
+        else:
+            src = _extract_source_file(node.get("source", ""), project_dir)
+            if src:
+                referenced_files.add(src)
+        for j in node.get("justifications", []):
+            for ant in j.get("antecedents", []):
+                _collect_source_files(ant)
+
+    for belief in beliefs:
+        _collect_source_files(belief["id"])
+
+    if referenced_files:
+        print(f"\nFiles referenced ({len(referenced_files)}):", file=sys.stderr)
+        for f in sorted(referenced_files):
+            print(f"  {f}", file=sys.stderr)
 
     # Stamp verified_at on confirmed beliefs
     if confirmed:
