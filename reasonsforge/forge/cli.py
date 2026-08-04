@@ -589,10 +589,13 @@ def _cmd_document(args):
 
 def _print_cost():
     """Print accumulated LLM cost summary if any calls were made."""
-    from .llm import format_cost_summary
-    cost = format_cost_summary()
-    if cost:
-        print(f"  {cost}", file=sys.stderr)
+    try:
+        from .llm import format_cost_summary
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+    except Exception:
+        pass
 
 
 def _cmd_code(args):
