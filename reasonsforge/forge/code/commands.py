@@ -2291,7 +2291,7 @@ def cmd_derive(args):
             print(f"Error loading network: {e}", file=sys.stderr)
             sys.exit(1)
 
-        prompt = build_prompt(nodes, domain=domain, budget=budget, sample=True)
+        prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True)
 
         try:
             response = invoke_sync(prompt, model=model, timeout=timeout)
