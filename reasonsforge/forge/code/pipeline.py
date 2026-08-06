@@ -42,6 +42,45 @@ def _run_step(name, func, args, errors):
         print(f"WARN: {name} failed: {e}, continuing...", file=sys.stderr)
 
 
+def _load_step_checkpoint(project_dir: str, pipeline: str) -> dict:
+    """Load step-level checkpoint for resume support."""
+    path = os.path.join(project_dir, f"progress-{pipeline}.json")
+    if os.path.isfile(path):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return {}
+
+
+def _save_step_checkpoint(project_dir: str, pipeline: str, step: str,
+                          started: str, errors: list[str]):
+    """Save step-level progress so pipeline can resume after crashes."""
+    path = os.path.join(project_dir, f"progress-{pipeline}.json")
+    os.makedirs(project_dir, exist_ok=True)
+    checkpoint = _load_step_checkpoint(project_dir, pipeline)
+    completed = checkpoint.get("completed_steps", [])
+    if step not in completed:
+        completed.append(step)
+    checkpoint.update({
+        "started": checkpoint.get("started", started),
+        "last_step": step,
+        "last_step_at": datetime.now().isoformat(timespec="seconds"),
+        "completed_steps": completed,
+        "errors": errors,
+    })
+    with open(path, "w") as f:
+        json.dump(checkpoint, f, indent=2)
+
+
+def _clear_step_checkpoint(project_dir: str, pipeline: str):
+    """Remove step checkpoint after successful completion."""
+    path = os.path.join(project_dir, f"progress-{pipeline}.json")
+    if os.path.isfile(path):
+        os.remove(path)
+
+
 def cmd_update(args):
     """Incremental update: walk-commits, propose, review, accept, derive, summarize."""
     from ..caffeinate import hold as _caffeinate
@@ -51,6 +90,7 @@ def cmd_update(args):
     db_path = getattr(args, "output", REASONS_DB)
     errors = []
     started = datetime.now().isoformat(timespec="seconds")
+    resume = getattr(args, "resume", False)
 
     since = getattr(args, "since", None)
     effective_since = since
@@ -65,6 +105,11 @@ def cmd_update(args):
             except (json.JSONDecodeError, ValueError):
                 pass
 
+    progress = _load_step_checkpoint(project_dir, "update") if resume else {}
+    completed = set(progress.get("completed_steps", []))
+    if resume and completed:
+        print(f"Resuming update — skipping completed steps: {', '.join(sorted(completed))}", file=sys.stderr)
+
     try:
         from reasonsforge.api import export_network
         network = export_network(db_path=db_path)
@@ -72,26 +117,27 @@ def cmd_update(args):
     except Exception:
         pre_run_ids = set()
 
-    # Step 1: walk-commits
-    _run_step("Step 1: Walk commits", cmd_walk_commits, args, errors)
+    steps = [
+        ("walk-commits", "Step 1: Walk commits",
+         lambda: _run_step("Step 1: Walk commits", cmd_walk_commits, args, errors)),
+        ("propose-beliefs", "Step 2: Propose beliefs",
+         lambda: _run_step("Step 2: Propose beliefs", cmd_propose_beliefs,
+                           SimpleNamespace(**vars(args), since=effective_since, auto=False), errors)),
+        ("review-proposals", "Step 3: Review proposals",
+         lambda: _run_step("Step 3: Review proposals", cmd_review_proposals, args, errors)),
+        ("accept-beliefs", "Step 4: Accept beliefs",
+         lambda: _run_step("Step 4: Accept beliefs", cmd_accept_beliefs, args, errors)),
+        ("derive", "Step 5: Derive (exhaust)",
+         lambda: _run_step("Step 5: Derive (exhaust)", cmd_derive,
+                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+    ]
 
-    # Step 2: propose-beliefs
-    propose_args = SimpleNamespace(**vars(args))
-    propose_args.since = effective_since
-    propose_args.auto = False
-    _run_step("Step 2: Propose beliefs", cmd_propose_beliefs, propose_args, errors)
-
-    # Step 3: review-proposals
-    _run_step("Step 3: Review proposals", cmd_review_proposals, args, errors)
-
-    # Step 4: accept-beliefs
-    _run_step("Step 4: Accept beliefs", cmd_accept_beliefs, args, errors)
-
-    # Step 5: derive (exhaust)
-    derive_args = SimpleNamespace(**vars(args))
-    derive_args.exhaust = True
-    derive_args.auto = True
-    _run_step("Step 5: Derive (exhaust)", cmd_derive, derive_args, errors)
+    for step_key, step_name, step_fn in steps:
+        if step_key in completed:
+            print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
+            continue
+        step_fn()
+        _save_step_checkpoint(project_dir, "update", step_key, started, errors)
 
     # Save update checkpoint
     try:
@@ -116,6 +162,8 @@ def cmd_update(args):
         json.dump(checkpoint, f, indent=2)
     print(f"Update checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
+    _clear_step_checkpoint(project_dir, "update")
+
     print("\n=== Update complete ===\n", file=sys.stderr)
     if errors:
         print(f"Completed with {len(errors)} warning(s):", file=sys.stderr)
@@ -129,6 +177,8 @@ def cmd_analyze(args):
     """Full automated analysis of a codebase from scratch.
 
     Pipeline: init -> scan -> explore -> propose -> review -> accept -> derive
+
+    With --resume, skips steps that completed in a prior interrupted run.
     """
     from ..caffeinate import hold as _caffeinate
     _caffeinate()
@@ -137,29 +187,30 @@ def cmd_analyze(args):
     started = datetime.now().isoformat(timespec="seconds")
     db_path = getattr(args, "output", REASONS_DB)
     explore_limit = getattr(args, "limit", 500)
-
-    # Step 1: init
-    _run_step("Step 1: Init", cmd_init, args, errors)
-
-    # Step 2: scan
-    _run_step("Step 2: Scan", cmd_scan, args, errors)
-
-    # Step 3: explore
+    resume = getattr(args, "resume", False)
     project_dir = _get_project_dir(args)
-    if explore_limit <= 0:
-        explore_limit = pending_count(project_dir) or 500
-    explore_args = SimpleNamespace(**vars(args))
-    explore_args.loop = explore_limit
-    print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
-    try:
-        cmd_explore(explore_args)
-    except SystemExit as e:
-        if e.code and e.code != 0:
-            errors.append(f"explore exited with code {e.code}")
-            print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
-    except Exception as e:
-        errors.append(f"explore: {e}")
-        print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
+
+    progress = _load_step_checkpoint(project_dir, "analyze") if resume else {}
+    completed = set(progress.get("completed_steps", []))
+    if resume and completed:
+        print(f"Resuming analysis — skipping completed steps: {', '.join(sorted(completed))}", file=sys.stderr)
+
+    def _run_explore():
+        nonlocal explore_limit
+        if explore_limit <= 0:
+            explore_limit = pending_count(project_dir) or 500
+        explore_args = SimpleNamespace(**vars(args))
+        explore_args.loop = explore_limit
+        print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
+        try:
+            cmd_explore(explore_args)
+        except SystemExit as e:
+            if e.code and e.code != 0:
+                errors.append(f"explore exited with code {e.code}")
+                print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
+        except Exception as e:
+            errors.append(f"explore: {e}")
+            print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
 
     try:
         from reasonsforge.api import export_network
@@ -168,22 +219,30 @@ def cmd_analyze(args):
     except Exception:
         pre_run_ids = set()
 
-    # Step 4: propose-beliefs
-    propose_args = SimpleNamespace(**vars(args))
-    propose_args.auto = False
-    _run_step("Step 4: Propose beliefs", cmd_propose_beliefs, propose_args, errors)
+    steps = [
+        ("init", "Step 1: Init",
+         lambda: _run_step("Step 1: Init", cmd_init, args, errors)),
+        ("scan", "Step 2: Scan",
+         lambda: _run_step("Step 2: Scan", cmd_scan, args, errors)),
+        ("explore", "Step 3: Explore", _run_explore),
+        ("propose-beliefs", "Step 4: Propose beliefs",
+         lambda: _run_step("Step 4: Propose beliefs", cmd_propose_beliefs,
+                           SimpleNamespace(**vars(args), auto=False), errors)),
+        ("review-proposals", "Step 5: Review proposals",
+         lambda: _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)),
+        ("accept-beliefs", "Step 6: Accept beliefs",
+         lambda: _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)),
+        ("derive", "Step 7: Derive (exhaust)",
+         lambda: _run_step("Step 7: Derive (exhaust)", cmd_derive,
+                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+    ]
 
-    # Step 5: review-proposals
-    _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)
-
-    # Step 6: accept-beliefs
-    _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)
-
-    # Step 7: derive (exhaust)
-    derive_args = SimpleNamespace(**vars(args))
-    derive_args.exhaust = True
-    derive_args.auto = True
-    _run_step("Step 7: Derive (exhaust)", cmd_derive, derive_args, errors)
+    for step_key, step_name, step_fn in steps:
+        if step_key in completed:
+            print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
+            continue
+        step_fn()
+        _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     try:
         from reasonsforge.api import export_network
@@ -206,6 +265,8 @@ def cmd_analyze(args):
     with open(checkpoint_path, "w") as f:
         json.dump(checkpoint, f, indent=2)
     print(f"Analyze checkpoint saved to {checkpoint_path}", file=sys.stderr)
+
+    _clear_step_checkpoint(project_dir, "analyze")
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
     print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "

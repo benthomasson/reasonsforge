@@ -1152,33 +1152,21 @@ def cmd_propose_beliefs(args):
 
     print(f"Processing {len(batches)} batches (batch size: {batch_size})...")
 
-    all_proposals = []
-    for i, batch_text in enumerate(batches):
-        existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
-        prompt = PROPOSE_BELIEFS_CODE.format(entries=batch_text) + existing_context
+    output_path = Path(output)
 
-        print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
-        try:
-            result = asyncio.run(invoke(prompt, model, timeout=timeout))
-            print(f"  Batch {i + 1}/{len(batches)} done")
-            all_proposals.append(result)
-        except Exception as e:
-            print(f"  ERROR in batch {i + 1}: {e}")
-
-    # Filter already-existing proposals
-    filtered_proposals = []
-    dup_skipped = 0
-    for proposal in all_proposals:
-        lines = proposal.split("\n")
+    def _filter_proposal(proposal_text: str) -> tuple[str, int]:
+        """Remove proposals for already-existing beliefs. Returns (filtered, dup_count)."""
+        lines = proposal_text.split("\n")
         filtered_lines = []
         skip_until_next = False
+        dups = 0
         for line in lines:
             m = re.match(r"^### \[?(?:ACCEPT|REJECT)\]? (\S+)", line)
             if m:
                 belief_id = m.group(1)
                 if belief_id in existing_ids:
                     skip_until_next = True
-                    dup_skipped += 1
+                    dups += 1
                     continue
                 else:
                     skip_until_next = False
@@ -1188,57 +1176,73 @@ def cmd_propose_beliefs(args):
                     filtered_lines.append(line)
                 continue
             filtered_lines.append(line)
-        filtered_proposals.append("\n".join(filtered_lines))
+        return "\n".join(filtered_lines), dups
 
-    if dup_skipped:
-        print(f"  Filtered {dup_skipped} already-accepted beliefs")
+    def _ensure_proposals_header(path: Path):
+        """Write the proposals file header if the file doesn't exist yet."""
+        if not path.exists() or path.stat().st_size == 0:
+            with path.open("w") as f:
+                f.write("# Proposed Beliefs\n\n")
+                f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
+                f.write("Then run: `reasonsforge code accept-beliefs`\n\n")
 
-    _save_processed(processed_path, entries, processed)
+    if not auto_accept:
+        _ensure_proposals_header(output_path)
 
-    if auto_accept:
-        accept_pattern = re.compile(
-            r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
-            re.MULTILINE,
-        )
-        matches = []
-        for proposal in filtered_proposals:
-            matches.extend(accept_pattern.findall(proposal))
-        if not matches:
-            print("No beliefs extracted from proposals.")
-            return
-        print(f"\nAuto-accepting {len(matches)} beliefs...")
-        _accept_proposals(matches, db_path)
+    all_proposals = []
+    total_dup_skipped = 0
+    for i, batch_text in enumerate(batches):
+        existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
+        prompt = PROPOSE_BELIEFS_CODE.format(entries=batch_text) + existing_context
+
+        print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
+        try:
+            result = asyncio.run(invoke(prompt, model, timeout=timeout))
+            print(f"  Batch {i + 1}/{len(batches)} done")
+        except Exception as e:
+            print(f"  ERROR in batch {i + 1}: {e}")
+            continue
+
+        filtered, dups = _filter_proposal(result)
+        total_dup_skipped += dups
+        all_proposals.append(filtered)
+
+        if auto_accept:
+            accept_pattern = re.compile(
+                r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
+                re.MULTILINE,
+            )
+            matches = accept_pattern.findall(filtered)
+            if matches:
+                _accept_proposals(matches, db_path)
+                print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
+        else:
+            with output_path.open("a") as f:
+                f.write(f"\n---\n\n")
+                f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
+                f.write(f"**Model:** {model}\n\n")
+                f.write(filtered)
+                f.write("\n\n")
+
+        # Mark this batch's entries as processed after each batch
+        batch_entry_paths = [Path(p) for p in batch_paths[i]]
+        _save_processed(processed_path, batch_entry_paths, processed)
+        # Update processed dict so subsequent _save_processed calls include all prior batches
+        processed = _load_processed(processed_path)
+
+    if total_dup_skipped:
+        print(f"  Filtered {total_dup_skipped} already-accepted beliefs")
+
+    if not all_proposals:
+        print("No beliefs extracted from proposals.")
         return
 
-    # Write proposals file
-    source_desc = f"{len(entries)} summaries from summaries/"
-    output_path = Path(output)
-    if output_path.exists() and output_path.stat().st_size > 0:
-        with output_path.open("a") as f:
-            f.write(f"\n---\n\n")
-            f.write(f"**Generated:** {date.today().isoformat()}\n")
-            f.write(f"**Source:** {source_desc}\n")
-            f.write(f"**Model:** {model}\n\n")
-            for proposal in filtered_proposals:
-                f.write(proposal)
-                f.write("\n\n")
-        print(f"\nAppended to {output_path}")
+    if auto_accept:
+        print(f"\nAll batches processed.", file=sys.stderr)
     else:
-        with output_path.open("w") as f:
-            f.write("# Proposed Beliefs\n\n")
-            f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
-            f.write("Then run: `reasonsforge code accept-beliefs`\n\n")
-            f.write("---\n\n")
-            f.write(f"**Generated:** {date.today().isoformat()}\n")
-            f.write(f"**Source:** {source_desc}\n")
-            f.write(f"**Model:** {model}\n\n")
-            for proposal in filtered_proposals:
-                f.write(proposal)
-                f.write("\n\n")
         print(f"\nWrote {output_path}")
-
-    print("Review the file, mark entries as [ACCEPT] or [REJECT], then run:")
-    print("  reasonsforge code accept-beliefs")
+        print("Review the file, mark entries as [ACCEPT] or [REJECT], then run:")
+        print("  reasonsforge code accept-beliefs")
 
 
 def _entry_date(path: Path) -> str | None:

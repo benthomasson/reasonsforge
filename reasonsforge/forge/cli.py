@@ -197,6 +197,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--rounds", type=int, default=3)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
     cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
+    cs.add_argument("--resume", action="store_true",
+                    help="Resume a previously interrupted analysis")
 
     # code update
     cs = code_sub.add_parser("update",
@@ -211,6 +213,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=3)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--resume", action="store_true",
+                    help="Resume a previously interrupted update")
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
