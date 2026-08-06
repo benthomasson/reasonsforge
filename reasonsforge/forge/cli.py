@@ -183,6 +183,21 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--output", default="reasons.db")
 
+    # code analyze
+    cs = code_sub.add_parser("analyze",
+                             help="Full pipeline: scan + explore + propose + review + accept + derive")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--domain", help="Domain description")
+    cs.add_argument("--limit", type=int, default=500,
+                    help="Max files to explore (0 = unlimited)")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--rounds", type=int, default=3)
+    cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
+
     # code update
     cs = code_sub.add_parser("update",
                              help="Incremental update: walk-commits + propose + derive")
@@ -651,6 +666,7 @@ def _cmd_code(args):
         "topics": _code_topics,
         "status": _code_status,
         "update": cmd_update,
+        "analyze": cmd_analyze,
     }
 
     try:
