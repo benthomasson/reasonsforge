@@ -2623,6 +2623,8 @@ def cmd_namespaces(args):
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser(
         prog="reasonsforge",
         description="Reasons — automatic belief retraction and dependency-directed backtracking",

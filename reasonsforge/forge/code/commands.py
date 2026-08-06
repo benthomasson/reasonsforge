@@ -1127,9 +1127,9 @@ def cmd_propose_beliefs(args):
     existing_beliefs = _load_existing_beliefs(db_path)
     existing_ids = {b["id"] for b in existing_beliefs}
     if existing_ids:
-        print(f"Found {len(existing_ids)} existing beliefs (will skip duplicates)")
+        print(f"Found {len(existing_ids)} existing beliefs (will skip duplicates)", file=sys.stderr)
 
-    print(f"Reading {len(entries)} entries...")
+    print(f"Reading {len(entries)} entries...", file=sys.stderr)
 
     batches = []
     batch_paths = []
@@ -1150,7 +1150,7 @@ def cmd_propose_beliefs(args):
         batches.append("\n\n".join(current_batch))
         batch_paths.append(current_paths)
 
-    print(f"Processing {len(batches)} batches (batch size: {batch_size})...")
+    print(f"Processing {len(batches)} batches (batch size: {batch_size})...", file=sys.stderr)
 
     output_path = Path(output)
 
@@ -1198,9 +1198,9 @@ def cmd_propose_beliefs(args):
         print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
         try:
             result = asyncio.run(invoke(prompt, model, timeout=timeout))
-            print(f"  Batch {i + 1}/{len(batches)} done")
+            print(f"  Batch {i + 1}/{len(batches)} done", file=sys.stderr)
         except Exception as e:
-            print(f"  ERROR in batch {i + 1}: {e}")
+            print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
             continue
 
         filtered, dups = _filter_proposal(result)
@@ -1231,7 +1231,7 @@ def cmd_propose_beliefs(args):
         processed = _load_processed(processed_path)
 
     if total_dup_skipped:
-        print(f"  Filtered {total_dup_skipped} already-accepted beliefs")
+        print(f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr)
 
     if not all_proposals:
         print("No beliefs extracted from proposals.")
