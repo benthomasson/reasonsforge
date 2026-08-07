@@ -151,7 +151,6 @@ def _run_repair(db_path, model, project_dir, errors):
         print(f"  Linked: {result.get('linked', 0)}, "
               f"Softened: {result.get('softened', 0)}, "
               f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
-        os.remove(review_path)
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
@@ -307,7 +306,7 @@ def cmd_analyze(args):
 
     Pipeline: init -> scan -> (explore -> propose -> review -> accept -> derive) x rounds
 
-    Round 1 runs all steps. Rounds 2+ loop explore->propose->review->accept->derive
+    Round 1 runs all steps. Rounds 2+ loop explore->propose->review->accept->derive->review-beliefs->repair->deduplicate->contradictions
     to drain more of the topic queue. With --resume, skips steps that completed
     in a prior interrupted run.
     """
@@ -388,7 +387,7 @@ def cmd_analyze(args):
         step_fn()
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
-    # Rounds 2+: explore -> propose -> review -> accept -> derive
+    # Rounds 2+: explore -> propose -> review -> accept -> derive -> review-beliefs -> repair -> dedup -> contradictions
     for round_num in range(2, rounds + 1):
         remaining_topics = pending_count(project_dir)
         if not remaining_topics:
