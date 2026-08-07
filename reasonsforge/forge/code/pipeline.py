@@ -176,9 +176,11 @@ def cmd_update(args):
 def cmd_analyze(args):
     """Full automated analysis of a codebase from scratch.
 
-    Pipeline: init -> scan -> explore -> propose -> review -> accept -> derive
+    Pipeline: init -> scan -> (explore -> propose -> review -> accept -> derive) x rounds
 
-    With --resume, skips steps that completed in a prior interrupted run.
+    Round 1 runs all steps. Rounds 2+ loop explore->propose->review->accept->derive
+    to drain more of the topic queue. With --resume, skips steps that completed
+    in a prior interrupted run.
     """
     from ..caffeinate import hold as _caffeinate
     _caffeinate()
@@ -187,6 +189,7 @@ def cmd_analyze(args):
     started = datetime.now().isoformat(timespec="seconds")
     db_path = getattr(args, "output", REASONS_DB)
     explore_limit = getattr(args, "limit", 500)
+    rounds = getattr(args, "rounds", 1)
     resume = getattr(args, "resume", False)
     project_dir = _get_project_dir(args)
 
@@ -195,13 +198,13 @@ def cmd_analyze(args):
     if resume and completed:
         print(f"Resuming analysis — skipping completed steps: {', '.join(sorted(completed))}", file=sys.stderr)
 
-    def _run_explore():
-        nonlocal explore_limit
-        if explore_limit <= 0:
-            explore_limit = pending_count(project_dir) or 500
+    def _run_explore(label: str):
+        eff_limit = explore_limit
+        if eff_limit <= 0:
+            eff_limit = pending_count(project_dir) or 500
         explore_args = SimpleNamespace(**vars(args))
-        explore_args.loop = explore_limit
-        print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
+        explore_args.loop = eff_limit
+        print(f"\n=== {label}: Explore (up to {eff_limit} topics) ===\n", file=sys.stderr)
         try:
             cmd_explore(explore_args)
         except SystemExit as e:
@@ -219,30 +222,70 @@ def cmd_analyze(args):
     except Exception:
         pre_run_ids = set()
 
-    steps = [
+    # Round 1: init + scan + explore + propose + review + accept + derive
+    round1_steps = [
         ("init", "Step 1: Init",
          lambda: _run_step("Step 1: Init", cmd_init, args, errors)),
         ("scan", "Step 2: Scan",
          lambda: _run_step("Step 2: Scan", cmd_scan, args, errors)),
-        ("explore", "Step 3: Explore", _run_explore),
-        ("propose-beliefs", "Step 4: Propose beliefs",
+        ("r1-explore", "Step 3: Explore",
+         lambda: _run_explore("Step 3")),
+        ("r1-propose", "Step 4: Propose beliefs",
          lambda: _run_step("Step 4: Propose beliefs", cmd_propose_beliefs,
                            SimpleNamespace(**vars(args), auto=False), errors)),
-        ("review-proposals", "Step 5: Review proposals",
+        ("r1-review", "Step 5: Review proposals",
          lambda: _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)),
-        ("accept-beliefs", "Step 6: Accept beliefs",
+        ("r1-accept", "Step 6: Accept beliefs",
          lambda: _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)),
-        ("derive", "Step 7: Derive (exhaust)",
+        ("r1-derive", "Step 7: Derive (exhaust)",
          lambda: _run_step("Step 7: Derive (exhaust)", cmd_derive,
                            SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
     ]
 
-    for step_key, step_name, step_fn in steps:
+    for step_key, step_name, step_fn in round1_steps:
         if step_key in completed:
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
         step_fn()
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
+
+    # Rounds 2+: explore -> propose -> review -> accept -> derive
+    for round_num in range(2, rounds + 1):
+        remaining_topics = pending_count(project_dir)
+        if not remaining_topics:
+            print(f"\n--- Round {round_num}/{rounds}: no topics remaining, stopping early ---",
+                  file=sys.stderr)
+            break
+
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(f"  Round {round_num}/{rounds} ({remaining_topics} topics remaining)", file=sys.stderr)
+        print(f"{'=' * 60}", file=sys.stderr)
+
+        prefix = f"r{round_num}"
+        round_steps = [
+            (f"{prefix}-explore", f"Round {round_num} Explore",
+             lambda rn=round_num: _run_explore(f"Round {rn}")),
+            (f"{prefix}-propose", f"Round {round_num} Propose beliefs",
+             lambda rn=round_num: _run_step(f"Round {rn}: Propose beliefs", cmd_propose_beliefs,
+                                            SimpleNamespace(**vars(args), auto=False), errors)),
+            (f"{prefix}-review", f"Round {round_num} Review proposals",
+             lambda rn=round_num: _run_step(f"Round {rn}: Review proposals",
+                                            cmd_review_proposals, args, errors)),
+            (f"{prefix}-accept", f"Round {round_num} Accept beliefs",
+             lambda rn=round_num: _run_step(f"Round {rn}: Accept beliefs",
+                                            cmd_accept_beliefs, args, errors)),
+            (f"{prefix}-derive", f"Round {round_num} Derive (exhaust)",
+             lambda rn=round_num: _run_step(f"Round {rn}: Derive (exhaust)", cmd_derive,
+                                            SimpleNamespace(**vars(args), exhaust=True, auto=True),
+                                            errors)),
+        ]
+
+        for step_key, step_name, step_fn in round_steps:
+            if step_key in completed:
+                print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
+                continue
+            step_fn()
+            _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     try:
         from reasonsforge.api import export_network
@@ -255,6 +298,7 @@ def cmd_analyze(args):
         "started": started,
         "finished": datetime.now().isoformat(timespec="seconds"),
         "explore_limit": explore_limit,
+        "rounds": rounds,
         "beliefs_before": len(pre_run_ids),
         "beliefs_after": len(post_run_ids),
         "beliefs_added": len(post_run_ids - pre_run_ids),
