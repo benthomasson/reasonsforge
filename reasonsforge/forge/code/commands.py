@@ -2453,7 +2453,8 @@ def cmd_derive(args):
         print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
 
         if auto_add:
-            added = apply_proposals(valid, db_path=db_path)
+            results = apply_proposals(valid, db_path=db_path)
+            added = sum(1 for _, r in results if isinstance(r, dict))
             print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
             total_added += added
             if added == 0 and exhaust:
