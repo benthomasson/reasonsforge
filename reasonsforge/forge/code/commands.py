@@ -1131,10 +1131,14 @@ def cmd_propose_beliefs(args):
 
     belief_vectors = None
     if existing_beliefs and _has_embeddings():
-        print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
-        cache_path = Path(PROJECT_DIR) / "belief-vectors.json"
-        belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
-        print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
+        try:
+            print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
+            cache_path = Path(PROJECT_DIR) / "belief-vectors.json"
+            belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
+            print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
+        except Exception as e:
+            print(f"  Embedding init failed ({e}), falling back to keyword dedup", file=sys.stderr)
+            belief_vectors = None
     elif existing_beliefs:
         print("(install fastembed for semantic dedup: pip install 'reasonsforge[forge-embeddings]')",
               file=sys.stderr)
