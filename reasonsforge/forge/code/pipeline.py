@@ -91,6 +91,10 @@ def _run_review_beliefs(db_path, model, project_dir, errors):
     from reasonsforge.api import review_beliefs
 
     print("\n=== Review beliefs ===\n", file=sys.stderr)
+    review_path = _review_file_path(project_dir)
+    # Remove stale report so repair won't act on outdated data if this step fails
+    if os.path.isfile(review_path):
+        os.remove(review_path)
     try:
         result = review_beliefs(
             model=model,
@@ -101,7 +105,7 @@ def _run_review_beliefs(db_path, model, project_dir, errors):
         print(f"  Reviewed {reviewed} derived beliefs, {invalid} invalid",
               file=sys.stderr)
         os.makedirs(project_dir, exist_ok=True)
-        with open(_review_file_path(project_dir), "w") as f:
+        with open(review_path, "w") as f:
             json.dump(result, f, indent=2)
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
@@ -148,6 +152,7 @@ def _run_repair(db_path, model, project_dir, errors):
         print(f"  Linked: {result.get('linked', 0)}, "
               f"Softened: {result.get('softened', 0)}, "
               f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
+        os.remove(review_path)
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
