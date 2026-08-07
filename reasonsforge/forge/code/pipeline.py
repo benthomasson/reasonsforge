@@ -81,6 +81,124 @@ def _clear_step_checkpoint(project_dir: str, pipeline: str):
         os.remove(path)
 
 
+def _review_file_path(project_dir):
+    """Path to the persisted review-beliefs report for repair to consume."""
+    return os.path.join(project_dir, "last-review-beliefs.json")
+
+
+def _run_review_beliefs(db_path, model, project_dir, errors):
+    """Review derived beliefs for validity; persist results for repair."""
+    from reasonsforge.api import review_beliefs
+
+    print("\n=== Review beliefs ===\n", file=sys.stderr)
+    review_path = _review_file_path(project_dir)
+    # Remove stale report so repair won't act on outdated data if this step fails
+    if os.path.isfile(review_path):
+        os.remove(review_path)
+    try:
+        result = review_beliefs(
+            model=model,
+            db_path=db_path,
+        )
+        reviewed = result.get("reviewed", 0)
+        invalid = result.get("invalid", 0)
+        print(f"  Reviewed {reviewed} derived beliefs, {invalid} invalid",
+              file=sys.stderr)
+        os.makedirs(project_dir, exist_ok=True)
+        with open(review_path, "w") as f:
+            json.dump(result, f, indent=2)
+    except Exception as e:
+        errors.append(f"review-beliefs: {e}")
+        print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
+
+
+def _run_repair(db_path, model, project_dir, errors):
+    """Repair invalid beliefs using the persisted review-beliefs report."""
+    from reasonsforge.api import repair
+
+    review_path = _review_file_path(project_dir)
+    if not os.path.isfile(review_path):
+        print("\n=== Repair beliefs ===\n", file=sys.stderr)
+        print("  No review-beliefs report found, skipping", file=sys.stderr)
+        return
+
+    try:
+        with open(review_path) as f:
+            review_result = json.load(f)
+        invalid_ids = [
+            r.get("belief_id") or r.get("id")
+            for r in review_result.get("results", [])
+            if not r.get("valid", True)
+        ]
+        invalid_ids = [i for i in invalid_ids if i]
+    except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
+        print("\n=== Repair beliefs ===\n", file=sys.stderr)
+        print("  Could not read review-beliefs report, skipping", file=sys.stderr)
+        return
+
+    if not invalid_ids:
+        print("\n=== Repair beliefs ===\n", file=sys.stderr)
+        print("  No invalid beliefs to repair", file=sys.stderr)
+        return
+
+    print(f"\n=== Repair beliefs ({len(invalid_ids)} invalid) ===\n", file=sys.stderr)
+    try:
+        result = repair(
+            review_file=review_path,
+            model=model,
+            db_path=db_path,
+        )
+        print(f"  Linked: {result.get('linked', 0)}, "
+              f"Softened: {result.get('softened', 0)}, "
+              f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
+    except Exception as e:
+        errors.append(f"repair: {e}")
+        print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
+
+
+def _run_deduplicate(db_path, errors):
+    """Run deduplication on the belief network."""
+    from reasonsforge.api import deduplicate
+
+    print("\n=== Deduplicate ===\n", file=sys.stderr)
+    try:
+        result = deduplicate(auto=True, db_path=db_path)
+        retracted = result.get("retracted", [])
+        clusters = result.get("clusters", [])
+        if retracted:
+            print(f"  {len(clusters)} cluster(s), retracted {len(retracted)} duplicate(s)",
+                  file=sys.stderr)
+        else:
+            print("  No duplicates found", file=sys.stderr)
+    except Exception as e:
+        errors.append(f"deduplicate: {e}")
+        print(f"WARN: deduplicate failed: {e}, continuing...", file=sys.stderr)
+
+
+def _run_contradictions(db_path, model, errors):
+    """Detect and auto-apply contradictions."""
+    from reasonsforge.api import detect_contradictions
+
+    print("\n=== Detect contradictions ===\n", file=sys.stderr)
+    try:
+        result = detect_contradictions(
+            auto_apply=True,
+            model=model,
+            db_path=db_path,
+        )
+        found = result.get("found", 0)
+        applied = result.get("applied", 0)
+        checked = result.get("checked", 0)
+        if found:
+            print(f"  Checked {checked} beliefs, found {found} contradiction(s), "
+                  f"applied {applied} nogood(s)", file=sys.stderr)
+        else:
+            print(f"  Checked {checked} beliefs, no contradictions found", file=sys.stderr)
+    except Exception as e:
+        errors.append(f"contradictions: {e}")
+        print(f"WARN: contradictions failed: {e}, continuing...", file=sys.stderr)
+
+
 def cmd_update(args):
     """Incremental update: walk-commits, propose, review, accept, derive, summarize."""
     from ..caffeinate import hold as _caffeinate
@@ -117,6 +235,8 @@ def cmd_update(args):
     except Exception:
         pre_run_ids = set()
 
+    model = getattr(args, "model", None) or "claude"
+
     steps = [
         ("walk-commits", "Step 1: Walk commits",
          lambda: _run_step("Step 1: Walk commits", cmd_walk_commits, args, errors)),
@@ -130,6 +250,14 @@ def cmd_update(args):
         ("derive", "Step 5: Derive (exhaust)",
          lambda: _run_step("Step 5: Derive (exhaust)", cmd_derive,
                            SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+        ("review-beliefs", "Step 6: Review beliefs",
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+        ("repair", "Step 7: Repair beliefs",
+         lambda: _run_repair(db_path, model, project_dir, errors)),
+        ("deduplicate", "Step 8: Deduplicate",
+         lambda: _run_deduplicate(db_path, errors)),
+        ("contradictions", "Step 9: Detect contradictions",
+         lambda: _run_contradictions(db_path, model, errors)),
     ]
 
     for step_key, step_name, step_fn in steps:
@@ -178,7 +306,7 @@ def cmd_analyze(args):
 
     Pipeline: init -> scan -> (explore -> propose -> review -> accept -> derive) x rounds
 
-    Round 1 runs all steps. Rounds 2+ loop explore->propose->review->accept->derive
+    Round 1 runs all steps. Rounds 2+ loop explore->propose->review->accept->derive->review-beliefs->repair->deduplicate->contradictions
     to drain more of the topic queue. With --resume, skips steps that completed
     in a prior interrupted run.
     """
@@ -215,6 +343,8 @@ def cmd_analyze(args):
             errors.append(f"explore: {e}")
             print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
 
+    model = getattr(args, "model", None) or "claude"
+
     try:
         from reasonsforge.api import export_network
         network = export_network(db_path=db_path)
@@ -222,7 +352,7 @@ def cmd_analyze(args):
     except Exception:
         pre_run_ids = set()
 
-    # Round 1: init + scan + explore + propose + review + accept + derive
+    # Round 1: init + scan + explore + propose + review + accept + derive + review-beliefs + repair + dedup + contradictions
     round1_steps = [
         ("init", "Step 1: Init",
          lambda: _run_step("Step 1: Init", cmd_init, args, errors)),
@@ -240,6 +370,14 @@ def cmd_analyze(args):
         ("r1-derive", "Step 7: Derive (exhaust)",
          lambda: _run_step("Step 7: Derive (exhaust)", cmd_derive,
                            SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+        ("r1-review-beliefs", "Step 8: Review beliefs",
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+        ("r1-repair", "Step 9: Repair beliefs",
+         lambda: _run_repair(db_path, model, project_dir, errors)),
+        ("r1-deduplicate", "Step 10: Deduplicate",
+         lambda: _run_deduplicate(db_path, errors)),
+        ("r1-contradictions", "Step 11: Detect contradictions",
+         lambda: _run_contradictions(db_path, model, errors)),
     ]
 
     for step_key, step_name, step_fn in round1_steps:
@@ -249,7 +387,7 @@ def cmd_analyze(args):
         step_fn()
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
-    # Rounds 2+: explore -> propose -> review -> accept -> derive
+    # Rounds 2+: explore -> propose -> review -> accept -> derive -> review-beliefs -> repair -> dedup -> contradictions
     for round_num in range(2, rounds + 1):
         remaining_topics = pending_count(project_dir)
         if not remaining_topics:
@@ -278,6 +416,14 @@ def cmd_analyze(args):
              lambda rn=round_num: _run_step(f"Round {rn}: Derive (exhaust)", cmd_derive,
                                             SimpleNamespace(**vars(args), exhaust=True, auto=True),
                                             errors)),
+            (f"{prefix}-review-beliefs", f"Round {round_num} Review beliefs",
+             lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+            (f"{prefix}-repair", f"Round {round_num} Repair beliefs",
+             lambda: _run_repair(db_path, model, project_dir, errors)),
+            (f"{prefix}-deduplicate", f"Round {round_num} Deduplicate",
+             lambda: _run_deduplicate(db_path, errors)),
+            (f"{prefix}-contradictions", f"Round {round_num} Detect contradictions",
+             lambda: _run_contradictions(db_path, model, errors)),
         ]
 
         for step_key, step_name, step_fn in round_steps:
