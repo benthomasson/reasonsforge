@@ -121,7 +121,7 @@ def _run_repair(db_path, model, project_dir, errors):
     try:
         with open(review_path) as f:
             review_result = json.load(f)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValueError, OSError):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  Could not read review-beliefs report, skipping", file=sys.stderr)
         return
