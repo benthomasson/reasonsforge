@@ -125,17 +125,16 @@ def _run_repair(db_path, model, project_dir, errors):
     try:
         with open(review_path) as f:
             review_result = json.load(f)
-    except (json.JSONDecodeError, ValueError, OSError):
+        invalid_ids = [
+            r.get("belief_id") or r.get("id")
+            for r in review_result.get("results", [])
+            if not r.get("valid", True)
+        ]
+        invalid_ids = [i for i in invalid_ids if i]
+    except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  Could not read review-beliefs report, skipping", file=sys.stderr)
         return
-
-    invalid_ids = [
-        r.get("belief_id") or r.get("id")
-        for r in review_result.get("results", [])
-        if not r.get("valid", True)
-    ]
-    invalid_ids = [i for i in invalid_ids if i]
 
     if not invalid_ids:
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
