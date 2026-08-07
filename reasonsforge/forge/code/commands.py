@@ -1370,7 +1370,7 @@ def _get_belief_embeddings(
     cached = _load_belief_vectors(cache_path)
 
     def _cache_key(belief):
-        text_hash = hashlib.sha256(belief["text"].encode()).hexdigest()[:8]
+        text_hash = hashlib.sha256((belief["text"] or "").encode()).hexdigest()[:8]
         return f"{belief['id']}:{text_hash}"
 
     needed = []
