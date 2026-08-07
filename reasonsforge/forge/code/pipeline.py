@@ -470,3 +470,62 @@ def cmd_analyze(args):
             print(f"  - {err}", file=sys.stderr)
     else:
         print("All steps completed successfully.", file=sys.stderr)
+
+
+def cmd_refine(args):
+    """Iterative refinement loop: derive -> review-beliefs -> repair.
+
+    Runs for the specified number of rounds regardless of whether derive
+    finds new beliefs or review finds invalids. This lets the LLM attempt
+    fresh derivations each round even when a prior round was unproductive.
+    Deduplication and contradiction detection run once at the end.
+    """
+    from ..caffeinate import hold as _caffeinate
+    _caffeinate()
+
+    db_path = getattr(args, "output", REASONS_DB)
+    model = getattr(args, "model", None) or "claude"
+    rounds = getattr(args, "rounds", 3)
+    max_derive_rounds = getattr(args, "max_derive_rounds", 10)
+    project_dir = _get_project_dir(args)
+    errors = []
+
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=db_path)
+        pre_run_ids = set(network.get("nodes", {}).keys())
+    except Exception:
+        pre_run_ids = set()
+
+    for round_num in range(1, rounds + 1):
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(f"  Refine round {round_num}/{rounds}", file=sys.stderr)
+        print(f"{'=' * 60}", file=sys.stderr)
+
+        _run_step(f"Round {round_num}: Derive (exhaust)", cmd_derive,
+                  SimpleNamespace(**vars(args), exhaust=True, auto=True,
+                                  max_derive_rounds=max_derive_rounds),
+                  errors)
+
+        _run_review_beliefs(db_path, model, project_dir, errors)
+        _run_repair(db_path, model, project_dir, errors)
+
+    _run_deduplicate(db_path, errors)
+    _run_contradictions(db_path, model, errors)
+
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=db_path)
+        post_run_ids = set(network.get("nodes", {}).keys())
+    except Exception:
+        post_run_ids = pre_run_ids
+
+    print(f"\n=== Refinement complete ===\n", file=sys.stderr)
+    print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
+          f"(+{len(post_run_ids - pre_run_ids)})", file=sys.stderr)
+    if errors:
+        print(f"Completed with {len(errors)} warning(s):", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
+    else:
+        print("All rounds completed successfully.", file=sys.stderr)

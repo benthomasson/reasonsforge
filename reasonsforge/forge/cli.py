@@ -216,6 +216,21 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted update")
 
+    # code refine
+    cs = code_sub.add_parser("refine",
+                             help="Iterative refinement: derive + review-beliefs + repair loop")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--rounds", type=int, default=3,
+                    help="Number of derive/review/repair rounds")
+    cs.add_argument("--max-derive-rounds", type=int, default=10,
+                    help="Max derive sub-rounds per refine round")
+    cs.add_argument("--budget", type=int, default=300,
+                    help="Max beliefs to include in derive prompt")
+    cs.add_argument("--domain", help="Domain description")
+
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
         "product",
@@ -653,7 +668,7 @@ def _cmd_code(args):
         cmd_verify as _code_verify,
         cmd_walk_commits as _code_walk,
     )
-    from .code.pipeline import cmd_analyze, cmd_update
+    from .code.pipeline import cmd_analyze, cmd_refine, cmd_update
 
     code_command = getattr(args, "code_command", None)
 
@@ -671,6 +686,7 @@ def _cmd_code(args):
         "status": _code_status,
         "update": cmd_update,
         "analyze": cmd_analyze,
+        "refine": cmd_refine,
     }
 
     try:
