@@ -81,8 +81,13 @@ def _clear_step_checkpoint(project_dir: str, pipeline: str):
         os.remove(path)
 
 
-def _run_review_beliefs(db_path, model, errors):
-    """Review derived beliefs for validity and return invalid IDs for repair."""
+def _review_file_path(project_dir):
+    """Path to the persisted review-beliefs report for repair to consume."""
+    return os.path.join(project_dir, "last-review-beliefs.json")
+
+
+def _run_review_beliefs(db_path, model, project_dir, errors):
+    """Review derived beliefs for validity; persist results for repair."""
     from reasonsforge.api import review_beliefs
 
     print("\n=== Review beliefs ===\n", file=sys.stderr)
@@ -95,25 +100,38 @@ def _run_review_beliefs(db_path, model, errors):
         invalid = result.get("invalid", 0)
         print(f"  Reviewed {reviewed} derived beliefs, {invalid} invalid",
               file=sys.stderr)
-        return result
+        os.makedirs(project_dir, exist_ok=True)
+        with open(_review_file_path(project_dir), "w") as f:
+            json.dump(result, f, indent=2)
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
         print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
-        return None
 
 
-def _run_repair(db_path, model, review_result, errors):
-    """Repair invalid beliefs found by review-beliefs."""
+def _run_repair(db_path, model, project_dir, errors):
+    """Repair invalid beliefs using the persisted review-beliefs report."""
     from reasonsforge.api import repair
 
-    invalid_ids = []
-    if review_result:
-        invalid_ids = [
-            r.get("belief_id") or r.get("id")
-            for r in review_result.get("results", [])
-            if not r.get("valid", True)
-        ]
-        invalid_ids = [i for i in invalid_ids if i]
+    review_path = _review_file_path(project_dir)
+    if not os.path.isfile(review_path):
+        print("\n=== Repair beliefs ===\n", file=sys.stderr)
+        print("  No review-beliefs report found, skipping", file=sys.stderr)
+        return
+
+    try:
+        with open(review_path) as f:
+            review_result = json.load(f)
+    except (json.JSONDecodeError, ValueError):
+        print("\n=== Repair beliefs ===\n", file=sys.stderr)
+        print("  Could not read review-beliefs report, skipping", file=sys.stderr)
+        return
+
+    invalid_ids = [
+        r.get("belief_id") or r.get("id")
+        for r in review_result.get("results", [])
+        if not r.get("valid", True)
+    ]
+    invalid_ids = [i for i in invalid_ids if i]
 
     if not invalid_ids:
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
@@ -123,7 +141,7 @@ def _run_repair(db_path, model, review_result, errors):
     print(f"\n=== Repair beliefs ({len(invalid_ids)} invalid) ===\n", file=sys.stderr)
     try:
         result = repair(
-            belief_ids=invalid_ids,
+            review_file=review_path,
             model=model,
             db_path=db_path,
         )
@@ -215,7 +233,6 @@ def cmd_update(args):
         pre_run_ids = set()
 
     model = getattr(args, "model", None) or "claude"
-    review_result = [None]
 
     steps = [
         ("walk-commits", "Step 1: Walk commits",
@@ -231,9 +248,9 @@ def cmd_update(args):
          lambda: _run_step("Step 5: Derive (exhaust)", cmd_derive,
                            SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
         ("review-beliefs", "Step 6: Review beliefs",
-         lambda: review_result.__setitem__(0, _run_review_beliefs(db_path, model, errors))),
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
         ("repair", "Step 7: Repair beliefs",
-         lambda: _run_repair(db_path, model, review_result[0], errors)),
+         lambda: _run_repair(db_path, model, project_dir, errors)),
         ("deduplicate", "Step 8: Deduplicate",
          lambda: _run_deduplicate(db_path, errors)),
         ("contradictions", "Step 9: Detect contradictions",
@@ -324,7 +341,6 @@ def cmd_analyze(args):
             print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
 
     model = getattr(args, "model", None) or "claude"
-    review_result = [None]
 
     try:
         from reasonsforge.api import export_network
@@ -352,9 +368,9 @@ def cmd_analyze(args):
          lambda: _run_step("Step 7: Derive (exhaust)", cmd_derive,
                            SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
         ("r1-review-beliefs", "Step 8: Review beliefs",
-         lambda: review_result.__setitem__(0, _run_review_beliefs(db_path, model, errors))),
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
         ("r1-repair", "Step 9: Repair beliefs",
-         lambda: _run_repair(db_path, model, review_result[0], errors)),
+         lambda: _run_repair(db_path, model, project_dir, errors)),
         ("r1-deduplicate", "Step 10: Deduplicate",
          lambda: _run_deduplicate(db_path, errors)),
         ("r1-contradictions", "Step 11: Detect contradictions",
@@ -381,7 +397,6 @@ def cmd_analyze(args):
         print(f"{'=' * 60}", file=sys.stderr)
 
         prefix = f"r{round_num}"
-        review_result[0] = None
         round_steps = [
             (f"{prefix}-explore", f"Round {round_num} Explore",
              lambda rn=round_num: _run_explore(f"Round {rn}")),
@@ -399,9 +414,9 @@ def cmd_analyze(args):
                                             SimpleNamespace(**vars(args), exhaust=True, auto=True),
                                             errors)),
             (f"{prefix}-review-beliefs", f"Round {round_num} Review beliefs",
-             lambda: review_result.__setitem__(0, _run_review_beliefs(db_path, model, errors))),
+             lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
             (f"{prefix}-repair", f"Round {round_num} Repair beliefs",
-             lambda: _run_repair(db_path, model, review_result[0], errors)),
+             lambda: _run_repair(db_path, model, project_dir, errors)),
             (f"{prefix}-deduplicate", f"Round {round_num} Deduplicate",
              lambda: _run_deduplicate(db_path, errors)),
             (f"{prefix}-contradictions", f"Round {round_num} Detect contradictions",
