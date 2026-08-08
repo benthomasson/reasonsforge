@@ -2442,7 +2442,7 @@ def cmd_derive(args):
                       file=sys.stderr)
             break
 
-        valid = validate_proposals(proposals, nodes)
+        valid, skipped = validate_proposals(proposals, nodes)
         if not valid:
             print("No valid proposals after validation.", file=sys.stderr)
             if exhaust:
