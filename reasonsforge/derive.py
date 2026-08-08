@@ -176,6 +176,8 @@ def _filter_by_source_path(nodes, source_path):
     and the node ID itself (which often encodes the file path).
     """
     prefix = source_path.lower().rstrip("/")
+    if not prefix:
+        return dict(nodes)
     filtered = {}
     for nid, node in nodes.items():
         searchable = [
@@ -183,7 +185,7 @@ def _filter_by_source_path(nodes, source_path):
             (node.get("source") or "").lower(),
             (node.get("source_url") or "").lower(),
         ]
-        meta = node.get("metadata", {})
+        meta = node.get("metadata") or {}
         if meta.get("source_file"):
             searchable.append(meta["source_file"].lower())
         if any(prefix in s for s in searchable):

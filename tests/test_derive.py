@@ -1139,6 +1139,19 @@ class TestFilterBySourcePath:
         result = _filter_by_source_path(nodes, "src")
         assert len(result) == 0
 
+    def test_none_metadata_no_crash(self):
+        nodes = {"n1": {"text": "a", "status": "IN", "metadata": None}}
+        result = _filter_by_source_path(nodes, "src")
+        assert len(result) == 0
+
+    def test_empty_prefix_returns_all(self):
+        nodes = {
+            "a": {"text": "x", "status": "IN"},
+            "b": {"text": "y", "status": "IN"},
+        }
+        result = _filter_by_source_path(nodes, "/")
+        assert len(result) == 2
+
 
 class TestBuildPromptSourcePath:
     def test_source_path_filters_beliefs(self, db):
