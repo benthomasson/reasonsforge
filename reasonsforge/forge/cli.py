@@ -169,6 +169,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--max-derive-rounds", type=int, default=10)
     cs.add_argument("--budget", type=int, default=300)
     cs.add_argument("--domain", default=None)
+    cs.add_argument("--source-path", default=None, dest="source_path",
+                    help="Only derive from beliefs matching this source path prefix")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
@@ -199,6 +201,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted analysis")
+    cs.add_argument("--source-path", default=None, dest="source_path",
+                    help="Only derive from beliefs matching this source path prefix")
 
     # code update
     cs = code_sub.add_parser("update",
@@ -215,6 +219,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--max-derive-rounds", type=int, default=10)
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted update")
+    cs.add_argument("--source-path", default=None, dest="source_path",
+                    help="Only derive from beliefs matching this source path prefix")
 
     # code file-issues
     cs = code_sub.add_parser("file-issues",
@@ -249,6 +255,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--budget", type=int, default=300,
                     help="Max beliefs to include in derive prompt")
     cs.add_argument("--domain", help="Domain description")
+    cs.add_argument("--source-path", default=None, dest="source_path",
+                    help="Only derive from beliefs matching this source path prefix")
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(

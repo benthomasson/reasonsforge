@@ -13,6 +13,7 @@ from reasonsforge.derive import (
     write_proposals_file,
     find_similar_out,
     _detect_agents,
+    _filter_by_source_path,
     _filter_by_topic,
     _sample_beliefs,
     _get_depth,
@@ -1079,3 +1080,80 @@ def test_build_prompt_malformed_braces(simple_network):
     template = "Output as JSON: {unclosed brace"
     with pytest.raises(ValueError, match="malformed braces"):
         build_prompt(data["nodes"], prompt_template=template)
+
+
+class TestFilterBySourcePath:
+    def test_matches_node_id(self):
+        nodes = {
+            "src/auth/login": {"text": "login flow", "status": "IN"},
+            "src/db/pool": {"text": "connection pool", "status": "IN"},
+        }
+        result = _filter_by_source_path(nodes, "src/auth")
+        assert "src/auth/login" in result
+        assert "src/db/pool" not in result
+
+    def test_matches_source_field(self):
+        nodes = {
+            "node-1": {"text": "a", "status": "IN", "source": "src/auth/handler.py"},
+            "node-2": {"text": "b", "status": "IN", "source": "src/db/models.py"},
+        }
+        result = _filter_by_source_path(nodes, "src/auth")
+        assert "node-1" in result
+        assert "node-2" not in result
+
+    def test_matches_source_url(self):
+        nodes = {
+            "n1": {"text": "a", "status": "IN", "source_url": "src/auth/x.py"},
+            "n2": {"text": "b", "status": "IN", "source_url": "src/db/y.py"},
+        }
+        result = _filter_by_source_path(nodes, "src/auth")
+        assert "n1" in result
+        assert "n2" not in result
+
+    def test_matches_metadata_source_file(self):
+        nodes = {
+            "n1": {"text": "a", "status": "IN", "metadata": {"source_file": "src/auth/z.py"}},
+            "n2": {"text": "b", "status": "IN", "metadata": {}},
+        }
+        result = _filter_by_source_path(nodes, "src/auth")
+        assert "n1" in result
+        assert "n2" not in result
+
+    def test_case_insensitive(self):
+        nodes = {"SRC/Auth/Login": {"text": "a", "status": "IN"}}
+        result = _filter_by_source_path(nodes, "src/auth")
+        assert "SRC/Auth/Login" in result
+
+    def test_trailing_slash_stripped(self):
+        nodes = {"src/auth/login": {"text": "a", "status": "IN"}}
+        result = _filter_by_source_path(nodes, "src/auth/")
+        assert "src/auth/login" in result
+
+    def test_empty_returns_nothing(self):
+        nodes = {"src/auth/login": {"text": "a", "status": "IN"}}
+        result = _filter_by_source_path(nodes, "nonexistent")
+        assert len(result) == 0
+
+    def test_missing_fields_no_crash(self):
+        nodes = {"n1": {"text": "a", "status": "IN"}}
+        result = _filter_by_source_path(nodes, "src")
+        assert len(result) == 0
+
+
+class TestBuildPromptSourcePath:
+    def test_source_path_filters_beliefs(self, db):
+        api.add_node("src/auth/login", "login flow", db_path=db,
+                     source="src/auth/login.py")
+        api.add_node("src/db/pool", "connection pool", db_path=db,
+                     source="src/db/pool.py")
+        data = api.export_network(db_path=db)
+        prompt, stats = build_prompt(data["nodes"], source_path="src/auth")
+        assert "login flow" in prompt
+        assert "connection pool" not in prompt
+
+    def test_source_path_context_line(self, db):
+        api.add_node("src/auth/login", "login flow", db_path=db,
+                     source="src/auth/login.py")
+        data = api.export_network(db_path=db)
+        prompt, _stats = build_prompt(data["nodes"], source_path="src/auth")
+        assert "Filtered to beliefs from source path: src/auth" in prompt

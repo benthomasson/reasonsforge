@@ -1346,6 +1346,7 @@ def _derive_one_round(args, round_num=None, report_state=None,
 
     prompt, stats = build_prompt(
         nodes, domain=args.domain, topic=args.topic,
+        source_path=getattr(args, "source_path", None),
         budget=args.budget, sample=args.sample, seed=args.seed,
         min_depth=args.min_depth, max_depth_filter=args.max_depth,
         premises_only=args.premises, has_dependents=args.has_dependents,
@@ -2824,6 +2825,8 @@ def main():
                    help="Domain description for context (auto-detected from agents)")
     p.add_argument("--topic", default=None,
                    help="Keyword filter — only include beliefs matching these keywords")
+    p.add_argument("--source-path", default=None, dest="source_path",
+                   help="Source path prefix filter — only include beliefs from this path")
     p.add_argument("--budget", type=int, default=300,
                    help="Maximum number of beliefs in prompt (default: 300)")
     p.add_argument("--sample", action="store_true",

@@ -169,6 +169,28 @@ def _filter_by_topic(nodes, topic):
     return filtered
 
 
+def _filter_by_source_path(nodes, source_path):
+    """Filter nodes by source path prefix.
+
+    Matches against node source, source_url, metadata.source_file,
+    and the node ID itself (which often encodes the file path).
+    """
+    prefix = source_path.lower().rstrip("/")
+    filtered = {}
+    for nid, node in nodes.items():
+        searchable = [
+            nid.lower(),
+            (node.get("source") or "").lower(),
+            (node.get("source_url") or "").lower(),
+        ]
+        meta = node.get("metadata", {})
+        if meta.get("source_file"):
+            searchable.append(meta["source_file"].lower())
+        if any(prefix in s for s in searchable):
+            filtered[nid] = node
+    return filtered
+
+
 def _sample_beliefs(belief_ids, budget, rng=None):
     """Randomly sample up to budget belief IDs.
 
@@ -435,7 +457,8 @@ def parse_proposals(response):
     return proposals
 
 
-def build_prompt(nodes, domain=None, topic=None, budget=300, sample=False,
+def build_prompt(nodes, domain=None, topic=None, source_path=None,
+                 budget=300, sample=False,
                  seed=None, min_depth=None, max_depth_filter=None,
                  premises_only=False, has_dependents=False,
                  cluster=False, intra_cluster=False, round_num=0,
@@ -447,6 +470,8 @@ def build_prompt(nodes, domain=None, topic=None, budget=300, sample=False,
         nodes: Dict of node_id -> node data from export_network.
         domain: Optional domain description for context.
         topic: Optional keyword filter — only include beliefs matching these keywords.
+        source_path: Optional source path prefix filter — only include beliefs whose
+            source, source_url, metadata.source_file, or ID contains this path.
         budget: Maximum number of beliefs to include in the prompt (default: 300).
         sample: If True, randomly sample beliefs instead of alphabetical truncation.
         seed: Random seed for reproducible sampling.
@@ -459,9 +484,11 @@ def build_prompt(nodes, domain=None, topic=None, budget=300, sample=False,
 
     Returns: (prompt_text, stats_dict)
     """
-    # Apply topic filter before anything else
+    # Apply topic and source path filters before anything else
     if topic:
         nodes = _filter_by_topic(nodes, topic)
+    if source_path:
+        nodes = _filter_by_source_path(nodes, source_path)
 
     # Compute depth and dependency info from the full graph before filtering
     all_derived = {k: v for k, v in nodes.items()
@@ -515,6 +542,8 @@ def build_prompt(nodes, domain=None, topic=None, budget=300, sample=False,
 
     if topic:
         domain_context += f"\n\nFiltered to beliefs matching: {topic}"
+    if source_path:
+        domain_context += f"\n\nFiltered to beliefs from source path: {source_path}"
 
     # Cross-agent task instructions
     cross_agent_task = CROSS_AGENT_TASK if agents else ""

@@ -2428,7 +2428,9 @@ def cmd_derive(args):
             print(f"Error loading network: {e}", file=sys.stderr)
             sys.exit(1)
 
-        prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True)
+        source_path = getattr(args, "source_path", None)
+        prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True,
+                                      source_path=source_path)
 
         try:
             response = invoke_sync(prompt, model=model, timeout=timeout)
