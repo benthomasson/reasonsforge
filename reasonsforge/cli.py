@@ -2758,7 +2758,6 @@ def main():
     p.add_argument("--text", default=None, help="Create a successor node with this text and supersede")
     p.add_argument("--id", default=None, help="Custom ID for the successor node (used with --text)")
 
-    # update
     # set-metadata
     p = sub.add_parser("set-metadata", help="Set a metadata key on a belief")
     p.add_argument("node_id", help="Belief to update")
