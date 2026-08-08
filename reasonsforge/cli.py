@@ -593,27 +593,6 @@ def cmd_supersede(args):
         print(f"Changed: {', '.join(result['changed'])}")
 
 
-def cmd_update(args):
-    if not any([args.source, args.source_url, args.example]):
-        print("Error: at least one of --source, --source-url, or --example required",
-              file=sys.stderr)
-        sys.exit(1)
-    try:
-        result = api.update_node(
-            args.node_id,
-            source=args.source,
-            source_url=args.source_url,
-            example=args.example,
-            **_backend_kwargs(args),
-        )
-    except KeyError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    fields = ", ".join(result["updated_fields"])
-    print(f"Updated {result['node_id']} ({fields})")
-
-
 def cmd_set_metadata(args):
     try:
         result = api.set_metadata(
@@ -2779,13 +2758,6 @@ def main():
     p.add_argument("--text", default=None, help="Create a successor node with this text and supersede")
     p.add_argument("--id", default=None, help="Custom ID for the successor node (used with --text)")
 
-    # update
-    p = sub.add_parser("update", help="Update a belief's metadata (source, example)")
-    p.add_argument("node_id", help="Belief to update")
-    p.add_argument("--source", default=None, help="Update source path")
-    p.add_argument("--source-url", default=None, help="Update source URL")
-    p.add_argument("--example", default=None, help="Code example demonstrating the belief")
-
     # set-metadata
     p = sub.add_parser("set-metadata", help="Set a metadata key on a belief")
     p.add_argument("node_id", help="Belief to update")
@@ -3399,7 +3371,6 @@ def main():
         "convert-to-premise": cmd_convert_to_premise,
         "summarize": cmd_summarize,
         "supersede": cmd_supersede,
-        "update": cmd_update,
         "get-metadata": cmd_get_metadata,
         "set-metadata": cmd_set_metadata,
         "challenge": cmd_challenge,
