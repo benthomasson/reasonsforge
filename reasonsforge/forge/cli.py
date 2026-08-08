@@ -216,6 +216,25 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted update")
 
+    # code file-issues
+    cs = code_sub.add_parser("file-issues",
+                             help="File issues from gated blockers and negative beliefs")
+    cs.add_argument("--repo-slug", default=None,
+                    help="Target repo (owner/repo). Auto-detected from git remote if omitted.")
+    cs.add_argument("--platform", default=None, choices=["github", "gitlab"],
+                    help="Force platform (auto-detected if omitted)")
+    cs.add_argument("--label", dest="labels", action="append", default=[],
+                    help="Extra labels to add (repeatable)")
+    cs.add_argument("--dry-run", action="store_true", default=False,
+                    help="Show what would be filed without creating issues")
+    cs.add_argument("--skip-confirm", action="store_true", default=False,
+                    help="Skip LLM confirmation that issues still exist in code")
+    cs.add_argument("--no-negative", action="store_true", default=False,
+                    help="Skip negative IN beliefs (only file gated blockers)")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--output", default="reasons.db")
+
     # code refine
     cs = code_sub.add_parser("refine",
                              help="Iterative refinement: derive + review-beliefs + repair loop")
@@ -658,6 +677,7 @@ def _cmd_code(args):
         cmd_explain_diff as _code_explain_diff,
         cmd_explain_file as _code_explain_file,
         cmd_explain_function as _code_explain_func,
+        cmd_file_issues as _code_file_issues,
         cmd_init as _code_init,
         cmd_propose_beliefs as _code_propose,
         cmd_research as _code_research,
@@ -684,6 +704,7 @@ def _cmd_code(args):
         "derive": _code_derive,
         "topics": _code_topics,
         "status": _code_status,
+        "file-issues": _code_file_issues,
         "update": cmd_update,
         "analyze": cmd_analyze,
         "refine": cmd_refine,

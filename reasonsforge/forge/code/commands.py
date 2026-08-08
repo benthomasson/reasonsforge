@@ -10,6 +10,8 @@ import asyncio
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -2583,3 +2585,464 @@ def cmd_status(args):
         accepted = len(re.findall(r"^### \[ACCEPT\]", text, re.MULTILINE))
         if total:
             print(f"Proposed: {total} candidates ({accepted} accepted)")
+
+
+# ---------------------------------------------------------------------------
+# file-issues
+# ---------------------------------------------------------------------------
+
+
+def _detect_platform(repo_path: str):
+    """Detect GitHub/GitLab from git remote. Returns (platform, owner/repo)."""
+    result = subprocess.run(
+        ["git", "config", "--get", "remote.origin.url"],
+        capture_output=True, text=True, cwd=repo_path,
+    )
+    if result.returncode != 0:
+        return None, None
+    url = result.stdout.strip()
+    m = re.match(r"(?:https?://|git@)([^/:]+)[:/](.+?)(?:\.git)?$", url)
+    if not m:
+        return None, None
+    host, path = m.group(1), m.group(2)
+    if "github" in host:
+        return "github", path
+    elif "gitlab" in host:
+        return "gitlab", path
+    return None, None
+
+
+def _find_existing_issues(platform: str, repo_slug: str,
+                          blocker_ids: list[str],
+                          blocker_texts: dict[str, str]) -> set[str]:
+    """Search for existing issues matching blockers. Returns matched blocker IDs."""
+    found = set()
+    if platform == "github":
+        result = subprocess.run(
+            ["gh", "issue", "list", "--repo", repo_slug,
+             "--state", "all", "--json", "title,number,state",
+             "--limit", "200"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return found
+        issues = json.loads(result.stdout)
+        titles_lower = [issue["title"].lower() for issue in issues]
+        for bid in blocker_ids:
+            bid_words = bid.replace("-", " ").lower()
+            for title in titles_lower:
+                if bid.lower() in title or _titles_match(bid_words, title):
+                    found.add(bid)
+                    break
+    elif platform == "gitlab":
+        for bid in blocker_ids:
+            search = bid.replace("-", " ")
+            result = subprocess.run(
+                ["glab", "issue", "list", "--repo", repo_slug,
+                 "--search", search, "--in", "title",
+                 "--output", "json"],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                issues = json.loads(result.stdout)
+                if issues:
+                    found.add(bid)
+    return found
+
+
+def _titles_match(bid_words: str, title: str) -> bool:
+    """Check if a belief ID's words substantially overlap with an issue title."""
+    bid_tokens = set(bid_words.replace("-", " ").split())
+    title_tokens = set(title.replace("-", " ").split())
+    bid_tokens -= {"is", "a", "an", "the", "and", "or", "not", "no", "in", "on", "to", "for", "of"}
+    if not bid_tokens:
+        return False
+    overlap = bid_tokens & title_tokens
+    return len(overlap) >= len(bid_tokens) * 0.6
+
+
+def _build_issue_body(blocker_node: dict, gated_nodes: list[dict]) -> str:
+    """Build issue body from a blocker and the beliefs it gates."""
+    lines = [
+        "## Problem",
+        "",
+        blocker_node["text"],
+        "",
+        "## Impact",
+        "",
+        f"This blocks {len(gated_nodes)} belief(s) in the knowledge base:",
+        "",
+    ]
+    for gated in gated_nodes:
+        lines.append(f"- **{gated['id']}**: {gated['text'][:120]}")
+    lines.extend([
+        "",
+        "## Resolution",
+        "",
+        "When this issue is resolved, retract the blocker belief to restore gated conclusions:",
+        "```bash",
+        f"reasonsforge retract {blocker_node['id']}",
+        "```",
+        "",
+        "---",
+        "*Filed automatically from belief network by `reasonsforge code file-issues`*",
+    ])
+    return "\n".join(lines)
+
+
+def _build_negative_issue_body(belief: dict) -> str:
+    """Build issue body for a negative IN belief."""
+    lines = [
+        "## Problem",
+        "",
+        belief["text"],
+        "",
+        "## Resolution",
+        "",
+        "When this issue is resolved, retract the belief:",
+        "```bash",
+        f"reasonsforge retract {belief['id']}",
+        "```",
+        "",
+        "---",
+        "*Filed automatically from belief network by `reasonsforge code file-issues`*",
+    ]
+    return "\n".join(lines)
+
+
+def _ensure_labels(platform: str, repo_slug: str, labels: set[str]):
+    """Create any labels that do not already exist on the repo."""
+    if platform == "github":
+        result = subprocess.run(
+            ["gh", "label", "list", "--repo", repo_slug, "--json", "name", "--limit", "200"],
+            capture_output=True, text=True,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            existing = {l["name"] for l in json.loads(result.stdout)}
+        else:
+            existing = set()
+        for label in labels - existing:
+            subprocess.run(
+                ["gh", "label", "create", label, "--repo", repo_slug,
+                 "--description", "Auto-created by reasonsforge file-issues",
+                 "--color", "d93f0b"],
+                capture_output=True, text=True,
+            )
+            print(f"  Created label: {label}", file=sys.stderr)
+
+
+def _create_issue(platform: str, repo_slug: str, title: str, body: str,
+                  labels: list[str]):
+    """Create an issue and return its URL, or None on failure."""
+    if platform == "github":
+        cmd = ["gh", "issue", "create", "--repo", repo_slug,
+               "--title", title, "--body", body]
+        for label in labels:
+            cmd.extend(["--label", label])
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            return result.stdout.strip()
+        print(f"  Error creating issue: {result.stderr.strip()}", file=sys.stderr)
+        return None
+    elif platform == "gitlab":
+        cmd = ["glab", "issue", "create", "--repo", repo_slug,
+               "--title", title, "--description", body, "--yes"]
+        for label in labels:
+            cmd.extend(["--label", label])
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            url = result.stdout.strip()
+            if not url:
+                url = result.stderr.strip()
+            return url
+        print(f"  Error creating issue: {result.stderr.strip()}", file=sys.stderr)
+        return None
+    return None
+
+
+_NEGATIVE_KEYWORDS = re.compile(
+    r"\b(bug|gap|vulnerability|missing|disabled|no tests|insecure|injection|fragile|risk|"
+    r"broken|unsafe|unvalidated|unprotected|dormant|dead code|untested|hardcoded|leak)\b",
+    re.IGNORECASE,
+)
+
+_POSITIVE_CONTEXT = re.compile(
+    r"\b(is safe|is crash.safe|is secure|is protected|is validated|is tested|"
+    r"has no gaps|no.gaps|are safe|are secure|are validated|are protected|"
+    r"safely|gapless|sustainable|preserving|prevents|ensuring|"
+    r"outlist injection|dependency injection|fault injection)\b",
+    re.IGNORECASE,
+)
+
+CONFIRM_PROMPT = """\
+You are verifying whether reported issues still exist in a codebase.
+
+For each issue below, I provide the issue description and relevant code context
+gathered from the current state of the repository.
+
+Determine whether each issue STILL EXISTS in the current code.
+
+An issue still exists if the code shows the described problem, gap, or risk.
+An issue is resolved if the code has been fixed, the relevant code was removed,
+or the concern no longer applies.
+
+Return ONLY a JSON object mapping each belief ID to true (still exists) or false (resolved).
+Example: {{"belief-1": true, "belief-2": false}}
+
+## Issues to Verify
+
+{issues}"""
+
+
+def _parse_confirmation(response: str) -> dict[str, bool]:
+    """Parse JSON confirmation response from LLM."""
+    m = re.search(r"\{[^{}]*\}", response, re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            return {k: bool(v) for k, v in data.items()}
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return {}
+
+
+def _find_negative_in_beliefs(nodes: dict) -> list[dict]:
+    """Find IN beliefs with negative-signal keywords, excluding positive assertions."""
+    results = []
+    for nid, node in nodes.items():
+        if node.get("truth_value") != "IN":
+            continue
+        text = node.get("text", "")
+        if _NEGATIVE_KEYWORDS.search(text) and not _POSITIVE_CONTEXT.search(text):
+            results.append({"id": nid, "text": text})
+    return results
+
+
+def _get_negative_beliefs(nodes: dict, db_path: str = REASONS_DB) -> list[dict]:
+    """Get negative IN beliefs via API or keyword fallback."""
+    try:
+        from reasonsforge import api
+        result = api.list_negative(db_path=db_path)
+        return [{"id": b["id"], "text": b["text"]} for b in result.get("beliefs", [])]
+    except Exception:
+        return _find_negative_in_beliefs(nodes)
+
+
+def _confirm_file_issues(
+    beliefs: list[dict],
+    nodes: dict,
+    repo_path: str,
+    model: str,
+    timeout: int,
+    project_dir: str | None = None,
+    batch_size: int = 10,
+) -> list[dict]:
+    """Confirm beliefs still exist in code using LLM. Returns confirmed beliefs."""
+    from ..llm import invoke_sync
+    confirmed = []
+    batches = [beliefs[i:i + batch_size] for i in range(0, len(beliefs), batch_size)]
+    for i, batch in enumerate(batches):
+        print(f"  Confirming batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...",
+              file=sys.stderr)
+        contexts = asyncio.run(
+            _gather_confirmation_context(batch, nodes, repo_path, project_dir)
+        )
+        issues_section = []
+        for belief in batch:
+            ctx_text = contexts.get(belief["id"], "(no context)")
+            issues_section.append(
+                f"### `{belief['id']}`\n{belief['text']}\n\n"
+                f"**Code context:**\n{ctx_text}"
+            )
+        prompt = CONFIRM_PROMPT.format(issues="\n\n---\n\n".join(issues_section))
+        try:
+            response = invoke_sync(prompt, model=model, timeout=timeout)
+            decisions = _parse_confirmation(response)
+            for belief in batch:
+                if decisions.get(belief["id"], True):
+                    confirmed.append(belief)
+                else:
+                    print(f"    {belief['id']}: resolved (skipping)", file=sys.stderr)
+        except Exception as e:
+            print(f"    Confirmation failed ({e}), including all in batch", file=sys.stderr)
+            confirmed.extend(batch)
+    return confirmed
+
+
+def cmd_file_issues(args):
+    """File issues from gated blockers and negative beliefs.
+
+    Finds GATE beliefs where outlist nodes are IN (blocking the conclusion),
+    plus negative IN beliefs. Before filing, confirms each issue still exists
+    in the current code using LLM verification. Checks for existing issues
+    to avoid duplicates.
+    """
+    from reasonsforge.api import export_network
+
+    model = getattr(args, "model", "claude")
+    timeout = max(getattr(args, "timeout", 300), 600)
+    db_path = getattr(args, "output", REASONS_DB)
+    repo_slug = getattr(args, "repo_slug", None)
+    platform_override = getattr(args, "platform", None)
+    labels = list(getattr(args, "labels", []))
+    dry_run = getattr(args, "dry_run", False)
+    skip_confirm = getattr(args, "skip_confirm", False)
+    no_negative = getattr(args, "no_negative", False)
+
+    network = export_network(db_path=db_path)
+    nodes = network.get("nodes", {})
+    if not nodes:
+        print("No beliefs found. Run explorations first.", file=sys.stderr)
+        sys.exit(1)
+
+    candidates: list[dict] = []
+
+    # 1. Find gated blockers (IN outlist nodes blocking OUT conclusions)
+    blockers: dict[str, list[dict]] = {}
+    for nid, node in nodes.items():
+        if node.get("truth_value") != "OUT":
+            continue
+        if (node.get("metadata") or {}).get("superseded_by"):
+            continue
+        for j in node.get("justifications", []):
+            if not j.get("outlist"):
+                continue
+            for outlist_id in j["outlist"]:
+                if outlist_id not in nodes:
+                    continue
+                if nodes[outlist_id].get("truth_value") != "IN":
+                    continue
+                blockers.setdefault(outlist_id, []).append({
+                    "id": nid,
+                    "text": node.get("text", ""),
+                })
+
+    for bid, gated in blockers.items():
+        candidates.append({
+            "id": bid,
+            "text": nodes[bid].get("text", ""),
+            "type": "gate",
+            "gated": gated,
+        })
+
+    # 2. Find negative IN beliefs
+    if not no_negative:
+        negative = _get_negative_beliefs(nodes, db_path=db_path)
+        gate_ids = set(blockers.keys())
+        for belief in negative:
+            if belief["id"] not in gate_ids:
+                candidates.append({
+                    "id": belief["id"],
+                    "text": belief["text"],
+                    "type": "negative",
+                })
+
+    if not candidates:
+        print("No active blockers or negative beliefs found.")
+        return
+
+    gate_count = sum(1 for c in candidates if c["type"] == "gate")
+    neg_count = sum(1 for c in candidates if c["type"] == "negative")
+    print(f"Found {gate_count} gated blocker(s) and {neg_count} negative belief(s)",
+          file=sys.stderr)
+
+    # Detect platform
+    config = _load_config()
+    target_repo_path = config.get("repo_path", os.getcwd()) if config else os.getcwd()
+    project_dir = config.get("project_dir") if config else None
+
+    platform = platform_override
+    if not repo_slug or not platform:
+        detected_platform, detected_slug = _detect_platform(target_repo_path)
+        if not platform:
+            platform = detected_platform
+        if not repo_slug:
+            repo_slug = detected_slug
+
+    if not platform or not repo_slug:
+        print("Error: Could not detect platform/repo. Use --repo-slug and --platform flags.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    cli_tool = "gh" if platform == "github" else "glab"
+    if not shutil.which(cli_tool):
+        print(f"Error: {cli_tool} CLI not found. Install it first.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Platform: {platform}, Repo: {repo_slug}", file=sys.stderr)
+
+    # Dedup against existing issues
+    all_ids = [c["id"] for c in candidates]
+    all_texts = {c["id"]: c["text"] for c in candidates}
+    if not dry_run:
+        print("Checking for existing issues...", file=sys.stderr)
+        existing = _find_existing_issues(platform, repo_slug, all_ids, all_texts)
+        if existing:
+            print(f"  {len(existing)} already have issues: {', '.join(sorted(existing))}",
+                  file=sys.stderr)
+    else:
+        existing = set()
+
+    remaining = [c for c in candidates if c["id"] not in existing]
+
+    # Confirm issues still exist in code
+    from ..llm import check_model_available
+    if not dry_run and not skip_confirm and remaining and check_model_available(model):
+        print(f"Confirming {len(remaining)} candidate(s) against current code...",
+              file=sys.stderr)
+        confirmed = _confirm_file_issues(
+            remaining, nodes, target_repo_path,
+            model=model, timeout=timeout, project_dir=project_dir,
+        )
+        unconfirmed = len(remaining) - len(confirmed)
+        if unconfirmed:
+            print(f"  {unconfirmed} belief(s) no longer present in code", file=sys.stderr)
+        remaining = confirmed
+
+    # Ensure labels exist
+    if not dry_run and remaining:
+        all_labels = {f"reasons-{c['type']}" for c in remaining} | set(labels)
+        _ensure_labels(platform, repo_slug, all_labels)
+
+    # File issues
+    filed = []
+    skipped_ids = list(existing)
+
+    for candidate in sorted(remaining, key=lambda c: c["id"]):
+        ctype = candidate["type"]
+        issue_labels = [f"reasons-{ctype}"] + labels
+        title = f"[{candidate['id']}] {candidate['text'][:80]}"
+
+        if ctype == "gate":
+            body = _build_issue_body(
+                {"id": candidate["id"], "text": candidate["text"]},
+                candidate["gated"],
+            )
+        else:
+            body = _build_negative_issue_body(candidate)
+
+        if dry_run:
+            print(f"\n  WOULD FILE ({ctype}): {title}")
+            if ctype == "gate":
+                print(f"  Blocks: {', '.join(g['id'] for g in candidate['gated'])}")
+            print(f"  Labels: {', '.join(issue_labels)}")
+            continue
+
+        print(f"  Filing: {candidate['id']}...", file=sys.stderr)
+        url = _create_issue(platform, repo_slug, title, body, issue_labels)
+        if url:
+            filed.append((candidate["id"], url))
+            print(f"  OK {candidate['id']}: {url}")
+        else:
+            print(f"  FAIL {candidate['id']}")
+
+    if dry_run:
+        print(
+            f"\nDry run: {len(remaining)} would be filed, "
+            f"{len(existing)} already exist, "
+            f"{len(candidates) - len(remaining) - len(existing)} filtered"
+        )
+    else:
+        print(f"\nFiled {len(filed)} issue(s), skipped {len(skipped_ids)}")
+        for bid, url in filed:
+            print(f"  {bid}: {url}")
