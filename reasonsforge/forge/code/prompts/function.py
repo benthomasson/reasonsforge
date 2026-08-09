@@ -1,6 +1,7 @@
 """Prompt template for function/class explanation."""
 
 from .common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
+from .modes import get_mode
 
 
 def build_function_prompt(
@@ -10,6 +11,7 @@ def build_function_prompt(
     full_file_content: str | None = None,
     related_tests: list[str] | None = None,
     language: str = "python",
+    mode: str = "discover",
 ) -> str:
     """
     Build prompt for explaining a specific function or class.
@@ -21,9 +23,11 @@ def build_function_prompt(
         full_file_content: Full file for additional context
         related_tests: Paths to related test files
         language: Language for code fence syntax highlighting
+        mode: Analysis mode (discover, security, performance)
     """
+    m = get_mode(mode)
     sections = [
-        "You are a senior software engineer explaining code to a colleague.",
+        m["explore_role"],
         f"Explain the following symbol `{symbol_name}` from `{file_path}`.",
         "",
         "## Source Code",
@@ -55,6 +59,9 @@ def build_function_prompt(
             sections.append(f"- `{test}`")
         sections.append("")
 
+    if m["explore_extra"]:
+        sections.append(m["explore_extra"])
+
     sections.extend([
         "## Instructions",
         "",
@@ -73,8 +80,8 @@ def build_function_prompt(
         "Format your response as markdown.",
         "Be precise — explain the actual logic, not just paraphrase the code.",
         "Identify any assumptions the code makes that are not enforced by the type system.",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     return "\n".join(sections)

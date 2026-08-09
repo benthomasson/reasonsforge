@@ -1,6 +1,7 @@
 """Prompt template for repository overview explanation."""
 
 from .common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
+from .modes import get_mode
 
 
 def build_repo_prompt(
@@ -8,6 +9,7 @@ def build_repo_prompt(
     config_content: str | None = None,
     readme_content: str | None = None,
     entry_points: list[str] | None = None,
+    mode: str = "discover",
 ) -> str:
     """
     Build prompt for explaining a repository's architecture.
@@ -17,9 +19,11 @@ def build_repo_prompt(
         config_content: pyproject.toml / package.json / Cargo.toml content
         readme_content: README content if present
         entry_points: List of identified entry point files
+        mode: Analysis mode (discover, security, performance)
     """
+    m = get_mode(mode)
     sections = [
-        "You are a senior software engineer explaining a codebase to a new team member.",
+        m["explore_role"],
         "Provide a clear, structured overview of this repository.",
         "",
         "## Directory Structure",
@@ -56,6 +60,9 @@ def build_repo_prompt(
         for ep in entry_points:
             sections.append(f"- {ep}")
 
+    if m["explore_extra"]:
+        sections.extend(["", m["explore_extra"]])
+
     sections.extend([
         "",
         "## Instructions",
@@ -76,8 +83,8 @@ def build_repo_prompt(
         "Format your response as markdown with clear sections and headers.",
         "Be specific — reference actual file and directory names from the tree.",
         "Focus on architectural decisions and their rationale, not just structure.",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     return "\n".join(sections)

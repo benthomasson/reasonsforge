@@ -73,6 +73,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
 
     # code explain
     cs = code_sub.add_parser("explain", help="Explain a file, function, or diff")
@@ -114,6 +117,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
 
     # code accept-beliefs
     cs = code_sub.add_parser("accept-beliefs",
@@ -171,6 +177,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--domain", default=None)
     cs.add_argument("--source-path", default=None, dest="source_path",
                     help="Only derive from beliefs matching this source path prefix")
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
@@ -203,6 +212,9 @@ def register_forge_type_commands(parent_subparsers):
                     help="Resume a previously interrupted analysis")
     cs.add_argument("--source-path", default=None, dest="source_path",
                     help="Only derive from beliefs matching this source path prefix")
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
 
     # code update
     cs = code_sub.add_parser("update",
@@ -221,6 +233,9 @@ def register_forge_type_commands(parent_subparsers):
                     help="Resume a previously interrupted update")
     cs.add_argument("--source-path", default=None, dest="source_path",
                     help="Only derive from beliefs matching this source path prefix")
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
 
     # code file-issues
     cs = code_sub.add_parser("file-issues",
@@ -257,6 +272,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--domain", help="Domain description")
     cs.add_argument("--source-path", default=None, dest="source_path",
                     help="Only derive from beliefs matching this source path prefix")
+    cs.add_argument("--mode", default="discover",
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(

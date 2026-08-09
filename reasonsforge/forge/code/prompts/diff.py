@@ -1,12 +1,14 @@
 """Prompt template for diff explanation."""
 
 from .common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
+from .modes import get_mode
 
 
 def build_diff_prompt(
     diff_content: str,
     commit_log: str | None = None,
     changed_files_summary: list[str] | None = None,
+    mode: str = "discover",
 ) -> str:
     """
     Build prompt for explaining a diff (what changed and why).
@@ -15,9 +17,11 @@ def build_diff_prompt(
         diff_content: Unified diff output
         commit_log: Commit messages for the changes
         changed_files_summary: List of changed file paths
+        mode: Analysis mode (discover, security, performance)
     """
+    m = get_mode(mode)
     sections = [
-        "You are a senior software engineer explaining code changes to a colleague.",
+        m["explore_role"],
         "Explain what changed in this diff and why.",
         "",
     ]
@@ -48,6 +52,12 @@ def build_diff_prompt(
         diff_content,
         "```",
         "",
+    ])
+
+    if m["explore_extra"]:
+        sections.append(m["explore_extra"])
+
+    sections.extend([
         "## Instructions",
         "",
         "Explain these changes covering:",
@@ -60,8 +70,8 @@ def build_diff_prompt(
         "",
         "Format your response as markdown.",
         "Focus on the 'why' — don't just describe what lines were added/removed.",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     return "\n".join(sections)
@@ -70,6 +80,7 @@ def build_diff_prompt(
 def build_diff_summary_prompt(
     commit_log: str | None = None,
     changed_files: list[str] | None = None,
+    mode: str = "discover",
 ) -> str:
     """
     Build a summary-only prompt for large diffs (no diff content).
@@ -78,8 +89,9 @@ def build_diff_summary_prompt(
     commit log and file list so the model can produce a high-level
     overview and generate file-level topics for individual exploration.
     """
+    m = get_mode(mode)
     sections = [
-        "You are a senior software engineer summarizing a large set of code changes.",
+        m["explore_role"],
         "The diff is too large to include directly. Use the commit history and",
         "changed file list below to explain what happened at a high level.",
         "",
@@ -120,8 +132,8 @@ def build_diff_summary_prompt(
         "",
         "IMPORTANT: Generate topics for the most interesting changed files so they",
         "can be explored individually with full source context.",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     return "\n".join(sections)

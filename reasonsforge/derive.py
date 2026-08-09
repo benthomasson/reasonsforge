@@ -46,7 +46,7 @@ Given the existing beliefs and derived conclusions below, propose NEW derived co
 3. **Connect positive and negative chains** via outlist semantics — where a positive claim \
    should only hold when a negative claim (bug/issue/gap) is OUT
 {cross_agent_task}
-
+{mode_task_extra}
 ## Rules
 
 - Each proposed conclusion must have at least 2 antecedents
@@ -465,7 +465,7 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
                  premises_only=False, has_dependents=False,
                  cluster=False, intra_cluster=False, round_num=0,
                  cluster_cache=None, embedding_model=None,
-                 n_clusters=None, prompt_template=None):
+                 n_clusters=None, prompt_template=None, mode=None):
     """Build the full derive prompt from a network's nodes dict.
 
     Args:
@@ -547,6 +547,12 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
     if source_path:
         domain_context += f"\n\nFiltered to beliefs from source path: {source_path}"
 
+    # Mode-specific derive task instructions
+    mode_task_extra = ""
+    if mode and mode != "discover":
+        from reasonsforge.forge.code.prompts.modes import get_mode
+        mode_task_extra = get_mode(mode).get("derive_task_extra", "")
+
     # Cross-agent task instructions
     cross_agent_task = CROSS_AGENT_TASK if agents else ""
 
@@ -577,6 +583,7 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
             total_derived=len(derived),
             max_depth=max_depth,
             cross_agent_task=cross_agent_task,
+            mode_task_extra=mode_task_extra,
             agents_stats=agents_stats,
         )
     except KeyError as e:
@@ -584,7 +591,7 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
             f"Custom prompt template references unknown placeholder: {e}. "
             f"Available: {{beliefs_section}}, {{derived_section}}, {{total_in}}, "
             f"{{total_derived}}, {{max_depth}}, {{domain_context}}, "
-            f"{{cross_agent_task}}, {{agents_stats}}"
+            f"{{cross_agent_task}}, {{mode_task_extra}}, {{agents_stats}}"
         ) from None
     except ValueError as e:
         if prompt_template:

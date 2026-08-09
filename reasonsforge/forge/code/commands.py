@@ -326,14 +326,14 @@ def cmd_scan(args):
 # ---------------------------------------------------------------------------
 
 
-def _prepare_file_topic(topic, repo_path, lang=None):
+def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
     lang = lang or PYTHON
     file_path = topic.target
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
 
     if os.path.isdir(abs_path):
         topic.kind = "repo"
-        return _prepare_repo_topic(topic, repo_path, lang=lang)
+        return _prepare_repo_topic(topic, repo_path, lang=lang, mode=mode)
 
     if not os.path.isfile(abs_path):
         print(f"File not found: {file_path} (skipping)", file=sys.stderr)
@@ -354,13 +354,14 @@ def _prepare_file_topic(topic, repo_path, lang=None):
         imports=import_info["imports"] or None,
         imported_by=import_info["imported_by"] or None,
         repo_context=repo_tree,
+        mode=mode,
     )
 
     entry_name = _sanitize_path_for_filename(rel_path)
     return prompt, entry_name, f"File: {rel_path}", f"file:{rel_path}"
 
 
-def _prepare_function_topic(topic, repo_path, lang=None):
+def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
     lang = lang or PYTHON
     if ":" not in topic.target:
         print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
@@ -389,13 +390,14 @@ def _prepare_function_topic(topic, repo_path, lang=None):
         full_file_content=full_content,
         related_tests=related_tests or None,
         language=lang.fence_language,
+        mode=mode,
     )
 
     entry_name = _sanitize_path_for_filename(rel_path) + f"-{symbol_name}"
     return prompt, entry_name, f"Function: {symbol_name} in {rel_path}", f"function:{rel_path}:{symbol_name}"
 
 
-def _prepare_repo_topic(topic, repo_path, lang=None):
+def _prepare_repo_topic(topic, repo_path, lang=None, mode="discover"):
     lang = lang or PYTHON
     target_path = os.path.join(repo_path, topic.target) if topic.target != "." else repo_path
     if not os.path.isdir(target_path):
@@ -411,12 +413,13 @@ def _prepare_repo_topic(topic, repo_path, lang=None):
         config_content=config_content,
         readme_content=readme_content,
         entry_points=entry_points or None,
+        mode=mode,
     )
 
     return prompt, "repo-overview", "Repo Overview", "repo-overview"
 
 
-def _prepare_diff_topic(topic, repo_path, lang=None):
+def _prepare_diff_topic(topic, repo_path, lang=None, mode="discover"):
     try:
         diff_content = get_diff(topic.target, cwd=repo_path)
     except RuntimeError as e:
@@ -440,6 +443,7 @@ def _prepare_diff_topic(topic, repo_path, lang=None):
         diff_content=diff_content,
         commit_log=commit_log,
         changed_files_summary=changed_files or None,
+        mode=mode,
     )
 
     safe_label = topic.target.replace("/", "-")
@@ -460,9 +464,12 @@ def _finalize_topic(entry_name, entry_title, source, result, project_dir):
     _report_beliefs(result)
 
 
-async def _run_general_topic_async(topic, model, repo_path, timeout):
+async def _run_general_topic_async(topic, model, repo_path, timeout, mode="discover"):
     from ..llm import invoke
     from .prompts.common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
+    from .prompts.modes import get_mode
+
+    m = get_mode(mode)
 
     lang = detect_language(repo_path)
     tree = get_repo_structure(repo_path, max_depth=2)
@@ -478,7 +485,7 @@ async def _run_general_topic_async(topic, model, repo_path, timeout):
         obs_results = await run_observations(requested_obs, repo_path)
 
     explain_sections = [
-        "You are a senior software engineer explaining a codebase to a new team member.",
+        m["explore_role"],
         f"The reader wants to understand: **{topic.title}**",
         "",
     ]
@@ -488,13 +495,16 @@ async def _run_general_topic_async(topic, model, repo_path, timeout):
             "The following information was gathered from the codebase:", "",
             "```json", json.dumps(obs_results, indent=2, default=str), "```", "",
         ])
+    if m["explore_extra"]:
+        explain_sections.append(m["explore_extra"])
     explain_sections.extend([
         "## Instructions", "",
         f"Explain **{topic.title}** based on the observations above.",
         "Reference specific files, functions, and line numbers from the observations.",
         "If the observations are insufficient, say what's missing.", "",
         "Format your response as markdown.",
-        TOPICS_INSTRUCTIONS, BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     result = await invoke("\n".join(explain_sections), model, timeout=timeout)
@@ -503,7 +513,7 @@ async def _run_general_topic_async(topic, model, repo_path, timeout):
     return result, f"topic-{safe_label}", f"Topic: {topic.title}", f"general:{topic.target}"
 
 
-async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None):
+async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None, mode="discover"):
     from ..llm import invoke
     lang = lang or detect_language(repo_path)
     sem = asyncio.Semaphore(max_concurrent)
@@ -513,7 +523,7 @@ async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_conc
             print(f"Explaining [{topic.kind}] {topic.target} with {model}...", file=sys.stderr)
             if topic.kind == "general":
                 result, entry_name, entry_title, source = await _run_general_topic_async(
-                    topic, model, repo_path, timeout,
+                    topic, model, repo_path, timeout, mode=mode,
                 )
                 return topic, result, entry_name, entry_title, source
 
@@ -521,7 +531,7 @@ async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_conc
             if not prepare_fn:
                 raise ValueError(f"Unknown topic kind: {topic.kind}")
 
-            prepared = prepare_fn(topic, repo_path, lang=lang)
+            prepared = prepare_fn(topic, repo_path, lang=lang, mode=mode)
             if prepared is None:
                 return None
 
@@ -553,6 +563,8 @@ def cmd_explore(args):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
         sys.exit(1)
 
+    mode = getattr(args, "mode", None) or "discover"
+
     if loop_max is not None:
         _explore_loop(args, project_dir, loop_max)
         return
@@ -568,7 +580,7 @@ def cmd_explore(args):
         print(f"Exploring '{topic.title}' with {model}...", file=sys.stderr)
         try:
             result, entry_name, entry_title, source = asyncio.run(
-                _run_general_topic_async(topic, model, abs_repo, timeout)
+                _run_general_topic_async(topic, model, abs_repo, timeout, mode=mode)
             )
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
@@ -580,7 +592,7 @@ def cmd_explore(args):
             print(f"Unknown topic kind: {topic.kind}", file=sys.stderr)
             return
 
-        prepared = prepare_fn(topic, abs_repo, lang=lang)
+        prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
         if prepared is None:
             return
 
@@ -608,6 +620,7 @@ def _explore_loop(args, project_dir, max_topics):
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     parallel = getattr(args, "parallel", 1)
+    mode = getattr(args, "mode", None) or "discover"
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -635,7 +648,7 @@ def _explore_loop(args, project_dir, max_topics):
 
         if parallel > 1 and len(batch) > 1:
             results = asyncio.run(
-                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang)
+                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode)
             )
             for r in results:
                 if isinstance(r, Exception):
@@ -649,7 +662,7 @@ def _explore_loop(args, project_dir, max_topics):
                 print(f"Exploring '{topic.title}' with {model}...", file=sys.stderr)
                 try:
                     result, entry_name, entry_title, source = asyncio.run(
-                        _run_general_topic_async(topic, model, abs_repo, timeout)
+                        _run_general_topic_async(topic, model, abs_repo, timeout, mode=mode)
                     )
                 except Exception as e:
                     print(f"Error: {e}", file=sys.stderr)
@@ -662,7 +675,7 @@ def _explore_loop(args, project_dir, max_topics):
                     print(f"Unknown topic kind: {topic.kind}", file=sys.stderr)
                     explored += len(batch)
                     continue
-                prepared = prepare_fn(topic, abs_repo, lang=lang)
+                prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
                 if prepared is None:
                     explored += len(batch)
                     continue
@@ -1212,7 +1225,9 @@ def cmd_propose_beliefs(args):
             existing_beliefs, batch_paths[i], batch_text,
             belief_vectors=belief_vectors,
         )
-        prompt = PROPOSE_BELIEFS_CODE.format(entries=batch_text) + existing_context
+        from .prompts.propose import build_propose_prompt
+        propose_mode = getattr(args, "mode", None) or "discover"
+        prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
 
         print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
         try:
@@ -2429,8 +2444,9 @@ def cmd_derive(args):
             sys.exit(1)
 
         source_path = getattr(args, "source_path", None)
+        mode = getattr(args, "mode", None) or "discover"
         prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True,
-                                      source_path=source_path)
+                                      source_path=source_path, mode=mode)
 
         try:
             response = invoke_sync(prompt, model=model, timeout=timeout)

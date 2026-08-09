@@ -1354,6 +1354,7 @@ def _derive_one_round(args, round_num=None, report_state=None,
         round_num=round_num or 0, cluster_cache=cluster_cache,
         embedding_model=args.embedding_model, n_clusters=args.n_clusters,
         prompt_template=prompt_template,
+        mode=getattr(args, "mode", None),
     )
 
     print(f"{prefix}Network: {stats['total_in']} IN beliefs, "
@@ -2827,6 +2828,9 @@ def main():
                    help="Keyword filter — only include beliefs matching these keywords")
     p.add_argument("--source-path", default=None, dest="source_path",
                    help="Source path prefix filter — only include beliefs from this path")
+    p.add_argument("--mode", default=None,
+                   choices=["discover", "security", "performance"],
+                   help="Analysis mode — shifts derive focus (default: neutral discovery)")
     p.add_argument("--budget", type=int, default=300,
                    help="Maximum number of beliefs in prompt (default: 300)")
     p.add_argument("--sample", action="store_true",
