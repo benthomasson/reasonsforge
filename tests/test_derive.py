@@ -1170,3 +1170,40 @@ class TestBuildPromptSourcePath:
         data = api.export_network(db_path=db)
         prompt, _stats = build_prompt(data["nodes"], source_path="src/auth")
         assert "Filtered to beliefs from source path: src/auth" in prompt
+
+
+class TestBuildPromptMode:
+    def test_default_mode_no_extra(self, db):
+        api.add_node("a", "some belief", db_path=db)
+        data = api.export_network(db_path=db)
+        prompt, _ = build_prompt(data["nodes"])
+        assert "security implications" not in prompt
+        assert "performance bottlenecks" not in prompt
+
+    def test_security_mode_adds_task(self, db):
+        api.add_node("a", "some belief", db_path=db)
+        data = api.export_network(db_path=db)
+        prompt, _ = build_prompt(data["nodes"], mode="security")
+        assert "security implications" in prompt
+        assert "trust boundary violations" in prompt
+
+    def test_performance_mode_adds_task(self, db):
+        api.add_node("a", "some belief", db_path=db)
+        data = api.export_network(db_path=db)
+        prompt, _ = build_prompt(data["nodes"], mode="performance")
+        assert "performance bottlenecks" in prompt
+        assert "resource contention" in prompt
+
+    def test_discover_mode_same_as_default(self, db):
+        api.add_node("a", "some belief", db_path=db)
+        data = api.export_network(db_path=db)
+        prompt_default, _ = build_prompt(data["nodes"])
+        prompt_discover, _ = build_prompt(data["nodes"], mode="discover")
+        assert prompt_default == prompt_discover
+
+    def test_none_mode_same_as_default(self, db):
+        api.add_node("a", "some belief", db_path=db)
+        data = api.export_network(db_path=db)
+        prompt_default, _ = build_prompt(data["nodes"])
+        prompt_none, _ = build_prompt(data["nodes"], mode=None)
+        assert prompt_default == prompt_none

@@ -1,6 +1,7 @@
 """Prompt template for file explanation."""
 
 from .common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
+from .modes import get_mode
 
 
 def build_file_prompt(
@@ -9,6 +10,7 @@ def build_file_prompt(
     imports: list[str] | None = None,
     imported_by: list[str] | None = None,
     repo_context: str | None = None,
+    mode: str = "discover",
 ) -> str:
     """
     Build prompt for explaining a single file.
@@ -19,9 +21,11 @@ def build_file_prompt(
         imports: List of import statements in the file
         imported_by: List of files that import this file
         repo_context: Brief repo structure context
+        mode: Analysis mode (discover, security, performance)
     """
+    m = get_mode(mode)
     sections = [
-        "You are a senior software engineer explaining code to a colleague.",
+        m["explore_role"],
         f"Explain the following file: `{file_path}`",
         "",
     ]
@@ -63,6 +67,9 @@ def build_file_prompt(
             sections.append(f"- `{f}`")
         sections.append("")
 
+    if m["explore_extra"]:
+        sections.append(m["explore_extra"])
+
     sections.extend([
         "## Instructions",
         "",
@@ -79,8 +86,8 @@ def build_file_prompt(
         "Format your response as markdown.",
         "Be concrete — reference specific functions, classes, and line-level details.",
         "Focus on what a developer maintaining this code needs to know.",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
+        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
     ])
 
     return "\n".join(sections)

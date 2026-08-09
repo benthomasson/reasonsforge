@@ -1,5 +1,17 @@
 """Prompt template for proposing beliefs from code exploration entries."""
 
+from .modes import get_mode
+
+
+def build_propose_prompt(entries, mode="discover"):
+    m = get_mode(mode)
+    extra = m["propose_extra"]
+    prompt = PROPOSE_BELIEFS_CODE.format(entries=entries)
+    if extra:
+        prompt += "\n" + extra + "\n"
+    return prompt
+
+
 PROPOSE_BELIEFS_CODE = """\
 You are extracting architectural and behavioral claims from code exploration notes.
 
