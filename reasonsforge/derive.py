@@ -548,6 +548,7 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
         domain_context += f"\n\nFiltered to beliefs from source path: {source_path}"
 
     # Mode-specific derive task instructions
+    # Lazy import: derive.py is core; modes.py lives under forge.code.prompts
     mode_task_extra = ""
     if mode and mode != "discover":
         from reasonsforge.forge.code.prompts.modes import get_mode

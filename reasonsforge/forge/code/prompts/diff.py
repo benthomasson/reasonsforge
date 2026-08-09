@@ -92,6 +92,7 @@ def build_diff_summary_prompt(
     m = get_mode(mode)
     sections = [
         m["explore_role"],
+        "You are summarizing a large set of code changes.",
         "The diff is too large to include directly. Use the commit history and",
         "changed file list below to explain what happened at a high level.",
         "",
