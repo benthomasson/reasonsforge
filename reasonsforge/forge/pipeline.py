@@ -179,7 +179,8 @@ def _stage_derive(args, round_label=""):
                 nodes = {k: v for k, v in nodes.items()
                          if k.startswith(f"{ns}:")}
 
-        prompt, stats = build_prompt(nodes, domain=args.domain)
+        prompt, stats = build_prompt(nodes, domain=args.domain,
+                                     mode=getattr(args, "mode", None))
         print(f"{prefix}  Network: {stats['total_in']} IN, "
               f"{stats['total_derived']} derived, depth {stats['max_depth']}",
               file=sys.stderr)
