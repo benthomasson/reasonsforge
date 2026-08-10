@@ -828,7 +828,7 @@ class TestCompact:
         pg_api.add_nogood(["a", "b"])
         result = pg_api.compact(budget=5000)
         assert "## Nogoods" in result
-        assert "nogood-001" in result
+        assert "nogood-a-b" in result
 
     def test_compact_nogoods_filtered_by_visible_to(self, pg_api):
         pg_api.add_node("public", "Public belief")
@@ -837,11 +837,11 @@ class TestCompact:
         # Nogood references a secret node — should be hidden from non-admin
         result = pg_api.compact(budget=5000, visible_to=["user"])
         assert "Nogoods" not in result
-        assert "nogood-001" not in result
+        assert "nogood-" not in result
         # Admin can see the nogood
         result_admin = pg_api.compact(budget=5000, visible_to=["admin"])
         assert "## Nogoods" in result_admin
-        assert "nogood-001" in result_admin
+        assert "nogood-public-secret" in result_admin
 
     def test_compact_dependent_count_sorting(self, pg_api):
         pg_api.add_node("root", "Root node")

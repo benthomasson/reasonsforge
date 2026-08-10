@@ -188,7 +188,7 @@ class TestAddNogood:
         api.add_node("a", "Premise A", db_path=db_path)
         api.add_node("b", "Premise B", db_path=db_path)
         result = api.add_nogood(["a", "b"], db_path=db_path)
-        assert result["nogood_id"] == "nogood-001"
+        assert result["nogood_id"] == "nogood-a-b"
         assert result["nodes"] == ["a", "b"]
         assert len(result["changed"]) > 0
 
