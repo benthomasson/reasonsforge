@@ -138,7 +138,7 @@ def parse_nogoods(text: str) -> list[dict]:
     current = None
 
     for line in text.split("\n"):
-        m = re.match(r"^### (nogood-\d+):\s*(.*)", line)
+        m = re.match(r"^### (nogood-\S+?):\s*(.*)", line)
         if m:
             if current:
                 nogoods.append(current)
@@ -275,9 +275,11 @@ def import_into_network(
     # Import nogoods
     nogoods_imported = 0
     if nogoods_text:
+        existing_nogood_ids = {ng.id for ng in network.nogoods}
         nogoods = parse_nogoods(nogoods_text)
         for ng in nogoods:
-            # Only import if all affected nodes exist in the network
+            if ng["id"] in existing_nogood_ids:
+                continue
             valid_nodes = [a for a in ng["affects"] if a in network.nodes]
             if len(valid_nodes) >= 2:
                 nogood = Nogood(
@@ -287,11 +289,7 @@ def import_into_network(
                     resolution=ng["resolution"],
                 )
                 network.nogoods.append(nogood)
-                m = re.fullmatch(r"nogood-(\d+)", nogood.id)
-                if m:
-                    network._next_nogood_id = max(
-                        network._next_nogood_id, int(m.group(1)) + 1
-                    )
+                existing_nogood_ids.add(nogood.id)
                 nogoods_imported += 1
 
     return {
