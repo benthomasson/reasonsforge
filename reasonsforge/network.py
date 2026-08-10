@@ -392,8 +392,13 @@ class Network:
             if nid not in self.nodes:
                 raise KeyError(f"Node '{nid}' not found")
 
-        nogood_id = f"nogood-{self._next_nogood_id:03d}"
-        self._next_nogood_id += 1
+        slug = "-".join(sorted(node_ids))
+        nogood_id = f"nogood-{slug}"
+        if any(ng.id == nogood_id for ng in self.nogoods):
+            suffix = 2
+            while any(ng.id == f"{nogood_id}-{suffix}" for ng in self.nogoods):
+                suffix += 1
+            nogood_id = f"{nogood_id}-{suffix}"
         nogood = Nogood(
             id=nogood_id,
             nodes=list(node_ids),

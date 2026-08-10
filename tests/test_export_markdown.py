@@ -64,7 +64,7 @@ class TestExportMarkdown:
         net.add_nogood(["a", "b"])
         md = export_markdown(net)
         assert "## Nogoods" in md
-        assert "nogood-001" in md
+        assert "nogood-a-b" in md
 
     def test_beliefs_type_preserved(self):
         net = Network()

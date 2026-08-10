@@ -240,7 +240,7 @@ class TestNogood:
         net.add_node("d", "Premise D")
         net.add_nogood(["a", "d"])
         assert net.nogoods[0].nodes == ["a", "d"]
-        assert net.nogoods[0].id == "nogood-001"
+        assert net.nogoods[0].id == "nogood-a-d"
 
     def test_nogood_inactive_when_one_already_out(self):
         net = Network()

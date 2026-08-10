@@ -1883,7 +1883,10 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
 
         from . import Nogood
         nogoods_imported = 0
+        existing_nogood_ids = {ng.id for ng in net.nogoods}
         for ng_data in data.get("nogoods", []):
+            if ng_data["id"] in existing_nogood_ids:
+                continue
             nogood = Nogood(
                 id=ng_data["id"],
                 nodes=ng_data.get("nodes", []),
@@ -1891,9 +1894,7 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
                 resolution=ng_data.get("resolution", ""),
             )
             net.nogoods.append(nogood)
-            m = re.fullmatch(r"nogood-(\d+)", nogood.id)
-            if m:
-                net._next_nogood_id = max(net._next_nogood_id, int(m.group(1)) + 1)
+            existing_nogood_ids.add(nogood.id)
             nogoods_imported += 1
 
         # Import repos

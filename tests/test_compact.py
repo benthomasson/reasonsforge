@@ -36,7 +36,7 @@ class TestCompact:
         net.add_nogood(["a", "b"])
         result = compact(net)
         assert "## Nogoods" in result
-        assert "nogood-001" in result
+        assert "nogood-a-b" in result
 
     def test_includes_out_nodes(self):
         net = Network()
