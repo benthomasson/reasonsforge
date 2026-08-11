@@ -683,13 +683,25 @@ def _cmd_document(args):
     cmd_pipeline(args)
 
 
-def _print_cost():
-    """Print accumulated LLM cost summary if any calls were made."""
+def _print_cost(args=None, operation=None):
+    """Print accumulated LLM cost summary and write cost report."""
     try:
-        from .llm import format_cost_summary
+        from .llm import format_cost_summary, get_cost_summary
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        if args and not getattr(args, "no_costs", False):
+            cost_summary = get_cost_summary()
+            if cost_summary["calls"] > 0:
+                from ..cost_report import write_cost_report
+                op = operation or getattr(args, "code_command", None) or "forge"
+                write_cost_report(
+                    costs_dir=getattr(args, "costs_dir", "costs/"),
+                    operation=op,
+                    cost_summary=cost_summary,
+                    domain=getattr(args, "domain", None),
+                    model=getattr(args, "model", None),
+                )
     except Exception:
         pass
 
@@ -754,7 +766,7 @@ def _cmd_code(args):
         # No subcommand — run full analyze pipeline
         cmd_analyze(args)
     finally:
-        _print_cost()
+        _print_cost(args, operation=code_command)
 
 
 def _cmd_product(args):
@@ -794,16 +806,19 @@ def _cmd_product(args):
         "update": _prod_update,
     }
 
-    if product_command and product_command in _prod_dispatch:
-        _prod_dispatch[product_command](args)
-        return
+    try:
+        if product_command and product_command in _prod_dispatch:
+            _prod_dispatch[product_command](args)
+            return
 
-    # No subcommand — run full analyze pipeline
-    source = args.github or args.gitlab or args.jira
-    if not source:
-        print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
-        sys.exit(1)
-    cmd_analyze(args)
+        # No subcommand — run full analyze pipeline
+        source = args.github or args.gitlab or args.jira
+        if not source:
+            print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
+            sys.exit(1)
+        cmd_analyze(args)
+    finally:
+        _print_cost(args, operation=product_command)
 
 
 def _cmd_project(args):
@@ -847,16 +862,19 @@ def _cmd_project(args):
         "update": _proj_update,
     }
 
-    if project_command and project_command in _proj_dispatch:
-        _proj_dispatch[project_command](args)
-        return
+    try:
+        if project_command and project_command in _proj_dispatch:
+            _proj_dispatch[project_command](args)
+            return
 
-    # No subcommand — run full analyze pipeline
-    source = args.github or args.gitlab or args.jira
-    if not source:
-        print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
-        sys.exit(1)
-    cmd_analyze(args)
+        # No subcommand — run full analyze pipeline
+        source = args.github or args.gitlab or args.jira
+        if not source:
+            print("Error: specify --github, --gitlab, or --jira", file=sys.stderr)
+            sys.exit(1)
+        cmd_analyze(args)
+    finally:
+        _print_cost(args, operation=project_command)
 
 
 def _cmd_meta(args):

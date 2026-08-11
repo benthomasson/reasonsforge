@@ -1140,6 +1140,25 @@ def _backend_kwargs(args):
     return {"db_path": args.db}
 
 
+def _write_cost_report(args, operation, cost_summary, **kwargs):
+    """Write a JSON cost report if cost tracking is enabled."""
+    if getattr(args, "no_costs", False):
+        return None
+    costs_dir = getattr(args, "costs_dir", None)
+    if not costs_dir:
+        return None
+    tokens = cost_summary.get("input_tokens", 0) + cost_summary.get("output_tokens", 0)
+    if tokens == 0:
+        return None
+    from .cost_report import write_cost_report
+    return write_cost_report(
+        costs_dir=costs_dir,
+        operation=operation,
+        cost_summary=cost_summary,
+        **kwargs,
+    )
+
+
 def _require_sqlite(args, command_name):
     pg = getattr(args, "pg", None) or os.environ.get("REASONSFORGE_PG_CONNINFO")
     if pg:
@@ -1496,7 +1515,7 @@ def _write_derive_report(report_state, status):
 def cmd_derive(args):
     _require_sqlite(args, "derive")
     from datetime import datetime
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     prompt_template = None
@@ -1598,6 +1617,17 @@ def cmd_derive(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        total_added = sum(r["added"] for r in report_state["rounds"]) if report_state else 0
+        cost_path = _write_cost_report(
+            args, "derive", cost_summary,
+            domain=args.domain, model=args.model or "claude",
+            beliefs_added=total_added,
+        )
+        if cost_path:
+            print(f"  Cost report: {cost_path}", file=sys.stderr)
 
 
 def cmd_accept(args):
@@ -1733,10 +1763,13 @@ def cmd_report_gated(args):
     )
 
     if model:
-        from .llm import format_cost_summary
+        from .llm import format_cost_summary, get_cost_summary
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "report-gated", cost_summary, model=model)
 
 
 def cmd_report(args):
@@ -1768,14 +1801,17 @@ def cmd_report(args):
     )
 
     if model:
-        from .llm import format_cost_summary
+        from .llm import format_cost_summary, get_cost_summary
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "report", cost_summary, model=model)
 
 
 def cmd_verify(args):
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     result = api.verify_belief(
@@ -1844,6 +1880,10 @@ def cmd_verify(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        model = getattr(args, "model", "claude") or "claude"
+        _write_cost_report(args, "verify", cost_summary, model=model)
 
 
 def cmd_list_negative(args):
@@ -1905,17 +1945,20 @@ def cmd_build_wiki(args):
     print(f"Wiki written to {result['output_dir']}/")
     print(f"  {result['total_nodes']} beliefs across {result['pages']} pages")
     if model:
-        from .llm import format_cost_summary
+        from .llm import format_cost_summary, get_cost_summary
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "build-wiki", cost_summary, model=model)
 
 
 def cmd_review_beliefs(args):
     _require_sqlite(args, "review-beliefs")
     import json
     from datetime import datetime
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2072,11 +2115,17 @@ def cmd_review_beliefs(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(
+            args, "review-beliefs", cost_summary,
+            model=model, beliefs_retracted=len(invalid) if args.auto_retract else 0,
+        )
 
 
 def cmd_review_justifications(args):
     _require_sqlite(args, "review-justifications")
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2137,13 +2186,16 @@ def cmd_review_justifications(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "review-justifications", cost_summary, model=model)
 
 
 def cmd_review_premises(args):
     _require_sqlite(args, "review-premises")
     import json
     from datetime import datetime
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2249,13 +2301,16 @@ def cmd_review_premises(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "review-premises", cost_summary, model=model)
 
 
 def cmd_repair_premises(args):
     _require_sqlite(args, "repair-premises")
     import json
     from datetime import datetime
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2335,13 +2390,16 @@ def cmd_repair_premises(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "repair-premises", cost_summary, model=model)
 
 
 def cmd_propose_update(args):
     _require_sqlite(args, "propose-update")
     import json as _json
     from datetime import datetime
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     from .propose_update import format_proposals_file
@@ -2425,6 +2483,9 @@ def cmd_propose_update(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "propose-update", cost_summary, model=model)
 
 
 def cmd_repair_smuggled(args):
@@ -2471,7 +2532,7 @@ def cmd_repair_smuggled(args):
 
 def cmd_repair(args):
     _require_sqlite(args, "repair")
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2517,6 +2578,9 @@ def cmd_repair(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "repair", cost_summary, model=model)
 
 
 def cmd_contradictions(args):
@@ -2544,7 +2608,7 @@ def cmd_contradictions(args):
             print("No nogoods to apply.")
         return
 
-    from .llm import reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2590,6 +2654,50 @@ def cmd_contradictions(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(args, "contradictions", cost_summary, model=model)
+
+
+def cmd_costs(args):
+    from .cost_report import load_cost_reports, summarize_costs
+    costs_dir = args.costs_dir
+    reports = load_cost_reports(costs_dir)
+    if not reports:
+        print(f"No cost reports found in {costs_dir}")
+        return
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        import json as _json
+        summary = summarize_costs(reports)
+        print(_json.dumps(summary, indent=2))
+        return
+
+    summary = summarize_costs(reports)
+    t = summary["total"]
+
+    print(f"Cost Summary ({t['reports']} reports from {costs_dir})")
+    print(f"  Total cost: ${t['cost_dollars']:.4f}")
+    print(f"  Total tokens: {t['input_tokens']:,} input + {t['output_tokens']:,} output")
+    print(f"  Total calls: {t['calls']}")
+    print(f"  Beliefs added: {t['beliefs_added']}  Retracted: {t['beliefs_retracted']}")
+
+    if summary["by_operation"]:
+        print("\nBy Operation:")
+        for op, s in sorted(summary["by_operation"].items(),
+                            key=lambda x: x[1]["cost_dollars"], reverse=True):
+            print(f"  {op:25s} ${s['cost_dollars']:.4f}  "
+                  f"{s['input_tokens']:>10,} in + {s['output_tokens']:>10,} out  "
+                  f"{s['reports']} report(s)")
+
+    if summary["by_domain"]:
+        print("\nBy Domain:")
+        for dom, s in sorted(summary["by_domain"].items(),
+                             key=lambda x: x[1]["cost_dollars"], reverse=True):
+            print(f"  {dom:25s} ${s['cost_dollars']:.4f}  "
+                  f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
+                  f"{s['reports']} report(s)")
 
 
 def cmd_namespaces(args):
@@ -2617,6 +2725,10 @@ def main():
                         help="PostgreSQL connection string (or set REASONSFORGE_PG_CONNINFO)")
     parser.add_argument("--project-id", default=None,
                         help="Project ID for PostgreSQL (or set REASONSFORGE_PROJECT_ID)")
+    parser.add_argument("--costs-dir", default="costs/",
+                        help="Directory for JSON cost reports (default: costs/)")
+    parser.add_argument("--no-costs", action="store_true",
+                        help="Suppress JSON cost report generation")
     sub = parser.add_subparsers(dest="command")
 
     # Register forge subcommands
@@ -3306,6 +3418,11 @@ def main():
     p.add_argument("--accept", metavar="FILE",
                    help="Apply a reviewed contradiction plan file")
 
+    # costs
+    p = sub.add_parser("costs", help="Summarize JSON cost reports")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Output format (default: text)")
+
     # list
     p = sub.add_parser("list", help="List nodes with filters")
     p.add_argument("--status", choices=["IN", "OUT"], help="Filter by truth value")
@@ -3407,6 +3524,7 @@ def main():
         "repair": cmd_repair,
         "research": cmd_repair,
         "contradictions": cmd_contradictions,
+        "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "forge": lambda args: _dispatch_forge(args, _forge_commands),
         **_forge_type_commands,
