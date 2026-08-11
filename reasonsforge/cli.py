@@ -1580,9 +1580,9 @@ def cmd_derive(args):
             "rounds": [],
         }
 
+    total_added = 0
     if args.exhaust:
         max_rounds = args.max_rounds
-        total_added = 0
         for round_num in range(1, max_rounds + 1):
             print(f"\n{'=' * 40}", file=sys.stderr)
             print(f"Round {round_num}/{max_rounds}", file=sys.stderr)
@@ -1609,6 +1609,7 @@ def cmd_derive(args):
                                   prompt_template=prompt_template)
         if added < 0:
             sys.exit(1)
+        total_added = max(added, 0)
 
     if report_state is not None:
         _write_derive_report(report_state, "complete")
@@ -1620,7 +1621,6 @@ def cmd_derive(args):
 
     cost_summary = get_cost_summary()
     if cost_summary["calls"] > 0:
-        total_added = sum(r["added"] for r in report_state["rounds"]) if report_state else 0
         cost_path = _write_cost_report(
             args, "derive", cost_summary,
             domain=args.domain, model=args.model or "claude",
