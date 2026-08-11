@@ -680,7 +680,10 @@ def _cmd_document(args):
     from .pipeline import cmd_pipeline
     args.sources_dir = getattr(args, "sources_dir", "sources")
     args.index_db = "rag_fts.db"
-    cmd_pipeline(args)
+    try:
+        cmd_pipeline(args)
+    finally:
+        _print_cost(args, operation="document")
 
 
 def _print_cost(args=None, operation=None):
@@ -906,12 +909,15 @@ def _cmd_meta(args):
         "update": _meta_update,
     }
 
-    if meta_command and meta_command in _meta_dispatch:
-        _meta_dispatch[meta_command](args)
-        return
+    try:
+        if meta_command and meta_command in _meta_dispatch:
+            _meta_dispatch[meta_command](args)
+            return
 
-    # No subcommand — run full analyze pipeline
-    cmd_analyze(args)
+        # No subcommand — run full analyze pipeline
+        cmd_analyze(args)
+    finally:
+        _print_cost(args, operation=meta_command)
 
 
 

@@ -129,18 +129,20 @@ class TestSummarizeCosts:
         reports = [
             {"operation": "derive", "domain": "a", "calls": 1,
              "input_tokens": 100, "output_tokens": 50,
-             "cost_dollars": 0.01, "beliefs_added": 3},
+             "cost_dollars": 0.01, "beliefs_added": 3, "beliefs_retracted": 0},
             {"operation": "derive", "domain": "b", "calls": 1,
              "input_tokens": 200, "output_tokens": 100,
-             "cost_dollars": 0.02, "beliefs_added": 2},
+             "cost_dollars": 0.02, "beliefs_added": 2, "beliefs_retracted": 0},
             {"operation": "review-beliefs", "domain": "a", "calls": 1,
              "input_tokens": 50, "output_tokens": 25,
-             "cost_dollars": 0.005, "beliefs_added": 0},
+             "cost_dollars": 0.005, "beliefs_added": 0, "beliefs_retracted": 2},
         ]
         summary = summarize_costs(reports)
         assert summary["by_operation"]["derive"]["reports"] == 2
         assert summary["by_operation"]["derive"]["cost_dollars"] == 0.03
+        assert summary["by_operation"]["derive"]["beliefs_retracted"] == 0
         assert summary["by_operation"]["review-beliefs"]["reports"] == 1
+        assert summary["by_operation"]["review-beliefs"]["beliefs_retracted"] == 2
 
     def test_by_domain(self):
         reports = [

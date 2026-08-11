@@ -104,13 +104,15 @@ def summarize_costs(reports: list[dict]) -> dict:
         if op not in by_operation:
             by_operation[op] = {
                 "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "cost_dollars": 0.0, "beliefs_added": 0, "reports": 0,
+                "cost_dollars": 0.0, "beliefs_added": 0,
+                "beliefs_retracted": 0, "reports": 0,
             }
         by_operation[op]["calls"] += r.get("calls", 0)
         by_operation[op]["input_tokens"] += r.get("input_tokens", 0)
         by_operation[op]["output_tokens"] += r.get("output_tokens", 0)
         by_operation[op]["cost_dollars"] += r.get("cost_dollars", 0.0)
         by_operation[op]["beliefs_added"] += r.get("beliefs_added", 0)
+        by_operation[op]["beliefs_retracted"] += r.get("beliefs_retracted", 0)
         by_operation[op]["reports"] += 1
 
         domain = r.get("domain") or "unknown"

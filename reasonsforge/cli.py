@@ -2023,6 +2023,12 @@ def cmd_review_beliefs(args):
     reviews = result["results"]
     if not reviews:
         print("No derived beliefs to review.")
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "review-beliefs", cost_summary, model=model)
         return
 
     invalid = [r for r in reviews if not r.get("valid", True)]
@@ -2257,6 +2263,9 @@ def cmd_review_premises(args):
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "review-premises", cost_summary, model=model)
         return
 
     inaccurate = [r for r in reviews if not r.get("accurate", True)]
@@ -2360,6 +2369,9 @@ def cmd_repair_premises(args):
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "repair-premises", cost_summary, model=model)
         return
 
     for r in repairs:
@@ -2440,6 +2452,12 @@ def cmd_propose_update(args):
 
     if not proposals:
         print("No updates proposed.")
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "propose-update", cost_summary, model=model)
         return
 
     for p in proposals:
@@ -2628,6 +2646,12 @@ def cmd_contradictions(args):
     contradictions = result["contradictions"]
     if not contradictions:
         print(f"No contradictions detected among {result['checked']} IN beliefs.")
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] > 0:
+            _write_cost_report(args, "contradictions", cost_summary, model=model)
         return
 
     for c in contradictions:
@@ -2689,6 +2713,7 @@ def cmd_costs(args):
                             key=lambda x: x[1]["cost_dollars"], reverse=True):
             print(f"  {op:25s} ${s['cost_dollars']:.4f}  "
                   f"{s['input_tokens']:>10,} in + {s['output_tokens']:>10,} out  "
+                  f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
                   f"{s['reports']} report(s)")
 
     if summary["by_domain"]:
