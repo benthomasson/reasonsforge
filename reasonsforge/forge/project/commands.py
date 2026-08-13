@@ -1330,6 +1330,37 @@ def cmd_init(args):
 # ---------------------------------------------------------------------------
 
 
+def _scan_progress_path() -> Path:
+    return Path(_get_project_dir()) / "scan-progress.json"
+
+
+def _save_scan_progress(page: int, total_scanned: int, params: dict) -> None:
+    progress = {
+        "last_completed_page": page,
+        "total_scanned": total_scanned,
+        "params": params,
+    }
+    path = _scan_progress_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(progress, indent=2) + "\n")
+
+
+def _load_scan_progress() -> dict | None:
+    path = _scan_progress_path()
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _clear_scan_progress() -> None:
+    path = _scan_progress_path()
+    if path.exists():
+        path.unlink()
+
+
 def cmd_scan(args):
     """Scan project issues and create an overview."""
     from ..caffeinate import hold as _caffeinate
@@ -1359,6 +1390,7 @@ def cmd_scan(args):
     all_pages = getattr(args, "all_pages", False)
     jql = getattr(args, "jql", None)
     per_issue = getattr(args, "per_issue", False)
+    resume = getattr(args, "resume", False)
 
     # Set default state per platform
     if state is None:
@@ -1374,9 +1406,30 @@ def cmd_scan(args):
 
     project_name = config.get("repo", config.get("project", "unknown"))
 
+    scan_params = {"state": state, "labels": label_list, "jql": jql,
+                   "per_issue": per_issue, "limit": limit}
+
     if all_pages:
         current_page = 1
         total_scanned = 0
+
+        if resume:
+            progress = _load_scan_progress()
+            if progress:
+                saved_params = progress.get("params", {})
+                if saved_params != scan_params:
+                    print("Warning: scan parameters changed since last run. "
+                          "Starting from page 1.", file=sys.stderr)
+                else:
+                    current_page = progress["last_completed_page"] + 1
+                    total_scanned = progress["total_scanned"]
+                    print(f"Resuming from page {current_page} "
+                          f"({total_scanned} issues already scanned)",
+                          file=sys.stderr)
+            else:
+                print("No previous scan progress found. Starting from page 1.",
+                      file=sys.stderr)
+
         while True:
             print(f"\n{'=' * 40}", file=sys.stderr)
             print(f"Page {current_page}", file=sys.stderr)
@@ -1401,6 +1454,7 @@ def cmd_scan(args):
                 else:
                     print(f"\nDone. Scanned {total_scanned} issues across {current_page - 1} pages.",
                           file=sys.stderr)
+                _clear_scan_progress()
                 break
 
             print(f"Fetched {len(issues)} issues", file=sys.stderr)
@@ -1419,6 +1473,7 @@ def cmd_scan(args):
                 _cache_issues(issues, project_dir)
                 print(f"Queued {added} topic(s) from {len(issues)} issues", file=sys.stderr)
                 total_scanned += len(issues)
+                _save_scan_progress(current_page, total_scanned, scan_params)
             else:
                 # Fetch PRs for platforms that support them
                 prs = []
@@ -1463,12 +1518,14 @@ def cmd_scan(args):
                 _report_beliefs(result)
                 _cache_issues(issues, project_dir)
                 total_scanned += len(issues)
+                _save_scan_progress(current_page, total_scanned, scan_params)
 
                 print(result)
 
             if len(issues) < limit:
                 print(f"\nDone. Scanned {total_scanned} issues across {current_page} pages.",
                       file=sys.stderr)
+                _clear_scan_progress()
                 break
             current_page += 1
     else:

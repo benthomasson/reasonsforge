@@ -441,6 +441,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--all-pages", action="store_true", dest="all_pages")
     ps.add_argument("--jql", default=None)
     ps.add_argument("--per-issue", action="store_true", dest="per_issue")
+    ps.add_argument("--resume", action="store_true",
+                    help="Resume an interrupted --all-pages scan from last completed page")
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
