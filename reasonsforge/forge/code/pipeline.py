@@ -28,6 +28,29 @@ from .commands import (
 from .topics import pending_count
 
 
+def _write_step_cost_report(args, pipeline: str, step_key: str,
+                            round_number: int | None = None):
+    """Capture per-step cost, write a report, and reset the tracker."""
+    try:
+        from ..llm import get_cost_summary, reset_cost_tracker
+        from ...cost_report import write_cost_report
+
+        cost_summary = get_cost_summary()
+        if cost_summary["calls"] == 0:
+            return
+        write_cost_report(
+            costs_dir=getattr(args, "costs_dir", "costs/"),
+            operation=f"{pipeline}-{step_key}",
+            cost_summary=cost_summary,
+            domain=getattr(args, "domain", None),
+            model=getattr(args, "model", None),
+            round_number=round_number,
+        )
+        reset_cost_tracker()
+    except Exception:
+        pass
+
+
 def _run_step(name, func, args, errors):
     """Run a pipeline step, catching failures without stopping."""
     print(f"\n=== {name} ===\n", file=sys.stderr)
@@ -265,6 +288,7 @@ def cmd_update(args):
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
         step_fn()
+        _write_step_cost_report(args, "update", step_key)
         _save_step_checkpoint(project_dir, "update", step_key, started, errors)
 
     # Save update checkpoint
@@ -385,6 +409,7 @@ def cmd_analyze(args):
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
         step_fn()
+        _write_step_cost_report(args, "analyze", step_key, round_number=1)
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     # Rounds 2+: explore -> propose -> review -> accept -> derive -> review-beliefs -> repair -> dedup -> contradictions
@@ -431,6 +456,7 @@ def cmd_analyze(args):
                 print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
                 continue
             step_fn()
+            _write_step_cost_report(args, "analyze", step_key, round_number=round_num)
             _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     try:
@@ -506,12 +532,19 @@ def cmd_refine(args):
                   SimpleNamespace(**vars(args), exhaust=True, auto=True,
                                   max_derive_rounds=max_derive_rounds),
                   errors)
+        _write_step_cost_report(args, "refine", "derive", round_number=round_num)
 
         _run_review_beliefs(db_path, model, project_dir, errors)
+        _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num)
+
         _run_repair(db_path, model, project_dir, errors)
+        _write_step_cost_report(args, "refine", "repair", round_number=round_num)
 
     _run_deduplicate(db_path, errors)
+    _write_step_cost_report(args, "refine", "deduplicate")
+
     _run_contradictions(db_path, model, errors)
+    _write_step_cost_report(args, "refine", "contradictions")
 
     try:
         from reasonsforge.api import export_network
