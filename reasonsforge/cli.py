@@ -2754,6 +2754,8 @@ def main():
                         help="Directory for JSON cost reports (default: costs/)")
     parser.add_argument("--no-costs", action="store_true",
                         help="Suppress JSON cost report generation")
+    parser.add_argument("--logs-dir", default="logs/",
+                        help="Directory for per-phase log files (default: logs/)")
     sub = parser.add_subparsers(dest="command")
 
     # Register forge subcommands

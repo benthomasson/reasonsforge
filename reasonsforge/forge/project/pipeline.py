@@ -22,6 +22,7 @@ from .commands import (
     cmd_status,
 )
 from .topics import pending_count
+from ..step_log import step_log
 
 
 def _write_step_cost_report(args, pipeline: str, step_key: str):
@@ -72,10 +73,14 @@ def cmd_analyze(args):
     db_path = getattr(args, "output", REASONS_DB)
     explore_limit = getattr(args, "limit", 500)
 
-    _run_step("Step 1: Init", cmd_init, args, errors)
+    logs_dir = getattr(args, "logs_dir", "logs/")
+
+    with step_log(logs_dir, "project-analyze", "init"):
+        _run_step("Step 1: Init", cmd_init, args, errors)
     _write_step_cost_report(args, "project-analyze", "init")
 
-    _run_step("Step 2: Scan", cmd_scan, args, errors)
+    with step_log(logs_dir, "project-analyze", "scan"):
+        _run_step("Step 2: Scan", cmd_scan, args, errors)
     _write_step_cost_report(args, "project-analyze", "scan")
 
     project_dir = _get_project_dir()
@@ -86,16 +91,17 @@ def cmd_analyze(args):
     explore_args.skip = None
     explore_args.pick = None
     explore_args.parallel = getattr(args, "parallel", 1)
-    print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
-    try:
-        cmd_explore(explore_args)
-    except SystemExit as e:
-        if e.code and e.code != 0:
-            errors.append(f"explore exited with code {e.code}")
-            print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
-    except Exception as e:
-        errors.append(f"explore: {e}")
-        print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
+    with step_log(logs_dir, "project-analyze", "explore"):
+        print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
+        try:
+            cmd_explore(explore_args)
+        except SystemExit as e:
+            if e.code and e.code != 0:
+                errors.append(f"explore exited with code {e.code}")
+                print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
+        except Exception as e:
+            errors.append(f"explore: {e}")
+            print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
     _write_step_cost_report(args, "project-analyze", "explore")
 
     try:
@@ -112,14 +118,17 @@ def cmd_analyze(args):
     propose_args.proposals_output = "proposed-beliefs.md"
     propose_args.output_file = "proposed-beliefs.md"
     propose_args.all = True
-    _run_step("Step 4: Propose beliefs", cmd_propose_beliefs, propose_args, errors)
+    with step_log(logs_dir, "project-analyze", "propose"):
+        _run_step("Step 4: Propose beliefs", cmd_propose_beliefs, propose_args, errors)
     _write_step_cost_report(args, "project-analyze", "propose")
 
-    _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)
+    with step_log(logs_dir, "project-analyze", "review-proposals"):
+        _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)
     _write_step_cost_report(args, "project-analyze", "review-proposals")
 
     from .commands import cmd_accept_beliefs
-    _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)
+    with step_log(logs_dir, "project-analyze", "accept"):
+        _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)
     _write_step_cost_report(args, "project-analyze", "accept")
 
     derive_args = SimpleNamespace(**vars(args))
@@ -128,7 +137,8 @@ def cmd_analyze(args):
     derive_args.max_derive_rounds = getattr(args, "max_derive_rounds", 10)
     derive_args.budget = getattr(args, "budget", 300)
     derive_args.domain = getattr(args, "domain", None)
-    _run_step("Step 7: Derive (exhaust)", cmd_derive, derive_args, errors)
+    with step_log(logs_dir, "project-analyze", "derive"):
+        _run_step("Step 7: Derive (exhaust)", cmd_derive, derive_args, errors)
     _write_step_cost_report(args, "project-analyze", "derive")
 
     try:

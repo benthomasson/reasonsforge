@@ -26,6 +26,7 @@ from .commands import (
     cmd_walk_commits,
 )
 from .topics import pending_count
+from ..step_log import step_log
 
 
 def _write_step_cost_report(args, pipeline: str, step_key: str,
@@ -283,11 +284,13 @@ def cmd_update(args):
          lambda: _run_contradictions(db_path, model, errors)),
     ]
 
+    logs_dir = getattr(args, "logs_dir", "logs/")
     for step_key, step_name, step_fn in steps:
         if step_key in completed:
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
-        step_fn()
+        with step_log(logs_dir, "update", step_key):
+            step_fn()
         _write_step_cost_report(args, "update", step_key)
         _save_step_checkpoint(project_dir, "update", step_key, started, errors)
 
@@ -404,11 +407,13 @@ def cmd_analyze(args):
          lambda: _run_contradictions(db_path, model, errors)),
     ]
 
+    logs_dir = getattr(args, "logs_dir", "logs/")
     for step_key, step_name, step_fn in round1_steps:
         if step_key in completed:
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
-        step_fn()
+        with step_log(logs_dir, "analyze", step_key, round_number=1):
+            step_fn()
         _write_step_cost_report(args, "analyze", step_key, round_number=1)
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
@@ -455,7 +460,8 @@ def cmd_analyze(args):
             if step_key in completed:
                 print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
                 continue
-            step_fn()
+            with step_log(logs_dir, "analyze", step_key, round_number=round_num):
+                step_fn()
             _write_step_cost_report(args, "analyze", step_key, round_number=round_num)
             _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
@@ -523,27 +529,33 @@ def cmd_refine(args):
     except Exception:
         pre_run_ids = set()
 
+    logs_dir = getattr(args, "logs_dir", "logs/")
     for round_num in range(1, rounds + 1):
         print(f"\n{'=' * 60}", file=sys.stderr)
         print(f"  Refine round {round_num}/{rounds}", file=sys.stderr)
         print(f"{'=' * 60}", file=sys.stderr)
 
-        _run_step(f"Round {round_num}: Derive (exhaust)", cmd_derive,
-                  SimpleNamespace(**vars(args), exhaust=True, auto=True,
-                                  max_derive_rounds=max_derive_rounds),
-                  errors)
+        with step_log(logs_dir, "refine", "derive", round_number=round_num):
+            _run_step(f"Round {round_num}: Derive (exhaust)", cmd_derive,
+                      SimpleNamespace(**vars(args), exhaust=True, auto=True,
+                                      max_derive_rounds=max_derive_rounds),
+                      errors)
         _write_step_cost_report(args, "refine", "derive", round_number=round_num)
 
-        _run_review_beliefs(db_path, model, project_dir, errors)
+        with step_log(logs_dir, "refine", "review-beliefs", round_number=round_num):
+            _run_review_beliefs(db_path, model, project_dir, errors)
         _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num)
 
-        _run_repair(db_path, model, project_dir, errors)
+        with step_log(logs_dir, "refine", "repair", round_number=round_num):
+            _run_repair(db_path, model, project_dir, errors)
         _write_step_cost_report(args, "refine", "repair", round_number=round_num)
 
-    _run_deduplicate(db_path, errors)
+    with step_log(logs_dir, "refine", "deduplicate"):
+        _run_deduplicate(db_path, errors)
     _write_step_cost_report(args, "refine", "deduplicate")
 
-    _run_contradictions(db_path, model, errors)
+    with step_log(logs_dir, "refine", "contradictions"):
+        _run_contradictions(db_path, model, errors)
     _write_step_cost_report(args, "refine", "contradictions")
 
     try:
