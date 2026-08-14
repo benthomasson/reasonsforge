@@ -440,7 +440,7 @@ def cmd_derive_review_repair(args):
               file=sys.stderr)
         sys.exit(1)
 
-    rounds = getattr(args, "rounds", 3)
+    rounds = getattr(args, "rounds", 1)
     ns = getattr(args, "namespace", None)
     print(f"=== Derive-Review-Repair ===", file=sys.stderr)
     print(f"Model: {args.model}", file=sys.stderr)

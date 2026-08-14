@@ -12,7 +12,7 @@ def _lazy(module_name, func_name):
 def _add_common_pipeline_args(p):
     """Add args shared by all forge type commands."""
     p.add_argument("--model", default="claude", help="LLM model to use")
-    p.add_argument("--rounds", type=int, default=3,
+    p.add_argument("--rounds", type=int, default=1,
                    help="Convergence loop cycles")
     p.add_argument("--max-derive-rounds", type=int, default=10,
                    help="Max derive rounds per cycle")
@@ -205,7 +205,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--rounds", type=int, default=3)
+    cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
     cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
     cs.add_argument("--resume", action="store_true",
@@ -227,7 +227,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--rounds", type=int, default=3)
+    cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted update")
@@ -263,7 +263,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--rounds", type=int, default=3,
+    cs.add_argument("--rounds", type=int, default=1,
                     help="Number of derive/review/repair rounds")
     cs.add_argument("--max-derive-rounds", type=int, default=10,
                     help="Max derive sub-rounds per refine round")

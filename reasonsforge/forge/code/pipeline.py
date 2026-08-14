@@ -517,7 +517,7 @@ def cmd_refine(args):
 
     db_path = getattr(args, "output", REASONS_DB)
     model = getattr(args, "model", None) or "claude"
-    rounds = getattr(args, "rounds", 3)
+    rounds = getattr(args, "rounds", 1)
     max_derive_rounds = getattr(args, "max_derive_rounds", 10)
     project_dir = _get_project_dir(args)
     errors = []
