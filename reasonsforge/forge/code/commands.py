@@ -1562,7 +1562,8 @@ def cmd_accept_beliefs(args):
     pattern = re.compile(
         r"### \[?ACCEPT\]? (\S+)\n"
         r"(.+?)\n"
-        r"- Source: (.+?)(?:\n|$)"
+        r"- Source: (.+?)(?:\n|$)",
+        re.DOTALL,
     )
     matches = pattern.findall(text)
 

@@ -1,14 +1,13 @@
-"""Tests for reasonsforge.forge.llm — cost tracking and JSON output parsing."""
+"""Tests for reasonsforge.forge.llm — cost tracking, JSON parsing, and Ollama API."""
 
 import json
+from unittest.mock import patch, MagicMock
 
 import pytest
 
 from reasonsforge.forge.llm import (
     _parse_cli_json,
-    _parse_ollama_stats,
     _record_cost,
-    _strip_ansi,
     reset_cost_tracker,
     get_cost_summary,
     format_cost_summary,
@@ -163,42 +162,57 @@ def test_format_without_cost():
     assert "500 input" in result
 
 
-# --- _strip_ansi ---
+# --- Ollama API ---
 
-def test_strip_ansi_removes_csi():
-    assert _strip_ansi("hello\x1b[4Dworld") == "helloworld"
+def test_invoke_ollama_returns_response():
+    import asyncio
+    from reasonsforge.forge.llm import _invoke_ollama
 
+    api_response = json.dumps({
+        "response": "Hello from ollama",
+        "prompt_eval_count": 50,
+        "eval_count": 20,
+    }).encode()
 
-def test_strip_ansi_removes_cursor_show_hide():
-    assert _strip_ansi("text\x1b[?25l\x1b[?25h") == "text"
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = api_response
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
 
+    with patch("reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp):
+        result = asyncio.run(_invoke_ollama("test prompt", "ollama:qwen3:4b", 300))
 
-def test_strip_ansi_preserves_clean_text():
-    assert _strip_ansi("no escape codes here") == "no escape codes here"
-
-
-def test_strip_ansi_preserves_brackets():
-    assert _strip_ansi("[file] `main.py`") == "[file] `main.py`"
-
-
-# --- _parse_ollama_stats ---
-
-def test_parse_ollama_stats():
-    stderr = (
-        "\x1b[?25ltotal duration:       1.4s\n"
-        "prompt eval count:    12 token(s)\n"
-        "eval count:           43 token(s)\n"
-        "\x1b[?25h"
-    )
-    _parse_ollama_stats(stderr, "ollama:qwen3.8:27b")
+    assert result == "Hello from ollama"
     s = get_cost_summary()
     assert s["calls"] == 1
-    assert s["input_tokens"] == 12
-    assert s["output_tokens"] == 43
-    assert s["total_cost_usd"] == 0.0
+    assert s["input_tokens"] == 50
+    assert s["output_tokens"] == 20
 
 
-def test_parse_ollama_stats_no_stats():
-    _parse_ollama_stats("no stats here", "ollama:test")
-    s = get_cost_summary()
-    assert s["calls"] == 0
+def test_invoke_ollama_connection_error():
+    import asyncio
+    import urllib.error
+    from reasonsforge.forge.llm import _invoke_ollama
+
+    with patch("reasonsforge.forge.llm.urllib.request.urlopen",
+               side_effect=urllib.error.URLError("Connection refused")):
+        with pytest.raises(RuntimeError, match="Cannot connect to Ollama"):
+            asyncio.run(_invoke_ollama("test", "ollama:qwen3:4b", 300))
+
+
+def test_invoke_ollama_respects_ollama_host():
+    import asyncio
+    from reasonsforge.forge.llm import _invoke_ollama
+
+    api_response = json.dumps({"response": "ok", "prompt_eval_count": 0, "eval_count": 0}).encode()
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = api_response
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+
+    with patch("reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp) as mock_open, \
+         patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}):
+        asyncio.run(_invoke_ollama("test", "ollama:model", 300))
+
+    req = mock_open.call_args[0][0]
+    assert req.full_url == "http://remote:11434/api/generate"

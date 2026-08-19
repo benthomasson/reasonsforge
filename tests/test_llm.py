@@ -39,11 +39,9 @@ class TestResolveModelCmd:
             "gemini", "--skip-trust", "-m", "flash", "-o", "json", "-p", ""
         ]
 
-    def test_resolve_ollama_model(self):
-        assert resolve_model_cmd("ollama:gemma3:4b") == ["ollama", "run", "gemma3:4b"]
-
-    def test_resolve_ollama_with_tag(self):
-        assert resolve_model_cmd("ollama:qwen3.5:27b") == ["ollama", "run", "qwen3.5:27b"]
+    def test_resolve_ollama_raises(self):
+        with pytest.raises(ValueError, match="HTTP API"):
+            resolve_model_cmd("ollama:gemma3:4b")
 
     def test_resolve_claude_submodel(self):
         assert resolve_model_cmd("claude:sonnet") == ["claude", "-p", "--model", "sonnet", "--output-format", "json"]
@@ -83,38 +81,11 @@ class TestInvokeModel:
             with pytest.raises(RuntimeError, match="claude failed"):
                 invoke_model("hello", model="claude")
 
-    def test_ollama_command(self):
-        mock_result = type("Result", (), {"returncode": 0, "stdout": "ollama response", "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/ollama"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
+    def test_ollama_uses_http_api(self):
+        with patch("reasonsforge.llm._invoke_ollama", return_value="ollama response") as mock:
             result = invoke_model("hello", model="ollama:gemma3:4b")
             assert result == "ollama response"
-            args = mock_run.call_args
-            assert args[0][0] == ["ollama", "run", "gemma3:4b"]
-
-    def test_ollama_strips_thinking_output(self):
-        thinking = "Thinking...\nsome internal reasoning\n...done thinking.\nThe actual answer."
-        mock_result = type("Result", (), {"returncode": 0, "stdout": thinking, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/ollama"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
-            result = invoke_model("hello", model="ollama:qwen3:4b")
-            assert result == "The actual answer."
-
-    def test_ollama_no_thinking_markers_unchanged(self):
-        output = "Just a normal response."
-        mock_result = type("Result", (), {"returncode": 0, "stdout": output, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/ollama"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
-            result = invoke_model("hello", model="ollama:qwen3:4b")
-            assert result == "Just a normal response."
-
-    def test_ollama_incomplete_thinking_unchanged(self):
-        output = "Thinking...\nsome reasoning but no end marker"
-        mock_result = type("Result", (), {"returncode": 0, "stdout": output, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/ollama"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
-            result = invoke_model("hello", model="ollama:qwen3:4b")
-            assert result == output
+            mock.assert_called_once_with("hello", "ollama:gemma3:4b", 300)
 
     def test_claude_does_not_strip_thinking(self):
         output = "Thinking...\nsome reasoning\n...done thinking.\nAnswer."

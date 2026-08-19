@@ -16,6 +16,8 @@ import os
 import shutil
 import subprocess
 import threading
+import urllib.request
+import urllib.error
 
 try:
     from langchain_anthropic import ChatAnthropic
@@ -108,6 +110,44 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
         m["total_cost_usd"] += cost_usd
 
 
+def _ollama_base_url() -> str:
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    return host.rstrip("/")
+
+
+def _invoke_ollama(prompt: str, model: str, timeout: int = 300) -> str:
+    """Invoke an Ollama model via the HTTP API."""
+    ollama_model = model.split(":", 1)[1]
+    url = f"{_ollama_base_url()}/api/generate"
+    payload = json.dumps({
+        "model": ollama_model,
+        "prompt": prompt,
+        "stream": False,
+    }).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        raise RuntimeError(f"Ollama API error {e.code}: {body}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(
+            f"Cannot connect to Ollama at {_ollama_base_url()} — is it running?"
+        ) from e
+
+    text = data.get("response", "")
+    input_tokens = data.get("prompt_eval_count", 0)
+    output_tokens = data.get("eval_count", 0)
+    if input_tokens or output_tokens:
+        _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
+
+
 def _parse_cli_json(output: str, model: str) -> str:
     """Parse JSON output from CLI, extract response text and record costs.
 
@@ -175,8 +215,7 @@ def resolve_model_cmd(model: str) -> list[str]:
         submodel = model.split(":", 1)[1]
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
-        ollama_model = model.split(":", 1)[1]
-        return ["ollama", "run", ollama_model]
+        raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>",
@@ -246,6 +285,9 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     if model.startswith("api:") or model.startswith("vertex:"):
         return _invoke_api(prompt, model, timeout)
 
+    if model.startswith("ollama:"):
+        return _invoke_ollama(prompt, model, timeout)
+
     cmd = resolve_model_cmd(model)
     binary = cmd[0]
     if not shutil.which(binary):
@@ -263,12 +305,4 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     )
     if result.returncode != 0:
         raise RuntimeError(f"{model} failed: {result.stderr}")
-    output = result.stdout
-    # Fragile: ollama thinking markers may change across versions
-    if model.startswith("ollama:") and "Thinking...\n" in output:
-        parts = output.split("...done thinking.\n", 1)
-        if len(parts) == 2:
-            output = parts[1]
-    if model.startswith("ollama:"):
-        return output
-    return _parse_cli_json(output, model)
+    return _parse_cli_json(result.stdout, model)

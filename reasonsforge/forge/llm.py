@@ -2,13 +2,15 @@
 
 Cost tracking: CLI models use --output-format json to capture token
 counts and costs. Use get_cost_summary() to retrieve accumulated stats.
+Ollama models use the HTTP API for clean JSON responses.
 """
 
 import asyncio
 import json
 import os
-import re
 import shutil
+import urllib.request
+import urllib.error
 
 MODEL_COMMANDS: dict[str, list[str]] = {
     "claude": ["claude", "-p", "--output-format", "json"],
@@ -16,12 +18,17 @@ MODEL_COMMANDS: dict[str, list[str]] = {
 }
 
 
+def _ollama_base_url() -> str:
+    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    return host.rstrip("/")
+
+
 def resolve_model_cmd(model: str) -> list[str]:
     """Resolve a model name to a CLI command list.
 
     Supports 'claude', 'gemini', 'claude:<variant>' (e.g. 'claude:opus'),
-    'gemini:<model>' (e.g. 'gemini:gemini-2.5-flash'),
-    and 'ollama:<model>' (e.g. 'ollama:gemma3:4b').
+    'gemini:<model>' (e.g. 'gemini:gemini-2.5-flash').
+    Ollama models use the HTTP API instead of CLI.
     """
     if model in MODEL_COMMANDS:
         return MODEL_COMMANDS[model]
@@ -32,8 +39,7 @@ def resolve_model_cmd(model: str) -> list[str]:
         submodel = model.split(":", 1)[1]
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
-        ollama_model = model.split(":", 1)[1]
-        return ["ollama", "run", "--nowordwrap", "--verbose", ollama_model]
+        raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>"]
@@ -96,27 +102,40 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
     m["total_cost_usd"] += cost_usd
 
 
-_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+async def _invoke_ollama(prompt: str, model: str, timeout: int) -> str:
+    """Invoke an Ollama model via the HTTP API."""
+    ollama_model = model.split(":", 1)[1]
+    url = f"{_ollama_base_url()}/api/generate"
+    payload = json.dumps({
+        "model": ollama_model,
+        "prompt": prompt,
+        "stream": False,
+    }).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
 
+    def _do_request():
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")
+            raise RuntimeError(f"Ollama API error {e.code}: {body}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(
+                f"Cannot connect to Ollama at {_ollama_base_url()} — is it running?"
+            ) from e
 
-def _strip_ansi(text: str) -> str:
-    """Remove ANSI escape sequences from text."""
-    return _ANSI_RE.sub("", text)
-
-
-def _parse_ollama_stats(stderr_text: str, model: str):
-    """Extract token counts from ollama --verbose stderr output."""
-    clean = _strip_ansi(stderr_text)
-    input_tokens = 0
-    output_tokens = 0
-    m = re.search(r"prompt eval count:\s+(\d+)", clean)
-    if m:
-        input_tokens = int(m.group(1))
-    m = re.search(r"(?<!prompt )eval count:\s+(\d+)", clean)
-    if m:
-        output_tokens = int(m.group(1))
+    data = await asyncio.get_event_loop().run_in_executor(None, _do_request)
+    text = data.get("response", "")
+    input_tokens = data.get("prompt_eval_count", 0)
+    output_tokens = data.get("eval_count", 0)
     if input_tokens or output_tokens:
         _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
 
 
 def _parse_cli_json(output: str, model: str) -> str:
@@ -156,7 +175,9 @@ def _parse_cli_json(output: str, model: str) -> str:
 
 
 def check_model_available(model: str) -> bool:
-    """Check if a model's CLI is available."""
+    """Check if a model's CLI or API is available."""
+    if model.startswith("ollama:"):
+        return True
     try:
         cmd = resolve_model_cmd(model)
     except ValueError:
@@ -165,14 +186,17 @@ def check_model_available(model: str) -> bool:
 
 
 async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
-    """Invoke model via CLI, piping prompt through stdin.
+    """Invoke model via CLI or HTTP API.
 
-    Uses --output-format json to capture token/cost data.
+    Ollama models use the HTTP API for clean JSON responses.
+    CLI models use --output-format json to capture token/cost data.
     Accumulated stats available via get_cost_summary().
     """
+    if model.startswith("ollama:"):
+        return await _invoke_ollama(prompt, model, timeout)
+
     cmd = resolve_model_cmd(model)
 
-    # Remove CLAUDECODE env var to allow nested claude invocation
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
     proc = await asyncio.create_subprocess_exec(
@@ -195,11 +219,7 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     if proc.returncode != 0:
         raise RuntimeError(f"Model {model} failed: {stderr.decode()}")
 
-    output = stdout.decode()
-    if model.startswith("ollama:"):
-        output = _strip_ansi(output)
-        _parse_ollama_stats(stderr.decode(), model)
-    return _parse_cli_json(output, model)
+    return _parse_cli_json(stdout.decode(), model)
 
 
 def invoke_sync(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
