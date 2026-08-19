@@ -6,7 +6,9 @@ import pytest
 
 from reasonsforge.forge.llm import (
     _parse_cli_json,
+    _parse_ollama_stats,
     _record_cost,
+    _strip_ansi,
     reset_cost_tracker,
     get_cost_summary,
     format_cost_summary,
@@ -159,3 +161,44 @@ def test_format_without_cost():
     assert "Cost:" in result
     assert "$" not in result
     assert "500 input" in result
+
+
+# --- _strip_ansi ---
+
+def test_strip_ansi_removes_csi():
+    assert _strip_ansi("hello\x1b[4Dworld") == "helloworld"
+
+
+def test_strip_ansi_removes_cursor_show_hide():
+    assert _strip_ansi("text\x1b[?25l\x1b[?25h") == "text"
+
+
+def test_strip_ansi_preserves_clean_text():
+    assert _strip_ansi("no escape codes here") == "no escape codes here"
+
+
+def test_strip_ansi_preserves_brackets():
+    assert _strip_ansi("[file] `main.py`") == "[file] `main.py`"
+
+
+# --- _parse_ollama_stats ---
+
+def test_parse_ollama_stats():
+    stderr = (
+        "\x1b[?25ltotal duration:       1.4s\n"
+        "prompt eval count:    12 token(s)\n"
+        "eval count:           43 token(s)\n"
+        "\x1b[?25h"
+    )
+    _parse_ollama_stats(stderr, "ollama:qwen3.8:27b")
+    s = get_cost_summary()
+    assert s["calls"] == 1
+    assert s["input_tokens"] == 12
+    assert s["output_tokens"] == 43
+    assert s["total_cost_usd"] == 0.0
+
+
+def test_parse_ollama_stats_no_stats():
+    _parse_ollama_stats("no stats here", "ollama:test")
+    s = get_cost_summary()
+    assert s["calls"] == 0

@@ -7,6 +7,7 @@ counts and costs. Use get_cost_summary() to retrieve accumulated stats.
 import asyncio
 import json
 import os
+import re
 import shutil
 
 MODEL_COMMANDS: dict[str, list[str]] = {
@@ -32,7 +33,7 @@ def resolve_model_cmd(model: str) -> list[str]:
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
         ollama_model = model.split(":", 1)[1]
-        return ["ollama", "run", ollama_model]
+        return ["ollama", "run", "--nowordwrap", "--verbose", ollama_model]
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>"]
@@ -93,6 +94,29 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
     m["input_tokens"] += input_tokens
     m["output_tokens"] += output_tokens
     m["total_cost_usd"] += cost_usd
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text."""
+    return _ANSI_RE.sub("", text)
+
+
+def _parse_ollama_stats(stderr_text: str, model: str):
+    """Extract token counts from ollama --verbose stderr output."""
+    clean = _strip_ansi(stderr_text)
+    input_tokens = 0
+    output_tokens = 0
+    m = re.search(r"prompt eval count:\s+(\d+)", clean)
+    if m:
+        input_tokens = int(m.group(1))
+    m = re.search(r"(?<!prompt )eval count:\s+(\d+)", clean)
+    if m:
+        output_tokens = int(m.group(1))
+    if input_tokens or output_tokens:
+        _record_cost(model, input_tokens, output_tokens, 0.0)
 
 
 def _parse_cli_json(output: str, model: str) -> str:
@@ -171,7 +195,11 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     if proc.returncode != 0:
         raise RuntimeError(f"Model {model} failed: {stderr.decode()}")
 
-    return _parse_cli_json(stdout.decode(), model)
+    output = stdout.decode()
+    if model.startswith("ollama:"):
+        output = _strip_ansi(output)
+        _parse_ollama_stats(stderr.decode(), model)
+    return _parse_cli_json(output, model)
 
 
 def invoke_sync(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
