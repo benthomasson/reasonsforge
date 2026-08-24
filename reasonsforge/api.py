@@ -4429,6 +4429,91 @@ def deduplicate(
         return {"clusters": clusters, "retracted": retracted}
 
 
+def verify_dedup_clusters(
+    clusters: list[dict],
+    model: str = "claude",
+    timeout: int = 300,
+    db_path: str = DEFAULT_DB,
+) -> dict:
+    """LLM-verify candidate duplicate clusters.
+
+    For each cluster, asks the LLM to classify whether the beliefs are:
+    - same-claim: genuine duplicates (same claim, different wording)
+    - different-claims: related but distinct beliefs (false duplicate)
+    - contradiction: beliefs that contradict each other
+
+    Returns:
+        {"verified": list[dict], "rejected": list[dict],
+         "contradictions": list[dict], "cost": str}
+    """
+    from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+
+    reset_cost_tracker()
+    verified = []
+    rejected = []
+    contradictions = []
+
+    for cluster in clusters:
+        beliefs_text = "\n".join(
+            f"  - ID: {b['id']}\n    Text: {b['text']}"
+            for b in cluster["beliefs"]
+        )
+        prompt = (
+            "You are classifying a group of beliefs from a knowledge base that "
+            "were flagged as potential duplicates based on word similarity.\n\n"
+            "Beliefs in this cluster:\n"
+            f"{beliefs_text}\n\n"
+            "Classify this cluster as ONE of:\n"
+            "- SAME_CLAIM: These beliefs make the same factual claim in "
+            "different words. They are genuine duplicates.\n"
+            "- DIFFERENT_CLAIMS: These beliefs share vocabulary but make "
+            "distinct, non-redundant claims. They should NOT be deduplicated.\n"
+            "- CONTRADICTION: These beliefs contradict each other. They "
+            "should be recorded as a conflict, not deduplicated.\n\n"
+            "Respond with EXACTLY one line in this format:\n"
+            "VERDICT: <SAME_CLAIM|DIFFERENT_CLAIMS|CONTRADICTION>\n"
+            "REASON: <one sentence explanation>"
+        )
+
+        try:
+            response = invoke_model(prompt, model=model, timeout=timeout)
+        except Exception as e:
+            logger.warning("LLM verification failed for cluster: %s", e)
+            rejected.append({**cluster, "verify_error": str(e)})
+            continue
+
+        verdict = "DIFFERENT_CLAIMS"
+        reason = ""
+        for line in response.strip().splitlines():
+            line = line.strip()
+            if line.upper().startswith("VERDICT:"):
+                v = line.split(":", 1)[1].strip().upper()
+                if "SAME" in v:
+                    verdict = "SAME_CLAIM"
+                elif "CONTRA" in v:
+                    verdict = "CONTRADICTION"
+                else:
+                    verdict = "DIFFERENT_CLAIMS"
+            elif line.upper().startswith("REASON:"):
+                reason = line.split(":", 1)[1].strip()
+
+        annotated = {**cluster, "verdict": verdict, "reason": reason}
+
+        if verdict == "SAME_CLAIM":
+            verified.append(annotated)
+        elif verdict == "CONTRADICTION":
+            contradictions.append(annotated)
+        else:
+            rejected.append(annotated)
+
+    return {
+        "verified": verified,
+        "rejected": rejected,
+        "contradictions": contradictions,
+        "cost": format_cost_summary(),
+    }
+
+
 def write_dedup_plan(clusters: list[dict], output_path: str) -> str:
     """Write a dedup plan file for human review.
 
