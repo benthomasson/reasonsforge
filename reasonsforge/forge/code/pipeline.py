@@ -180,20 +180,54 @@ def _run_repair(db_path, model, project_dir, errors):
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
 
 
-def _run_deduplicate(db_path, errors):
-    """Run deduplication on the belief network."""
-    from reasonsforge.api import deduplicate
+def _run_deduplicate(db_path, errors, verify=True, model="claude"):
+    """Run deduplication on the belief network with optional LLM verification."""
+    from reasonsforge.api import deduplicate, verify_dedup_clusters, apply_dedup_plan, add_nogood
 
-    print("\n=== Deduplicate ===\n", file=sys.stderr)
+    print(f"\n=== Deduplicate{' (with LLM verify)' if verify else ''} ===\n",
+          file=sys.stderr)
     try:
-        result = deduplicate(auto=True, db_path=db_path)
-        retracted = result.get("retracted", [])
+        result = deduplicate(auto=not verify, db_path=db_path)
         clusters = result.get("clusters", [])
-        if retracted:
-            print(f"  {len(clusters)} cluster(s), retracted {len(retracted)} duplicate(s)",
-                  file=sys.stderr)
-        else:
+
+        if not clusters:
             print("  No duplicates found", file=sys.stderr)
+            return
+
+        if not verify:
+            retracted = result.get("retracted", [])
+            if retracted:
+                print(f"  {len(clusters)} cluster(s), retracted {len(retracted)} duplicate(s)",
+                      file=sys.stderr)
+            return
+
+        print(f"  {len(clusters)} candidate cluster(s), verifying...",
+              file=sys.stderr)
+        vresult = verify_dedup_clusters(clusters, model=model)
+
+        if vresult["verified"]:
+            plan = [{"keep": c["kept"],
+                     "retract": [b["id"] for b in c["beliefs"] if b["id"] != c["kept"]]}
+                    for c in vresult["verified"]]
+            apply_result = apply_dedup_plan(plan, db_path=db_path)
+            retracted = apply_result.get("retracted", [])
+            print(f"  Verified {len(vresult['verified'])} cluster(s), "
+                  f"retracted {len(retracted)} duplicate(s)", file=sys.stderr)
+
+        if vresult["rejected"]:
+            print(f"  Rejected {len(vresult['rejected'])} false duplicate(s)",
+                  file=sys.stderr)
+
+        if vresult["contradictions"]:
+            print(f"  Found {len(vresult['contradictions'])} contradiction(s)",
+                  file=sys.stderr)
+            for cluster in vresult["contradictions"]:
+                node_ids = [b["id"] for b in cluster["beliefs"]]
+                try:
+                    add_nogood(node_ids, db_path=db_path)
+                except Exception:
+                    pass
+
     except Exception as e:
         errors.append(f"deduplicate: {e}")
         print(f"WARN: deduplicate failed: {e}, continuing...", file=sys.stderr)
@@ -279,7 +313,9 @@ def cmd_update(args):
         ("repair", "Step 7: Repair beliefs",
          lambda: _run_repair(db_path, model, project_dir, errors)),
         ("deduplicate", "Step 8: Deduplicate",
-         lambda: _run_deduplicate(db_path, errors)),
+         lambda: _run_deduplicate(db_path, errors,
+                                  verify=getattr(args, "verify_dedup", True),
+                                  model=model)),
         ("contradictions", "Step 9: Detect contradictions",
          lambda: _run_contradictions(db_path, model, errors)),
     ]
@@ -402,7 +438,9 @@ def cmd_analyze(args):
         ("r1-repair", "Step 9: Repair beliefs",
          lambda: _run_repair(db_path, model, project_dir, errors)),
         ("r1-deduplicate", "Step 10: Deduplicate",
-         lambda: _run_deduplicate(db_path, errors)),
+         lambda: _run_deduplicate(db_path, errors,
+                                  verify=getattr(args, "verify_dedup", True),
+                                  model=model)),
         ("r1-contradictions", "Step 11: Detect contradictions",
          lambda: _run_contradictions(db_path, model, errors)),
     ]
@@ -451,7 +489,9 @@ def cmd_analyze(args):
             (f"{prefix}-repair", f"Round {round_num} Repair beliefs",
              lambda: _run_repair(db_path, model, project_dir, errors)),
             (f"{prefix}-deduplicate", f"Round {round_num} Deduplicate",
-             lambda: _run_deduplicate(db_path, errors)),
+             lambda: _run_deduplicate(db_path, errors,
+                                      verify=getattr(args, "verify_dedup", True),
+                                      model=model)),
             (f"{prefix}-contradictions", f"Round {round_num} Detect contradictions",
              lambda: _run_contradictions(db_path, model, errors)),
         ]
@@ -551,7 +591,9 @@ def cmd_refine(args):
         _write_step_cost_report(args, "refine", "repair", round_number=round_num)
 
     with step_log(logs_dir, "refine", "deduplicate"):
-        _run_deduplicate(db_path, errors)
+        _run_deduplicate(db_path, errors,
+                         verify=getattr(args, "verify_dedup", True),
+                         model=model)
     _write_step_cost_report(args, "refine", "deduplicate")
 
     with step_log(logs_dir, "refine", "contradictions"):

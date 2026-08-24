@@ -215,6 +215,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
+                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
 
     # code update
     cs = code_sub.add_parser("update",
@@ -236,6 +238,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
+                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
 
     # code file-issues
     cs = code_sub.add_parser("file-issues",
@@ -275,6 +279,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
+                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
@@ -1010,6 +1016,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--domain", help="Domain description for derive context")
     p.add_argument("--namespace", default=None)
+    p.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
+                   help="Skip LLM verification of dedup candidates (faster, less accurate)")
 
     # index-sources
     p = sub.add_parser("index-sources", help="Build FTS5 search index")

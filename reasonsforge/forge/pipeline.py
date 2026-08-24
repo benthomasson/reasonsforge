@@ -274,22 +274,61 @@ def _stage_repair(args, review_result, round_label=""):
 
 
 def _stage_deduplicate(args, round_label=""):
-    """Stage 7: Remove duplicate beliefs."""
-    from reasonsforge.api import deduplicate
+    """Stage 7: Remove duplicate beliefs with optional LLM verification."""
+    from reasonsforge.api import deduplicate, verify_dedup_clusters, apply_dedup_plan, add_nogood
 
+    verify = getattr(args, "verify_dedup", True)
+    model = getattr(args, "model", None) or "claude"
     prefix = f"[{round_label}] " if round_label else ""
-    print(f"{prefix}Deduplicating...", file=sys.stderr)
+    print(f"{prefix}Deduplicating{' (with LLM verify)' if verify else ''}...",
+          file=sys.stderr)
 
-    result = deduplicate(auto=True, db_path=REASONS_DB)
-    retracted = result.get("retracted", [])
+    result = deduplicate(auto=not verify, db_path=REASONS_DB)
     clusters = result.get("clusters", [])
 
-    if retracted:
-        print(f"{prefix}  {len(clusters)} clusters, retracted {len(retracted)}",
-              file=sys.stderr)
-    else:
+    if not clusters:
         print(f"{prefix}  No duplicates found", file=sys.stderr)
+        return result
 
+    if not verify:
+        retracted = result.get("retracted", [])
+        if retracted:
+            print(f"{prefix}  {len(clusters)} clusters, retracted {len(retracted)}",
+                  file=sys.stderr)
+        return result
+
+    print(f"{prefix}  {len(clusters)} candidate cluster(s), verifying...",
+          file=sys.stderr)
+    vresult = verify_dedup_clusters(clusters, model=model)
+
+    total_retracted = []
+    if vresult["verified"]:
+        plan = [{"keep": c["kept"],
+                 "retract": [b["id"] for b in c["beliefs"] if b["id"] != c["kept"]]}
+                for c in vresult["verified"]]
+        apply_result = apply_dedup_plan(plan, db_path=REASONS_DB)
+        total_retracted = apply_result.get("retracted", [])
+        print(f"{prefix}  Verified {len(vresult['verified'])} cluster(s), "
+              f"retracted {len(total_retracted)}", file=sys.stderr)
+
+    if vresult["rejected"]:
+        print(f"{prefix}  Rejected {len(vresult['rejected'])} false duplicate(s)",
+              file=sys.stderr)
+
+    if vresult["contradictions"]:
+        print(f"{prefix}  Found {len(vresult['contradictions'])} contradiction(s)",
+              file=sys.stderr)
+        for cluster in vresult["contradictions"]:
+            node_ids = [b["id"] for b in cluster["beliefs"]]
+            try:
+                add_nogood(node_ids, db_path=REASONS_DB)
+            except Exception:
+                pass
+
+    result["retracted"] = total_retracted
+    result["verified"] = len(vresult["verified"])
+    result["rejected"] = len(vresult["rejected"])
+    result["contradictions"] = len(vresult["contradictions"])
     return result
 
 
