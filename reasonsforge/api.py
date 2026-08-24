@@ -4433,7 +4433,6 @@ def verify_dedup_clusters(
     clusters: list[dict],
     model: str = "claude",
     timeout: int = 300,
-    db_path: str = DEFAULT_DB,
 ) -> dict:
     """LLM-verify candidate duplicate clusters.
 

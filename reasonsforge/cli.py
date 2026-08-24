@@ -1318,7 +1318,6 @@ def cmd_deduplicate(args):
         vresult = api.verify_dedup_clusters(
             result["clusters"],
             model=args.model or "claude",
-            db_path=args.db,
         )
 
         if vresult["verified"]:
@@ -1342,8 +1341,16 @@ def cmd_deduplicate(args):
             print(f"\nContradictions found: {len(vresult['contradictions'])} cluster(s)")
             for cluster in vresult["contradictions"]:
                 print(f"  {cluster.get('reason', '')}")
+                node_ids = [b["id"] for b in cluster["beliefs"]]
                 for b in cluster["beliefs"]:
                     print(f"    {b['id']}: {b['text'][:100]}")
+                try:
+                    ng_result = api.add_nogood(node_ids, db_path=args.db)
+                    print(f"    -> Recorded nogood {ng_result['nogood_id']}")
+                    if ng_result.get("backtracked_to"):
+                        print(f"       Backtracked to: {ng_result['backtracked_to']}")
+                except Exception as e:
+                    print(f"    -> Failed to record nogood: {e}", file=sys.stderr)
 
         if vresult.get("cost"):
             print(f"\nLLM cost: {vresult['cost']}")
