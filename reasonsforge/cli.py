@@ -1302,7 +1302,7 @@ def cmd_deduplicate(args):
 
     result = api.deduplicate(
         threshold=args.threshold,
-        auto=args.auto,
+        auto=args.auto and not args.verify,
         semantic=args.semantic,
         embedding_model=args.embedding_model,
         db_path=args.db,
@@ -1310,6 +1310,69 @@ def cmd_deduplicate(args):
 
     if not result["clusters"]:
         print("No duplicate clusters found.")
+        return
+
+    if args.verify:
+        print(f"Found {len(result['clusters'])} candidate cluster(s). "
+              "Running LLM verification...")
+        vresult = api.verify_dedup_clusters(
+            result["clusters"],
+            model=args.model or "claude",
+        )
+
+        if vresult["verified"]:
+            print(f"\nVerified duplicates ({len(vresult['verified'])} clusters):")
+            for i, cluster in enumerate(vresult["verified"], 1):
+                print(f"\n  Cluster {i} ({cluster['size']} beliefs) "
+                      f"[SAME_CLAIM]: {cluster.get('reason', '')}")
+                for b in cluster["beliefs"]:
+                    kept = "  <- kept" if cluster.get("kept") == b["id"] else ""
+                    print(f"    {b['id']}{kept}")
+                    print(f"      {b['text'][:100]}")
+
+        if vresult["rejected"]:
+            print(f"\nRejected (not duplicates): {len(vresult['rejected'])} cluster(s)")
+            for cluster in vresult["rejected"]:
+                reason = cluster.get("reason", cluster.get("verify_error", ""))
+                ids = ", ".join(b["id"] for b in cluster["beliefs"])
+                print(f"  [{ids}] {reason}")
+
+        if vresult["contradictions"]:
+            print(f"\nContradictions found: {len(vresult['contradictions'])} cluster(s)")
+            for cluster in vresult["contradictions"]:
+                print(f"  {cluster.get('reason', '')}")
+                node_ids = [b["id"] for b in cluster["beliefs"]]
+                for b in cluster["beliefs"]:
+                    print(f"    {b['id']}: {b['text'][:100]}")
+                try:
+                    ng_result = api.add_nogood(node_ids, db_path=args.db)
+                    print(f"    -> Recorded nogood {ng_result['nogood_id']}")
+                    if ng_result.get("backtracked_to"):
+                        print(f"       Backtracked to: {ng_result['backtracked_to']}")
+                except Exception as e:
+                    print(f"    -> Failed to record nogood: {e}", file=sys.stderr)
+
+        if vresult.get("cost"):
+            print(f"\nLLM cost: {vresult['cost']}")
+
+        if args.auto and vresult["verified"]:
+            plan = []
+            for cluster in vresult["verified"]:
+                keep = cluster["kept"]
+                retract = [b["id"] for b in cluster["beliefs"] if b["id"] != keep]
+                plan.append({"keep": keep, "retract": retract})
+            apply_result = api.apply_dedup_plan(plan, db_path=args.db)
+            for err in apply_result["errors"]:
+                print(f"  ERROR: {err}", file=sys.stderr)
+            if apply_result["retracted"]:
+                print(f"\nRetracted {len(apply_result['retracted'])} verified duplicates.")
+                for nid in apply_result["retracted"]:
+                    print(f"  RETRACTED {nid}")
+        elif vresult["verified"] and not args.auto:
+            output = args.output
+            api.write_dedup_plan(vresult["verified"], output)
+            print(f"\nWrote {output} (verified clusters only) — review, then run:")
+            print(f"  reasons deduplicate --accept {output}")
         return
 
     for i, cluster in enumerate(result["clusters"], 1):
@@ -3193,6 +3256,10 @@ def main():
                    help="Sentence-transformers model (default: all-MiniLM-L6-v2)")
     p.add_argument("--auto", action="store_true",
                    help="Automatically retract duplicates (keeps one per cluster)")
+    p.add_argument("--verify", action="store_true",
+                   help="LLM-verify candidate clusters (same-claim / different-claims / contradiction)")
+    p.add_argument("--model", default=None,
+                   help="LLM model for --verify (default: claude)")
     p.add_argument("-o", "--output", default="proposed-dedup.md",
                    help="Output file for dedup plan (default: proposed-dedup.md)")
     p.add_argument("--accept", metavar="FILE",
