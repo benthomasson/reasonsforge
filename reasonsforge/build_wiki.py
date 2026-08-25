@@ -44,6 +44,70 @@ def _assign_topics(node_ids, topics):
     return {k: v for k, v in groups.items() if v}
 
 
+def _assign_topics_multi_word(node_ids, topics, node_details=None):
+    """Assign each node to its best-matching topic using multi-word matching.
+
+    Topics can be multi-word phrases. Matching checks both the node ID
+    (segments split on [-._:]) and the node text. Longer topic matches
+    take priority over shorter ones.
+
+    Returns {topic_label: [node_id, ...], ...} with "Other" for unmatched.
+    """
+    topic_keywords = []
+    for t in topics:
+        label = t["topic"]
+        words = [w.lower() for w in re.split(r'[\s-]+', label) if w]
+        topic_keywords.append((label, words))
+    topic_keywords.sort(key=lambda t: -len(t[1]))
+
+    groups = {t["topic"]: [] for t in topics}
+    groups["Other"] = []
+
+    for nid in node_ids:
+        id_words = set(w.lower() for w in re.split(r'[-._:]', nid) if w)
+        text_words = set()
+        if node_details and nid in node_details:
+            text = node_details[nid].get("text", "")
+            text_words = set(w.lower() for w in re.split(r'[\s-]+', text) if len(w) > 2)
+
+        searchable = id_words | text_words
+        matched = False
+        for label, kws in topic_keywords:
+            if all(kw in searchable for kw in kws):
+                groups[label].append(nid)
+                matched = True
+                break
+        if not matched:
+            groups["Other"].append(nid)
+
+    return {k: v for k, v in groups.items() if v}
+
+
+def load_topics_file(path):
+    """Load topics from a file (one topic per line).
+
+    Lines starting with # are comments. Blank lines are skipped.
+    Each line becomes a topic label. If a line contains a tab or pipe,
+    the first field is the topic and the rest is ignored (allows
+    for descriptions).
+
+    Returns list of {"topic": str} dicts compatible with _assign_topics.
+    """
+    topics = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            for sep in ("\t", "|"):
+                if sep in line:
+                    line = line.split(sep, 1)[0].strip()
+                    break
+            if line:
+                topics.append({"topic": line})
+    return topics
+
+
 def _page_name(label):
     """Sanitize a topic/cluster label to a valid markdown filename."""
     safe = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')

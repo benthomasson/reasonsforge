@@ -3007,13 +3007,15 @@ def build_wiki(
     model: str = "",
     timeout: int = 300,
     parallel: int = 0,
+    topics_file: str | None = None,
     db_path: str = DEFAULT_DB,
 ) -> dict:
     """Export beliefs as interlinked markdown wiki pages grouped by topic or cluster.
 
     Returns: {"output_dir": str, "pages": int, "total_nodes": int}
     """
-    from .build_wiki import _assign_topics, build_wiki as _build_wiki
+    from .build_wiki import _assign_topics, _assign_topics_multi_word, build_wiki as _build_wiki
+    from .build_wiki import load_topics_file
 
     nodes_result = list_nodes(status=status, visible_to=visible_to, db_path=db_path)
     node_ids = [n["id"] for n in nodes_result["nodes"]]
@@ -3053,6 +3055,9 @@ def build_wiki(
             if label in groups:
                 label = f"{label}-{c['id']}"
             groups[label] = ids_in_cluster
+    elif topics_file:
+        file_topics = load_topics_file(topics_file)
+        groups = _assign_topics_multi_word(node_ids, file_topics, node_details)
     else:
         topics_result = topics(limit=max_topics, db_path=db_path)
         groups = _assign_topics(node_ids, topics_result["topics"])
