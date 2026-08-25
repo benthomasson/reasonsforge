@@ -47,18 +47,21 @@ def _assign_topics(node_ids, topics):
 def _assign_topics_multi_word(node_ids, topics, node_details=None):
     """Assign each node to its best-matching topic using multi-word matching.
 
-    Topics can be multi-word phrases. Matching checks both the node ID
-    (segments split on [-._:]) and the node text. Longer topic matches
+    Topics can be multi-word phrases with optional aliases. Matching
+    checks both the node ID (segments split on [-._:]) and the node
+    text. Any single alias matching is enough. Longer match patterns
     take priority over shorter ones.
 
     Returns {topic_label: [node_id, ...], ...} with "Other" for unmatched.
     """
-    topic_keywords = []
+    topic_matchers = []
     for t in topics:
         label = t["topic"]
-        words = [w.lower() for w in re.split(r'[\s-]+', label) if w]
-        topic_keywords.append((label, words))
-    topic_keywords.sort(key=lambda t: -len(t[1]))
+        patterns = [label] + t.get("aliases", [])
+        for pattern in patterns:
+            words = [w.lower() for w in re.split(r'[\s-]+', pattern) if w]
+            topic_matchers.append((label, words))
+    topic_matchers.sort(key=lambda t: -len(t[1]))
 
     groups = {t["topic"]: [] for t in topics}
     groups["Other"] = []
@@ -72,7 +75,7 @@ def _assign_topics_multi_word(node_ids, topics, node_details=None):
 
         searchable = id_words | text_words
         matched = False
-        for label, kws in topic_keywords:
+        for label, kws in topic_matchers:
             if all(kw in searchable for kw in kws):
                 groups[label].append(nid)
                 matched = True
@@ -87,11 +90,18 @@ def load_topics_file(path):
     """Load topics from a file (one topic per line).
 
     Lines starting with # are comments. Blank lines are skipped.
-    Each line becomes a topic label. If a line contains a tab or pipe,
-    the first field is the topic and the rest is ignored (allows
-    for descriptions).
+    If a line contains a tab or pipe, the first field is used and
+    the rest is ignored (allows for descriptions).
 
-    Returns list of {"topic": str} dicts compatible with _assign_topics.
+    Comma-separated entries on a line define aliases: the first entry
+    is the display label, additional entries are alternative match
+    patterns.  Example::
+
+        sparse autoencoder, sae
+        in-context learning, icl
+        knowledge editing, rome, memit
+
+    Returns list of {"topic": str, "aliases": [str, ...]} dicts.
     """
     topics = []
     with open(path) as f:
@@ -103,8 +113,12 @@ def load_topics_file(path):
                 if sep in line:
                     line = line.split(sep, 1)[0].strip()
                     break
-            if line:
-                topics.append({"topic": line})
+            if not line:
+                continue
+            parts = [p.strip() for p in line.split(",") if p.strip()]
+            label = parts[0]
+            aliases = parts[1:] if len(parts) > 1 else []
+            topics.append({"topic": label, "aliases": aliases})
     return topics
 
 
