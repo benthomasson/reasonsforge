@@ -3,6 +3,7 @@
 Cost tracking: CLI models use --output-format json to capture token
 counts and costs. Use get_cost_summary() to retrieve accumulated stats.
 Ollama models use the HTTP API for clean JSON responses.
+Cursor agent models use the cursor-agent CLI.
 """
 
 import asyncio
@@ -40,9 +41,12 @@ def resolve_model_cmd(model: str) -> list[str]:
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
         raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
+    if model.startswith("cursor:"):
+        raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
     available = (
         list(MODEL_COMMANDS)
-        + ["claude:<model>", "gemini:<model>", "ollama:<model>"]
+        + ["claude:<model>", "gemini:<model>", "ollama:<model>",
+           "cursor:<model>"]
     )
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
@@ -138,6 +142,44 @@ async def _invoke_ollama(prompt: str, model: str, timeout: int) -> str:
     return text
 
 
+async def _invoke_cursor(prompt: str, model: str, timeout: int) -> str:
+    """Invoke a Cursor agent model via the cursor-agent CLI."""
+    cursor_model = model.split(":", 1)[1]
+    binary = "cursor-agent"
+    cmd = [
+        binary, "--print", "--output-format", "json",
+        "--trust", "--mode", "ask", "--model", cursor_model,
+    ]
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env=env,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(prompt.encode()),
+            timeout=timeout,
+        )
+    except TimeoutError:
+        proc.kill()
+        raise TimeoutError(f"cursor-agent timed out after {timeout}s") from None
+    if proc.returncode != 0:
+        raise RuntimeError(f"cursor-agent failed: {stderr.decode()}")
+    try:
+        data = json.loads(stdout.decode())
+    except (json.JSONDecodeError, ValueError):
+        return stdout.decode()
+    text = data.get("result", stdout.decode())
+    usage = data.get("usage", {})
+    input_tokens = usage.get("inputTokens", 0) + usage.get("cacheReadTokens", 0)
+    output_tokens = usage.get("outputTokens", 0)
+    _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
+
+
 def _parse_cli_json(output: str, model: str) -> str:
     """Parse JSON output from CLI, extract response text and record costs.
 
@@ -178,6 +220,8 @@ def check_model_available(model: str) -> bool:
     """Check if a model's CLI or API is available."""
     if model.startswith("ollama:"):
         return True
+    if model.startswith("cursor:"):
+        return shutil.which("cursor-agent") is not None
     try:
         cmd = resolve_model_cmd(model)
     except ValueError:
@@ -194,6 +238,9 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     """
     if model.startswith("ollama:"):
         return await _invoke_ollama(prompt, model, timeout)
+
+    if model.startswith("cursor:"):
+        return await _invoke_cursor(prompt, model, timeout)
 
     cmd = resolve_model_cmd(model)
 

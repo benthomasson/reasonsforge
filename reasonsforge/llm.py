@@ -2,7 +2,8 @@
 
 Supports named models (claude, gemini), Claude submodels via
 'claude:<model>' syntax, ollama models via 'ollama:<model>',
-and API-based providers via 'api:<model>' and 'vertex:<model>'.
+Cursor agent models via 'cursor:<model>', and API-based providers
+via 'api:<model>' and 'vertex:<model>'.
 
 CLI-based models pipe prompts to stdin and read responses from stdout.
 API-based models use LangChain adapters with optional Langfuse tracing.
@@ -148,6 +149,42 @@ def _invoke_ollama(prompt: str, model: str, timeout: int = 300) -> str:
     return text
 
 
+def _invoke_cursor(prompt: str, model: str, timeout: int = 300) -> str:
+    """Invoke a Cursor agent model via the cursor-agent CLI."""
+    cursor_model = model.split(":", 1)[1]
+    binary = "cursor-agent"
+    if not shutil.which(binary):
+        raise FileNotFoundError(
+            f"'{binary}' CLI not found in PATH. "
+            "Install from: https://docs.cursor.com/agent"
+        )
+    cmd = [
+        binary, "--print", "--output-format", "json",
+        "--trust", "--mode", "ask", "--model", cursor_model,
+    ]
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    result = subprocess.run(
+        cmd,
+        input=prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=env,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"cursor-agent failed: {result.stderr}")
+    try:
+        data = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return result.stdout
+    text = data.get("result", result.stdout)
+    usage = data.get("usage", {})
+    input_tokens = usage.get("inputTokens", 0) + usage.get("cacheReadTokens", 0)
+    output_tokens = usage.get("outputTokens", 0)
+    _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
+
+
 def _parse_cli_json(output: str, model: str) -> str:
     """Parse JSON output from CLI, extract response text and record costs.
 
@@ -216,10 +253,12 @@ def resolve_model_cmd(model: str) -> list[str]:
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
         raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
+    if model.startswith("cursor:"):
+        raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>",
-           "api:<model>", "vertex:<model>"]
+           "cursor:<model>", "api:<model>", "vertex:<model>"]
     )
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
@@ -287,6 +326,9 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
 
     if model.startswith("ollama:"):
         return _invoke_ollama(prompt, model, timeout)
+
+    if model.startswith("cursor:"):
+        return _invoke_cursor(prompt, model, timeout)
 
     cmd = resolve_model_cmd(model)
     binary = cmd[0]
