@@ -641,7 +641,7 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
     if summaries_dir and model:
         saved_topic, saved_belief, saved_project = load_summaries(summaries_dir)
 
-        # Topic summaries — skip already-cached
+        # Topic summaries — skip already-cached, save after each
         topic_sums = dict(saved_topic)
         needed_topics = [(t, nids) for t, nids in groups.items()
                          if t not in topic_sums]
@@ -665,6 +665,7 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                         try:
                             _, text = future.result()
                             topic_sums[t] = text
+                            save_summaries(summaries_dir, topic_sums, {}, "")
                         except Exception as e:
                             print(f"  WARN: topic summary '{t}' failed: {e}",
                                   file=sys.stderr)
@@ -673,13 +674,14 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                     try:
                         topic_sums[t] = generate_topic_summary(
                             t, nids, node_details, model, timeout)
+                        save_summaries(summaries_dir, topic_sums, {}, "")
                         print(f"  Topic summary {i}/{len(needed_topics)}: {t}",
                               file=sys.stderr)
                     except Exception as e:
                         print(f"  WARN: topic summary '{t}' failed: {e}",
                               file=sys.stderr)
 
-        # Belief summaries — skip already-cached, optional
+        # Belief summaries — skip already-cached, save every 10
         belief_sums = dict(saved_belief)
         if not skip_belief_summaries:
             needed_beliefs = [(nid, d) for nid, d in node_details.items()
@@ -700,12 +702,18 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                             for n, d in needed_beliefs
                         }
                         done_count = 0
+                        unsaved_count = 0
                         for future in as_completed(futures):
                             nid = futures[future]
                             done_count += 1
                             try:
                                 _, text = future.result()
                                 belief_sums[nid] = text
+                                unsaved_count += 1
+                                if unsaved_count >= 10:
+                                    save_summaries(summaries_dir, topic_sums,
+                                                   belief_sums, "")
+                                    unsaved_count = 0
                                 if done_count % 50 == 0:
                                     print(f"  {done_count}/{len(needed_beliefs)}"
                                           " belief summaries",
@@ -714,10 +722,16 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                                 print(f"  WARN: belief summary '{nid}' "
                                       f"failed: {e}", file=sys.stderr)
                 else:
+                    unsaved_count = 0
                     for i, (nid, detail) in enumerate(needed_beliefs, 1):
                         try:
                             belief_sums[nid] = generate_belief_summary(
                                 nid, detail, node_details, model, timeout)
+                            unsaved_count += 1
+                            if unsaved_count >= 10:
+                                save_summaries(summaries_dir, topic_sums,
+                                               belief_sums, "")
+                                unsaved_count = 0
                             if i % 50 == 0:
                                 print(f"  {i}/{len(needed_beliefs)} "
                                       "belief summaries", file=sys.stderr)
