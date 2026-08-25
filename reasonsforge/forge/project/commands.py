@@ -1887,31 +1887,36 @@ def cmd_propose_beliefs(args):
             existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
             prompts.append(PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context)
 
+        done_count = 0
+
         async def _invoke_all():
+            nonlocal done_count, total_dup_skipped
             sem = asyncio.Semaphore(parallel)
+            write_lock = asyncio.Lock()
 
-            async def _invoke_one(prompt):
+            async def _invoke_one(idx, prompt):
+                nonlocal done_count, total_dup_skipped
                 async with sem:
-                    return await invoke(prompt, model, timeout=timeout)
+                    result = await invoke(prompt, model, timeout=timeout)
+                async with write_lock:
+                    filtered, dup_count = _filter_existing(result, existing_ids)
+                    total_dup_skipped += dup_count
+                    if auto_accept:
+                        all_auto_proposals.append(filtered)
+                    else:
+                        _append_proposal(filtered)
+                    _save_batch_progress(batch_paths[idx])
+                    done_count += 1
+                    print(f"  Batch {idx + 1}/{len(batches)} done "
+                          f"({done_count} completed, saved)")
 
-            return await asyncio.gather(
-                *[_invoke_one(p) for p in prompts],
-                return_exceptions=True,
-            )
+            tasks = [_invoke_one(i, p) for i, p in enumerate(prompts)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    print(f"  Batch {i + 1} ERROR: {r}")
 
-        results = asyncio.run(_invoke_all())
-        for i, r in enumerate(results):
-            if isinstance(r, Exception):
-                print(f"  Batch {i + 1} ERROR: {r}")
-            else:
-                filtered, dup_count = _filter_existing(r, existing_ids)
-                total_dup_skipped += dup_count
-                if auto_accept:
-                    all_auto_proposals.append(filtered)
-                else:
-                    _append_proposal(filtered)
-                _save_batch_progress(batch_paths[i])
-                print(f"  Batch {i + 1}/{len(batches)} done (saved)")
+        asyncio.run(_invoke_all())
     else:
         for i, batch_text in enumerate(batches):
             existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
