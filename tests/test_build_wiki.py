@@ -317,7 +317,8 @@ class TestBuildWiki:
         groups = {"My Topic": ["node-a"], "My-Topic!": ["node-b"]}
         result = build_wiki(details, groups, output_dir)
         assert result["pages"] == 2
-        files = [f for f in os.listdir(output_dir) if f != "index.md"]
+        files = [f for f in os.listdir(output_dir)
+                 if f not in ("index.md", ".topic_cache.json")]
         assert len(files) == 2
 
 

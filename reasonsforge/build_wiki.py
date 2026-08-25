@@ -5,6 +5,8 @@ Exports beliefs as interlinked markdown pages grouped by topic
 synthesize each topic page into a coherent narrative.
 """
 
+import hashlib
+import json
 import os
 import re
 import sys
@@ -120,6 +122,214 @@ def load_topics_file(path):
             aliases = parts[1:] if len(parts) > 1 else []
             topics.append({"topic": label, "aliases": aliases})
     return topics
+
+
+def _compute_belief_hash(node_details):
+    """Compute a hash over belief IDs and text, matching eem-wiki's convention."""
+    items = sorted(
+        (nid, (detail.get("text") or ""))
+        for nid, detail in node_details.items()
+    )
+    return hashlib.sha256(json.dumps(items).encode()).hexdigest()
+
+
+def save_topic_cache(output_dir, node_details, groups):
+    """Write .topic_cache.json compatible with eem-wiki."""
+    belief_hash = _compute_belief_hash(node_details)
+    path = os.path.join(output_dir, ".topic_cache.json")
+    with open(path, "w") as f:
+        json.dump({"hash": belief_hash, "topics": groups}, f, indent=2)
+
+
+TOPIC_SUMMARY_PROMPT = """\
+You are summarizing a group of beliefs from a Truth Maintenance System (TMS) \
+knowledge base. These beliefs are grouped under the topic "{topic}".
+
+Write a 2-4 paragraph summary that:
+1. Explains what this topic covers and why it matters
+2. Highlights the key claims and how they relate to each other
+3. Notes any important distinctions (e.g., which beliefs are premises vs derived)
+4. Mentions if any beliefs are OUT (retracted) and what that implies
+
+Write in clear, direct prose. Do not list the beliefs — synthesize them into \
+a coherent narrative. Reference specific belief IDs inline in parentheses \
+where relevant, e.g. (belief-id-here).
+
+Output plain text paragraphs only. Do not use markdown formatting — no headers, \
+no bullet lists, no bold/italic. Separate paragraphs with blank lines.
+
+## Beliefs in this topic
+
+{beliefs}"""
+
+BELIEF_SUMMARY_PROMPT = """\
+You are writing a plain-language summary for a belief in a Truth Maintenance System.
+
+The belief is a formal claim that may be dense or technical. Write 1-2 sentences \
+that explain what this belief means in plain language. Focus on the "so what" — \
+why does this matter? What does it imply for the system?
+
+Do not repeat the belief text verbatim. Do not use the word "belief". Just explain it.
+
+Output plain text only. No markdown formatting — no bold, italic, headers, or lists.
+
+Belief ID: {node_id}
+Status: {truth_value}
+Type: {node_type}
+
+Claim: {text}
+
+{context}"""
+
+PROJECT_SUMMARY_PROMPT = """\
+You are writing an overview summary for a belief network wiki called "{project_name}".
+
+This knowledge base contains {total_beliefs} beliefs ({in_count} IN, {out_count} OUT) \
+organized into {topic_count} topics by a Truth Maintenance System (TMS).
+
+Write a 3-5 paragraph summary that:
+1. Explains what this knowledge base is about — what domain does it cover?
+2. Highlights the major themes and what the network has discovered
+3. Notes the scale and structure — how many topics, what kinds of beliefs
+4. Mentions what OUT (retracted) beliefs tell us about how understanding has evolved
+5. Gives a reader a sense of why this knowledge base is valuable
+
+Write in clear, direct prose for someone encountering this wiki for the first time. \
+Do not list every topic — synthesize the big picture.
+
+Output plain text paragraphs only. Do not use markdown formatting — no headers, \
+no bullet lists, no bold/italic. Separate paragraphs with blank lines.
+
+## Topics and their sizes
+
+{topic_list}
+
+## Sample beliefs (for flavor)
+
+{sample_beliefs}"""
+
+
+def generate_topic_summary(topic, nids, node_details, model, timeout):
+    """Generate a plain-text topic summary compatible with eem-wiki."""
+    from .llm import invoke_model
+
+    lines = []
+    for nid in sorted(nids):
+        detail = node_details.get(nid)
+        if not detail:
+            continue
+        status = detail.get("truth_value", "?")
+        lines.append(f"- [{status}] {nid}: {detail.get('text', '')}")
+
+    prompt = TOPIC_SUMMARY_PROMPT.format(
+        topic=topic, beliefs="\n".join(lines))
+    return invoke_model(prompt, model=model, timeout=timeout)
+
+
+def generate_belief_summary(nid, node_detail, node_details, model, timeout):
+    """Generate a plain-text belief summary compatible with eem-wiki."""
+    from .llm import invoke_model
+
+    is_premise = not node_detail.get("justifications")
+    node_type = "premise (direct observation)" if is_premise else "derived belief"
+
+    context_lines = []
+    for j in node_detail.get("justifications", []):
+        for ant_id in j.get("antecedents", []):
+            ant = node_details.get(ant_id, {})
+            context_lines.append(f"Antecedent [{ant_id}]: {ant.get('text', '')}")
+
+    context = "\n".join(context_lines) if context_lines else "No antecedents (premise)."
+
+    prompt = BELIEF_SUMMARY_PROMPT.format(
+        node_id=nid,
+        truth_value=node_detail.get("truth_value", "?"),
+        node_type=node_type,
+        text=node_detail.get("text", ""),
+        context=context,
+    )
+    return invoke_model(prompt, model=model, timeout=timeout)
+
+
+def generate_project_summary(project_name, node_details, groups, model, timeout):
+    """Generate a plain-text project summary compatible with eem-wiki."""
+    from .llm import invoke_model
+    import random
+
+    in_count = sum(1 for d in node_details.values() if d.get("truth_value") == "IN")
+    out_count = len(node_details) - in_count
+
+    topic_lines = []
+    for topic, nids in sorted(groups.items(), key=lambda x: -len(x[1])):
+        topic_lines.append(f"- {topic} ({len(nids)} beliefs)")
+
+    rng = random.Random(42)
+    all_ids = list(node_details.keys())
+    samples = []
+    for nid in rng.sample(all_ids, min(20, len(all_ids))):
+        detail = node_details[nid]
+        tv = detail.get("truth_value", "?")
+        samples.append(f"- [{tv}] {nid}: {detail.get('text', '')[:150]}")
+
+    prompt = PROJECT_SUMMARY_PROMPT.format(
+        project_name=project_name,
+        total_beliefs=len(node_details),
+        in_count=in_count,
+        out_count=out_count,
+        topic_count=len(groups),
+        topic_list="\n".join(topic_lines),
+        sample_beliefs="\n".join(samples),
+    )
+    return invoke_model(prompt, model=model, timeout=timeout)
+
+
+def load_summaries(summaries_dir):
+    """Load cached summaries from a directory (eem-wiki compatible format)."""
+    topic_sums = {}
+    belief_sums = {}
+    project_sum = ""
+    if not summaries_dir or not os.path.isdir(summaries_dir):
+        return topic_sums, belief_sums, project_sum
+
+    topic_path = os.path.join(summaries_dir, "topic-summaries.json")
+    belief_path = os.path.join(summaries_dir, "belief-summaries.json")
+    project_path = os.path.join(summaries_dir, "project-summary.txt")
+
+    if os.path.exists(topic_path):
+        try:
+            with open(topic_path) as f:
+                topic_sums = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    if os.path.exists(belief_path):
+        try:
+            with open(belief_path) as f:
+                belief_sums = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    if os.path.exists(project_path):
+        try:
+            with open(project_path) as f:
+                project_sum = f.read().strip()
+        except OSError:
+            pass
+    return topic_sums, belief_sums, project_sum
+
+
+def save_summaries(summaries_dir, topic_sums, belief_sums, project_sum=""):
+    """Write summaries in eem-wiki compatible format."""
+    os.makedirs(summaries_dir, exist_ok=True)
+    if topic_sums:
+        with open(os.path.join(summaries_dir, "topic-summaries.json"), "w") as f:
+            json.dump(topic_sums, f, indent=2, sort_keys=True, ensure_ascii=False)
+            f.write("\n")
+    if belief_sums:
+        with open(os.path.join(summaries_dir, "belief-summaries.json"), "w") as f:
+            json.dump(belief_sums, f, indent=2, sort_keys=True, ensure_ascii=False)
+            f.write("\n")
+    if project_sum:
+        with open(os.path.join(summaries_dir, "project-summary.txt"), "w") as f:
+            f.write(project_sum + "\n")
 
 
 def _page_name(label):
@@ -322,7 +532,7 @@ _RESERVED_SLUGS = {"index"}
 
 
 def build_wiki(node_details, groups, output_dir, model="", timeout=300,
-               parallel=0):
+               parallel=0, summaries_dir="", skip_belief_summaries=False):
     """Write index.md and per-group pages to output_dir.
 
     Args:
@@ -332,6 +542,8 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
         model: LLM model for page generation (empty = no LLM)
         timeout: LLM timeout in seconds
         parallel: number of concurrent LLM workers (0 = sequential)
+        summaries_dir: if set, write eem-wiki compatible summary files
+        skip_belief_summaries: skip per-belief summaries (expensive)
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -423,5 +635,106 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                              node_details.keys())
         with open(os.path.join(output_dir, page_file), "w") as f:
             f.write(page_text)
+
+    save_topic_cache(output_dir, node_details, groups)
+
+    if summaries_dir and model:
+        saved_topic, saved_belief, saved_project = load_summaries(summaries_dir)
+
+        # Topic summaries — skip already-cached
+        topic_sums = dict(saved_topic)
+        needed_topics = [(t, nids) for t, nids in groups.items()
+                         if t not in topic_sums]
+        if needed_topics:
+            print(f"  Generating {len(needed_topics)} topic summaries "
+                  f"({len(topic_sums)} cached)...", file=sys.stderr)
+            if parallel > 0:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                def _gen_topic(t, nids):
+                    return t, generate_topic_summary(t, nids, node_details,
+                                                     model, timeout)
+
+                with ThreadPoolExecutor(max_workers=parallel) as executor:
+                    futures = {
+                        executor.submit(_gen_topic, t, n): t
+                        for t, n in needed_topics
+                    }
+                    for future in as_completed(futures):
+                        t = futures[future]
+                        try:
+                            _, text = future.result()
+                            topic_sums[t] = text
+                        except Exception as e:
+                            print(f"  WARN: topic summary '{t}' failed: {e}",
+                                  file=sys.stderr)
+            else:
+                for i, (t, nids) in enumerate(needed_topics, 1):
+                    try:
+                        topic_sums[t] = generate_topic_summary(
+                            t, nids, node_details, model, timeout)
+                        print(f"  Topic summary {i}/{len(needed_topics)}: {t}",
+                              file=sys.stderr)
+                    except Exception as e:
+                        print(f"  WARN: topic summary '{t}' failed: {e}",
+                              file=sys.stderr)
+
+        # Belief summaries — skip already-cached, optional
+        belief_sums = dict(saved_belief)
+        if not skip_belief_summaries:
+            needed_beliefs = [(nid, d) for nid, d in node_details.items()
+                              if nid not in belief_sums]
+            if needed_beliefs:
+                print(f"  Generating {len(needed_beliefs)} belief summaries "
+                      f"({len(belief_sums)} cached)...", file=sys.stderr)
+                if parallel > 0:
+                    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+                    def _gen_belief(nid, detail):
+                        return nid, generate_belief_summary(
+                            nid, detail, node_details, model, timeout)
+
+                    with ThreadPoolExecutor(max_workers=parallel) as executor:
+                        futures = {
+                            executor.submit(_gen_belief, n, d): n
+                            for n, d in needed_beliefs
+                        }
+                        done_count = 0
+                        for future in as_completed(futures):
+                            nid = futures[future]
+                            done_count += 1
+                            try:
+                                _, text = future.result()
+                                belief_sums[nid] = text
+                                if done_count % 50 == 0:
+                                    print(f"  {done_count}/{len(needed_beliefs)}"
+                                          " belief summaries",
+                                          file=sys.stderr)
+                            except Exception as e:
+                                print(f"  WARN: belief summary '{nid}' "
+                                      f"failed: {e}", file=sys.stderr)
+                else:
+                    for i, (nid, detail) in enumerate(needed_beliefs, 1):
+                        try:
+                            belief_sums[nid] = generate_belief_summary(
+                                nid, detail, node_details, model, timeout)
+                            if i % 50 == 0:
+                                print(f"  {i}/{len(needed_beliefs)} "
+                                      "belief summaries", file=sys.stderr)
+                        except Exception as e:
+                            print(f"  WARN: belief summary '{nid}' "
+                                  f"failed: {e}", file=sys.stderr)
+
+        # Project summary
+        project_sum = saved_project
+        if not project_sum:
+            print("  Generating project summary...", file=sys.stderr)
+            try:
+                project_sum = generate_project_summary(
+                    "Belief Wiki", node_details, groups, model, timeout)
+            except Exception as e:
+                print(f"  WARN: project summary failed: {e}", file=sys.stderr)
+
+        save_summaries(summaries_dir, topic_sums, belief_sums, project_sum)
 
     return {"output_dir": output_dir, "pages": len(groups), "total_nodes": total}

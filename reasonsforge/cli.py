@@ -2004,6 +2004,8 @@ def cmd_build_wiki(args):
         timeout=args.timeout,
         parallel=getattr(args, "parallel", 0) or 0,
         topics_file=args.topics_file,
+        summaries_dir=getattr(args, "summaries_dir", "") or "",
+        skip_belief_summaries=getattr(args, "skip_belief_summaries", False),
         db_path=args.db,
     )
     print(f"Wiki written to {result['output_dir']}/")
@@ -3340,7 +3342,11 @@ def main():
     p.add_argument("--status", choices=["IN", "OUT"], default=None, help="Filter by truth value")
     p.add_argument("--max-topics", type=int, default=20, help="Max topics for word-frequency grouping (default: 20)")
     p.add_argument("--topics-file", default=None,
-                   help="File with custom topic list (one per line). Supports multi-word topics and matches against belief text")
+                   help="File with custom topic list (one per line). Supports multi-word topics and aliases (comma-separated)")
+    p.add_argument("--summaries-dir", default=None,
+                   help="Write eem-wiki compatible summary files (topic-summaries.json, belief-summaries.json, project-summary.txt)")
+    p.add_argument("--skip-belief-summaries", action="store_true",
+                   help="Skip per-belief summaries (expensive). Only generate topic and project summaries")
     p.add_argument("--cluster", action="store_true", help="Use semantic clustering instead of topic grouping")
     p.add_argument("--n-clusters", type=int, default=None, help="Override automatic cluster count")
     p.add_argument("--seed", type=int, default=None, help="Random seed for reproducible clustering")

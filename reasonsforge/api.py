@@ -3008,6 +3008,8 @@ def build_wiki(
     timeout: int = 300,
     parallel: int = 0,
     topics_file: str | None = None,
+    summaries_dir: str = "",
+    skip_belief_summaries: bool = False,
     db_path: str = DEFAULT_DB,
 ) -> dict:
     """Export beliefs as interlinked markdown wiki pages grouped by topic or cluster.
@@ -3063,7 +3065,9 @@ def build_wiki(
         groups = _assign_topics(node_ids, topics_result["topics"])
 
     return _build_wiki(node_details, groups, output_dir,
-                       model=model, timeout=timeout, parallel=parallel)
+                       model=model, timeout=timeout, parallel=parallel,
+                       summaries_dir=summaries_dir,
+                       skip_belief_summaries=skip_belief_summaries)
 
 
 def list_gated(
