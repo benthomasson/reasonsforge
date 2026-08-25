@@ -1918,23 +1918,27 @@ def cmd_propose_beliefs(args):
 
         asyncio.run(_invoke_all())
     else:
-        for i, batch_text in enumerate(batches):
-            existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
-            prompt = PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context
+        async def _run_sequential():
+            nonlocal total_dup_skipped
+            for i, batch_text in enumerate(batches):
+                existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
+                prompt = PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context
 
-            print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
-            try:
-                result = asyncio.run(invoke(prompt, model, timeout=timeout))
-                filtered, dup_count = _filter_existing(result, existing_ids)
-                total_dup_skipped += dup_count
-                if auto_accept:
-                    all_auto_proposals.append(filtered)
-                else:
-                    _append_proposal(filtered)
-                _save_batch_progress(batch_paths[i])
-                print(f"  Batch {i + 1}/{len(batches)} done (saved)")
-            except Exception as e:
-                print(f"  ERROR in batch {i + 1}: {e}")
+                print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
+                try:
+                    result = await invoke(prompt, model, timeout=timeout)
+                    filtered, dup_count = _filter_existing(result, existing_ids)
+                    total_dup_skipped += dup_count
+                    if auto_accept:
+                        all_auto_proposals.append(filtered)
+                    else:
+                        _append_proposal(filtered)
+                    _save_batch_progress(batch_paths[i])
+                    print(f"  Batch {i + 1}/{len(batches)} done (saved)")
+                except Exception as e:
+                    print(f"  ERROR in batch {i + 1}: {e}")
+
+        asyncio.run(_run_sequential())
 
     if total_dup_skipped:
         print(f"  Filtered {total_dup_skipped} already-accepted beliefs")
