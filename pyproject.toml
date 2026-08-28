@@ -7,8 +7,14 @@ name = "reasonsforge"
 version = "0.68.0"
 description = "Reasons Forge — automatic belief retraction and dependency-directed backtracking"
 license = "MIT"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+
+[project.urls]
+Homepage = "https://reasonsforge.io"
+Documentation = "https://reasonsforge.io"
+Repository = "https://github.com/benthomasson/reasonsforge"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-cov", "pyyaml"]
