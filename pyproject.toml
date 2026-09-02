@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reasonsforge"
-version = "0.69.0"
+version = "0.70.0"
 description = "Reasons Forge — automatic belief retraction and dependency-directed backtracking"
 license = "MIT"
 readme = "README.md"
