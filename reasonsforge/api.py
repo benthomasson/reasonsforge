@@ -1798,6 +1798,11 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
                             if import_val and not getattr(existing, field, ""):
                                 setattr(existing, field, import_val)
                                 updated = True
+                        # supporting_justification: 0 is valid (first justification), None means unset
+                        import_si = ndata.get("supporting_justification")
+                        if import_si is not None and existing.supporting_justification is None:
+                            existing.supporting_justification = import_si
+                            updated = True
                         # Fill in empty content_hash on justifications
                         for j_existing, j_import in zip(
                             existing.justifications,
@@ -1857,6 +1862,9 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
                     node.verified_at = ndata.get("verified_at", "")
                     node.retracted_at = ndata.get("retracted_at", "")
                     node.updated_at = ndata.get("updated_at", "")
+                    import_si = ndata.get("supporting_justification")
+                    if import_si is not None:
+                        node.supporting_justification = import_si
                     added.add(nid)
                     nodes_imported += 1
                 else:
@@ -1902,6 +1910,9 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
                     node.verified_at = ndata.get("verified_at", "")
                     node.retracted_at = ndata.get("retracted_at", "")
                     node.updated_at = ndata.get("updated_at", "")
+                    import_si = ndata.get("supporting_justification")
+                    if import_si is not None:
+                        node.supporting_justification = import_si
                     added.add(nid)
                     nodes_imported += 1
                 break
