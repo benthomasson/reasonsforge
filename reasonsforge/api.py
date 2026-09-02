@@ -1776,6 +1776,8 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
         nodes_imported = 0
         skipped = 0
 
+        nodes_updated = 0
+
         max_passes = len(remaining) + 1
         for _ in range(max_passes):
             if not remaining:
@@ -1783,6 +1785,30 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
             next_remaining = {}
             for nid, ndata in remaining.items():
                 if nid in added:
+                    # Merge: update existing node with non-empty fields from import
+                    if nid in net.nodes:
+                        existing = net.nodes[nid]
+                        updated = False
+                        # Fill in empty metadata fields from import data
+                        for field in ("source", "source_url", "source_hash",
+                                      "text_hash", "date", "created_at",
+                                      "updated_at", "reviewed_at", "verified_at",
+                                      "retracted_at"):
+                            import_val = ndata.get(field, "")
+                            if import_val and not getattr(existing, field, ""):
+                                setattr(existing, field, import_val)
+                                updated = True
+                        # Fill in empty content_hash on justifications
+                        for j_existing, j_import in zip(
+                            existing.justifications,
+                            ndata.get("justifications", []),
+                        ):
+                            import_ch = j_import.get("content_hash", "")
+                            if import_ch and not j_existing.content_hash:
+                                j_existing.content_hash = import_ch
+                                updated = True
+                        if updated:
+                            nodes_updated += 1
                     skipped += 1
                     continue
                 # Check if all antecedents and outlist deps are available
@@ -1903,7 +1929,7 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
         for name, path in data.get("repos", {}).items():
             net.repos[name] = path
 
-        return {"nodes_imported": nodes_imported, "nogoods_imported": nogoods_imported}
+        return {"nodes_imported": nodes_imported, "nodes_updated": nodes_updated, "nogoods_imported": nogoods_imported}
 
 
 def import_hf(repo_id: str, init: bool = False, token: str | None = None,

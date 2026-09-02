@@ -834,6 +834,8 @@ def cmd_import_json(args):
         sys.exit(1)
 
     print(f"Imported {result['nodes_imported']} nodes")
+    if result.get('nodes_updated'):
+        print(f"Updated {result['nodes_updated']} existing nodes")
     if result['nogoods_imported']:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
