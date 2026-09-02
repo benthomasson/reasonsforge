@@ -339,7 +339,7 @@ def _stage_export(args):
     data = export_network(db_path=REASONS_DB)
 
     network_path = Path("network.json")
-    network_path.write_text(json.dumps(data, indent=2))
+    network_path.write_text(json.dumps(data, indent=2, sort_keys=True))
     print(f"Exported {network_path}", file=sys.stderr)
 
     card = export_card(db_path=REASONS_DB, domain=args.domain)

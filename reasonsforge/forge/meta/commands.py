@@ -327,7 +327,7 @@ def _export_files(db_path: str = REASONS_DB) -> None:
     Path("beliefs.md").write_text(md)
 
     network = export_network(db_path=db_path)
-    Path("network.json").write_text(json.dumps(network, indent=2))
+    Path("network.json").write_text(json.dumps(network, indent=2, sort_keys=True))
 
 
 # ---------------------------------------------------------------------------

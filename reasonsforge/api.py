@@ -1984,7 +1984,7 @@ def publish_hf(
 
     backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
     network_json = json.dumps(
-        export_network(visible_to=visible_to, **backend), indent=2
+        export_network(visible_to=visible_to, **backend), indent=2, sort_keys=True
     )
 
     beliefs_md = export_markdown(visible_to=visible_to, **backend)
