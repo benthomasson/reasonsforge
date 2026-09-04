@@ -57,6 +57,7 @@ _cost_tracker = {
     "input_tokens": 0,
     "output_tokens": 0,
     "total_cost_usd": 0.0,
+    "elapsed_seconds": 0.0,
     "by_model": {},
 }
 
@@ -68,6 +69,7 @@ def reset_cost_tracker():
         _cost_tracker["input_tokens"] = 0
         _cost_tracker["output_tokens"] = 0
         _cost_tracker["total_cost_usd"] = 0.0
+        _cost_tracker["elapsed_seconds"] = 0.0
         _cost_tracker["by_model"] = {}
 
 
@@ -89,6 +91,8 @@ def format_cost_summary() -> str:
             parts.append(f"${s['total_cost_usd']:.4f}")
         parts.append(f"{s['input_tokens']:,} input + {s['output_tokens']:,} output tokens")
         parts.append(f"{s['calls']} call(s)")
+        if s["elapsed_seconds"] > 0:
+            parts.append(f"{s['elapsed_seconds']:.1f}s")
         return "Cost: " + " | ".join(parts)
 
 
@@ -102,7 +106,8 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
 
         if model not in _cost_tracker["by_model"]:
             _cost_tracker["by_model"][model] = {
-                "calls": 0, "input_tokens": 0, "output_tokens": 0, "total_cost_usd": 0.0,
+                "calls": 0, "input_tokens": 0, "output_tokens": 0,
+                "total_cost_usd": 0.0, "elapsed_seconds": 0.0,
             }
         m = _cost_tracker["by_model"][model]
         m["calls"] += 1
@@ -321,30 +326,39 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     Raises RuntimeError if the model exits non-zero or API call fails.
     Raises subprocess.TimeoutExpired on timeout.
     """
-    if model.startswith("api:") or model.startswith("vertex:"):
-        return _invoke_api(prompt, model, timeout)
+    import time
+    t0 = time.monotonic()
+    try:
+        if model.startswith("api:") or model.startswith("vertex:"):
+            return _invoke_api(prompt, model, timeout)
 
-    if model.startswith("ollama:"):
-        return _invoke_ollama(prompt, model, timeout)
+        if model.startswith("ollama:"):
+            return _invoke_ollama(prompt, model, timeout)
 
-    if model.startswith("cursor:"):
-        return _invoke_cursor(prompt, model, timeout)
+        if model.startswith("cursor:"):
+            return _invoke_cursor(prompt, model, timeout)
 
-    cmd = resolve_model_cmd(model)
-    binary = cmd[0]
-    if not shutil.which(binary):
-        raise FileNotFoundError(f"'{binary}' CLI not found in PATH")
+        cmd = resolve_model_cmd(model)
+        binary = cmd[0]
+        if not shutil.which(binary):
+            raise FileNotFoundError(f"'{binary}' CLI not found in PATH")
 
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-    result = subprocess.run(
-        cmd,
-        input=prompt,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=env,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"{model} failed: {result.stderr}")
-    return _parse_cli_json(result.stdout, model)
+        result = subprocess.run(
+            cmd,
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"{model} failed: {result.stderr}")
+        return _parse_cli_json(result.stdout, model)
+    finally:
+        elapsed = time.monotonic() - t0
+        with _cost_lock:
+            _cost_tracker["elapsed_seconds"] += elapsed
+            if model in _cost_tracker["by_model"]:
+                _cost_tracker["by_model"][model]["elapsed_seconds"] += elapsed

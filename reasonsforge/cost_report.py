@@ -85,6 +85,7 @@ def summarize_costs(reports: list[dict]) -> dict:
         "input_tokens": 0,
         "output_tokens": 0,
         "cost_dollars": 0.0,
+        "wall_clock_seconds": 0.0,
         "beliefs_added": 0,
         "beliefs_retracted": 0,
         "reports": len(reports),
@@ -97,6 +98,7 @@ def summarize_costs(reports: list[dict]) -> dict:
         total["input_tokens"] += r.get("input_tokens", 0)
         total["output_tokens"] += r.get("output_tokens", 0)
         total["cost_dollars"] += r.get("cost_dollars", 0.0)
+        total["wall_clock_seconds"] += r.get("wall_clock_seconds", 0.0)
         total["beliefs_added"] += r.get("beliefs_added", 0)
         total["beliefs_retracted"] += r.get("beliefs_retracted", 0)
 
@@ -104,13 +106,14 @@ def summarize_costs(reports: list[dict]) -> dict:
         if op not in by_operation:
             by_operation[op] = {
                 "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "cost_dollars": 0.0, "beliefs_added": 0,
-                "beliefs_retracted": 0, "reports": 0,
+                "cost_dollars": 0.0, "wall_clock_seconds": 0.0,
+                "beliefs_added": 0, "beliefs_retracted": 0, "reports": 0,
             }
         by_operation[op]["calls"] += r.get("calls", 0)
         by_operation[op]["input_tokens"] += r.get("input_tokens", 0)
         by_operation[op]["output_tokens"] += r.get("output_tokens", 0)
         by_operation[op]["cost_dollars"] += r.get("cost_dollars", 0.0)
+        by_operation[op]["wall_clock_seconds"] += r.get("wall_clock_seconds", 0.0)
         by_operation[op]["beliefs_added"] += r.get("beliefs_added", 0)
         by_operation[op]["beliefs_retracted"] += r.get("beliefs_retracted", 0)
         by_operation[op]["reports"] += 1
@@ -119,13 +122,14 @@ def summarize_costs(reports: list[dict]) -> dict:
         if domain not in by_domain:
             by_domain[domain] = {
                 "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "cost_dollars": 0.0, "beliefs_added": 0,
-                "beliefs_retracted": 0, "reports": 0,
+                "cost_dollars": 0.0, "wall_clock_seconds": 0.0,
+                "beliefs_added": 0, "beliefs_retracted": 0, "reports": 0,
             }
         by_domain[domain]["calls"] += r.get("calls", 0)
         by_domain[domain]["input_tokens"] += r.get("input_tokens", 0)
         by_domain[domain]["output_tokens"] += r.get("output_tokens", 0)
         by_domain[domain]["cost_dollars"] += r.get("cost_dollars", 0.0)
+        by_domain[domain]["wall_clock_seconds"] += r.get("wall_clock_seconds", 0.0)
         by_domain[domain]["beliefs_added"] += r.get("beliefs_added", 0)
         by_domain[domain]["beliefs_retracted"] += r.get("beliefs_retracted", 0)
         by_domain[domain]["reports"] += 1

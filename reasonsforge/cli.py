@@ -1153,10 +1153,12 @@ def _write_cost_report(args, operation, cost_summary, **kwargs):
     if tokens == 0:
         return None
     from .cost_report import write_cost_report
+    elapsed = cost_summary.get("elapsed_seconds")
     return write_cost_report(
         costs_dir=costs_dir,
         operation=operation,
         cost_summary=cost_summary,
+        wall_clock_seconds=elapsed if elapsed else None,
         **kwargs,
     )
 
