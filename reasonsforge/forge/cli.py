@@ -654,6 +654,35 @@ def register_forge_type_commands(parent_subparsers):
     ms.add_argument("--timeout", type=int, default=600)
     ms.add_argument("--output", default="reasons.db")
 
+    # diary — extract beliefs from diary entries and session notes
+    p = parent_subparsers.add_parser(
+        "diary",
+        help="Extract beliefs from diary entries and session notes")
+    p.add_argument("--domain", help="Domain description")
+    _add_common_pipeline_args(p)
+
+    diary_sub = p.add_subparsers(dest="diary_command")
+
+    ds = diary_sub.add_parser("update",
+                               help="Extract beliefs from new/changed entries")
+    ds.add_argument("--input-dir", default="entries")
+    ds.add_argument("--model", default="claude")
+    ds.add_argument("--parallel", type=int, default=1)
+    ds.add_argument("--batch-size", type=int, default=5)
+    ds.add_argument("--all", action="store_true",
+                    help="Reprocess all entries, not just new/changed")
+    ds.add_argument("--no-auto-accept", action="store_true",
+                    help="Pause after proposing beliefs for manual review")
+    ds.add_argument("--output", default="reasons.db")
+
+    ds = diary_sub.add_parser("accept",
+                               help="Import accepted beliefs from proposals")
+    ds.add_argument("--file", default="proposed-beliefs.md")
+
+    ds = diary_sub.add_parser("status", help="Show diary forge status")
+    ds.add_argument("--input-dir", default="entries")
+    ds.add_argument("--output", default="reasons.db")
+
     # run — sandbox wrapper (Phase 3)
     p = parent_subparsers.add_parser(
         "run",
@@ -662,7 +691,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta"],
+                   choices=["document", "code", "product", "project", "meta", "diary"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -673,6 +702,7 @@ def register_forge_type_commands(parent_subparsers):
         "product": _cmd_product,
         "project": _cmd_project,
         "meta": _cmd_meta,
+        "diary": _cmd_diary,
         "run": _cmd_run,
     }
 
@@ -927,6 +957,33 @@ def _cmd_meta(args):
     finally:
         _print_cost(args, operation=meta_command)
 
+
+
+def _cmd_diary(args):
+    """Run the diary forge or dispatch to a subcommand."""
+    from .diary.commands import (
+        cmd_accept as _diary_accept,
+        cmd_status as _diary_status,
+        cmd_update as _diary_update,
+    )
+
+    diary_command = getattr(args, "diary_command", None)
+
+    _diary_dispatch = {
+        "update": _diary_update,
+        "accept": _diary_accept,
+        "status": _diary_status,
+    }
+
+    try:
+        if diary_command and diary_command in _diary_dispatch:
+            _diary_dispatch[diary_command](args)
+            return
+
+        # No subcommand — default to update
+        _diary_update(args)
+    finally:
+        _print_cost(args, operation=diary_command or "diary-update")
 
 
 def _cmd_run(args):

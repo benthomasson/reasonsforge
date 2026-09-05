@@ -19,6 +19,7 @@ Reasons Forge analyzes domain-specific sources (codebases, issue trackers, produ
 - `project` — Team velocity, milestone health, and delivery risks from issue trackers
 - `product` — Feature readiness, user experience, and product-market fit
 - `meta` — Cross-domain reasoning across expert belief networks
+- `diary` — Extract beliefs from diary entries and session notes
 
 **LLM-powered analysis:**
 - `derive` — generate new beliefs from existing ones

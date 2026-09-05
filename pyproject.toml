@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "reasonsforge"
-version = "0.70.3"
+version = "0.71.0"
 description = "Reasons Forge — automatic belief retraction and dependency-directed backtracking"
 license = "MIT"
 readme = "README.md"
@@ -34,7 +34,7 @@ reasonsforge = "reasonsforge.cli:main"
 reasonsforge-mcp = "reasonsforge.mcp_server:main"
 
 [tool.setuptools]
-packages = ["reasonsforge", "reasonsforge.forge", "reasonsforge.forge.code", "reasonsforge.forge.code.prompts", "reasonsforge.forge.project", "reasonsforge.forge.project.sources", "reasonsforge.forge.project.prompts", "reasonsforge.forge.product", "reasonsforge.forge.product.prompts", "reasonsforge.forge.meta", "reasonsforge.forge.meta.prompts"]
+packages = ["reasonsforge", "reasonsforge.forge", "reasonsforge.forge.code", "reasonsforge.forge.code.prompts", "reasonsforge.forge.diary", "reasonsforge.forge.project", "reasonsforge.forge.project.sources", "reasonsforge.forge.project.prompts", "reasonsforge.forge.product", "reasonsforge.forge.product.prompts", "reasonsforge.forge.meta", "reasonsforge.forge.meta.prompts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
