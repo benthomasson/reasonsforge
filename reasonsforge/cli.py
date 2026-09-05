@@ -1740,6 +1740,9 @@ def cmd_accept(args):
 
 
 def cmd_list(args):
+    sort = args.sort if args.sort != "id" else None
+    if args.by_impact:
+        sort = "impact"
     result = api.list_nodes(
         status=args.status,
         premises_only=args.premises,
@@ -1751,7 +1754,8 @@ def cmd_list(args):
         visible_to=_parse_visible_to(args),
         not_reviewed_since=args.not_reviewed_since,
         never_reviewed=args.never_reviewed,
-        by_impact=args.by_impact,
+        by_impact=sort == "impact",
+        sort=sort,
         label=args.label,
         **_backend_kwargs(args),
     )
@@ -3548,6 +3552,9 @@ def main():
                    help="Derived beliefs that have never been reviewed")
     p.add_argument("--by-impact", action="store_true",
                    help="Sort output by dependent count (descending)")
+    p.add_argument("--sort", default="id",
+                   choices=["id", "created", "updated", "impact", "depth"],
+                   help="Sort order (default: id)")
     p.add_argument("--label", help="Filter to nodes with a justification matching this label")
 
     args = parser.parse_args()

@@ -2906,6 +2906,7 @@ def list_nodes(
     not_reviewed_since: int | None = None,
     never_reviewed: bool = False,
     by_impact: bool = False,
+    sort: str | None = None,
     label: str | None = None,
     db_path: str = DEFAULT_DB,
     pg_conninfo=None, project_id=None,
@@ -2983,6 +2984,7 @@ def list_nodes(
                             continue
                     except ValueError:
                         pass
+            depth = _node_depth(nid, net, memo) if memo is not None else None
             nodes.append({
                 "id": nid,
                 "text": node.text,
@@ -2993,8 +2995,21 @@ def list_nodes(
                 "last_reviewed": node.reviewed_at or node.metadata.get("last_reviewed"),
                 "review_result": node.metadata.get("review_result"),
                 "source_type": node.metadata.get("source_type", ""),
+                "created_at": node.created_at or "",
+                "updated_at": node.updated_at or "",
+                "depth": depth,
             })
-        if by_impact:
+        if sort == "created":
+            nodes.sort(key=lambda n: n["created_at"] or "", reverse=True)
+        elif sort == "updated":
+            nodes.sort(key=lambda n: n["updated_at"] or "", reverse=True)
+        elif sort == "depth":
+            if memo is None:
+                memo = {}
+                for n in nodes:
+                    n["depth"] = _node_depth(n["id"], net, memo)
+            nodes.sort(key=lambda n: n["depth"] if n["depth"] is not None else 0)
+        elif by_impact or sort == "impact":
             nodes.sort(key=lambda n: -n["dependent_count"])
         return {"nodes": nodes, "count": len(nodes)}
 
