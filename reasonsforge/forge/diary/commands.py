@@ -29,6 +29,7 @@ def cmd_update(args):
         return
 
     mode = getattr(args, "mode", None)
+    num_ctx = getattr(args, "num_ctx", None)
 
     prop_args = SimpleNamespace(
         input_dir=input_dir,
@@ -38,6 +39,7 @@ def cmd_update(args):
         batch_size=batch_size,
         entry=None,
         mode=mode,
+        num_ctx=num_ctx,
     )
     setattr(prop_args, "all", process_all)
 

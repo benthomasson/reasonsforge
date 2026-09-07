@@ -128,6 +128,7 @@ def _stage_extract(args):
         batch_size=5,
         entry=None,
         mode=getattr(args, "mode", None),
+        num_ctx=getattr(args, "num_ctx", None),
     )
     setattr(prop_args, "all", False)
 

@@ -383,7 +383,6 @@ def cmd_propose_beliefs(args):
         """Process one batch and write results immediately."""
         nonlocal total_skipped
         async with semaphore:
-            print(f"  Batch {i + 1}/{len(batches)}...")
             existing_context = _build_dedup_context(
                 existing_beliefs, batch_paths[i], batch_text,
                 belief_vectors=belief_vectors,
@@ -394,6 +393,13 @@ def cmd_propose_beliefs(args):
             if mode_extra:
                 prompt += "\n" + mode_extra + "\n"
             prompt += existing_context
+            est_tokens = len(prompt) // 4
+            num_ctx = getattr(args, "num_ctx", None)
+            if num_ctx:
+                pct = est_tokens * 100 / num_ctx
+                print(f"  Batch {i + 1}/{len(batches)} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)...")
+            else:
+                print(f"  Batch {i + 1}/{len(batches)} (~{est_tokens:,} tokens)...")
             try:
                 result = await invoke(prompt, model=args.model, timeout=600)
             except Exception as e:

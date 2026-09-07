@@ -677,6 +677,8 @@ def register_forge_type_commands(parent_subparsers):
     ds.add_argument("--mode", default=None,
                     choices=["general", "academic", "security"],
                     help="Extraction mode (default: general)")
+    ds.add_argument("--num-ctx", type=int, default=None,
+                    help="Model context window size in tokens (enables %% usage logging)")
 
     ds = diary_sub.add_parser("accept",
                                help="Import accepted beliefs from proposals")
@@ -1048,6 +1050,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--mode", default=None,
                    choices=["general", "academic", "security"],
                    help="Extraction mode (default: general)")
+    p.add_argument("--num-ctx", type=int, default=None,
+                   help="Model context window size in tokens (enables %% usage logging)")
 
     # accept-beliefs
     p = sub.add_parser("accept-beliefs",
@@ -1072,6 +1076,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--mode", default=None,
                    choices=["general", "academic", "security"],
                    help="Extraction mode (default: general)")
+    p.add_argument("--num-ctx", type=int, default=None,
+                   help="Model context window size in tokens (enables %% usage logging)")
 
     # derive-review-repair
     p = sub.add_parser("derive-review-repair",
