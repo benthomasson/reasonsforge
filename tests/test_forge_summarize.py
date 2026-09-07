@@ -172,7 +172,7 @@ def test_truncation_warning_for_large_file(source_dir, work_dir, capsys):
         cmd_summarize(args)
 
     captured = capsys.readouterr()
-    assert "WARN: truncated from 50000 to 30000 chars" in captured.out
+    assert "big.md: truncated from 50000 to 30000 chars" in captured.out
     assert "Consider: reasonsforge forge chunk-docs" in captured.out
 
 

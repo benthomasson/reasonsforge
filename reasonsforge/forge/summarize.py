@@ -40,11 +40,11 @@ def _prepare_source(source_path):
         original_len = len(content)
         content = content[:30000] + "\n\n[Truncated — original was longer]"
         if source_path.suffix == ".pdf":
-            print(f"  WARN: truncated from {original_len} to 30000 chars. "
+            print(f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
                   f"Consider: reasonsforge forge chunk-pdf {source_path}")
         else:
-            print(f"  WARN: truncated from {original_len} to 30000 chars. "
-                  f"Consider: reasonsforge forge chunk-docs")
+            print(f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
+                  f"Consider: reasonsforge forge chunk-docs --threshold 25000")
 
     template = SUMMARIZE_CODE if source_path.suffix == ".py" else SUMMARIZE
     prompt = template.format(content=content)
