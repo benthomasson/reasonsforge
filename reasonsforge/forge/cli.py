@@ -1036,6 +1036,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--parallel", type=int, default=1)
     p.add_argument("--limit", type=int)
     p.add_argument("--model", default="claude")
+    p.add_argument("--num-ctx", type=int, default=None,
+                   help="Model context window size in tokens (enables %% usage logging)")
 
     # propose-beliefs
     p = sub.add_parser("propose-beliefs",

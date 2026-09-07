@@ -71,7 +71,7 @@ def _write_entry(source_path, summary, source_url, source_id):
     return entry_path
 
 
-async def _summarize_one(source_path, model, semaphore, manifest, done):
+async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=None):
     """Summarize a single source file under concurrency limit."""
     async with semaphore:
         prepared = _prepare_source(source_path)
@@ -80,7 +80,12 @@ async def _summarize_one(source_path, model, semaphore, manifest, done):
             return False
 
         source_url, source_id, prompt = prepared
-        print(f"Summarizing: {source_path.name}")
+        est_tokens = len(prompt) // 4
+        if num_ctx:
+            pct = est_tokens * 100 / num_ctx
+            print(f"Summarizing: {source_path.name} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)")
+        else:
+            print(f"Summarizing: {source_path.name} (~{est_tokens:,} tokens)")
 
         try:
             summary = await invoke(prompt, model=model)
@@ -137,11 +142,12 @@ def cmd_summarize(args):
         return
 
     parallel = max(1, getattr(args, "parallel", 1))
+    num_ctx = getattr(args, "num_ctx", None)
     semaphore = asyncio.Semaphore(parallel)
 
     async def run_all():
         tasks = [
-            _summarize_one(s, args.model, semaphore, manifest, done)
+            _summarize_one(s, args.model, semaphore, manifest, done, num_ctx=num_ctx)
             for s in to_process
         ]
         return await asyncio.gather(*tasks)
