@@ -89,6 +89,67 @@ Respond with ONLY this JSON array (no other text):
 """
 
 
+GAP_ANALYSIS = """\
+You are analyzing a belief network for coverage gaps.
+
+The following beliefs have been extracted from source material about a specific domain. \
+Identify topics, definitions, theorems, or concepts that are **missing** but would be \
+expected in a thorough treatment of this domain.
+
+Rules:
+- Only list genuinely missing items — not beliefs that are present under a different name
+- Organize by topic area
+- For each missing item, give a one-line description of what should be there
+- Focus on foundational and structural gaps, not trivia
+- If a concept is partially present (properties exist but definition is missing), note that
+- Respond with ONLY a JSON array (no other text)
+
+{domain_instruction}
+
+---
+
+CURRENT BELIEFS:
+
+{beliefs}
+
+---
+
+Respond with ONLY this JSON array (no other text):
+[{{"topic_area": "<area>", "subject": "<what is missing>", "description": "<one-line description>", "priority": "<high|medium|low>", "partially_present": false}}]
+"""
+
+GAP_EXTRACT = """\
+You are re-reading source material to find specific topics that were missed in a \
+previous extraction pass.
+
+IMPORTANT: Only extract beliefs that are **actually present in the entries below**. \
+Do not invent or hallucinate claims. If a topic from the gap list is not discussed \
+in these entries, skip it.
+
+In addition to the standard extraction rules, look specifically for these missing topics:
+
+{gap_list}
+
+Rules:
+- Each belief should be a single, testable factual claim
+- Use kebab-case IDs that are descriptive
+- Set "accept" to true if the claim is well-supported by the source material
+- Only extract claims that appear in the entries — do not fabricate content
+- Aim for the missing topics listed above, but also extract any other beliefs you find
+
+---
+
+ENTRIES:
+
+{entries}
+
+---
+
+Respond with ONLY this JSON array (no other text):
+[{{"id": "<kebab-case-id>", "claim": "<one-line factual claim>", "accept": true, "source": "<path to entry file>", "source_url": "<url from SOURCE_URL in header, or empty string>"}}]
+"""
+
+
 PROPOSE_MODES = {
     "general": {
         "label": "General",

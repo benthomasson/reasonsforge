@@ -1101,6 +1101,25 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--chunk-size", type=int, default=2000)
     p.add_argument("--rebuild", action="store_true")
 
+    # gaps
+    p = sub.add_parser("gaps",
+                       help="Analyze belief network for coverage gaps")
+    p.add_argument("--domain", help="Domain description (e.g., 'abstract algebra')")
+    p.add_argument("--model", default="claude")
+    p.add_argument("--output", "-o", default=None,
+                   help="Write gap list to JSON file")
+    p.add_argument("--extract", action="store_true",
+                   help="Run targeted extraction to fill gaps")
+    p.add_argument("--input-dir", default="summaries",
+                   help="Directory to re-read for targeted extraction")
+    p.add_argument("--db", default=None,
+                   help="Belief database path (default: reasons.db)")
+    p.add_argument("--timeout", type=int, default=600)
+    p.add_argument("--parallel", type=int, default=1)
+    p.add_argument("--batch-size", type=int, default=5)
+    p.add_argument("--num-ctx", type=int, default=None,
+                   help="Model context window size in tokens (enables %% usage logging)")
+
     # status
     sub.add_parser("status", help="Show forge pipeline progress")
 
@@ -1116,5 +1135,6 @@ def register_forge_commands(parent_subparsers):
                                                  "cmd_derive_review_repair")(a),
         "index-sources": lambda a: _lazy("index_sources",
                                          "cmd_index_sources")(a),
+        "gaps": lambda a: _lazy("gaps", "cmd_gaps")(a),
         "status": lambda a: _lazy("init_cmd", "cmd_status")(a),
     }
