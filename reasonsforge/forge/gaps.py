@@ -23,7 +23,7 @@ def cmd_gaps(args):
     output = getattr(args, "output", None)
     extract = getattr(args, "extract", False)
     input_dir = getattr(args, "input_dir", "summaries")
-    db_path = getattr(args, "db", REASONS_DB)
+    db_path = getattr(args, "db", None) or REASONS_DB
     timeout = getattr(args, "timeout", 600)
     num_ctx = getattr(args, "num_ctx", None)
 
