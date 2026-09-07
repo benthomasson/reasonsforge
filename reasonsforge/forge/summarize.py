@@ -2,6 +2,7 @@
 
 import asyncio
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -87,14 +88,16 @@ async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=
         else:
             print(f"Summarizing: {source_path.name} (~{est_tokens:,} tokens)")
 
+        t0 = time.monotonic()
         try:
             summary = await invoke(prompt, model=model)
         except Exception as e:
             print(f"  ERROR ({source_path.name}): {e}")
             return False
+        elapsed = time.monotonic() - t0
 
         entry_path = _write_entry(source_path, summary, source_url, source_id)
-        print(f"  -> Created {entry_path}")
+        print(f"  -> Created {entry_path} ({elapsed:.1f}s)")
 
         with manifest.open("a") as f:
             f.write(f"{source_path}\n")
