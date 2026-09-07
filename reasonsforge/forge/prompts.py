@@ -110,6 +110,12 @@ State the theorem claim, not just that the theorem exists.
 testable structural claims.
 - **Axiom lists**: When a definition has numbered axioms (closure, associativity, \
 identity, inverses), extract each axiom as a separate belief tied to the parent definition.
+- **Structure-preserving maps**: Extract definitions of morphisms, homomorphisms, \
+isomorphisms — "a map/function φ: X → Y such that φ preserves..." These define \
+the relationships between structures and are as fundamental as the structures themselves.
+- **Substructure conditions**: Extract definitions of subgroups, subrings, ideals, \
+subspaces — "a subset S of X that is closed under..." or "a subgroup N satisfying..." \
+These characterize important sub-objects by the conditions they satisfy.
 """,
     },
     "security": {
