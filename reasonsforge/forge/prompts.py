@@ -87,3 +87,57 @@ ENTRIES:
 Respond with ONLY this JSON array (no other text):
 [{{"id": "<kebab-case-id>", "claim": "<one-line factual claim>", "accept": true, "source": "<path to entry file>", "source_url": "<url from SOURCE_URL in header, or empty string>"}}]
 """
+
+
+PROPOSE_MODES = {
+    "general": {
+        "label": "General",
+        "propose_extra": "",
+    },
+    "academic": {
+        "label": "Academic",
+        "propose_extra": """
+Additional priorities for academic content:
+
+- **Formal definitions**: Extract "X is a Y satisfying..." statements, axiom sets, \
+and defining properties as individual beliefs. Definitions are first-class knowledge, \
+not boilerplate — the entire subject builds on them.
+- **Theorem statements**: Named theorems with precise hypotheses and conclusions. \
+State the theorem claim, not just that the theorem exists.
+- **Key examples**: Canonical examples that instantiate definitions \
+(e.g., "GL(n,F) is a group under matrix multiplication", "Z/pZ is a field when p is prime").
+- **Equivalences and implications**: "X if and only if Y", "X implies Y" — these are \
+testable structural claims.
+- **Axiom lists**: When a definition has numbered axioms (closure, associativity, \
+identity, inverses), extract each axiom as a separate belief tied to the parent definition.
+""",
+    },
+    "security": {
+        "label": "Security Audit",
+        "propose_extra": """
+Additional priorities for security-relevant content:
+
+- **Trust boundary violations**: Where user-supplied input reaches privileged operations \
+or where untrusted code executes with elevated credentials.
+- **Missing validation**: Endpoints, inputs, or data paths that accept data without \
+schema validation, sanitization, or authentication checks.
+- **Credential exposure**: Secrets passed through environment variables, logs, error \
+messages, or configuration files accessible to untrusted components.
+- **Authorization gaps**: Operations that skip permission checks, or where role \
+boundaries are not enforced consistently.
+- **Injection surfaces**: User input that flows to SQL queries, shell commands, template \
+engines, or deserialization without proper escaping or parameterization.
+""",
+    },
+}
+
+VALID_PROPOSE_MODES = tuple(PROPOSE_MODES.keys())
+
+
+def get_propose_extra(mode="general"):
+    """Return the propose_extra overlay for the given mode."""
+    if mode not in PROPOSE_MODES:
+        raise ValueError(
+            f"Unknown mode: {mode!r}. Valid modes: {', '.join(VALID_PROPOSE_MODES)}"
+        )
+    return PROPOSE_MODES[mode]["propose_extra"]

@@ -11,7 +11,7 @@ from pathlib import Path
 from reasonsforge.api import add_node, list_nodes
 
 from .llm import check_model_available, extract_json, invoke, RETRY_JSON
-from .prompts import PROPOSE_BELIEFS
+from .prompts import PROPOSE_BELIEFS, get_propose_extra
 
 from . import PROJECT_DIR, REASONS_DB
 
@@ -388,7 +388,12 @@ def cmd_propose_beliefs(args):
                 existing_beliefs, batch_paths[i], batch_text,
                 belief_vectors=belief_vectors,
             )
-            prompt = PROPOSE_BELIEFS.format(entries=batch_text) + existing_context
+            mode = getattr(args, "mode", None) or "general"
+            mode_extra = get_propose_extra(mode)
+            prompt = PROPOSE_BELIEFS.format(entries=batch_text)
+            if mode_extra:
+                prompt += "\n" + mode_extra + "\n"
+            prompt += existing_context
             try:
                 result = await invoke(prompt, model=args.model, timeout=600)
             except Exception as e:

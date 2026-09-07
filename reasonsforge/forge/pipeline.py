@@ -127,6 +127,7 @@ def _stage_extract(args):
         parallel=getattr(args, "parallel", 1),
         batch_size=5,
         entry=None,
+        mode=getattr(args, "mode", None),
     )
     setattr(prop_args, "all", False)
 

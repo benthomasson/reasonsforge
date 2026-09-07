@@ -28,6 +28,8 @@ def cmd_update(args):
         print(f"No .md files found in {input_dir}/.")
         return
 
+    mode = getattr(args, "mode", None)
+
     prop_args = SimpleNamespace(
         input_dir=input_dir,
         output=output_file,
@@ -35,6 +37,7 @@ def cmd_update(args):
         parallel=parallel,
         batch_size=batch_size,
         entry=None,
+        mode=mode,
     )
     setattr(prop_args, "all", process_all)
 

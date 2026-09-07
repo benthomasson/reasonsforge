@@ -674,6 +674,9 @@ def register_forge_type_commands(parent_subparsers):
     ds.add_argument("--no-auto-accept", action="store_true",
                     help="Pause after proposing beliefs for manual review")
     ds.add_argument("--output", default="reasons.db")
+    ds.add_argument("--mode", default=None,
+                    choices=["general", "academic", "security"],
+                    help="Extraction mode (default: general)")
 
     ds = diary_sub.add_parser("accept",
                                help="Import accepted beliefs from proposals")
@@ -1042,6 +1045,9 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--batch-size", type=int, default=5)
     p.add_argument("--entry", action="append")
     p.add_argument("--all", action="store_true")
+    p.add_argument("--mode", default=None,
+                   choices=["general", "academic", "security"],
+                   help="Extraction mode (default: general)")
 
     # accept-beliefs
     p = sub.add_parser("accept-beliefs",
@@ -1063,6 +1069,9 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--recursive", "-r", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--namespace", default=None)
+    p.add_argument("--mode", default=None,
+                   choices=["general", "academic", "security"],
+                   help="Extraction mode (default: general)")
 
     # derive-review-repair
     p = sub.add_parser("derive-review-repair",
