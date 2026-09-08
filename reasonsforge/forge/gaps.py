@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -89,6 +90,29 @@ def cmd_gaps(args):
         _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx)
 
 
+def _extract_keywords(gaps):
+    """Extract search keywords from gap subjects and descriptions."""
+    keywords = set()
+    for g in gaps:
+        if g.get("priority") not in ("high", "medium"):
+            continue
+        for field in ("subject", "description"):
+            text = g.get(field, "")
+            words = re.findall(r'[a-zA-Z]{3,}', text)
+            for w in words:
+                w_lower = w.lower()
+                if w_lower not in ("the", "and", "for", "that", "with", "from",
+                                   "this", "not", "are", "but", "all", "was",
+                                   "has", "have", "been", "only", "its",
+                                   "definition", "defined", "present", "missing",
+                                   "absent", "never", "stated"):
+                    keywords.add(w_lower)
+        subject = g.get("subject", "")
+        multi_word = re.findall(r'[a-zA-Z]+(?:\s+[a-zA-Z]+)+', subject.lower())
+        keywords.update(multi_word)
+    return keywords
+
+
 def _print_gaps(gaps):
     """Print gap analysis in readable format."""
     by_area = {}
@@ -149,14 +173,26 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
     batch_size = getattr(args, "batch_size", 5)
     parallel = getattr(args, "parallel", 1)
 
-    print(f"\nTargeted extraction: {len(entries)} entries, looking for {len(gaps)} gaps...",
+    keywords = _extract_keywords(gaps)
+    matched = []
+    for entry in entries:
+        content = entry.read_text().lower()
+        if any(kw in content for kw in keywords):
+            matched.append(entry)
+
+    print(f"\nTargeted extraction: {len(matched)}/{len(entries)} entries match gap keywords, "
+          f"looking for {len(gaps)} gaps...",
           file=sys.stderr)
+
+    if not matched:
+        print("No entries contain gap-related keywords.", file=sys.stderr)
+        return
 
     batches = []
     batch_paths = []
     current_batch = []
     current_paths = []
-    for entry in entries:
+    for entry in matched:
         current_batch.append(entry.read_text())
         current_paths.append(str(entry))
         if len(current_batch) >= batch_size:
