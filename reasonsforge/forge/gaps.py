@@ -91,27 +91,36 @@ def cmd_gaps(args):
         _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx)
 
 
+_STOP_WORDS = frozenset(
+    "a an and are as at be but by for from has have in is it its of on or "
+    "the to was with not all any been can do does each few had has how if "
+    "into may more most no nor only other out own same so some such than "
+    "that the their them then there these they this those too very what "
+    "when where which while who why will about also between both could "
+    "definition defined present missing absent never stated".split()
+)
+
+
 def _extract_keywords(gaps):
     """Extract search keywords from gap subjects.
 
-    Prefers multi-word phrases from subjects (e.g., "normal subgroup",
-    "vector space"). Falls back to single words only if they are 6+
-    characters to avoid matching on short domain-common terms like
-    "group", "ring", "field".
+    Splits subjects on 'and' / ',' to get individual topic phrases,
+    strips stop words, and keeps phrases of 2+ meaningful words.
+    Single meaningful words are kept only if 6+ characters.
     """
-    phrases = set()
-    single_words = set()
+    keywords = set()
     for g in gaps:
         if g.get("priority") not in ("high", "medium"):
             continue
         subject = g.get("subject", "").lower()
-        multi = re.findall(r'[a-z]+(?:\s+[a-z]+)+', subject)
-        if multi:
-            phrases.update(multi)
-        else:
-            words = re.findall(r'[a-z]{6,}', subject)
-            single_words.update(words)
-    return phrases | single_words
+        parts = re.split(r'\s+and\s+|,\s*|;\s*', subject)
+        for part in parts:
+            words = [w for w in re.findall(r'[a-z]+', part) if w not in _STOP_WORDS]
+            if len(words) >= 2:
+                keywords.add(" ".join(words))
+            elif len(words) == 1 and len(words[0]) >= 6:
+                keywords.add(words[0])
+    return keywords
 
 
 def _print_gaps(gaps):
