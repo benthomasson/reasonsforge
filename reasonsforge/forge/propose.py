@@ -312,7 +312,7 @@ def cmd_propose_beliefs(args):
         belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
         print(f"  {len(belief_vectors)} belief vectors ready")
     elif existing_beliefs:
-        print("(install fastembed for semantic dedup: uv pip install 'expert-agent-builder[embeddings]')")
+        print("(install fastembed for semantic dedup: uv pip install 'reasonsforge[forge-embeddings]')")
 
     print(f"Reading {len(entries)} entries...")
 
