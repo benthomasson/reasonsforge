@@ -1116,6 +1116,8 @@ def register_forge_commands(parent_subparsers):
                    help="Directory to re-read for targeted extraction")
     p.add_argument("--db", default=None,
                    help="Belief database path (default: reasons.db)")
+    p.add_argument("--budget", type=int, default=2000,
+                   help="Token budget for belief summary sent to LLM (default: 2000)")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--parallel", type=int, default=1)
     p.add_argument("--batch-size", type=int, default=5)

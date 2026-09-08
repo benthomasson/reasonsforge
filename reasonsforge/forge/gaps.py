@@ -25,6 +25,7 @@ def cmd_gaps(args):
     extract = getattr(args, "extract", False)
     input_dir = getattr(args, "input_dir", "summaries")
     db_path = getattr(args, "db", None) or REASONS_DB
+    budget = getattr(args, "budget", 2000)
     timeout = getattr(args, "timeout", 600)
     num_ctx = getattr(args, "num_ctx", None)
 
@@ -36,7 +37,7 @@ def cmd_gaps(args):
         print(f"Model not available: {model}")
         sys.exit(1)
 
-    beliefs_text = compact(budget=2000, db_path=db_path)
+    beliefs_text = compact(budget=budget, db_path=db_path)
     if not beliefs_text.strip():
         print("No beliefs in the network. Run extraction first.")
         return
