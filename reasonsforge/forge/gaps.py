@@ -92,26 +92,26 @@ def cmd_gaps(args):
 
 
 def _extract_keywords(gaps):
-    """Extract search keywords from gap subjects and descriptions."""
-    keywords = set()
+    """Extract search keywords from gap subjects.
+
+    Prefers multi-word phrases from subjects (e.g., "normal subgroup",
+    "vector space"). Falls back to single words only if they are 6+
+    characters to avoid matching on short domain-common terms like
+    "group", "ring", "field".
+    """
+    phrases = set()
+    single_words = set()
     for g in gaps:
         if g.get("priority") not in ("high", "medium"):
             continue
-        for field in ("subject", "description"):
-            text = g.get(field, "")
-            words = re.findall(r'[a-zA-Z]{3,}', text)
-            for w in words:
-                w_lower = w.lower()
-                if w_lower not in ("the", "and", "for", "that", "with", "from",
-                                   "this", "not", "are", "but", "all", "was",
-                                   "has", "have", "been", "only", "its",
-                                   "definition", "defined", "present", "missing",
-                                   "absent", "never", "stated"):
-                    keywords.add(w_lower)
-        subject = g.get("subject", "")
-        multi_word = re.findall(r'[a-zA-Z]+(?:\s+[a-zA-Z]+)+', subject.lower())
-        keywords.update(multi_word)
-    return keywords
+        subject = g.get("subject", "").lower()
+        multi = re.findall(r'[a-z]+(?:\s+[a-z]+)+', subject)
+        if multi:
+            phrases.update(multi)
+        else:
+            words = re.findall(r'[a-z]{6,}', subject)
+            single_words.update(words)
+    return phrases | single_words
 
 
 def _print_gaps(gaps):
@@ -175,6 +175,7 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
     parallel = getattr(args, "parallel", 1)
 
     keywords = _extract_keywords(gaps)
+    print(f"\nGap keywords: {', '.join(sorted(keywords))}", file=sys.stderr)
     matched = []
     for entry in entries:
         content = entry.read_text().lower()
