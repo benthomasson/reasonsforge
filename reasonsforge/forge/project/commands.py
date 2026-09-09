@@ -2368,6 +2368,37 @@ Issue API-55 reports a 2x latency regression in the v3 endpoint since the March 
 """
 
 
+ANALYZED_ISSUES_PATH = Path(".forge/analyzed-issues.json")
+
+
+def _load_analyzed_issues() -> dict:
+    if ANALYZED_ISSUES_PATH.exists():
+        with ANALYZED_ISSUES_PATH.open() as f:
+            return json.load(f)
+    return {}
+
+
+def _save_analyzed_issue(issue_key: str, issue_updated: str):
+    record = _load_analyzed_issues()
+    record[issue_key] = {
+        "updated": issue_updated,
+        "analyzed_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    ANALYZED_ISSUES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with ANALYZED_ISSUES_PATH.open("w") as f:
+        json.dump(record, f, indent=2)
+
+
+def _issue_needs_analysis(issue_key: str, issue_updated: str, force: bool = False) -> bool:
+    if force:
+        return True
+    record = _load_analyzed_issues()
+    prev = record.get(issue_key)
+    if not prev:
+        return True
+    return prev.get("updated", "") != issue_updated
+
+
 def _fetch_issue(source, platform, issue_key):
     """Fetch a single issue, converting the key for the platform."""
     if platform == "jira":
@@ -2451,6 +2482,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
 
     if auto_accept:
         _auto_accept_proposals([filtered], db_path)
+        _save_analyzed_issue(issue.id, issue.updated)
         return 1
 
     output_path = Path(proposals_output)
@@ -2476,6 +2508,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
 
     print(f"\nWrote proposals to {output_path}")
     print(result)
+    _save_analyzed_issue(issue.id, issue.updated)
     return 1
 
 
@@ -2496,6 +2529,7 @@ def cmd_analyze_issue(args):
     issue_key = args.issue_key
     auto_accept = getattr(args, "auto", False)
     walk = getattr(args, "walk", False)
+    force = getattr(args, "force", False)
     proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
     if not check_model_available(model):
@@ -2512,7 +2546,10 @@ def cmd_analyze_issue(args):
         print(f"Error fetching issue: {e}", file=sys.stderr)
         sys.exit(1)
 
-    _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_output)
+    if _issue_needs_analysis(issue.id, issue.updated, force):
+        _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_output)
+    else:
+        print(f"  Skipping {issue.id} (unchanged since last analysis)", file=sys.stderr)
 
     if walk and (issue.children or issue.linked):
         seen = {issue.id}
@@ -2520,27 +2557,34 @@ def cmd_analyze_issue(args):
         total = len(queue)
         print(f"\n--- Walking {total} child issue(s) ---", file=sys.stderr)
         analyzed = 0
+        skipped = 0
         while queue:
             child_key = queue.popleft()
             if child_key in seen:
                 continue
             seen.add(child_key)
-            analyzed += 1
-            print(f"\n[{analyzed}/{total}] Fetching {child_key}...", file=sys.stderr)
+            print(f"\n[{analyzed + skipped + 1}/{total}] Fetching {child_key}...", file=sys.stderr)
             try:
                 child = _fetch_issue(source, platform, child_key)
             except Exception as e:
                 print(f"  Error fetching {child_key}: {e}", file=sys.stderr)
                 continue
-            _analyze_one_issue(
-                child, model, timeout, db_path, auto_accept, proposals_output,
-            )
+            if _issue_needs_analysis(child.id, child.updated, force):
+                _analyze_one_issue(
+                    child, model, timeout, db_path, auto_accept, proposals_output,
+                )
+                analyzed += 1
+            else:
+                print(f"  Skipping {child.id} (unchanged since last analysis)",
+                      file=sys.stderr)
+                skipped += 1
             # Discover grandchildren
             for gc in child.children:
                 if gc not in seen:
                     queue.append(gc)
                     total += 1
-        print(f"\nWalk complete: analyzed {analyzed} child issue(s)", file=sys.stderr)
+        print(f"\nWalk complete: analyzed {analyzed}, skipped {skipped} child issue(s)",
+              file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
