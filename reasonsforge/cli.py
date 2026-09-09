@@ -577,13 +577,17 @@ def cmd_supersede(args):
         print("Error: either new_id or --text is required", file=sys.stderr)
         sys.exit(1)
 
+    transitive = getattr(args, "transitive", False)
+
     try:
         if text:
             result = api.supersede_with_text(
                 args.old_id, text, new_id=custom_id, db_path=args.db,
+                transitive=transitive,
             )
         else:
-            result = api.supersede(args.old_id, new_id, **_backend_kwargs(args))
+            result = api.supersede(args.old_id, new_id, transitive=transitive,
+                                   **_backend_kwargs(args))
     except (KeyError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -2973,6 +2977,8 @@ def main():
     p.add_argument("new_id", nargs="?", default=None, help="Belief that supersedes it (omit when using --text)")
     p.add_argument("--text", default=None, help="Create a successor node with this text and supersede")
     p.add_argument("--id", default=None, help="Custom ID for the successor node (used with --text)")
+    p.add_argument("--transitive", action="store_true",
+                   help="Also defeat all ancestors in the supersession chain (version chain semantics)")
 
     # set-metadata
     p = sub.add_parser("set-metadata", help="Set a metadata key on a belief")

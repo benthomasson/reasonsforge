@@ -785,8 +785,12 @@ def summarize(
 
 
 def supersede(old_id: str, new_id: str, db_path: str = DEFAULT_DB,
+              transitive: bool = False,
               pg_conninfo=None, project_id=None) -> dict:
     """Mark old_id as superseded by new_id. Old goes OUT when new is IN.
+
+    With transitive=True, also defeats all ancestors in the supersession
+    chain so only the latest version is IN.
 
     Returns: {"old_id": str, "new_id": str, "changed": list[str]}
     """
@@ -794,7 +798,7 @@ def supersede(old_id: str, new_id: str, db_path: str = DEFAULT_DB,
         return _pg_dispatch(pg_conninfo, project_id, "supersede",
                             old_id=old_id, new_id=new_id)
     with _with_network(db_path, write=True) as net:
-        return net.supersede(old_id, new_id)
+        return net.supersede(old_id, new_id, transitive=transitive)
 
 
 def supersede_with_text(
@@ -802,6 +806,7 @@ def supersede_with_text(
     new_text: str,
     new_id: str | None = None,
     db_path: str = DEFAULT_DB,
+    transitive: bool = False,
 ) -> dict:
     """Create a successor node with new text and supersede old_id.
 
@@ -829,7 +834,7 @@ def supersede_with_text(
             source=old_node.source,
             source_url=old_node.source_url,
         )
-        result = net.supersede(old_id, new_id)
+        result = net.supersede(old_id, new_id, transitive=transitive)
         return result
 
 

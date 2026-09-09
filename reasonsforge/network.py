@@ -429,12 +429,17 @@ class Network:
 
         return self.retract(victim_id)
 
-    def supersede(self, old_id: str, new_id: str) -> dict:
+    def supersede(self, old_id: str, new_id: str, transitive: bool = False) -> dict:
         """Mark old_id as superseded by new_id using the outlist mechanism.
 
         Adds new_id to old_id's outlist. When new_id is IN, old_id
         automatically goes OUT. If new_id is later retracted, old_id
         comes back IN — the supersession is reversible.
+
+        With transitive=True, also adds new_id to the outlist of any
+        ancestor in the supersession chain (nodes that old_id supersedes,
+        transitively). This ensures only the latest version in a chain
+        is ever IN.
 
         Records supersession in both nodes' metadata for display.
 
@@ -445,41 +450,49 @@ class Network:
         if new_id not in self.nodes:
             raise KeyError(f"Node '{new_id}' not found")
 
-        old_node = self.nodes[old_id]
+        targets = [old_id]
+        if transitive:
+            queue = [old_id]
+            seen = {old_id}
+            while queue:
+                nid = queue.pop(0)
+                for ancestor in self.nodes[nid].metadata.get("supersedes", []):
+                    if ancestor not in seen and ancestor in self.nodes:
+                        seen.add(ancestor)
+                        targets.append(ancestor)
+                        queue.append(ancestor)
 
-        # Add new_id to old_node's outlist
-        if old_node.justifications:
-            for j in old_node.justifications:
-                if new_id not in j.outlist:
-                    j.outlist.append(new_id)
-        else:
-            # Old node is a premise — convert to justified with outlist
-            old_node.justifications.append(
-                Justification(type="SL", antecedents=[], outlist=[new_id])
-            )
+        changed = []
+        for target_id in targets:
+            target_node = self.nodes[target_id]
 
-        # Register new_id as affecting old_id
-        self.nodes[new_id].dependents.add(old_id)
+            if target_node.justifications:
+                for j in target_node.justifications:
+                    if new_id not in j.outlist:
+                        j.outlist.append(new_id)
+            else:
+                target_node.justifications.append(
+                    Justification(type="SL", antecedents=[], outlist=[new_id])
+                )
 
-        # Record in metadata
-        old_node.metadata["superseded_by"] = new_id
+            self.nodes[new_id].dependents.add(target_id)
+
+            target_node.metadata["superseded_by"] = new_id
+
+            old_value = target_node.truth_value
+            new_value = self._compute_truth(target_node)
+            if old_value != new_value:
+                target_node.truth_value = new_value
+                changed.append(target_id)
+                self._log("supersede", target_id, f"superseded by {new_id}")
+                changed.extend(self._propagate(target_id))
+            else:
+                self._log("supersede", target_id, f"superseded by {new_id} (unchanged)")
+
         supersedes = self.nodes[new_id].metadata.get("supersedes", [])
         if old_id not in supersedes:
             supersedes.append(old_id)
         self.nodes[new_id].metadata["supersedes"] = supersedes
-
-        # Recompute and propagate
-        old_value = old_node.truth_value
-        new_value = self._compute_truth(old_node)
-        changed = []
-
-        if old_value != new_value:
-            old_node.truth_value = new_value
-            changed.append(old_id)
-            self._log("supersede", old_id, f"superseded by {new_id}")
-            changed.extend(self._propagate(old_id))
-        else:
-            self._log("supersede", old_id, f"superseded by {new_id} (unchanged)")
 
         return {"old_id": old_id, "new_id": new_id, "changed": changed}
 
