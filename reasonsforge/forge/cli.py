@@ -506,7 +506,8 @@ def register_forge_type_commands(parent_subparsers):
     # project analyze-issue
     ps = project_sub.add_parser("analyze-issue",
                                 help="Fetch a single issue and extract beliefs")
-    ps.add_argument("issue_key", help="Issue key (e.g. PROJ-123) or number")
+    ps.add_argument("issue_key", nargs="+", metavar="ISSUE",
+                    help="Issue key(s) (e.g. PROJ-123 PROJ-456)")
     ps.add_argument("--auto", action="store_true",
                     help="Auto-accept proposed beliefs")
     ps.add_argument("--walk", action="store_true",

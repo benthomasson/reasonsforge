@@ -2512,8 +2512,48 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
     return 1
 
 
+def _walk_children(issue, source, platform, model, timeout, db_path,
+                   auto_accept, proposals_output, force):
+    """Walk child issues recursively, skipping unchanged ones."""
+    if not (issue.children or issue.linked):
+        return
+    seen = {issue.id}
+    queue = deque(issue.children)
+    total = len(queue)
+    print(f"\n--- Walking {total} child issue(s) of {issue.id} ---", file=sys.stderr)
+    analyzed = 0
+    skipped = 0
+    while queue:
+        child_key = queue.popleft()
+        if child_key in seen:
+            continue
+        seen.add(child_key)
+        print(f"\n[{analyzed + skipped + 1}/{total}] Fetching {child_key}...",
+              file=sys.stderr)
+        try:
+            child = _fetch_issue(source, platform, child_key)
+        except Exception as e:
+            print(f"  Error fetching {child_key}: {e}", file=sys.stderr)
+            continue
+        if _issue_needs_analysis(child.id, child.updated, force):
+            _analyze_one_issue(
+                child, model, timeout, db_path, auto_accept, proposals_output,
+            )
+            analyzed += 1
+        else:
+            print(f"  Skipping {child.id} (unchanged since last analysis)",
+                  file=sys.stderr)
+            skipped += 1
+        for gc in child.children:
+            if gc not in seen:
+                queue.append(gc)
+                total += 1
+    print(f"\nWalk complete: analyzed {analyzed}, skipped {skipped} child issue(s)",
+          file=sys.stderr)
+
+
 def cmd_analyze_issue(args):
-    """Fetch a single issue and extract beliefs from it."""
+    """Fetch one or more issues and extract beliefs from them."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available
     _caffeinate()
@@ -2526,7 +2566,7 @@ def cmd_analyze_issue(args):
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     db_path = getattr(args, "output", REASONS_DB)
-    issue_key = args.issue_key
+    issue_keys = args.issue_key
     auto_accept = getattr(args, "auto", False)
     walk = getattr(args, "walk", False)
     force = getattr(args, "force", False)
@@ -2539,52 +2579,28 @@ def cmd_analyze_issue(args):
     source = _get_source(config)
     platform = config["platform"]
 
-    print(f"Fetching {issue_key}...", file=sys.stderr)
-    try:
-        issue = _fetch_issue(source, platform, issue_key)
-    except Exception as e:
-        print(f"Error fetching issue: {e}", file=sys.stderr)
-        sys.exit(1)
+    for i, issue_key in enumerate(issue_keys):
+        if len(issue_keys) > 1:
+            print(f"\n=== Issue {i + 1}/{len(issue_keys)}: {issue_key} ===",
+                  file=sys.stderr)
 
-    if _issue_needs_analysis(issue.id, issue.updated, force):
-        _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_output)
-    else:
-        print(f"  Skipping {issue.id} (unchanged since last analysis)", file=sys.stderr)
+        print(f"Fetching {issue_key}...", file=sys.stderr)
+        try:
+            issue = _fetch_issue(source, platform, issue_key)
+        except Exception as e:
+            print(f"Error fetching issue {issue_key}: {e}", file=sys.stderr)
+            continue
 
-    if walk and (issue.children or issue.linked):
-        seen = {issue.id}
-        queue = deque(issue.children)
-        total = len(queue)
-        print(f"\n--- Walking {total} child issue(s) ---", file=sys.stderr)
-        analyzed = 0
-        skipped = 0
-        while queue:
-            child_key = queue.popleft()
-            if child_key in seen:
-                continue
-            seen.add(child_key)
-            print(f"\n[{analyzed + skipped + 1}/{total}] Fetching {child_key}...", file=sys.stderr)
-            try:
-                child = _fetch_issue(source, platform, child_key)
-            except Exception as e:
-                print(f"  Error fetching {child_key}: {e}", file=sys.stderr)
-                continue
-            if _issue_needs_analysis(child.id, child.updated, force):
-                _analyze_one_issue(
-                    child, model, timeout, db_path, auto_accept, proposals_output,
-                )
-                analyzed += 1
-            else:
-                print(f"  Skipping {child.id} (unchanged since last analysis)",
-                      file=sys.stderr)
-                skipped += 1
-            # Discover grandchildren
-            for gc in child.children:
-                if gc not in seen:
-                    queue.append(gc)
-                    total += 1
-        print(f"\nWalk complete: analyzed {analyzed}, skipped {skipped} child issue(s)",
-              file=sys.stderr)
+        if _issue_needs_analysis(issue.id, issue.updated, force):
+            _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
+                               proposals_output)
+        else:
+            print(f"  Skipping {issue.id} (unchanged since last analysis)",
+                  file=sys.stderr)
+
+        if walk:
+            _walk_children(issue, source, platform, model, timeout, db_path,
+                           auto_accept, proposals_output, force)
 
 
 # ---------------------------------------------------------------------------
