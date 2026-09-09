@@ -266,7 +266,12 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     if proc.returncode != 0:
         err = stderr.decode().strip()
         if not err:
-            err = stdout.decode().strip()[:500]
+            raw = stdout.decode().strip()
+            try:
+                data = json.loads(raw)
+                err = data.get("result") or data.get("error") or raw[:500]
+            except (json.JSONDecodeError, ValueError):
+                err = raw[:500]
         raise RuntimeError(f"Model {model} failed: {err}")
 
     return _parse_cli_json(stdout.decode(), model)
