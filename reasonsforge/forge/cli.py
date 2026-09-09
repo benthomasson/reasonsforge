@@ -509,6 +509,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("issue_key", help="Issue key (e.g. PROJ-123) or number")
     ps.add_argument("--auto", action="store_true",
                     help="Auto-accept proposed beliefs")
+    ps.add_argument("--walk", action="store_true",
+                    help="Also analyze all child/subtask issues recursively")
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)

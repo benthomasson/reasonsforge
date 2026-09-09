@@ -141,7 +141,27 @@ class JiraSource:
                       "resolutiondate,comment,fixVersions,subtasks",
             "expand": "renderedFields",
         })
-        return self._normalize(data)
+        issue = self._normalize(data)
+        # Subtasks field only covers literal sub-tasks; epics/stories use
+        # parent linkage.  Query for children-by-parent to catch both.
+        if not issue.children:
+            child_keys = self.get_children(key)
+            if child_keys:
+                issue.children = child_keys
+        return issue
+
+    def get_children(self, parent_key: str) -> list[str]:
+        """Find child issues whose parent is *parent_key* via JQL."""
+        body = {
+            "jql": f"parent = {parent_key} ORDER BY key ASC",
+            "maxResults": 200,
+            "fields": ["summary"],
+        }
+        try:
+            data = self._post("search/jql", body)
+        except Exception:
+            return []
+        return [i.get("key", "") for i in data.get("issues", []) if i.get("key")]
 
     def _normalize(self, raw: dict) -> Issue:
         """Convert Jira JSON to normalized Issue."""

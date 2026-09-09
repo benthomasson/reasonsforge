@@ -2368,45 +2368,18 @@ Issue API-55 reports a 2x latency regression in the v3 endpoint since the March 
 """
 
 
-def cmd_analyze_issue(args):
-    """Fetch a single issue and extract beliefs from it."""
-    from ..caffeinate import hold as _caffeinate
-    from ..llm import check_model_available, invoke
-    _caffeinate()
+def _fetch_issue(source, platform, issue_key):
+    """Fetch a single issue, converting the key for the platform."""
+    if platform == "jira":
+        return source.get_issue(issue_key)
+    elif platform in ("github", "gitlab"):
+        return source.get_issue(int(issue_key.lstrip("#")))
+    raise ValueError(f"Unknown platform '{platform}'")
 
-    config = _load_config()
-    if not config:
-        print("Not initialized. Run: reasonsforge project init --github <owner/repo>")
-        sys.exit(1)
 
-    model = getattr(args, "model", "claude")
-    timeout = getattr(args, "timeout", 300)
-    db_path = getattr(args, "output", REASONS_DB)
-    issue_key = args.issue_key
-    auto_accept = getattr(args, "auto", False)
-
-    if not check_model_available(model):
-        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
-        sys.exit(1)
-
-    source = _get_source(config)
-    platform = config["platform"]
-
-    # Fetch the issue
-    print(f"Fetching {issue_key}...", file=sys.stderr)
-    try:
-        if platform == "jira":
-            issue = source.get_issue(issue_key)
-        elif platform == "github":
-            issue = source.get_issue(int(issue_key.lstrip("#")))
-        elif platform == "gitlab":
-            issue = source.get_issue(int(issue_key.lstrip("#")))
-        else:
-            print(f"Error: Unknown platform '{platform}'", file=sys.stderr)
-            sys.exit(1)
-    except Exception as e:
-        print(f"Error fetching issue: {e}", file=sys.stderr)
-        sys.exit(1)
+def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_output):
+    """Analyze a single Issue object and propose/accept beliefs. Returns count added."""
+    from ..llm import invoke
 
     issue_text = issue.to_prompt_text()
     print(f"  {issue.id}: {issue.title}", file=sys.stderr)
@@ -2414,15 +2387,13 @@ def cmd_analyze_issue(args):
     if issue.comments:
         print(f"  Comments: {len(issue.comments)}", file=sys.stderr)
 
-    # Save as entry
-    safe_key = re.sub(r"[^a-zA-Z0-9_-]", "-", issue_key).lower()
-    entry_path = _create_entry(
+    safe_key = re.sub(r"[^a-zA-Z0-9_-]", "-", issue.id).lower()
+    _create_entry(
         f"issue-{safe_key}",
         f"Issue Analysis: {issue.id} — {issue.title}",
         issue_text,
     )
 
-    # Build dedup context
     existing_beliefs = _load_existing_beliefs(db_path)
     existing_ids = {b["id"] for b in existing_beliefs}
     dedup_context = ""
@@ -2449,8 +2420,8 @@ def cmd_analyze_issue(args):
     try:
         result = asyncio.run(invoke(prompt, model, timeout=timeout))
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"Error analyzing {issue.id}: {e}", file=sys.stderr)
+        return 0
 
     # Filter already-existing beliefs
     lines = result.split("\n")
@@ -2480,10 +2451,9 @@ def cmd_analyze_issue(args):
 
     if auto_accept:
         _auto_accept_proposals([filtered], db_path)
-        return
+        return 1
 
-    # Write to proposals file
-    output_path = Path(getattr(args, "proposals_output", "proposed-beliefs.md"))
+    output_path = Path(proposals_output)
     if output_path.exists() and output_path.stat().st_size > 0:
         with output_path.open("a") as f:
             f.write(f"\n---\n\n")
@@ -2506,6 +2476,71 @@ def cmd_analyze_issue(args):
 
     print(f"\nWrote proposals to {output_path}")
     print(result)
+    return 1
+
+
+def cmd_analyze_issue(args):
+    """Fetch a single issue and extract beliefs from it."""
+    from ..caffeinate import hold as _caffeinate
+    from ..llm import check_model_available
+    _caffeinate()
+
+    config = _load_config()
+    if not config:
+        print("Not initialized. Run: reasonsforge project init --github <owner/repo>")
+        sys.exit(1)
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 300)
+    db_path = getattr(args, "output", REASONS_DB)
+    issue_key = args.issue_key
+    auto_accept = getattr(args, "auto", False)
+    walk = getattr(args, "walk", False)
+    proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    source = _get_source(config)
+    platform = config["platform"]
+
+    print(f"Fetching {issue_key}...", file=sys.stderr)
+    try:
+        issue = _fetch_issue(source, platform, issue_key)
+    except Exception as e:
+        print(f"Error fetching issue: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_output)
+
+    if walk and (issue.children or issue.linked):
+        seen = {issue.id}
+        queue = deque(issue.children)
+        total = len(queue)
+        print(f"\n--- Walking {total} child issue(s) ---", file=sys.stderr)
+        analyzed = 0
+        while queue:
+            child_key = queue.popleft()
+            if child_key in seen:
+                continue
+            seen.add(child_key)
+            analyzed += 1
+            print(f"\n[{analyzed}/{total}] Fetching {child_key}...", file=sys.stderr)
+            try:
+                child = _fetch_issue(source, platform, child_key)
+            except Exception as e:
+                print(f"  Error fetching {child_key}: {e}", file=sys.stderr)
+                continue
+            _analyze_one_issue(
+                child, model, timeout, db_path, auto_accept, proposals_output,
+            )
+            # Discover grandchildren
+            for gc in child.children:
+                if gc not in seen:
+                    queue.append(gc)
+                    total += 1
+        print(f"\nWalk complete: analyzed {analyzed} child issue(s)", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
