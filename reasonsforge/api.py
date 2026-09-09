@@ -2618,6 +2618,7 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
            format: str = "markdown", depth: int = 1,
            include_out: bool = False,
+           sort: str = "relevance",
            pg_conninfo=None, project_id=None) -> str:
     """Search nodes using full-text search with neighbor expansion.
 
@@ -2634,6 +2635,7 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         format: output format — "markdown" (default), "json", or "minimal"
         depth: number of hops to expand along justification chains (default: 1)
         include_out: if False (default), exclude OUT beliefs from results
+        sort: result ordering — "relevance" (default), "newest", or "oldest"
 
     Returns: formatted string with matched nodes and neighbors
     """
@@ -2668,6 +2670,14 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
             ]
             if not matched_ids:
                 return "No results found."
+
+        # Sort results
+        if sort in ("newest", "oldest"):
+            reverse = sort == "newest"
+            matched_ids.sort(
+                key=lambda nid: getattr(net.nodes.get(nid), "created_at", "") or "",
+                reverse=reverse,
+            )
 
         # Expand to include neighbors (BFS along dependency graph)
         neighbor_ids = set()

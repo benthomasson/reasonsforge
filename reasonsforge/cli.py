@@ -1173,8 +1173,9 @@ def _require_sqlite(args, command_name):
 def cmd_search(args):
     fmt = getattr(args, "format", "markdown")
     include_out = getattr(args, "show_out", False)
+    sort = getattr(args, "sort", "relevance")
     result = api.search(args.query, visible_to=_parse_visible_to(args), format=fmt,
-                        include_out=include_out, **_backend_kwargs(args))
+                        include_out=include_out, sort=sort, **_backend_kwargs(args))
     print(result)
 
 
@@ -3215,6 +3216,8 @@ def main():
     p.add_argument("query", help="Search terms (FTS5 all-terms matching)")
     p.add_argument("--format", choices=["markdown", "json", "minimal"], default="markdown",
                    help="Output format (default: markdown)")
+    p.add_argument("--sort", choices=["relevance", "newest", "oldest"], default="relevance",
+                   help="Result ordering (default: relevance)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
     p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in results")
 
