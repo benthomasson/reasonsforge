@@ -2331,6 +2331,184 @@ def cmd_research(args):
 
 
 # ---------------------------------------------------------------------------
+# analyze-issue
+# ---------------------------------------------------------------------------
+
+
+ANALYZE_ISSUE_PROMPT = """\
+You are analyzing a single issue from a project tracker to extract factual beliefs.
+
+Read the issue below and extract specific, verifiable claims about the project.
+Each belief should be:
+- A single factual claim (not an opinion or recommendation)
+- Verifiable by checking the issue tracker
+- Scoped to a specific issue, component, team, or milestone
+- Named with a kebab-case ID that describes the claim
+
+For each belief, output in this exact format:
+
+### [ACCEPT/REJECT] belief-id
+Factual claim text here
+- Source: {issue_id}
+
+Examples:
+### [ACCEPT/REJECT] auth-migration-blocked-by-schema
+Issue AUTH-201 is blocked by a schema migration that has not been reviewed
+- Source: AUTH-201
+
+### [ACCEPT/REJECT] api-latency-regression-in-v3
+Issue API-55 reports a 2x latency regression in the v3 endpoint since the March release
+- Source: API-55
+
+---
+
+## Issue to analyze:
+
+{issue_text}
+"""
+
+
+def cmd_analyze_issue(args):
+    """Fetch a single issue and extract beliefs from it."""
+    from ..caffeinate import hold as _caffeinate
+    from ..llm import check_model_available, invoke
+    _caffeinate()
+
+    config = _load_config()
+    if not config:
+        print("Not initialized. Run: reasonsforge project init --github <owner/repo>")
+        sys.exit(1)
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 300)
+    db_path = getattr(args, "output", REASONS_DB)
+    issue_key = args.issue_key
+    auto_accept = getattr(args, "auto", False)
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    source = _get_source(config)
+    platform = config["platform"]
+
+    # Fetch the issue
+    print(f"Fetching {issue_key}...", file=sys.stderr)
+    try:
+        if platform == "jira":
+            issue = source.get_issue(issue_key)
+        elif platform == "github":
+            issue = source.get_issue(int(issue_key.lstrip("#")))
+        elif platform == "gitlab":
+            issue = source.get_issue(int(issue_key.lstrip("#")))
+        else:
+            print(f"Error: Unknown platform '{platform}'", file=sys.stderr)
+            sys.exit(1)
+    except Exception as e:
+        print(f"Error fetching issue: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    issue_text = issue.to_prompt_text()
+    print(f"  {issue.id}: {issue.title}", file=sys.stderr)
+    print(f"  State: {issue.state}", file=sys.stderr)
+    if issue.comments:
+        print(f"  Comments: {len(issue.comments)}", file=sys.stderr)
+
+    # Save as entry
+    safe_key = re.sub(r"[^a-zA-Z0-9_-]", "-", issue_key).lower()
+    entry_path = _create_entry(
+        f"issue-{safe_key}",
+        f"Issue Analysis: {issue.id} — {issue.title}",
+        issue_text,
+    )
+
+    # Build dedup context
+    existing_beliefs = _load_existing_beliefs(db_path)
+    existing_ids = {b["id"] for b in existing_beliefs}
+    dedup_context = ""
+    if existing_beliefs:
+        scored = _score_by_keywords(existing_beliefs, issue_text, [])
+        detailed = scored[:30]
+        if detailed:
+            parts = [
+                "\n\n## Already Accepted Beliefs\n\n"
+                "The following beliefs already exist. Do NOT propose beliefs "
+                "with these IDs or that duplicate their meaning.\n"
+                "\nRelevant existing beliefs:"
+            ]
+            for _, belief in detailed:
+                parts.append(f"- `{belief['id']}`: {belief['text']}")
+            dedup_context = "\n".join(parts) + "\n"
+
+    prompt = ANALYZE_ISSUE_PROMPT.format(
+        issue_id=issue.id,
+        issue_text=issue_text,
+    ) + dedup_context
+
+    print(f"Analyzing with {model}...", file=sys.stderr)
+    try:
+        result = asyncio.run(invoke(prompt, model, timeout=timeout))
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Filter already-existing beliefs
+    lines = result.split("\n")
+    filtered_lines = []
+    skip_until_next = False
+    dup_skipped = 0
+    for line in lines:
+        m = re.match(r"^### \[?(?:ACCEPT|REJECT)\]? (\S+)", line)
+        if m:
+            belief_id = m.group(1)
+            if belief_id in existing_ids:
+                skip_until_next = True
+                dup_skipped += 1
+                continue
+            else:
+                skip_until_next = False
+        if skip_until_next:
+            if line.startswith("### "):
+                skip_until_next = False
+                filtered_lines.append(line)
+            continue
+        filtered_lines.append(line)
+    filtered = "\n".join(filtered_lines)
+
+    if dup_skipped:
+        print(f"  Filtered {dup_skipped} already-accepted beliefs", file=sys.stderr)
+
+    if auto_accept:
+        _auto_accept_proposals([filtered], db_path)
+        return
+
+    # Write to proposals file
+    output_path = Path(getattr(args, "proposals_output", "proposed-beliefs.md"))
+    if output_path.exists() and output_path.stat().st_size > 0:
+        with output_path.open("a") as f:
+            f.write(f"\n---\n\n")
+            f.write(f"**Generated:** {date.today().isoformat()}\n")
+            f.write(f"**Source:** {issue.id}\n")
+            f.write(f"**Model:** {model}\n\n")
+            f.write(filtered)
+            f.write("\n\n")
+    else:
+        with output_path.open("w") as f:
+            f.write("# Proposed Beliefs\n\n")
+            f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
+            f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
+            f.write("---\n\n")
+            f.write(f"**Generated:** {date.today().isoformat()}\n")
+            f.write(f"**Source:** {issue.id}\n")
+            f.write(f"**Model:** {model}\n\n")
+            f.write(filtered)
+            f.write("\n\n")
+
+    print(f"\nWrote proposals to {output_path}")
+    print(result)
+
+
+# ---------------------------------------------------------------------------
 # derive
 # ---------------------------------------------------------------------------
 

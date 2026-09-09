@@ -503,6 +503,17 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
 
+    # project analyze-issue
+    ps = project_sub.add_parser("analyze-issue",
+                                help="Fetch a single issue and extract beliefs")
+    ps.add_argument("issue_key", help="Issue key (e.g. PROJ-123) or number")
+    ps.add_argument("--auto", action="store_true",
+                    help="Auto-accept proposed beliefs")
+    ps.add_argument("--proposals-output", default="proposed-beliefs.md")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+
     # project derive
     ps = project_sub.add_parser("derive",
                                 help="Derive reasoning chains from existing beliefs")
@@ -871,6 +882,7 @@ def _cmd_project(args):
     """Run the project forge pipeline or dispatch to a subcommand."""
     from .project.commands import (
         cmd_accept_beliefs as _proj_accept,
+        cmd_analyze_issue as _proj_analyze_issue,
         cmd_derive as _proj_derive,
         cmd_explore as _proj_explore,
         cmd_init as _proj_init,
@@ -898,6 +910,7 @@ def _cmd_project(args):
         "accept-beliefs": _proj_accept,
         "review-proposals": _proj_review,
         "research": _proj_research,
+        "analyze-issue": _proj_analyze_issue,
         "derive": _proj_derive,
         "review-beliefs": _proj_review_beliefs,
         "repair": _proj_repair,
