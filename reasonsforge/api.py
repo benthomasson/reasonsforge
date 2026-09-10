@@ -2685,6 +2685,7 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
            format: str = "markdown", depth: int = 1,
            include_out: bool = False,
            sort: str = "relevance",
+           namespace: str | None = None,
            pg_conninfo=None, project_id=None) -> str:
     """Search nodes using full-text search with neighbor expansion.
 
@@ -2725,6 +2726,13 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         if not include_out:
             matched_ids = [nid for nid in matched_ids
                            if nid in net.nodes and net.nodes[nid].truth_value != "OUT"]
+            if not matched_ids:
+                return "No results found."
+
+        # Filter by namespace
+        if namespace:
+            prefix = f"{namespace}:"
+            matched_ids = [nid for nid in matched_ids if nid.startswith(prefix)]
             if not matched_ids:
                 return "No results found."
 

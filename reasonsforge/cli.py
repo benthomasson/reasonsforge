@@ -1212,8 +1212,10 @@ def cmd_search(args):
     fmt = getattr(args, "format", "markdown")
     include_out = getattr(args, "show_out", False)
     sort = getattr(args, "sort", "relevance")
+    namespace = getattr(args, "namespace", None)
     result = api.search(args.query, visible_to=_parse_visible_to(args), format=fmt,
-                        include_out=include_out, sort=sort, **_backend_kwargs(args))
+                        include_out=include_out, sort=sort, namespace=namespace,
+                        **_backend_kwargs(args))
     print(result)
 
 
@@ -3263,6 +3265,7 @@ def main():
                    help="Output format (default: markdown)")
     p.add_argument("--sort", choices=["relevance", "newest", "oldest"], default="relevance",
                    help="Result ordering (default: relevance)")
+    p.add_argument("-n", "--namespace", help="Filter results to a namespace")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
     p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in results")
 
