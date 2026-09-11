@@ -33,13 +33,32 @@ SECTION_PATTERNS = [
     # §N. Title (AGM style, rendered as $N. by pypdf)
     # Stop at first period that follows a word (end of title, start of sentence)
     re.compile(r"^[§\$](\d+)\.\s+([^.]+)"),
+    # Roman numeral sections (IEEE style): I. INTRODUCTION, IV. METHODS
+    re.compile(r"^([IVX]+)\.\s+([A-Z][A-Za-z\s,;:\-&]+)$"),
+    # Chapter N or Chapter N: Title (books)
+    re.compile(r"^Chapter\s+(\d+)\s*[.:]?\s*(.*)$", re.IGNORECASE),
     # N. Title or N Title (with or without period)
     re.compile(r"^(\d+)\.?\s+([A-Z][A-Za-z\s,;:\-]+)$"),
 ]
 
 STANDALONE_SECTIONS = re.compile(
-    r"^(ABSTRACT|INTRODUCTION|ACKNOWLEDGMENT[S]?|REFERENCES|BIBLIOGRAPHY|APPENDIX|CONCLUSION[S]?)$",
+    r"^(ABSTRACT|INTRODUCTION|ACKNOWLEDGMENT[S]?|REFERENCES|BIBLIOGRAPHY"
+    r"|APPENDIX|CONCLUSION[S]?|PREFACE|CONTENTS|INDEX)$",
     re.IGNORECASE,
+)
+
+# Lines that look like author affiliations, not sections
+AFFILIATION = re.compile(
+    r"^\d+\.?\s+.*\b(University|Institute|Department|College|Laboratory|School of)\b",
+    re.IGNORECASE,
+)
+
+# Numbered lines that are algorithm steps or sentences, not section headers.
+# Real section titles use title-case nouns; these start with verbs, articles,
+# or lowercase prose continuations.
+SENTENCE_START = re.compile(
+    r"^(\d+)\.?\s+(There |The |It |This |In |For |We |Note |Recall "
+    r"|Let |If |When |Repeat|Calculate |Suppose |Notice |Generally )",
 )
 
 # Headers/footers to ignore (journal name + page number patterns)
@@ -58,11 +77,19 @@ def identify_sections(pages: list[str]) -> list[dict]:
     for page_idx, page_text in enumerate(pages):
         for line in page_text.split("\n"):
             line = line.strip()
-            if not line or len(line) > 100:
+            if not line or len(line) > 70:
                 continue
 
             # Skip headers/footers
             if HEADER_FOOTER.match(line):
+                continue
+
+            # Skip author affiliations ("1 City, University of London")
+            if AFFILIATION.match(line):
+                continue
+
+            # Skip algorithm steps and sentences ("2. Repeat:", "1. For each Pi")
+            if SENTENCE_START.match(line):
                 continue
 
             # Check standalone section names (ABSTRACT, REFERENCES, etc.)
@@ -85,6 +112,8 @@ def identify_sections(pages: list[str]) -> list[dict]:
                 if m:
                     number = m.group(1)
                     title = m.group(2).strip().rstrip(".")
+                    if not title:
+                        title = f"Chapter {number}"
                     sections.append({
                         "number": number,
                         "title": title,
