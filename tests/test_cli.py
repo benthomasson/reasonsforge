@@ -185,15 +185,24 @@ class TestStatus:
         run_cli("add", "b", "Derived B", "--sl", "a", db_path=db_path)
         out, err, code = run_cli("status", db_path=db_path)
         assert code == 0
+        assert "2 IN" in out
+        assert "Premises: 1" in out
+        assert "Derived: 1" in out
+
+    def test_status_all(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "a", "Premise A", db_path=db_path)
+        run_cli("add", "b", "Derived B", "--sl", "a", db_path=db_path)
+        out, err, code = run_cli("status", "--all", db_path=db_path)
+        assert code == 0
         assert "[+] a" in out
         assert "[+] b" in out
-        assert "2/2 IN" in out
 
     def test_status_visible_to(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "pub", "Public", db_path=db_path)
         run_cli("add", "fin", "Finance", "--access-tags", "finance", db_path=db_path)
-        out, err, code = run_cli("status", "--visible-to", "public", db_path=db_path)
+        out, err, code = run_cli("status", "--all", "--visible-to", "public", db_path=db_path)
         assert code == 0
         assert "pub" in out
         assert "fin" not in out
