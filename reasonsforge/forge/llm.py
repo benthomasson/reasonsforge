@@ -13,6 +13,13 @@ import shutil
 import urllib.request
 import urllib.error
 
+try:
+    import openai as _openai_mod
+    _HAS_OPENAI = True
+except ImportError:
+    _openai_mod = None
+    _HAS_OPENAI = False
+
 MODEL_COMMANDS: dict[str, list[str]] = {
     "claude": ["claude", "-p", "--output-format", "json"],
     "gemini": ["gemini", "--skip-trust", "-o", "json", "-p", ""],
@@ -41,12 +48,14 @@ def resolve_model_cmd(model: str) -> list[str]:
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
         raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
+    if model.startswith("openai:"):
+        raise ValueError(f"OpenAI models use the API directly: {model}")
     if model.startswith("cursor:"):
         raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>",
-           "cursor:<model>"]
+           "openai:<model>", "cursor:<model>"]
     )
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
@@ -220,6 +229,8 @@ def check_model_available(model: str) -> bool:
     """Check if a model's CLI or API is available."""
     if model.startswith("ollama:"):
         return True
+    if model.startswith("openai:"):
+        return _HAS_OPENAI
     if model.startswith("cursor:"):
         return shutil.which("cursor-agent") is not None
     try:
@@ -227,6 +238,36 @@ def check_model_available(model: str) -> bool:
     except ValueError:
         return False
     return shutil.which(cmd[0]) is not None
+
+
+async def _invoke_openai(prompt: str, model: str, timeout: int) -> str:
+    """Invoke an OpenAI model via the Responses API."""
+    if not _HAS_OPENAI:
+        raise ImportError(
+            "openai is required for openai: models. "
+            "Install with: pip install 'reasonsforge[openai]'"
+        )
+    openai_model = model.split(":", 1)[1]
+
+    def _do_request():
+        client = _openai_mod.OpenAI()
+        return client.responses.create(
+            model=openai_model,
+            input=prompt,
+            timeout=timeout,
+        )
+
+    response = await asyncio.get_event_loop().run_in_executor(None, _do_request)
+    text = ""
+    for item in response.output:
+        if item.type == "message":
+            for part in item.content:
+                if hasattr(part, "text"):
+                    text += part.text
+    input_tokens = response.usage.input_tokens if response.usage else 0
+    output_tokens = response.usage.output_tokens if response.usage else 0
+    _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
 
 
 async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
@@ -238,6 +279,9 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     """
     if model.startswith("ollama:"):
         return await _invoke_ollama(prompt, model, timeout)
+
+    if model.startswith("openai:"):
+        return await _invoke_openai(prompt, model, timeout)
 
     if model.startswith("cursor:"):
         return await _invoke_cursor(prompt, model, timeout)
