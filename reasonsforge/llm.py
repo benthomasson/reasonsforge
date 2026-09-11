@@ -41,6 +41,13 @@ except ImportError:
     LangfuseCallbackHandler = None
     _HAS_LANGFUSE = False
 
+try:
+    import openai as _openai_mod
+    _HAS_OPENAI = True
+except ImportError:
+    _openai_mod = None
+    _HAS_OPENAI = False
+
 
 MODEL_COMMANDS = {
     "claude": ["claude", "-p", "--output-format", "json"],
@@ -258,12 +265,14 @@ def resolve_model_cmd(model: str) -> list[str]:
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
     if model.startswith("ollama:"):
         raise ValueError(f"Ollama models use the HTTP API, not CLI commands: {model}")
+    if model.startswith("openai:"):
+        raise ValueError(f"OpenAI models use the API directly: {model}")
     if model.startswith("cursor:"):
         raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
     available = (
         list(MODEL_COMMANDS)
         + ["claude:<model>", "gemini:<model>", "ollama:<model>",
-           "cursor:<model>", "api:<model>", "vertex:<model>"]
+           "openai:<model>", "cursor:<model>", "api:<model>", "vertex:<model>"]
     )
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
@@ -315,6 +324,32 @@ def _invoke_api(prompt: str, model: str, timeout: int = 300) -> str:
     return response.content
 
 
+def _invoke_openai(prompt: str, model: str, timeout: int = 300) -> str:
+    """Invoke an OpenAI model via the Responses API."""
+    if not _HAS_OPENAI:
+        raise ImportError(
+            "openai is required for openai: models. "
+            "Install with: pip install 'reasonsforge[openai]'"
+        )
+    openai_model = model.split(":", 1)[1]
+    client = _openai_mod.OpenAI()
+    response = client.responses.create(
+        model=openai_model,
+        input=prompt,
+        timeout=timeout,
+    )
+    text = ""
+    for item in response.output:
+        if item.type == "message":
+            for part in item.content:
+                if hasattr(part, "text"):
+                    text += part.text
+    input_tokens = response.usage.input_tokens if response.usage else 0
+    output_tokens = response.usage.output_tokens if response.usage else 0
+    _record_cost(model, input_tokens, output_tokens, 0.0)
+    return text
+
+
 def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     """Invoke an LLM via CLI subprocess or API. Returns response text.
 
@@ -331,6 +366,9 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     try:
         if model.startswith("api:") or model.startswith("vertex:"):
             return _invoke_api(prompt, model, timeout)
+
+        if model.startswith("openai:"):
+            return _invoke_openai(prompt, model, timeout)
 
         if model.startswith("ollama:"):
             return _invoke_ollama(prompt, model, timeout)
