@@ -95,6 +95,13 @@ Examples:
 - Prefer insights that would be INVISIBLE to any single expert
 - Don't force connections between unrelated beliefs
 - Each conclusion should represent genuine cross-domain emergence
+- **Use relational naming conventions** when the derived belief expresses a relationship. \
+  If you combine `A-requires-B` and `B-requires-C`, name the result `A-requires-C` \
+  (transitive closure). If you combine `A-is-a-B` and `B-has-C`, consider whether \
+  `A-has-C` follows (inheritance). Use the same relation keywords as the antecedents \
+  when the derived relationship is the same type. Standard relation keywords: \
+  is-a, has, requires, enables, implements, produces, replaces, causes, prevents, \
+  extends, maps-to, contains.
 
 {OUTPUT_FORMAT}
 

@@ -47,6 +47,13 @@ Given the existing beliefs and derived conclusions below, propose NEW derived co
 - Don't propose conclusions that merely restate a single antecedent
 - Don't propose conclusions whose antecedents are unrelated (no forced connections)
 - Each conclusion should represent a genuine emergent property or project insight
+- **Use relational naming conventions** when the derived belief expresses a relationship. \
+  If you combine `A-requires-B` and `B-requires-C`, name the result `A-requires-C` \
+  (transitive closure). If you combine `A-is-a-B` and `B-has-C`, consider whether \
+  `A-has-C` follows (inheritance). Use the same relation keywords as the antecedents \
+  when the derived relationship is the same type. Standard relation keywords: \
+  is-a, has, requires, enables, implements, produces, replaces, causes, prevents, \
+  extends, maps-to, contains.
 
 ## Output Format
 

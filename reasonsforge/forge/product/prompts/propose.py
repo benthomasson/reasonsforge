@@ -14,7 +14,7 @@ Each belief should be:
   - X-replaces-Y (substitution), X-causes-Y (causation), X-prevents-Y (inhibition)
   - X-extends-Y (extension), X-maps-to-Y (correspondence), X-contains-Y (containment)
   Not every belief needs a relational name — use descriptive names for facts that \
-don't express a binary relationship.
+  don't express a binary relationship.
 
 For each belief, output in this exact format:
 
