@@ -50,6 +50,13 @@ Bad beliefs (avoid):
 Rules:
 - Each belief should be a single, testable factual claim about the code
 - Use kebab-case IDs that are descriptive (e.g., router-dispatches-by-complexity)
+- When a claim expresses a relationship between two concepts, prefer these naming patterns:
+  - X-is-a-Y (taxonomy), X-has-Y (composition), X-requires-Y (dependency)
+  - X-enables-Y (capability), X-implements-Y (realization), X-produces-Y (output)
+  - X-replaces-Y (substitution), X-causes-Y (causation), X-prevents-Y (inhibition)
+  - X-extends-Y (extension), X-maps-to-Y (correspondence), X-contains-Y (containment)
+  Not every belief needs a relational name — use descriptive names for facts that \
+don't express a binary relationship.
 - Aim for 3-8 beliefs per entry
 - Prefer claims that would break things if violated (invariants) over trivia
 

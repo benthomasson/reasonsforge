@@ -8,6 +8,13 @@ Each belief should be:
 - Verifiable by checking the issue tracker, analytics, or product artifacts
 - Scoped to a specific feature, user segment, or product area
 - Named with a kebab-case ID that describes the claim
+- When a claim expresses a relationship between two concepts, prefer these naming patterns:
+  - X-is-a-Y (taxonomy), X-has-Y (composition), X-requires-Y (dependency)
+  - X-enables-Y (capability), X-implements-Y (realization), X-produces-Y (output)
+  - X-replaces-Y (substitution), X-causes-Y (causation), X-prevents-Y (inhibition)
+  - X-extends-Y (extension), X-maps-to-Y (correspondence), X-contains-Y (containment)
+  Not every belief needs a relational name — use descriptive names for facts that \
+don't express a binary relationship.
 
 For each belief, output in this exact format:
 
