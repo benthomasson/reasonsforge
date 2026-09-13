@@ -155,7 +155,12 @@ def cmd_summarize(args):
         ]
         return await asyncio.gather(*tasks)
 
-    results = asyncio.run(run_all())
+    try:
+        results = asyncio.run(run_all())
+    except KeyboardInterrupt:
+        print(f"\n  Ending summarize early — partial results saved",
+              file=sys.stderr)
+        results = []
     processed = sum(1 for r in results if r)
 
     print(f"\nSummarized {processed} sources ({skipped} already done)")

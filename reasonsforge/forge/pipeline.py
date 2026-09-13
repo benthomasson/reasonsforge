@@ -94,13 +94,18 @@ def _stage_ingest(args):
     if args.pdf:
         from .chunk_pdf import cmd_chunk_pdf
         for pdf_path in args.pdf:
-            chunk_args = SimpleNamespace(
-                pdf=pdf_path,
-                prefix=None,
-                source_label=None,
-                dry_run=False,
-            )
-            cmd_chunk_pdf(chunk_args)
+            try:
+                chunk_args = SimpleNamespace(
+                    pdf=pdf_path,
+                    prefix=None,
+                    source_label=None,
+                    dry_run=False,
+                )
+                cmd_chunk_pdf(chunk_args)
+            except KeyboardInterrupt:
+                print(f"\n  Ending ingest early — partial results saved",
+                      file=sys.stderr)
+                break
 
 
 def _stage_summarize(args):
@@ -163,52 +168,56 @@ def _stage_derive(args, round_label=""):
     total_added = 0
     prefix = f"[{round_label}] " if round_label else ""
 
-    for derive_round in range(1, args.max_derive_rounds + 1):
-        print(f"{prefix}Derive round {derive_round}/{args.max_derive_rounds}...",
+    try:
+        for derive_round in range(1, args.max_derive_rounds + 1):
+            print(f"{prefix}Derive round {derive_round}/{args.max_derive_rounds}...",
+                  file=sys.stderr)
+
+            data = export_network(db_path=REASONS_DB)
+            nodes = data.get("nodes", {})
+            if not nodes:
+                print(f"{prefix}No nodes in network", file=sys.stderr)
+                break
+
+            ns = getattr(args, "namespace", None)
+            if ns is not None:
+                if ns == "":
+                    nodes = {k: v for k, v in nodes.items() if ":" not in k}
+                else:
+                    nodes = {k: v for k, v in nodes.items()
+                             if k.startswith(f"{ns}:")}
+
+            prompt, stats = build_prompt(nodes, domain=args.domain)
+            print(f"{prefix}  Network: {stats['total_in']} IN, "
+                  f"{stats['total_derived']} derived, depth {stats['max_depth']}",
+                  file=sys.stderr)
+
+            try:
+                response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
+            except Exception as e:
+                print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                break
+
+            proposals = parse_proposals(response)
+            if not proposals:
+                print(f"{prefix}  Saturated (no proposals)", file=sys.stderr)
+                break
+
+            valid, skipped = validate_proposals(proposals, nodes)
+            for p, reason in skipped:
+                print(f"{prefix}  SKIP {p['id']}: {reason}", file=sys.stderr)
+
+            if not valid:
+                print(f"{prefix}  Saturated (no valid proposals)", file=sys.stderr)
+                break
+
+            results = apply_proposals(valid, db_path=REASONS_DB)
+            added = sum(1 for _, r in results if isinstance(r, dict))
+            total_added += added
+            print(f"{prefix}  Added {added} beliefs", file=sys.stderr)
+    except KeyboardInterrupt:
+        print(f"\n{prefix}  Ending derive early — {total_added} beliefs saved",
               file=sys.stderr)
-
-        data = export_network(db_path=REASONS_DB)
-        nodes = data.get("nodes", {})
-        if not nodes:
-            print(f"{prefix}No nodes in network", file=sys.stderr)
-            break
-
-        ns = getattr(args, "namespace", None)
-        if ns is not None:
-            if ns == "":
-                nodes = {k: v for k, v in nodes.items() if ":" not in k}
-            else:
-                nodes = {k: v for k, v in nodes.items()
-                         if k.startswith(f"{ns}:")}
-
-        prompt, stats = build_prompt(nodes, domain=args.domain)
-        print(f"{prefix}  Network: {stats['total_in']} IN, "
-              f"{stats['total_derived']} derived, depth {stats['max_depth']}",
-              file=sys.stderr)
-
-        try:
-            response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
-        except Exception as e:
-            print(f"{prefix}  Derive error: {e}", file=sys.stderr)
-            break
-
-        proposals = parse_proposals(response)
-        if not proposals:
-            print(f"{prefix}  Saturated (no proposals)", file=sys.stderr)
-            break
-
-        valid, skipped = validate_proposals(proposals, nodes)
-        for p, reason in skipped:
-            print(f"{prefix}  SKIP {p['id']}: {reason}", file=sys.stderr)
-
-        if not valid:
-            print(f"{prefix}  Saturated (no valid proposals)", file=sys.stderr)
-            break
-
-        results = apply_proposals(valid, db_path=REASONS_DB)
-        added = sum(1 for _, r in results if isinstance(r, dict))
-        total_added += added
-        print(f"{prefix}  Added {added} beliefs", file=sys.stderr)
 
     return total_added
 
@@ -224,12 +233,16 @@ def _stage_review(args, round_label=""):
     print(f"{prefix}Reviewing beliefs...", file=sys.stderr)
 
     ns = getattr(args, "namespace", None)
-    result = review_beliefs(
-        model=args.model,
-        timeout=args.timeout,
-        namespace=ns,
-        db_path=REASONS_DB,
-    )
+    try:
+        result = review_beliefs(
+            model=args.model,
+            timeout=args.timeout,
+            namespace=ns,
+            db_path=REASONS_DB,
+        )
+    except KeyboardInterrupt:
+        print(f"\n{prefix}  Ending review early", file=sys.stderr)
+        return {"reviewed": 0, "invalid": 0, "results": []}
 
     reviewed = result.get("reviewed", 0)
     invalid = result.get("invalid", 0)
@@ -260,12 +273,17 @@ def _stage_repair(args, review_result, round_label=""):
 
     print(f"{prefix}Researching {len(invalid_ids)} invalid beliefs...", file=sys.stderr)
 
-    result = research(
-        belief_ids=invalid_ids,
-        model=args.model,
-        timeout=args.timeout,
-        db_path=REASONS_DB,
-    )
+    try:
+        result = research(
+            belief_ids=invalid_ids,
+            model=args.model,
+            timeout=args.timeout,
+            db_path=REASONS_DB,
+        )
+    except KeyboardInterrupt:
+        print(f"\n{prefix}  Ending repair early", file=sys.stderr)
+        return {"total_invalid": len(invalid_ids), "linked": 0,
+                "softened": 0, "abandoned": 0}
 
     print(f"{prefix}  Linked: {result.get('linked', 0)}, "
           f"Softened: {result.get('softened', 0)}, "
@@ -284,7 +302,11 @@ def _stage_deduplicate(args, round_label=""):
     print(f"{prefix}Deduplicating{' (with LLM verify)' if verify else ''}...",
           file=sys.stderr)
 
-    result = deduplicate(auto=not verify, db_path=REASONS_DB)
+    try:
+        result = deduplicate(auto=not verify, db_path=REASONS_DB)
+    except KeyboardInterrupt:
+        print(f"\n{prefix}  Ending dedup early", file=sys.stderr)
+        return {}
     clusters = result.get("clusters", [])
 
     if not clusters:
@@ -300,7 +322,11 @@ def _stage_deduplicate(args, round_label=""):
 
     print(f"{prefix}  {len(clusters)} candidate cluster(s), verifying...",
           file=sys.stderr)
-    vresult = verify_dedup_clusters(clusters, model=model)
+    try:
+        vresult = verify_dedup_clusters(clusters, model=model)
+    except KeyboardInterrupt:
+        print(f"\n{prefix}  Ending dedup verification early", file=sys.stderr)
+        return result
 
     total_retracted = []
     if vresult["verified"]:
@@ -540,8 +566,13 @@ def cmd_pipeline(args):
             if has_sources:
                 _banner(1, total_stages, "INGEST")
                 _mark_stage(state, 1, "running")
-                _stage_ingest(args)
-                _mark_stage(state, 1, "completed")
+                try:
+                    _stage_ingest(args)
+                    _mark_stage(state, 1, "completed")
+                except KeyboardInterrupt:
+                    print("\n  Ending INGEST early — partial results saved",
+                          file=sys.stderr)
+                    _mark_stage(state, 1, "completed")
             else:
                 print("No --pdf provided, skipping ingest", file=sys.stderr)
                 _mark_stage(state, 1, "completed", skipped=True)
@@ -552,8 +583,13 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 2):
             _banner(2, total_stages, "SUMMARIZE")
             _mark_stage(state, 2, "running")
-            _stage_summarize(args)
-            _mark_stage(state, 2, "completed")
+            try:
+                _stage_summarize(args)
+                _mark_stage(state, 2, "completed")
+            except KeyboardInterrupt:
+                print("\n  Ending SUMMARIZE early — partial results saved",
+                      file=sys.stderr)
+                _mark_stage(state, 2, "completed")
         else:
             print("Stage 2 (SUMMARIZE) already completed, skipping", file=sys.stderr)
 
@@ -561,12 +597,17 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 3):
             _banner(3, total_stages, "EXTRACT")
             _mark_stage(state, 3, "running")
-            should_continue = _stage_extract(args)
-            _mark_stage(state, 3, "completed")
-            if not should_continue:
-                state["status"] = "paused"
-                _save_state(state)
-                return
+            try:
+                should_continue = _stage_extract(args)
+                _mark_stage(state, 3, "completed")
+                if not should_continue:
+                    state["status"] = "paused"
+                    _save_state(state)
+                    return
+            except KeyboardInterrupt:
+                print("\n  Ending EXTRACT early — partial results saved",
+                      file=sys.stderr)
+                _mark_stage(state, 3, "completed")
         else:
             print("Stage 3 (EXTRACT) already completed, skipping", file=sys.stderr)
 
@@ -588,12 +629,16 @@ def cmd_pipeline(args):
                     _mark_stage(state, stage_num, "completed",
                                 cycle=cycle, **kwargs)
 
-            _run_convergence_loop(
-                args, remaining_rounds,
-                start_cycle=start_cycle,
-                total_rounds=args.rounds,
-                on_stage=_pipeline_on_stage,
-            )
+            try:
+                _run_convergence_loop(
+                    args, remaining_rounds,
+                    start_cycle=start_cycle,
+                    total_rounds=args.rounds,
+                    on_stage=_pipeline_on_stage,
+                )
+            except KeyboardInterrupt:
+                print("\n  Ending convergence loop early — partial results saved",
+                      file=sys.stderr)
 
             state["loop_completed"] = True
             _save_state(state)
@@ -604,8 +649,13 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 8):
             _banner(8, total_stages, "EXPORT")
             _mark_stage(state, 8, "running")
-            _stage_export(args)
-            _mark_stage(state, 8, "completed")
+            try:
+                _stage_export(args)
+                _mark_stage(state, 8, "completed")
+            except KeyboardInterrupt:
+                print("\n  Ending EXPORT early — partial results saved",
+                      file=sys.stderr)
+                _mark_stage(state, 8, "completed")
         else:
             print("Stage 8 (EXPORT) already completed, skipping", file=sys.stderr)
 
@@ -613,8 +663,13 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 9):
             _banner(9, total_stages, "INDEX")
             _mark_stage(state, 9, "running")
-            _stage_index(args)
-            _mark_stage(state, 9, "completed")
+            try:
+                _stage_index(args)
+                _mark_stage(state, 9, "completed")
+            except KeyboardInterrupt:
+                print("\n  Ending INDEX early — partial results saved",
+                      file=sys.stderr)
+                _mark_stage(state, 9, "completed")
         else:
             print("Stage 9 (INDEX) already completed, skipping", file=sys.stderr)
 

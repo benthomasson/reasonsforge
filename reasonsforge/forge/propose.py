@@ -454,7 +454,11 @@ def cmd_propose_beliefs(args):
         tasks = [_process_batch(i, bt, semaphore) for i, bt in enumerate(batches)]
         await asyncio.gather(*tasks)
 
-    asyncio.run(run_batches())
+    try:
+        asyncio.run(run_batches())
+    except KeyboardInterrupt:
+        print(f"\n  Ending extraction early — partial results saved",
+              file=sys.stderr)
 
     if total_skipped:
         print(f"  Filtered {total_skipped} already-accepted beliefs")
