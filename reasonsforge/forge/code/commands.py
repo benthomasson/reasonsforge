@@ -628,68 +628,72 @@ def _explore_loop(args, project_dir, max_topics):
 
     lang = _get_lang(args, abs_repo)
     explored = 0
-    while explored < max_topics:
-        batch_size = min(parallel, max_topics - explored)
-        batch = pop_batch(batch_size, project_dir)
-        if not batch:
-            if explored == 0:
-                print("No pending topics. Run `reasonsforge code scan` to discover topics.")
+    try:
+        while explored < max_topics:
+            batch_size = min(parallel, max_topics - explored)
+            batch = pop_batch(batch_size, project_dir)
+            if not batch:
+                if explored == 0:
+                    print("No pending topics. Run `reasonsforge code scan` to discover topics.")
+                else:
+                    print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
+                return
+
+            remaining = pending_count(project_dir)
+            print(f"\n{'=' * 40}", file=sys.stderr)
+            print(f"[{explored + 1}-{explored + len(batch)}/{max_topics}] "
+                  f"({remaining} remaining in queue)", file=sys.stderr)
+            print(f"{'=' * 40}", file=sys.stderr)
+            for topic in batch:
+                print(f"  [{topic.kind}] {topic.target}", file=sys.stderr)
+
+            if parallel > 1 and len(batch) > 1:
+                results = asyncio.run(
+                    _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode)
+                )
+                for r in results:
+                    if isinstance(r, Exception):
+                        print(f"  Error: {r}", file=sys.stderr)
+                    elif r is not None:
+                        _, result, entry_name, entry_title, source = r
+                        _finalize_topic(entry_name, entry_title, source, result, project_dir)
             else:
-                print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
-            return
-
-        remaining = pending_count(project_dir)
-        print(f"\n{'=' * 40}", file=sys.stderr)
-        print(f"[{explored + 1}-{explored + len(batch)}/{max_topics}] "
-              f"({remaining} remaining in queue)", file=sys.stderr)
-        print(f"{'=' * 40}", file=sys.stderr)
-        for topic in batch:
-            print(f"  [{topic.kind}] {topic.target}", file=sys.stderr)
-
-        if parallel > 1 and len(batch) > 1:
-            results = asyncio.run(
-                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode)
-            )
-            for r in results:
-                if isinstance(r, Exception):
-                    print(f"  Error: {r}", file=sys.stderr)
-                elif r is not None:
-                    _, result, entry_name, entry_title, source = r
+                topic = batch[0]
+                if topic.kind == "general":
+                    print(f"Exploring '{topic.title}' with {model}...", file=sys.stderr)
+                    try:
+                        result, entry_name, entry_title, source = asyncio.run(
+                            _run_general_topic_async(topic, model, abs_repo, timeout, mode=mode)
+                        )
+                    except Exception as e:
+                        print(f"Error: {e}", file=sys.stderr)
+                        explored += len(batch)
+                        continue
                     _finalize_topic(entry_name, entry_title, source, result, project_dir)
-        else:
-            topic = batch[0]
-            if topic.kind == "general":
-                print(f"Exploring '{topic.title}' with {model}...", file=sys.stderr)
-                try:
-                    result, entry_name, entry_title, source = asyncio.run(
-                        _run_general_topic_async(topic, model, abs_repo, timeout, mode=mode)
-                    )
-                except Exception as e:
-                    print(f"Error: {e}", file=sys.stderr)
-                    explored += len(batch)
-                    continue
-                _finalize_topic(entry_name, entry_title, source, result, project_dir)
-            else:
-                prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
-                if not prepare_fn:
-                    print(f"Unknown topic kind: {topic.kind}", file=sys.stderr)
-                    explored += len(batch)
-                    continue
-                prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
-                if prepared is None:
-                    explored += len(batch)
-                    continue
-                prompt, entry_name, entry_title, source = prepared
-                print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
-                try:
-                    result = asyncio.run(invoke(prompt, model, timeout=timeout))
-                except Exception as e:
-                    print(f"Error: {e}", file=sys.stderr)
-                    explored += len(batch)
-                    continue
-                _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                else:
+                    prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
+                    if not prepare_fn:
+                        print(f"Unknown topic kind: {topic.kind}", file=sys.stderr)
+                        explored += len(batch)
+                        continue
+                    prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
+                    if prepared is None:
+                        explored += len(batch)
+                        continue
+                    prompt, entry_name, entry_title, source = prepared
+                    print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
+                    try:
+                        result = asyncio.run(invoke(prompt, model, timeout=timeout))
+                    except Exception as e:
+                        print(f"Error: {e}", file=sys.stderr)
+                        explored += len(batch)
+                        continue
+                    _finalize_topic(entry_name, entry_title, source, result, project_dir)
 
-        explored += len(batch)
+            explored += len(batch)
+    except KeyboardInterrupt:
+        print(f"\n  Ending explore early — {explored} topic(s) saved",
+              file=sys.stderr)
 
     remaining = pending_count(project_dir)
     print(f"\nExplored {explored} topic(s). {remaining} remaining in queue.", file=sys.stderr)
@@ -1220,49 +1224,53 @@ def cmd_propose_beliefs(args):
 
     all_proposals = []
     total_dup_skipped = 0
-    for i, batch_text in enumerate(batches):
-        existing_context = _build_dedup_context(
-            existing_beliefs, batch_paths[i], batch_text,
-            belief_vectors=belief_vectors,
-        )
-        from .prompts.propose import build_propose_prompt
-        propose_mode = getattr(args, "mode", None) or "discover"
-        prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
-
-        print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
-        try:
-            result = asyncio.run(invoke(prompt, model, timeout=timeout))
-            print(f"  Batch {i + 1}/{len(batches)} done", file=sys.stderr)
-        except Exception as e:
-            print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
-            continue
-
-        filtered, dups = _filter_proposal(result)
-        total_dup_skipped += dups
-        all_proposals.append(filtered)
-
-        if auto_accept:
-            accept_pattern = re.compile(
-                r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
-                re.MULTILINE,
+    try:
+        for i, batch_text in enumerate(batches):
+            existing_context = _build_dedup_context(
+                existing_beliefs, batch_paths[i], batch_text,
+                belief_vectors=belief_vectors,
             )
-            matches = accept_pattern.findall(filtered)
-            if matches:
-                _accept_proposals(matches, db_path)
-                print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
-        else:
-            with output_path.open("a") as f:
-                f.write(f"\n---\n\n")
-                f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
-                f.write(f"**Model:** {model}\n\n")
-                f.write(filtered)
-                f.write("\n\n")
+            from .prompts.propose import build_propose_prompt
+            propose_mode = getattr(args, "mode", None) or "discover"
+            prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
 
-        # Mark this batch's entries as processed after each batch
-        batch_entry_paths = [Path(p) for p in batch_paths[i]]
-        _save_processed(processed_path, batch_entry_paths, processed)
-        # Update processed dict so subsequent _save_processed calls include all prior batches
-        processed = _load_processed(processed_path)
+            print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
+            try:
+                result = asyncio.run(invoke(prompt, model, timeout=timeout))
+                print(f"  Batch {i + 1}/{len(batches)} done", file=sys.stderr)
+            except Exception as e:
+                print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
+                continue
+
+            filtered, dups = _filter_proposal(result)
+            total_dup_skipped += dups
+            all_proposals.append(filtered)
+
+            if auto_accept:
+                accept_pattern = re.compile(
+                    r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
+                    re.MULTILINE,
+                )
+                matches = accept_pattern.findall(filtered)
+                if matches:
+                    _accept_proposals(matches, db_path)
+                    print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
+            else:
+                with output_path.open("a") as f:
+                    f.write(f"\n---\n\n")
+                    f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
+                    f.write(f"**Model:** {model}\n\n")
+                    f.write(filtered)
+                    f.write("\n\n")
+
+            # Mark this batch's entries as processed after each batch
+            batch_entry_paths = [Path(p) for p in batch_paths[i]]
+            _save_processed(processed_path, batch_entry_paths, processed)
+            # Update processed dict so subsequent _save_processed calls include all prior batches
+            processed = _load_processed(processed_path)
+    except KeyboardInterrupt:
+        print(f"\n  Ending extraction early — partial results saved",
+              file=sys.stderr)
 
     if total_dup_skipped:
         print(f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr)
@@ -2433,62 +2441,66 @@ def cmd_derive(args):
         auto_add = True
 
     total_added = 0
-    for round_num in range(1, max_rounds + 1):
-        if exhaust:
-            print(f"\n--- Derive round {round_num}/{max_rounds} ---", file=sys.stderr)
-
-        try:
-            network = export_network(db_path=db_path)
-            nodes = network.get("nodes", {})
-        except Exception as e:
-            print(f"Error loading network: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        source_path = getattr(args, "source_path", None)
-        mode = getattr(args, "mode", None) or "discover"
-        prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True,
-                                      source_path=source_path, mode=mode)
-
-        try:
-            response = invoke_sync(prompt, model=model, timeout=timeout)
-        except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        proposals = parse_proposals(response)
-        if not proposals:
-            print("No proposals generated.", file=sys.stderr)
+    try:
+        for round_num in range(1, max_rounds + 1):
             if exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
-            break
+                print(f"\n--- Derive round {round_num}/{max_rounds} ---", file=sys.stderr)
 
-        valid, skipped = validate_proposals(proposals, nodes)
-        if not valid:
-            print("No valid proposals after validation.", file=sys.stderr)
-            if exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
-            break
+            try:
+                network = export_network(db_path=db_path)
+                nodes = network.get("nodes", {})
+            except Exception as e:
+                print(f"Error loading network: {e}", file=sys.stderr)
+                sys.exit(1)
 
-        print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
+            source_path = getattr(args, "source_path", None)
+            mode = getattr(args, "mode", None) or "discover"
+            prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True,
+                                          source_path=source_path, mode=mode)
 
-        if auto_add:
-            results = apply_proposals(valid, db_path=db_path)
-            added = sum(1 for _, r in results if isinstance(r, dict))
-            print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
-            total_added += added
-            if added == 0 and exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
+            try:
+                response = invoke_sync(prompt, model=model, timeout=timeout)
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+
+            proposals = parse_proposals(response)
+            if not proposals:
+                print("No proposals generated.", file=sys.stderr)
+                if exhaust:
+                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                          file=sys.stderr)
                 break
-        else:
-            for v in valid:
-                print(f"  {v['id']}: {v['text'][:80]}", file=sys.stderr)
-            break
 
-        if not exhaust:
-            break
+            valid, skipped = validate_proposals(proposals, nodes)
+            if not valid:
+                print("No valid proposals after validation.", file=sys.stderr)
+                if exhaust:
+                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                          file=sys.stderr)
+                break
+
+            print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
+
+            if auto_add:
+                results = apply_proposals(valid, db_path=db_path)
+                added = sum(1 for _, r in results if isinstance(r, dict))
+                print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
+                total_added += added
+                if added == 0 and exhaust:
+                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                          file=sys.stderr)
+                    break
+            else:
+                for v in valid:
+                    print(f"  {v['id']}: {v['text'][:80]}", file=sys.stderr)
+                break
+
+            if not exhaust:
+                break
+    except KeyboardInterrupt:
+        print(f"\n  Ending derive early — {total_added} beliefs saved",
+              file=sys.stderr)
 
     if exhaust and total_added > 0:
         print(f"\nDerived {total_added} belief(s) total.", file=sys.stderr)

@@ -57,6 +57,8 @@ def _run_step(name, func, args, errors):
     print(f"\n=== {name} ===\n", file=sys.stderr)
     try:
         func(args)
+    except KeyboardInterrupt:
+        print(f"\n  Ending {name} early — partial results saved", file=sys.stderr)
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"{name} exited with code {e.code}")
@@ -131,6 +133,8 @@ def _run_review_beliefs(db_path, model, project_dir, errors):
         os.makedirs(project_dir, exist_ok=True)
         with open(review_path, "w") as f:
             json.dump(result, f, indent=2)
+    except KeyboardInterrupt:
+        print(f"\n  Ending review early", file=sys.stderr)
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
         print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
@@ -175,6 +179,8 @@ def _run_repair(db_path, model, project_dir, errors):
         print(f"  Linked: {result.get('linked', 0)}, "
               f"Softened: {result.get('softened', 0)}, "
               f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print(f"\n  Ending repair early", file=sys.stderr)
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
@@ -228,6 +234,9 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude"):
                 except Exception:
                     pass
 
+    except KeyboardInterrupt:
+        print(f"\n  Ending deduplicate early — partial results saved",
+              file=sys.stderr)
     except Exception as e:
         errors.append(f"deduplicate: {e}")
         print(f"WARN: deduplicate failed: {e}, continuing...", file=sys.stderr)
@@ -252,6 +261,8 @@ def _run_contradictions(db_path, model, errors):
                   f"applied {applied} nogood(s)", file=sys.stderr)
         else:
             print(f"  Checked {checked} beliefs, no contradictions found", file=sys.stderr)
+    except KeyboardInterrupt:
+        print(f"\n  Ending contradiction detection early", file=sys.stderr)
     except Exception as e:
         errors.append(f"contradictions: {e}")
         print(f"WARN: contradictions failed: {e}, continuing...", file=sys.stderr)
@@ -398,6 +409,9 @@ def cmd_analyze(args):
         print(f"\n=== {label}: Explore (up to {eff_limit} topics) ===\n", file=sys.stderr)
         try:
             cmd_explore(explore_args)
+        except KeyboardInterrupt:
+            print(f"\n  Ending explore early — partial results saved",
+                  file=sys.stderr)
         except SystemExit as e:
             if e.code and e.code != 0:
                 errors.append(f"explore exited with code {e.code}")
