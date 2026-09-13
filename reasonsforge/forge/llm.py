@@ -133,13 +133,19 @@ async def _invoke_ollama(prompt: str, model: str, timeout: int) -> str:
     def _do_request():
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read())
+                raw = resp.read()
         except urllib.error.HTTPError as e:
             body = e.read().decode(errors="replace")
             raise RuntimeError(f"Ollama API error {e.code}: {body}") from e
         except urllib.error.URLError as e:
             raise RuntimeError(
                 f"Cannot connect to Ollama at {_ollama_base_url()} — is it running?"
+            ) from e
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"Ollama returned invalid JSON ({len(raw)} bytes): {e}"
             ) from e
 
     data = await asyncio.get_event_loop().run_in_executor(None, _do_request)
