@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
@@ -49,7 +50,14 @@ def load_queue(project_dir: str | None = None) -> list[Topic]:
     if not os.path.isfile(path):
         return []
     with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"WARN: corrupt topics.json ({path}): {e}", file=sys.stderr)
+            print("  Backing up to topics.json.bak and starting fresh", file=sys.stderr)
+            import shutil
+            shutil.copy2(path, path + ".bak")
+            return []
     return [Topic(**item) for item in data]
 
 
