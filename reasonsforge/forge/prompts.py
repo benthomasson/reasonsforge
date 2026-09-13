@@ -69,6 +69,22 @@ You are extracting factual claims from study notes to build a belief registry.
 Rules:
 - Each belief should be a single, testable factual claim
 - Use kebab-case IDs that are descriptive (e.g., rhel9-default-filesystem-xfs)
+- When a claim expresses a relationship between two concepts, prefer these naming patterns:
+  - X-is-a-Y (taxonomy: X is a kind of Y)
+  - X-has-Y (composition: X contains or possesses Y)
+  - X-requires-Y (dependency: X needs Y)
+  - X-enables-Y (capability: X makes Y possible)
+  - X-implements-Y (realization: X realizes Y)
+  - X-produces-Y (output: X generates Y)
+  - X-replaces-Y (substitution: X can be used instead of Y)
+  - X-causes-Y (causation: X leads to Y)
+  - X-prevents-Y (inhibition: X stops Y)
+  - X-extends-Y (extension: X adds to Y)
+  - X-maps-to-Y (correspondence: X corresponds to Y)
+  - X-contains-Y (containment: X includes Y)
+  These patterns make relationships machine-parseable. Not every belief needs a \
+relational name — use descriptive names for facts that don't express a binary \
+relationship between two concepts.
 - Prefer specific facts over vague generalizations
 - Include commands, paths, config values when relevant
 - Do NOT include opinions or subjective assessments
