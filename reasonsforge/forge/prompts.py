@@ -18,7 +18,15 @@ Bulleted list of the most important facts, definitions, and concepts.
 Any commands, configuration syntax, or procedures described (with examples).
 
 ## Relationships
-How this topic connects to other topics in the domain.
+How this topic connects to other topics in the domain. Express relationships \
+using explicit patterns where possible:
+- X **requires** Y (dependency or precondition)
+- X **enables** Y (capability or affordance)
+- X **implements** Y (realization of a concept or spec)
+- X **extends** Y (builds on or adds to Y)
+- X **replaces** Y (substitution)
+- X **contains** Y (composition)
+- X **is a** Y (taxonomy or classification)
 
 ## Exam-Relevant Points
 Facts that are likely to be tested on a certification exam.
@@ -54,7 +62,15 @@ Important behaviors, error handling, edge cases, or gotchas a user should know a
 
 ## Relationships
 How this code connects to other components — what it imports, what calls it, \
-what services or systems it interacts with.
+what services or systems it interacts with. Express relationships using \
+explicit patterns where possible:
+- X **requires** Y (dependency or precondition)
+- X **enables** Y (capability or affordance)
+- X **implements** Y (realization of an interface or spec)
+- X **extends** Y (builds on or inherits from Y)
+- X **produces** Y (output or side effect)
+- X **contains** Y (composition)
+- X **is a** Y (taxonomy or classification)
 
 ---
 

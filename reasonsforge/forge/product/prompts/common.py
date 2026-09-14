@@ -23,7 +23,13 @@ If your analysis surfaces specific, verifiable factual claims about the product,
 
 - `belief-id` — Factual claim text
 
+When a claim expresses a relationship, prefer these naming patterns:
+- `X-requires-Y` (dependency), `X-enables-Y` (capability), `X-causes-Y` (causation)
+- `X-prevents-Y` (inhibition), `X-replaces-Y` (substitution), `X-contains-Y` (composition)
+- `X-is-a-Y` (taxonomy), `X-has-Y` (property), `X-maps-to-Y` (correspondence)
+Not every belief needs a relational name — use descriptive names when no binary relationship applies.
+
 Example:
 - `onboarding-drop-off-step-3` — 42% of new users abandon onboarding at the permissions step
-- `search-latency-p95-above-sla` — Search P95 latency is 3.2s, exceeding the 2s SLA
+- `search-latency-causes-user-churn` — Search P95 latency of 3.2s exceeds the 2s SLA and correlates with user drop-off
 """

@@ -18,6 +18,12 @@ BELIEFS_INSTRUCTIONS = """\
 If your analysis reveals new cross-domain beliefs, list them below:
 
 - `belief-id-in-kebab-case` — One-line factual claim derived from multiple expert domains
+
+When a claim expresses a relationship, prefer these naming patterns:
+- `X-requires-Y` (dependency), `X-enables-Y` (capability), `X-causes-Y` (causation)
+- `X-prevents-Y` (inhibition), `X-replaces-Y` (substitution), `X-implements-Y` (realization)
+- `X-extends-Y` (extension), `X-is-a-Y` (taxonomy), `X-maps-to-Y` (correspondence)
+Not every belief needs a relational name — use descriptive names when no binary relationship applies.
 """
 
 OUTPUT_FORMAT = """\

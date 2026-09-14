@@ -36,6 +36,22 @@ Each item MUST use this exact format:
 
 - `belief-id-in-kebab-case` — One-line factual claim
 
+When a claim expresses a relationship between two concepts, prefer these naming patterns:
+- `X-requires-Y` (dependency)
+- `X-enables-Y` (capability)
+- `X-implements-Y` (realization)
+- `X-produces-Y` (output)
+- `X-extends-Y` (extension)
+- `X-contains-Y` (composition)
+- `X-replaces-Y` (substitution)
+- `X-causes-Y` (causation)
+- `X-prevents-Y` (inhibition)
+- `X-is-a-Y` (taxonomy)
+- `X-has-Y` (property)
+- `X-maps-to-Y` (correspondence)
+Not every belief needs a relational name — use descriptive names for facts that \
+don't express a binary relationship.
+
 Good beliefs are about:
 - **Architecture invariants**: "All agent requests flow through the router before reaching department agents"
 - **API contracts**: "execute_plan returns a PlanResult and never raises; errors are captured in result.errors"
