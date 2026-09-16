@@ -266,3 +266,38 @@ class TestTopicsTool:
     def test_topics(self, db):
         result = json.loads(mcp_server.topics(limit=10))
         assert "topics" in result
+
+
+class TestNamesOnlyFormat:
+
+    def test_search_names_only(self, db):
+        result = mcp_server.search("true", output_format="names-only")
+        lines = result.strip().split("\n")
+        assert any("premise" in line for line in lines)
+        assert "[" not in result
+
+    def test_list_beliefs_names_only(self, db):
+        result = mcp_server.list_beliefs(output_format="names-only")
+        lines = result.strip().split("\n")
+        assert len(lines) == 3
+        assert "premise-a" in lines
+
+    def test_compact_names_only(self, db):
+        result = mcp_server.compact(output_format="names-only")
+        lines = result.strip().split("\n")
+        assert "premise-a" in lines
+        assert "premise-b" in lines
+
+    def test_status_names_only(self, db):
+        result = mcp_server.status(output_format="names-only")
+        lines = result.strip().split("\n")
+        assert "premise-a" in lines
+
+    def test_list_gated_names_only(self, db):
+        api.add_node("blocker", "Blocks things", db_path=db)
+        api.add_node("gated-node", "Gated by blocker",
+                     sl="premise-a", unless="blocker", db_path=db)
+        result = mcp_server.list_gated(output_format="names-only")
+        lines = result.strip().split("\n")
+        assert "blocker" in lines
+        assert "gated-node" in lines
