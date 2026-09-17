@@ -15,13 +15,34 @@ Topic kinds: issue, epic, milestone, general
 """
 
 BELIEFS_INSTRUCTIONS = """
-## Beliefs
+## Factual Beliefs
 
-At the end of your response, list 3-10 factual beliefs you can extract from
-the issues above. These should be specific, verifiable claims about the project.
+At the end of your response, list 3-10 factual beliefs extracted from
+the issues above. Focus on **durable domain knowledge** — technical decisions,
+architectural constraints, dependencies, risks, and invariants that remain
+meaningful even as issue status changes.
+
+**Do NOT extract beliefs about:**
+- Issue status (open, closed, in progress, backlog)
+- Issue counts (child issues, linked issues, blockers)
+- Assignees or team member names
+- Dates, sprint assignments, or milestone membership
+- Labels, priorities, or issue types
+
+These are ephemeral metadata best queried from the issue tracker directly.
+
+**DO extract beliefs about:**
+- Technical constraints and architectural decisions
+- Dependencies between systems, services, or capabilities
+- Relationships between issues (X-is-child-of-Y, X-requires-Y, X-blocks-Y)
+- Risks, failure modes, and blast radius
+- Process invariants and workflow requirements
+- Security, compliance, or operational constraints
+- Strategic decisions and their rationale
+
 Format each as:
 
-- `belief-id` — Factual claim about the project state
+- `belief-id` — Factual claim about the project
 
 When a claim expresses a relationship, prefer these naming patterns:
 - `X-requires-Y` (dependency), `X-enables-Y` (capability), `X-causes-Y` (causation)
@@ -31,6 +52,7 @@ Not every belief needs a relational name — use descriptive names when no binar
 
 Examples:
 - `auth-epic-requires-sso-migration` — The authentication epic is blocked until the SSO migration completes
-- `release-3.2-on-track` — Release 3.2 has no critical open issues
-- `api-team-understaffed` — The API team has 15 open issues with only 2 assignees
+- `rbac-runs-as-root` — The RBAC service runs with root privileges in the current deployment
+- `billing-dashboard-depends-on-app-interface` — Production billing dashboards are deployed via app-interface MRs, not direct Grafana config
+- `indirect-node-counting-requires-certified-collections` — Indirect node detection relies on query files shipped in certified Ansible collections
 """
