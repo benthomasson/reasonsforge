@@ -63,10 +63,12 @@ def add_topics(topics: list[Topic], project_dir: str | None = None) -> int:
     return added
 
 
-def pop_next(project_dir: str | None = None) -> Topic | None:
+def pop_next(project_dir: str | None = None, kinds: set[str] | None = None) -> Topic | None:
     queue = load_queue(project_dir)
     for topic in queue:
         if topic.status == "pending":
+            if kinds and topic.kind not in kinds:
+                continue
             topic.status = "done"
             save_queue(queue, project_dir)
             return topic
@@ -112,8 +114,11 @@ def skip_topic(index: int, project_dir: str | None = None) -> bool:
     return True
 
 
-def pending_count(project_dir: str | None = None) -> int:
-    return sum(1 for t in load_queue(project_dir) if t.status == "pending")
+def pending_count(project_dir: str | None = None, kinds: set[str] | None = None) -> int:
+    return sum(
+        1 for t in load_queue(project_dir)
+        if t.status == "pending" and (not kinds or t.kind in kinds)
+    )
 
 
 # --- Parsing topics from model output ---

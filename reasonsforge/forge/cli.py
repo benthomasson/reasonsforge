@@ -458,6 +458,9 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--skip", type=int, default=None)
     ps.add_argument("--pick", type=int, nargs="*", default=None)
     ps.add_argument("--loop", type=int, default=None)
+    ps.add_argument("--kind", nargs="+",
+                    choices=["issue", "epic", "milestone", "general"],
+                    help="Only explore topics of these kind(s)")
     ps.add_argument("--parallel", type=int, default=1)
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)

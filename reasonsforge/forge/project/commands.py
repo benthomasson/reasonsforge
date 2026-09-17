@@ -176,6 +176,7 @@ def _build_topic_prompt(topic: Topic, config: dict | None, project_dir: str) -> 
         try:
             source = _get_source(config)
             issue_id = topic.target
+            issue = None
             if config["platform"] == "github":
                 num = re.search(r"\d+", issue_id)
                 if num:
@@ -207,6 +208,9 @@ def _build_topic_prompt(topic: Topic, config: dict | None, project_dir: str) -> 
             elif config["platform"] == "jira":
                 issue = source.get_issue(issue_id)
                 issue_text = issue.to_prompt_text()
+
+            if issue and hasattr(issue, "id") and hasattr(issue, "updated"):
+                _save_analyzed_issue(issue.id, issue.updated)
 
         except Exception as e:
             print(f"Warning: Could not fetch issue {topic.target}: {e}", file=sys.stderr)
@@ -267,10 +271,10 @@ def _run_topic(args, topic: Topic) -> None:
     print(result)
 
 
-def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1) -> None:
+def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1, kinds: set[str] | None = None) -> None:
     """Continuously explore topics up to max_topics."""
     if max_parallel > 1:
-        _explore_loop_parallel(args, project_dir, max_topics, max_parallel)
+        _explore_loop_parallel(args, project_dir, max_topics, max_parallel, kinds=kinds)
         return
 
     model = getattr(args, "model", "claude")
@@ -278,27 +282,28 @@ def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1
 
     explored = 0
     while explored < max_topics:
-        topic = pop_next(project_dir)
+        topic = pop_next(project_dir, kinds=kinds)
         if topic is None:
             if explored == 0:
-                print("No pending topics. Run `reasonsforge project scan` to discover topics.")
+                kind_label = f" of kind(s) {kinds}" if kinds else ""
+                print(f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics.")
             else:
                 print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
             return
 
         explored += 1
-        remaining = pending_count(project_dir)
+        remaining = pending_count(project_dir, kinds=kinds)
         print(f"\n{'=' * 40}", file=sys.stderr)
         print(f"[{explored}/{max_topics}] ({remaining} remaining in queue)", file=sys.stderr)
         print(f"{'=' * 40}", file=sys.stderr)
 
         _run_topic(args, topic)
 
-    remaining = pending_count(project_dir)
+    remaining = pending_count(project_dir, kinds=kinds)
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
-def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel: int) -> None:
+def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel: int, kinds: set[str] | None = None) -> None:
     """Explore topics in parallel batches."""
     from ..llm import check_model_available, invoke
 
@@ -316,14 +321,15 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
         batch_size = min(max_parallel, max_topics - explored)
         batch_topics = []
         for _ in range(batch_size):
-            topic = pop_next(project_dir)
+            topic = pop_next(project_dir, kinds=kinds)
             if topic is None:
                 break
             batch_topics.append(topic)
 
         if not batch_topics:
             if explored == 0:
-                print("No pending topics. Run `reasonsforge project scan` to discover topics.")
+                kind_label = f" of kind(s) {kinds}" if kinds else ""
+                print(f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics.")
             else:
                 print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
             return
@@ -359,7 +365,7 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
             _report_beliefs(result)
             print(result)
 
-    remaining = pending_count(project_dir)
+    remaining = pending_count(project_dir, kinds=kinds)
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
@@ -1629,12 +1635,13 @@ def cmd_explore(args):
     pick_index = getattr(args, "pick", None)
     loop_max = getattr(args, "loop", None)
     max_parallel = getattr(args, "parallel", 1)
+    kind_filter = set(getattr(args, "kind", None) or []) or None
 
     if loop_max is not None:
         if do_skip or pick_index:
             print("Error: --loop cannot be combined with --skip or --pick", file=sys.stderr)
             sys.exit(1)
-        _explore_loop(args, project_dir, loop_max, max_parallel)
+        _explore_loop(args, project_dir, loop_max, max_parallel, kinds=kind_filter)
         return
 
     if do_skip:
@@ -1660,7 +1667,7 @@ def cmd_explore(args):
         else:
             topic_list = [pop_at(indices[0], project_dir)]
     else:
-        topic_list = [pop_next(project_dir)]
+        topic_list = [pop_next(project_dir, kinds=kind_filter)]
 
     valid_topics = [(i, t) for i, t in zip(
         indices if pick_index is not None else [0],
