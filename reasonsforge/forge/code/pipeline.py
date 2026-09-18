@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,8 +30,22 @@ from .topics import pending_count
 from ..step_log import step_log
 
 
+def _fmt_duration(seconds):
+    """Format seconds as human-readable duration."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds) // 60
+    secs = seconds - minutes * 60
+    if minutes < 60:
+        return f"{minutes}m {secs:.0f}s"
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours}h {minutes}m {secs:.0f}s"
+
+
 def _write_step_cost_report(args, pipeline: str, step_key: str,
-                            round_number: int | None = None):
+                            round_number: int | None = None,
+                            wall_clock_seconds: float | None = None):
     """Capture per-step cost, write a report, and reset the tracker."""
     try:
         from ..llm import get_cost_summary, reset_cost_tracker
@@ -46,6 +61,7 @@ def _write_step_cost_report(args, pipeline: str, step_key: str,
             domain=getattr(args, "domain", None),
             model=getattr(args, "model", None),
             round_number=round_number,
+            wall_clock_seconds=wall_clock_seconds,
         )
         reset_cost_tracker()
     except Exception:
@@ -53,8 +69,9 @@ def _write_step_cost_report(args, pipeline: str, step_key: str,
 
 
 def _run_step(name, func, args, errors):
-    """Run a pipeline step, catching failures without stopping."""
+    """Run a pipeline step, catching failures without stopping. Returns elapsed seconds."""
     print(f"\n=== {name} ===\n", file=sys.stderr)
+    t0 = time.monotonic()
     try:
         func(args)
     except KeyboardInterrupt:
@@ -66,6 +83,9 @@ def _run_step(name, func, args, errors):
     except Exception as e:
         errors.append(f"{name}: {e}")
         print(f"WARN: {name} failed: {e}, continuing...", file=sys.stderr)
+    elapsed = time.monotonic() - t0
+    print(f"  {name} took {_fmt_duration(elapsed)}", file=sys.stderr)
+    return elapsed
 
 
 def _load_step_checkpoint(project_dir: str, pipeline: str) -> dict:
@@ -332,13 +352,16 @@ def cmd_update(args):
     ]
 
     logs_dir = getattr(args, "logs_dir", "logs/")
+    pipeline_t0 = time.monotonic()
     for step_key, step_name, step_fn in steps:
         if step_key in completed:
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
+        t0 = time.monotonic()
         with step_log(logs_dir, "update", step_key):
             step_fn()
-        _write_step_cost_report(args, "update", step_key)
+        elapsed = time.monotonic() - t0
+        _write_step_cost_report(args, "update", step_key, wall_clock_seconds=elapsed)
         _save_step_checkpoint(project_dir, "update", step_key, started, errors)
 
     # Save update checkpoint
@@ -367,6 +390,7 @@ def cmd_update(args):
     _clear_step_checkpoint(project_dir, "update")
 
     print("\n=== Update complete ===\n", file=sys.stderr)
+    print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
     if errors:
         print(f"Completed with {len(errors)} warning(s):", file=sys.stderr)
         for err in errors:
@@ -460,13 +484,17 @@ def cmd_analyze(args):
     ]
 
     logs_dir = getattr(args, "logs_dir", "logs/")
+    pipeline_t0 = time.monotonic()
     for step_key, step_name, step_fn in round1_steps:
         if step_key in completed:
             print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
             continue
+        t0 = time.monotonic()
         with step_log(logs_dir, "analyze", step_key, round_number=1):
             step_fn()
-        _write_step_cost_report(args, "analyze", step_key, round_number=1)
+        elapsed = time.monotonic() - t0
+        _write_step_cost_report(args, "analyze", step_key, round_number=1,
+                                wall_clock_seconds=elapsed)
         _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     # Rounds 2+: explore -> propose -> review -> accept -> derive -> review-beliefs -> repair -> dedup -> contradictions
@@ -514,9 +542,12 @@ def cmd_analyze(args):
             if step_key in completed:
                 print(f"  Skipping {step_name} (already completed)", file=sys.stderr)
                 continue
+            t0 = time.monotonic()
             with step_log(logs_dir, "analyze", step_key, round_number=round_num):
                 step_fn()
-            _write_step_cost_report(args, "analyze", step_key, round_number=round_num)
+            elapsed = time.monotonic() - t0
+            _write_step_cost_report(args, "analyze", step_key, round_number=round_num,
+                                    wall_clock_seconds=elapsed)
             _save_step_checkpoint(project_dir, "analyze", step_key, started, errors)
 
     try:
@@ -545,6 +576,7 @@ def cmd_analyze(args):
     _clear_step_checkpoint(project_dir, "analyze")
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
+    print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
     print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
           f"(+{len(post_run_ids - pre_run_ids)})", file=sys.stderr)
     remaining = pending_count(project_dir)
@@ -584,35 +616,46 @@ def cmd_refine(args):
         pre_run_ids = set()
 
     logs_dir = getattr(args, "logs_dir", "logs/")
+    pipeline_t0 = time.monotonic()
     for round_num in range(1, rounds + 1):
         print(f"\n{'=' * 60}", file=sys.stderr)
         print(f"  Refine round {round_num}/{rounds}", file=sys.stderr)
         print(f"{'=' * 60}", file=sys.stderr)
 
+        t0 = time.monotonic()
         with step_log(logs_dir, "refine", "derive", round_number=round_num):
             _run_step(f"Round {round_num}: Derive (exhaust)", cmd_derive,
                       SimpleNamespace(**vars(args), exhaust=True, auto=True,
                                       max_derive_rounds=max_derive_rounds),
                       errors)
-        _write_step_cost_report(args, "refine", "derive", round_number=round_num)
+        _write_step_cost_report(args, "refine", "derive", round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
 
+        t0 = time.monotonic()
         with step_log(logs_dir, "refine", "review-beliefs", round_number=round_num):
             _run_review_beliefs(db_path, model, project_dir, errors)
-        _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num)
+        _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
 
+        t0 = time.monotonic()
         with step_log(logs_dir, "refine", "repair", round_number=round_num):
             _run_repair(db_path, model, project_dir, errors)
-        _write_step_cost_report(args, "refine", "repair", round_number=round_num)
+        _write_step_cost_report(args, "refine", "repair", round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
 
+    t0 = time.monotonic()
     with step_log(logs_dir, "refine", "deduplicate"):
         _run_deduplicate(db_path, errors,
                          verify=getattr(args, "verify_dedup", True),
                          model=model)
-    _write_step_cost_report(args, "refine", "deduplicate")
+    _write_step_cost_report(args, "refine", "deduplicate",
+                            wall_clock_seconds=time.monotonic() - t0)
 
+    t0 = time.monotonic()
     with step_log(logs_dir, "refine", "contradictions"):
         _run_contradictions(db_path, model, errors)
-    _write_step_cost_report(args, "refine", "contradictions")
+    _write_step_cost_report(args, "refine", "contradictions",
+                            wall_clock_seconds=time.monotonic() - t0)
 
     try:
         from reasonsforge.api import export_network
@@ -622,6 +665,7 @@ def cmd_refine(args):
         post_run_ids = pre_run_ids
 
     print(f"\n=== Refinement complete ===\n", file=sys.stderr)
+    print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
     print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
           f"(+{len(post_run_ids - pre_run_ids)})", file=sys.stderr)
     if errors:

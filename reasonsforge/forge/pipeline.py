@@ -2,6 +2,7 @@
 
 import json
 import sys
+import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,6 +28,18 @@ STAGE_NAMES = {
 
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _fmt_duration(seconds):
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes = int(seconds) // 60
+    secs = seconds - minutes * 60
+    if minutes < 60:
+        return f"{minutes}m {secs:.0f}s"
+    hours = minutes // 60
+    minutes = minutes % 60
+    return f"{hours}h {minutes}m {secs:.0f}s"
 
 
 def _init_state(args):
@@ -460,39 +473,55 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
 
         if on_stage:
             on_stage(cycle, 4, "start")
+        t0 = time.monotonic()
         added = _stage_derive(args, round_label=label)
+        elapsed = time.monotonic() - t0
         summary["total_derived"] += added
+        print(f"  DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
-            on_stage(cycle, 4, "end", added=added)
+            on_stage(cycle, 4, "end", added=added,
+                     duration_seconds=round(elapsed, 2))
 
         if on_stage:
             on_stage(cycle, 5, "start")
+        t0 = time.monotonic()
         review_result = _stage_review(args, round_label=label)
+        elapsed = time.monotonic() - t0
         invalid_count = review_result.get("invalid", 0)
         summary["total_reviewed"] += review_result.get("reviewed", 0)
         summary["total_invalid"] += invalid_count
+        print(f"  REVIEW took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
             on_stage(cycle, 5, "end", reviewed=review_result.get("reviewed", 0),
-                     invalid=invalid_count)
+                     invalid=invalid_count,
+                     duration_seconds=round(elapsed, 2))
 
         repair_result = None
         if invalid_count > 0:
             if on_stage:
                 on_stage(cycle, 6, "start")
+            t0 = time.monotonic()
             repair_result = _stage_repair(args, review_result, round_label=label)
+            elapsed = time.monotonic() - t0
             summary["total_linked"] += repair_result.get("linked", 0)
             summary["total_softened"] += repair_result.get("softened", 0)
             summary["total_abandoned"] += repair_result.get("abandoned", 0)
+            print(f"  REPAIR took {_fmt_duration(elapsed)}", file=sys.stderr)
             if on_stage:
-                on_stage(cycle, 6, "end")
+                on_stage(cycle, 6, "end",
+                         duration_seconds=round(elapsed, 2))
         elif on_stage:
             on_stage(cycle, 6, "end", skipped=True)
 
         if on_stage:
             on_stage(cycle, 7, "start")
+        t0 = time.monotonic()
         _stage_deduplicate(args, round_label=label)
+        elapsed = time.monotonic() - t0
+        print(f"  DEDUPLICATE took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
-            on_stage(cycle, 7, "end")
+            on_stage(cycle, 7, "end",
+                     duration_seconds=round(elapsed, 2))
 
         if invalid_count == 0 and added == 0:
             print(f"\nConverged after {cycle} cycles "
@@ -530,9 +559,12 @@ def cmd_derive_review_repair(args):
         print(f"Namespace filter: {label}", file=sys.stderr)
     print(file=sys.stderr)
 
+    t0 = time.monotonic()
     summary = _run_convergence_loop(args, rounds)
+    total_elapsed = time.monotonic() - t0
 
     print(f"\n=== Summary ===", file=sys.stderr)
+    print(f"Duration: {_fmt_duration(total_elapsed)}", file=sys.stderr)
     print(f"Cycles: {summary['cycles']}", file=sys.stderr)
     print(f"Derived: {summary['total_derived']}", file=sys.stderr)
     print(f"Reviewed: {summary['total_reviewed']}", file=sys.stderr)
@@ -571,6 +603,7 @@ def cmd_pipeline(args):
 
     total_stages = 9
     has_sources = args.pdf
+    pipeline_t0 = time.monotonic()
 
     try:
         # Stage 1: Ingest
@@ -578,13 +611,17 @@ def cmd_pipeline(args):
             if has_sources:
                 _banner(1, total_stages, "INGEST")
                 _mark_stage(state, 1, "running")
+                t0 = time.monotonic()
                 try:
                     _stage_ingest(args)
-                    _mark_stage(state, 1, "completed")
+                    elapsed = time.monotonic() - t0
+                    _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
+                    print(f"  INGEST took {_fmt_duration(elapsed)}", file=sys.stderr)
                 except KeyboardInterrupt:
-                    print("\n  Ending INGEST early — partial results saved",
+                    elapsed = time.monotonic() - t0
+                    print(f"\n  Ending INGEST early — partial results saved ({_fmt_duration(elapsed)})",
                           file=sys.stderr)
-                    _mark_stage(state, 1, "completed")
+                    _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
             else:
                 print("No --pdf provided, skipping ingest", file=sys.stderr)
                 _mark_stage(state, 1, "completed", skipped=True)
@@ -595,13 +632,17 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 2):
             _banner(2, total_stages, "SUMMARIZE")
             _mark_stage(state, 2, "running")
+            t0 = time.monotonic()
             try:
                 _stage_summarize(args)
-                _mark_stage(state, 2, "completed")
+                elapsed = time.monotonic() - t0
+                _mark_stage(state, 2, "completed", duration_seconds=round(elapsed, 2))
+                print(f"  SUMMARIZE took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
-                print("\n  Ending SUMMARIZE early — partial results saved",
+                elapsed = time.monotonic() - t0
+                print(f"\n  Ending SUMMARIZE early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
-                _mark_stage(state, 2, "completed")
+                _mark_stage(state, 2, "completed", duration_seconds=round(elapsed, 2))
         else:
             print("Stage 2 (SUMMARIZE) already completed, skipping", file=sys.stderr)
 
@@ -609,17 +650,21 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 3):
             _banner(3, total_stages, "EXTRACT")
             _mark_stage(state, 3, "running")
+            t0 = time.monotonic()
             try:
                 should_continue = _stage_extract(args)
-                _mark_stage(state, 3, "completed")
+                elapsed = time.monotonic() - t0
+                _mark_stage(state, 3, "completed", duration_seconds=round(elapsed, 2))
+                print(f"  EXTRACT took {_fmt_duration(elapsed)}", file=sys.stderr)
                 if not should_continue:
                     state["status"] = "paused"
                     _save_state(state)
                     return
             except KeyboardInterrupt:
-                print("\n  Ending EXTRACT early — partial results saved",
+                elapsed = time.monotonic() - t0
+                print(f"\n  Ending EXTRACT early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
-                _mark_stage(state, 3, "completed")
+                _mark_stage(state, 3, "completed", duration_seconds=round(elapsed, 2))
         else:
             print("Stage 3 (EXTRACT) already completed, skipping", file=sys.stderr)
 
@@ -641,6 +686,7 @@ def cmd_pipeline(args):
                     _mark_stage(state, stage_num, "completed",
                                 cycle=cycle, **kwargs)
 
+            t0 = time.monotonic()
             try:
                 _run_convergence_loop(
                     args, remaining_rounds,
@@ -648,8 +694,11 @@ def cmd_pipeline(args):
                     total_rounds=args.rounds,
                     on_stage=_pipeline_on_stage,
                 )
+                elapsed = time.monotonic() - t0
+                print(f"  Convergence loop took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
-                print("\n  Ending convergence loop early — partial results saved",
+                elapsed = time.monotonic() - t0
+                print(f"\n  Ending convergence loop early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
 
             state["loop_completed"] = True
@@ -661,13 +710,17 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 8):
             _banner(8, total_stages, "EXPORT")
             _mark_stage(state, 8, "running")
+            t0 = time.monotonic()
             try:
                 _stage_export(args)
-                _mark_stage(state, 8, "completed")
+                elapsed = time.monotonic() - t0
+                _mark_stage(state, 8, "completed", duration_seconds=round(elapsed, 2))
+                print(f"  EXPORT took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
-                print("\n  Ending EXPORT early — partial results saved",
+                elapsed = time.monotonic() - t0
+                print(f"\n  Ending EXPORT early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
-                _mark_stage(state, 8, "completed")
+                _mark_stage(state, 8, "completed", duration_seconds=round(elapsed, 2))
         else:
             print("Stage 8 (EXPORT) already completed, skipping", file=sys.stderr)
 
@@ -675,19 +728,25 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 9):
             _banner(9, total_stages, "INDEX")
             _mark_stage(state, 9, "running")
+            t0 = time.monotonic()
             try:
                 _stage_index(args)
-                _mark_stage(state, 9, "completed")
+                elapsed = time.monotonic() - t0
+                _mark_stage(state, 9, "completed", duration_seconds=round(elapsed, 2))
+                print(f"  INDEX took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
-                print("\n  Ending INDEX early — partial results saved",
+                elapsed = time.monotonic() - t0
+                print(f"\n  Ending INDEX early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
-                _mark_stage(state, 9, "completed")
+                _mark_stage(state, 9, "completed", duration_seconds=round(elapsed, 2))
         else:
             print("Stage 9 (INDEX) already completed, skipping", file=sys.stderr)
 
+        total_elapsed = time.monotonic() - pipeline_t0
         state["status"] = "completed"
+        state["total_duration_seconds"] = round(total_elapsed, 2)
         _save_state(state)
-        print("\nPipeline complete.", file=sys.stderr)
+        print(f"\nPipeline complete in {_fmt_duration(total_elapsed)}.", file=sys.stderr)
 
     except Exception as e:
         state["status"] = "failed"
