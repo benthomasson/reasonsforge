@@ -2634,6 +2634,7 @@ def cmd_derive(args):
     auto_add = getattr(args, "auto", False)
     exhaust = getattr(args, "exhaust", False)
     max_rounds = getattr(args, "max_derive_rounds", 10)
+    search_rounds = getattr(args, "search_rounds", 0)
     budget = getattr(args, "budget", 300)
     domain = getattr(args, "domain", None)
 
@@ -2658,13 +2659,23 @@ def cmd_derive(args):
 
         prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True)
 
-        try:
-            response = invoke_sync(prompt, model=model, timeout=timeout)
-        except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
-
-        proposals = parse_proposals(response)
+        if search_rounds > 0:
+            from reasonsforge.derive_tools import derive_with_tools
+            try:
+                proposals = derive_with_tools(
+                    prompt, model=model, db_path=db_path,
+                    max_rounds=search_rounds, timeout=timeout,
+                )
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                break
+        else:
+            try:
+                response = invoke_sync(prompt, model=model, timeout=timeout)
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+            proposals = parse_proposals(response)
         if not proposals:
             print("No proposals generated.", file=sys.stderr)
             if exhaust:

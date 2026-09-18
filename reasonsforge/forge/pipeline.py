@@ -167,6 +167,7 @@ def _stage_derive(args, round_label=""):
 
     total_added = 0
     prefix = f"[{round_label}] " if round_label else ""
+    search_rounds = getattr(args, "search_rounds", 0)
 
     try:
         for derive_round in range(1, args.max_derive_rounds + 1):
@@ -192,13 +193,24 @@ def _stage_derive(args, round_label=""):
                   f"{stats['total_derived']} derived, depth {stats['max_depth']}",
                   file=sys.stderr)
 
-            try:
-                response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
-            except Exception as e:
-                print(f"{prefix}  Derive error: {e}", file=sys.stderr)
-                break
+            if search_rounds > 0:
+                from reasonsforge.derive_tools import derive_with_tools
+                try:
+                    proposals = derive_with_tools(
+                        prompt, model=args.model, db_path=REASONS_DB,
+                        max_rounds=search_rounds, timeout=args.timeout,
+                    )
+                except Exception as e:
+                    print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                    break
+            else:
+                try:
+                    response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
+                except Exception as e:
+                    print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                    break
+                proposals = parse_proposals(response)
 
-            proposals = parse_proposals(response)
             if not proposals:
                 print(f"{prefix}  Saturated (no proposals)", file=sys.stderr)
                 break

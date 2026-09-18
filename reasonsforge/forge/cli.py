@@ -16,6 +16,8 @@ def _add_common_pipeline_args(p):
                    help="Convergence loop cycles")
     p.add_argument("--max-derive-rounds", type=int, default=10,
                    help="Max derive rounds per cycle")
+    p.add_argument("--search-rounds", type=int, default=0,
+                   help="Tool-call search rounds per derive (0=disabled)")
     p.add_argument("--timeout", type=int, default=600, help="LLM timeout (s)")
     p.add_argument("--output", default="reasons.db",
                    help="Output database path")
@@ -173,6 +175,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--auto", action="store_true")
     cs.add_argument("--exhaust", action="store_true")
     cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     cs.add_argument("--budget", type=int, default=300)
     cs.add_argument("--domain", default=None)
     cs.add_argument("--source-path", default=None, dest="source_path",
@@ -207,6 +211,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted analysis")
@@ -231,6 +237,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
+    cs.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     cs.add_argument("--resume", action="store_true",
                     help="Resume a previously interrupted update")
     cs.add_argument("--source-path", default=None, dest="source_path",
@@ -271,6 +279,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Number of derive/review/repair rounds")
     cs.add_argument("--max-derive-rounds", type=int, default=10,
                     help="Max derive sub-rounds per refine round")
+    cs.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     cs.add_argument("--budget", type=int, default=300,
                     help="Max beliefs to include in derive prompt")
     cs.add_argument("--domain", help="Domain description")
@@ -373,6 +383,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--auto", action="store_true")
     ps.add_argument("--exhaust", action="store_true")
     ps.add_argument("--max-derive-rounds", type=int, default=10)
+    ps.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     ps.add_argument("--budget", type=int, default=300)
     ps.add_argument("--domain", default=None)
     ps.add_argument("--model", default="claude")
@@ -528,6 +540,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--auto", action="store_true")
     ps.add_argument("--exhaust", action="store_true")
     ps.add_argument("--max-derive-rounds", type=int, default=10)
+    ps.add_argument("--search-rounds", type=int, default=0,
+                    help="Tool-call search rounds per derive (0=disabled)")
     ps.add_argument("--budget", type=int, default=300)
     ps.add_argument("--domain", default=None)
     ps.add_argument("--model", default="claude")
@@ -1089,6 +1103,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--model", default="claude")
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--max-derive-rounds", type=int, default=10)
+    p.add_argument("--search-rounds", type=int, default=0,
+                   help="Tool-call search rounds per derive (0=disabled)")
     p.add_argument("--no-auto-accept", action="store_true")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--domain", help="Domain description for derive context")
@@ -1108,6 +1124,8 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--model", default="claude")
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--max-derive-rounds", type=int, default=10)
+    p.add_argument("--search-rounds", type=int, default=0,
+                   help="Tool-call search rounds per derive (0=disabled)")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--domain", help="Domain description for derive context")
     p.add_argument("--namespace", default=None)
