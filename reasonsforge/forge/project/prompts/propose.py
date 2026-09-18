@@ -40,6 +40,12 @@ knowledge about how work items relate.
 - Process invariants ("weekly release requires manual QE sign-off")
 - Security and compliance constraints ("session tokens must not persist beyond 24h")
 - Strategic context ("indirect node counting targets Summit 2027 GA")
+- **Delivery risks** — patterns that could hold up releases or indicate project
+  health problems. These are NOT issue status — they describe structural problems:
+  features blocked by missing prerequisites, teams that are a delivery bottleneck,
+  work areas with no clear ownership, backlogs growing faster than closure,
+  test coverage gaps blocking GA, unresolved design decisions blocking implementation,
+  cross-team dependencies with no coordination mechanism
 
 For each belief, output in this exact format:
 
@@ -59,6 +65,14 @@ Production billing dashboards are promoted by updating a commit ref in the app-i
 ### [ACCEPT] api-overload-amplified-by-client-retries
 Client retry behavior without backoff or jitter can amplify API overload beyond the initial traffic spike
 - Source: entries/2026/04/09/explore-api-overload-root-cause.md
+
+### [ACCEPT] indirect-counting-ga-blocked-by-test-coverage
+Indirect node counting cannot exit tech preview until ATF test coverage and perf/scale validation are complete, blocking the Summit 2027 GA target
+- Source: entries/2026/04/09/explore-ANSTRAT-1628.md
+
+### [ACCEPT] portal-team-is-plugin-delivery-bottleneck
+Increasing plugin contributions from PDT funnel through the Portal team for review and integration, creating a scaling bottleneck without a self-service plugin factory
+- Source: entries/2026/04/09/explore-ANSTRAT-2400.md
 
 ---
 

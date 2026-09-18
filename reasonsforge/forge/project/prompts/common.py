@@ -39,6 +39,10 @@ These are ephemeral metadata best queried from the issue tracker directly.
 - Process invariants and workflow requirements
 - Security, compliance, or operational constraints
 - Strategic decisions and their rationale
+- **Delivery risks** — patterns that could hold up releases: features blocked by
+  missing prerequisites, teams that are a delivery bottleneck, work areas with
+  no clear ownership, backlogs growing faster than closure, test coverage gaps
+  blocking GA, unresolved design decisions blocking implementation
 
 Format each as:
 
@@ -54,5 +58,6 @@ Examples:
 - `auth-epic-requires-sso-migration` — The authentication epic is blocked until the SSO migration completes
 - `rbac-runs-as-root` — The RBAC service runs with root privileges in the current deployment
 - `billing-dashboard-depends-on-app-interface` — Production billing dashboards are deployed via app-interface MRs, not direct Grafana config
-- `indirect-node-counting-requires-certified-collections` — Indirect node detection relies on query files shipped in certified Ansible collections
+- `indirect-counting-ga-blocked-by-test-coverage` — Indirect node counting cannot exit tech preview until ATF test coverage and perf/scale validation are complete
+- `portal-team-is-plugin-delivery-bottleneck` — Increasing plugin contributions funnel through the Portal team, creating a delivery bottleneck without a plugin factory process
 """
