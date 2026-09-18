@@ -438,6 +438,7 @@ def cmd_status(args):
     status_filter = getattr(args, "status", None)
     premises_only = getattr(args, "premises", False)
     limit = getattr(args, "limit", None)
+    fmt = getattr(args, "format", "full")
 
     result = api.get_status(
         visible_to=_parse_visible_to(args),
@@ -450,6 +451,11 @@ def cmd_status(args):
 
     if result["total"] == 0:
         print("No nodes in the network.")
+        return
+
+    if fmt == "names-only":
+        for node in result["nodes"]:
+            print(node["id"])
         return
 
     # Summary header (always shown)
@@ -544,6 +550,7 @@ def cmd_show(args):
 
 
 def cmd_explain(args):
+    fmt = getattr(args, "format", "full")
     try:
         result = api.explain_node(args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args))
     except KeyError as e:
@@ -552,6 +559,11 @@ def cmd_explain(args):
     except PermissionError as e:
         print(f"Access denied: {e}", file=sys.stderr)
         sys.exit(1)
+
+    if fmt == "names-only":
+        for step in result["steps"]:
+            print(step["node"])
+        return
 
     for step in result["steps"]:
         nid = step["node"]
@@ -728,6 +740,7 @@ def cmd_trace_access_tags(args):
 
 
 def cmd_trace(args):
+    fmt = getattr(args, "format", "full")
     try:
         result = api.trace_assumptions(args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args))
     except KeyError as e:
@@ -739,6 +752,11 @@ def cmd_trace(args):
 
     if not result["premises"]:
         print(f"{args.node_id} is a premise (no dependencies).")
+        return
+
+    if fmt == "names-only":
+        for pid in result["premises"]:
+            print(pid)
         return
 
     print(f"{args.node_id} rests on {len(result['premises'])} premise(s):")
@@ -1152,11 +1170,13 @@ def cmd_pin_lines(args):
 
 def cmd_compact(args):
     include_out = getattr(args, "show_out", False)
+    fmt = getattr(args, "format", "default")
     summary = api.compact(
         budget=args.budget,
         truncate=not args.no_truncate,
         visible_to=_parse_visible_to(args),
         include_out=include_out,
+        format=fmt,
         **_backend_kwargs(args),
     )
     print(summary)
@@ -1221,8 +1241,10 @@ def cmd_search(args):
 
 def cmd_lookup(args):
     include_out = getattr(args, "show_out", False)
+    fmt = getattr(args, "format", "full")
     result = api.lookup(args.query, visible_to=_parse_visible_to(args),
-                        include_out=include_out, **_backend_kwargs(args))
+                        include_out=include_out, format=fmt,
+                        **_backend_kwargs(args))
     print(result)
 
 
@@ -1809,6 +1831,12 @@ def cmd_list(args):
         print("No matching nodes.")
         return
 
+    fmt = getattr(args, "format", "full")
+    if fmt == "names-only":
+        for node in result["nodes"]:
+            print(node["id"])
+        return
+
     show_review = args.never_reviewed or args.not_reviewed_since is not None
     for node in result["nodes"]:
         marker = "+" if node["truth_value"] == "IN" else "-"
@@ -1827,6 +1855,7 @@ def cmd_list(args):
 
 
 def cmd_list_gated(args):
+    fmt = getattr(args, "format", "full")
     result = api.list_gated(
         visible_to=_parse_visible_to(args),
         **_backend_kwargs(args),
@@ -1834,6 +1863,13 @@ def cmd_list_gated(args):
 
     if not result["blockers"]:
         print("No active gates found. All gated beliefs are satisfied.")
+        return
+
+    if fmt == "names-only":
+        for blocker_id, info in sorted(result["blockers"].items()):
+            print(blocker_id)
+            for gated in info["gated"]:
+                print(gated["id"])
         return
 
     for blocker_id, info in sorted(result["blockers"].items()):
@@ -2989,6 +3025,8 @@ def main():
     p.add_argument("--status", choices=["IN", "OUT"], default=None, help="Filter by truth value")
     p.add_argument("--premises", action="store_true", help="Show only premises")
     p.add_argument("--limit", type=int, default=None, help="Max nodes to show")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
 
     # show
@@ -2998,6 +3036,8 @@ def main():
 
     # explain
     p = sub.add_parser("explain", help="Explain why a node is IN or OUT")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
     p.add_argument("node_id", help="Node to explain")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show if access_tags are a subset of these tags")
 
@@ -3056,6 +3096,8 @@ def main():
 
     p = sub.add_parser("trace", help="Trace backward to find premises a node rests on")
     p.add_argument("node_id", help="Node to trace")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show premises whose access_tags are a subset of these tags")
 
     # propagate
@@ -3255,13 +3297,15 @@ def main():
     p = sub.add_parser("compact", help="Token-budgeted belief state summary")
     p.add_argument("--budget", type=int, default=500, help="Token budget (default: 500)")
     p.add_argument("--no-truncate", action="store_true", help="Show full node text")
+    p.add_argument("--format", choices=["default", "names-only"], default="default",
+                   help="Output format (default: standard compact)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only include nodes whose access_tags are a subset of these tags")
     p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in summary")
 
     # search
     p = sub.add_parser("search", help="Search nodes using full-text search with neighbor expansion")
     p.add_argument("query", help="Search terms (FTS5 all-terms matching)")
-    p.add_argument("--format", choices=["markdown", "json", "minimal"], default="markdown",
+    p.add_argument("--format", choices=["markdown", "json", "minimal", "names-only"], default="markdown",
                    help="Output format (default: markdown)")
     p.add_argument("--sort", choices=["relevance", "newest", "oldest"], default="relevance",
                    help="Result ordering (default: relevance)")
@@ -3272,6 +3316,8 @@ def main():
     # lookup
     p = sub.add_parser("lookup", help="Simple keyword search over beliefs (no neighbor expansion)")
     p.add_argument("query", help="Search terms (all must match, case-insensitive)")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
     p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in results")
 
@@ -3344,6 +3390,8 @@ def main():
 
     # namespaces
     p = sub.add_parser("list-gated", help="List OUT nodes blocked by IN outlist nodes")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
     p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
 
     # report-gated
@@ -3607,6 +3655,8 @@ def main():
                    choices=["id", "created", "updated", "impact", "depth"],
                    help="Sort order (default: id)")
     p.add_argument("--label", help="Filter to nodes with a justification matching this label")
+    p.add_argument("--format", choices=["full", "names-only"], default="full",
+                   help="Output format (default: full)")
 
     args = parser.parse_args()
     if not args.command:

@@ -61,7 +61,7 @@ def search(query: str, output_format: str = "markdown", depth: int = 1,
 
     Args:
         query: Search terms (matches all terms in any order)
-        output_format: Output format — "markdown", "json", or "minimal"
+        output_format: Output format — "markdown", "json", "minimal", or "names-only"
         depth: Hops to expand along justification chains (default 1)
         include_out: Include OUT (retracted) beliefs in results (default: false)
     """
@@ -96,13 +96,15 @@ def explain(node_id: str) -> str:
 
 
 @mcp.tool()
-def list_beliefs(status: str = "", premises_only: bool = False, namespace: str = "") -> str:
+def list_beliefs(status: str = "", premises_only: bool = False, namespace: str = "",
+                 output_format: str = "json") -> str:
     """List beliefs in the network with optional filters.
 
     Args:
         status: Filter by truth value — "IN", "OUT", or empty for all
         premises_only: Only show premise nodes (no derived beliefs)
         namespace: Filter by namespace prefix
+        output_format: "json" (default) or "names-only" for bare IDs
     """
     result = api.list_nodes(
         status=status or None,
@@ -110,6 +112,8 @@ def list_beliefs(status: str = "", premises_only: bool = False, namespace: str =
         namespace=namespace or None,
         db_path=_get_db(),
     )
+    if output_format == "names-only":
+        return "\n".join(n["id"] for n in result["nodes"])
     return json.dumps(result, indent=2)
 
 
@@ -229,32 +233,53 @@ def trace(node_id: str) -> str:
 
 
 @mcp.tool()
-def compact(budget: int = 500, include_out: bool = False) -> str:
+def compact(budget: int = 500, include_out: bool = False,
+            output_format: str = "default") -> str:
     """Get a token-budgeted summary of the entire belief network.
 
     Args:
         budget: Maximum token budget for the summary
         include_out: Include OUT (retracted) beliefs in summary (default: false)
+        output_format: "default" or "names-only" for bare IDs (900x compression)
     """
-    return api.compact(budget=budget, include_out=include_out, db_path=_get_db())
+    return api.compact(budget=budget, include_out=include_out, format=output_format,
+                       db_path=_get_db())
 
 
 # --- Tier 3: Data management ---
 
 
 @mcp.tool()
-def status() -> str:
-    """Get a network overview: all nodes with truth values and counts."""
-    return json.dumps(api.get_status(db_path=_get_db()), indent=2)
+def status(output_format: str = "json") -> str:
+    """Get a network overview: all nodes with truth values and counts.
+
+    Args:
+        output_format: "json" (default) or "names-only" for bare IDs
+    """
+    result = api.get_status(db_path=_get_db())
+    if output_format == "names-only":
+        return "\n".join(n["id"] for n in result["nodes"])
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def list_gated() -> str:
+def list_gated(output_format: str = "json") -> str:
     """Find OUT beliefs that are blocked by active outlist gates.
 
     These are beliefs that would come IN if their blocker was retracted.
+
+    Args:
+        output_format: "json" (default) or "names-only" for bare IDs
     """
-    return json.dumps(api.list_gated(db_path=_get_db()), indent=2)
+    result = api.list_gated(db_path=_get_db())
+    if output_format == "names-only":
+        ids = []
+        for blocker_id, info in sorted(result["blockers"].items()):
+            ids.append(blocker_id)
+            for gated in info["gated"]:
+                ids.append(gated["id"])
+        return "\n".join(ids)
+    return json.dumps(result, indent=2)
 
 
 @mcp.tool()

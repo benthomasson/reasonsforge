@@ -1349,3 +1349,64 @@ Also from nothing
         assert "No valid proposals" in out
 
 
+class TestNamesOnlyFormat:
+
+    def test_status_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "node-x", "X text", db_path=db_path)
+        run_cli("add", "node-y", "Y text", db_path=db_path)
+        out, _, code = run_cli("status", "--format", "names-only", db_path=db_path)
+        assert code == 0
+        lines = out.strip().split("\n")
+        assert "node-x" in lines
+        assert "node-y" in lines
+        assert "Beliefs:" not in out
+
+    def test_search_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "alpha", "Alpha text", db_path=db_path)
+        out, _, code = run_cli("search", "alpha", "--format", "names-only",
+                               db_path=db_path)
+        assert code == 0
+        assert "alpha" in out.strip().split("\n")
+        assert "Status" not in out
+
+    def test_list_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "p1", "Premise one", db_path=db_path)
+        run_cli("add", "p2", "Premise two", db_path=db_path)
+        out, _, code = run_cli("list", "--format", "names-only", db_path=db_path)
+        assert code == 0
+        lines = out.strip().split("\n")
+        assert "p1" in lines
+        assert "p2" in lines
+        assert "[" not in out
+
+    def test_compact_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "c1", "Compact one", db_path=db_path)
+        out, _, code = run_cli("compact", "--format", "names-only", db_path=db_path)
+        assert code == 0
+        assert "c1" in out.strip().split("\n")
+
+    def test_trace_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "base", "Base premise", db_path=db_path)
+        run_cli("add", "derived", "Derived node", "--sl", "base", db_path=db_path)
+        out, _, code = run_cli("trace", "derived", "--format", "names-only",
+                               db_path=db_path)
+        assert code == 0
+        assert "base" in out.strip().split("\n")
+        assert "rests on" not in out
+
+    def test_explain_names_only(self, db_path):
+        run_cli("init", db_path=db_path)
+        run_cli("add", "prem", "A premise", db_path=db_path)
+        run_cli("add", "concl", "A conclusion", "--sl", "prem", db_path=db_path)
+        out, _, code = run_cli("explain", "concl", "--format", "names-only",
+                               db_path=db_path)
+        assert code == 0
+        lines = out.strip().split("\n")
+        assert "concl" in lines
+        assert "prem" in lines
+        assert "[" not in out

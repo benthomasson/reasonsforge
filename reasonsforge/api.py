@@ -2584,15 +2584,32 @@ def pin_lines(
 
 def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | None = None,
             include_out: bool = False,
+            format: str = "default",
             db_path: str = DEFAULT_DB,
             pg_conninfo=None, project_id=None) -> str:
     """Generate a token-budgeted belief state summary.
 
     Args:
         include_out: if False (default), exclude OUT beliefs from the summary
+        format: "default" for standard compact output, "names-only" for bare IDs
 
     Returns: the compact summary string
     """
+    if format == "names-only":
+        status_filter = None if include_out else "IN"
+        result = list_nodes(status=status_filter, visible_to=visible_to,
+                            db_path=db_path, pg_conninfo=pg_conninfo,
+                            project_id=project_id)
+        ids = [n["id"] for n in result["nodes"]]
+        lines = []
+        used = 0
+        for nid in ids:
+            cost = len(nid.split("-")) + 1
+            if used + cost > budget:
+                break
+            lines.append(nid)
+            used += cost
+        return "\n".join(lines)
     if pg_conninfo:
         return _pg_dispatch(pg_conninfo, project_id, "compact",
                             budget=budget, truncate=truncate, visible_to=visible_to,
@@ -2617,6 +2634,7 @@ def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | No
 
 def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
            include_out: bool = False,
+           format: str = "full",
            pg_conninfo=None, project_id=None) -> str:
     """Simple all-terms search over the full belief block — ID, text, source,
     dependencies, and metadata. Matches the same search corpus and output
@@ -2627,6 +2645,7 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         visible_to: only return nodes whose access_tags are a subset
         db_path: path to RMS database
         include_out: if False (default), exclude OUT beliefs from results
+        format: "full" (default) or "names-only" for bare IDs
 
     Returns: formatted string with matching beliefs (full blocks)
     """
@@ -2660,6 +2679,9 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
         if not matches:
             return f"No beliefs found matching '{query}'"
+
+        if format == "names-only":
+            return "\n".join(node.id for node in matches[:20])
 
         parts = [f"Found {len(matches)} matching belief(s):", ""]
         for node in matches[:20]:
@@ -2699,7 +2721,7 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         query: search terms (FTS5 matches all terms in any order)
         visible_to: only return nodes whose access_tags are a subset
         db_path: path to RMS database
-        format: output format — "markdown" (default), "json", or "minimal"
+        format: output format — "markdown" (default), "json", "minimal", "compact", or "names-only"
         depth: number of hops to expand along justification chains (default: 1)
         include_out: if False (default), exclude OUT beliefs from results
         sort: result ordering — "relevance" (default), "newest", or "oldest"
@@ -2796,6 +2818,8 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
             return _format_minimal(net, matched_ids, neighbor_ids)
         elif format == "compact":
             return _format_compact(net, matched_ids, neighbor_ids)
+        elif format == "names-only":
+            return _format_names_only(matched_ids, neighbor_ids)
         else:
             return _format_markdown(net, matched_ids, neighbor_ids)
 
@@ -2952,6 +2976,12 @@ def _format_compact(net, matched_ids: list[str], neighbor_ids: set[str]) -> str:
         node = net.nodes[nid]
         lines.append(f"[{node.truth_value}] {nid} — {node.text}")
     return "\n".join(lines) if lines else "No results found."
+
+
+def _format_names_only(matched_ids: list[str], neighbor_ids: set[str]) -> str:
+    """Format results as bare belief IDs, one per line."""
+    all_ids = list(matched_ids) + sorted(neighbor_ids)
+    return "\n".join(all_ids) if all_ids else "No results found."
 
 
 def _node_depth(nid, net, memo=None):
