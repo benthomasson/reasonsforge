@@ -53,7 +53,7 @@ def _prepare_source(source_path):
     return source_url, source_id, prompt
 
 
-def _write_entry(source_path, summary, source_url, source_id):
+def _write_entry(source_path, summary, source_url, source_id, model=None):
     """Write summary file with provenance frontmatter."""
     topic = source_path.stem
     today = date.today()
@@ -66,6 +66,8 @@ def _write_entry(source_path, summary, source_url, source_id):
         fm_lines.append(f"source_url: {source_url}")
     if source_id:
         fm_lines.append(f"source_id: {source_id}")
+    if model:
+        fm_lines.append(f"model: {model}")
     frontmatter = "---\n" + "\n".join(fm_lines) + "\n---\n\n"
 
     entry_path.write_text(frontmatter + summary + "\n")
@@ -96,7 +98,7 @@ async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=
             return False
         elapsed = time.monotonic() - t0
 
-        entry_path = _write_entry(source_path, summary, source_url, source_id)
+        entry_path = _write_entry(source_path, summary, source_url, source_id, model=model)
         print(f"  -> Created {entry_path} ({elapsed:.1f}s)")
 
         with manifest.open("a") as f:
