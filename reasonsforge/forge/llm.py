@@ -26,9 +26,30 @@ MODEL_COMMANDS: dict[str, list[str]] = {
 }
 
 
+_ollama_hosts: list[str] = []
+_ollama_host_index = 0
+_ollama_host_lock = None
+
+
+def _init_ollama_hosts():
+    global _ollama_hosts
+    raw = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    _ollama_hosts = [h.strip().rstrip("/") for h in raw.split(",") if h.strip()]
+
+
 def _ollama_base_url() -> str:
-    host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-    return host.rstrip("/")
+    global _ollama_host_index, _ollama_host_lock
+    if not _ollama_hosts:
+        _init_ollama_hosts()
+    if len(_ollama_hosts) == 1:
+        return _ollama_hosts[0]
+    if _ollama_host_lock is None:
+        import threading
+        _ollama_host_lock = threading.Lock()
+    with _ollama_host_lock:
+        url = _ollama_hosts[_ollama_host_index % len(_ollama_hosts)]
+        _ollama_host_index += 1
+        return url
 
 
 def resolve_model_cmd(model: str) -> list[str]:
