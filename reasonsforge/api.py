@@ -12,6 +12,7 @@ import logging
 import re
 import sqlite3
 import sys
+from tqdm import tqdm
 from collections.abc import Callable
 from datetime import datetime, timezone
 from itertools import combinations
@@ -4524,6 +4525,7 @@ def deduplicate(
 
     Returns: {"clusters": list[dict], "retracted": list[str]}
     """
+    print('Starting dedup')
     if semantic:
         from .cluster import ClusterCache, DEFAULT_MODEL
         import numpy as np
@@ -4567,7 +4569,8 @@ def deduplicate(
                     if sim_matrix[i, j] >= threshold:
                         union(ids[i], ids[j])
         else:
-            for i, (nid_a, _) in enumerate(in_nodes):
+            print(f'Jaccard similarity {len(in_nodes)}')
+            for i, (nid_a, _) in tqdm(enumerate(in_nodes), total=len(in_nodes)):
                 for nid_b, _ in in_nodes[i + 1:]:
                     if _jaccard(tokens[nid_a], tokens[nid_b]) >= threshold:
                         union(nid_a, nid_b)
