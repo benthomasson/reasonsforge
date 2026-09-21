@@ -246,6 +246,7 @@ def _derive_once(
                 sl=",".join(p["antecedents"]),
                 unless=",".join(p["outlist"]) if p["outlist"] else "",
                 label=p["label"],
+                model=model,
                 db_path=db_path,
             )
             kind = p["kind"].upper()

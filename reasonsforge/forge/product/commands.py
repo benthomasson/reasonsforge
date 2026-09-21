@@ -416,7 +416,8 @@ def _explore_loop_parallel(args, product_dir: str, max_topics: int, max_parallel
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
-def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB) -> None:
+def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
+                           model: str = "") -> None:
     """Parse LLM proposals and accept all beliefs directly via reasonsforge.api."""
     from reasonsforge.api import add_node, set_metadata
 
@@ -441,7 +442,8 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB) -> N
     skipped = 0
     for belief_id, claim_text, source in matches:
         try:
-            add_node(belief_id, claim_text.strip(), source=source.strip(), db_path=db_path)
+            add_node(belief_id, claim_text.strip(), source=source.strip(),
+                     model=model, db_path=db_path)
             print(f"  Added: {belief_id}", file=sys.stderr)
             added += 1
             now = datetime.now().isoformat(timespec="seconds")
@@ -1369,7 +1371,7 @@ def cmd_propose_beliefs(args):
     _save_processed(processed_path, entries, processed)
 
     if auto_accept:
-        _auto_accept_proposals(filtered_proposals, db_path)
+        _auto_accept_proposals(filtered_proposals, db_path, model=model)
         return
 
     # Write proposals file
