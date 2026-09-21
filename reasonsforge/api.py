@@ -199,6 +199,7 @@ def add_node(
     example: str | None = None,
     source_type: str = "",
     accepted_pr: str = "",
+    model: str = "",
     db_path: str = DEFAULT_DB,
     pg_conninfo=None, project_id=None,
 ) -> dict:
@@ -215,6 +216,7 @@ def add_node(
         namespace: Optional namespace prefix (auto-creates ns:active premise)
         any_mode: If True, expand SL into one justification per antecedent (OR)
         access_tags: Data source provenance tags for access control
+        model: LLM model that generated this belief
         db_path: Path to RMS database
 
     Returns: {"node_id": str, "truth_value": str, "type": str, "premise_count": int}
@@ -292,6 +294,8 @@ def add_node(
             metadata["source_type"] = source_type
         if accepted_pr:
             metadata["accepted_pr"] = accepted_pr
+        if model:
+            metadata["model"] = model
 
         node = net.add_node(
             id=node_id,

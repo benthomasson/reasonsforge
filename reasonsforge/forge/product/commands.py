@@ -131,7 +131,7 @@ def _get_source(config: dict) -> GitHubSource | GitLabSource | JiraSource:
         raise ValueError(f"Unknown platform: {platform}")
 
 
-def _create_entry(topic: str, title: str, content: str) -> Path | None:
+def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
@@ -139,7 +139,11 @@ def _create_entry(topic: str, title: str, content: str) -> Path | None:
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = summary_dir / f"{entry_name}.md"
-    entry_path.write_text(f"# {title}\n\n{content}\n")
+    parts = []
+    if model:
+        parts.append(f"---\nmodel: {model}\ndate: {today.isoformat()}\n---\n\n")
+    parts.append(f"# {title}\n\n{content}\n")
+    entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
     return entry_path
 
@@ -312,7 +316,7 @@ def _run_topic(args, topic: Topic) -> None:
         return
 
     safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-    _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+    _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
     _enqueue_topics(result, source=f"explore:{topic.target}", product_dir=product_dir)
     _report_beliefs(result)
 
@@ -403,7 +407,7 @@ def _explore_loop_parallel(args, product_dir: str, max_topics: int, max_parallel
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
             _enqueue_topics(result, source=f"explore:{topic.target}", product_dir=product_dir)
             _report_beliefs(result)
             print(result)
@@ -1000,7 +1004,7 @@ def _scan_page(config, source, model, timeout, product_dir, project_name,
     safe_name = short_name.replace("/", "-")
     page_suffix = f"-p{page}" if page > 1 else ""
     _create_entry(f"scan-{safe_name}{page_suffix}",
-                  f"Scan: {project_name} (page {page})", result)
+                  f"Scan: {project_name} (page {page})", result, model=model)
     _enqueue_topics(result, source=f"scan:{project_name}", product_dir=product_dir)
     _report_beliefs(result)
     _cache_issues(issues, product_dir)
@@ -1083,7 +1087,7 @@ def cmd_ingest(args):
             continue
 
         safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", file_path.stem)[:80]
-        _create_entry(f"ingest-{safe_name}", f"Ingest: {file_path.name}", result)
+        _create_entry(f"ingest-{safe_name}", f"Ingest: {file_path.name}", result, model=model)
         _enqueue_topics(result, source=f"ingest:{file_path.name}", product_dir=product_dir)
         _report_beliefs(result)
 
@@ -1190,7 +1194,7 @@ def cmd_explore(args):
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
             _enqueue_topics(result, source=f"explore:{topic.target}", product_dir=product_dir)
             _report_beliefs(result)
             print(result)
@@ -1798,7 +1802,7 @@ def cmd_summary(args):
 
     short_name = project_name.split("//")[-1] if "//" in project_name else project_name
     safe_name = short_name.replace("/", "-")
-    _create_entry(f"summary-{safe_name}", f"Summary: {project_name}", result)
+    _create_entry(f"summary-{safe_name}", f"Summary: {project_name}", result, model=model)
 
     print(result)
 

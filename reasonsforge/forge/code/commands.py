@@ -103,13 +103,17 @@ def _sanitize_path_for_filename(path: str) -> str:
     return name[:80] if name else "unknown"
 
 
-def _create_entry(topic: str, title: str, content: str) -> Path | None:
+def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
     summary_dir.mkdir(parents=True, exist_ok=True)
     entry_path = summary_dir / f"{topic}.md"
-    entry_path.write_text(f"# {title}\n\n{content}\n")
+    parts = []
+    if model:
+        parts.append(f"---\nmodel: {model}\ndate: {today.isoformat()}\n---\n\n")
+    parts.append(f"# {title}\n\n{content}\n")
+    entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
     return entry_path
 
@@ -304,7 +308,7 @@ def cmd_scan(args):
         sys.exit(1)
 
     repo_name = os.path.basename(repo_path)
-    _create_entry(f"scan-{repo_name}", f"Scan: {repo_name}", result)
+    _create_entry(f"scan-{repo_name}", f"Scan: {repo_name}", result, model=model)
 
     project_dir = _get_project_dir(args)
 
@@ -458,8 +462,8 @@ _PREPARE_DISPATCH = {
 }
 
 
-def _finalize_topic(entry_name, entry_title, source, result, project_dir):
-    _create_entry(entry_name, entry_title, result)
+def _finalize_topic(entry_name, entry_title, source, result, project_dir, model=""):
+    _create_entry(entry_name, entry_title, result, model=model)
     _enqueue_topics(result, source=source, project_dir=project_dir)
     _report_beliefs(result)
 
@@ -585,7 +589,7 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        _finalize_topic(entry_name, entry_title, source, result, project_dir)
+        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
     else:
         prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
         if not prepare_fn:
@@ -603,7 +607,7 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        _finalize_topic(entry_name, entry_title, source, result, project_dir)
+        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
 
     remaining = pending_count(project_dir)
     if remaining:
@@ -656,7 +660,7 @@ def _explore_loop(args, project_dir, max_topics):
                         print(f"  Error: {r}", file=sys.stderr)
                     elif r is not None:
                         _, result, entry_name, entry_title, source = r
-                        _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
             else:
                 topic = batch[0]
                 if topic.kind == "general":
@@ -669,7 +673,7 @@ def _explore_loop(args, project_dir, max_topics):
                         print(f"Error: {e}", file=sys.stderr)
                         explored += len(batch)
                         continue
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
                 else:
                     prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
                     if not prepare_fn:
@@ -688,7 +692,7 @@ def _explore_loop(args, project_dir, max_topics):
                         print(f"Error: {e}", file=sys.stderr)
                         explored += len(batch)
                         continue
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
 
             explored += len(batch)
     except KeyboardInterrupt:
@@ -754,7 +758,7 @@ def cmd_explain_file(args):
 
     project_dir = _get_project_dir(args)
     topic_name = _sanitize_path_for_filename(rel_path)
-    _create_entry(topic_name, f"File: {rel_path}", result)
+    _create_entry(topic_name, f"File: {rel_path}", result, model=model)
     _enqueue_topics(result, source=f"file:{rel_path}", project_dir=project_dir)
     _report_beliefs(result)
     print(result)
@@ -811,7 +815,7 @@ def cmd_explain_function(args):
 
     project_dir = _get_project_dir(args)
     topic_name = _sanitize_path_for_filename(rel_path) + f"-{symbol_name}"
-    _create_entry(topic_name, f"Function: {symbol_name} in {rel_path}", result)
+    _create_entry(topic_name, f"Function: {symbol_name} in {rel_path}", result, model=model)
     _enqueue_topics(result, source=f"function:{rel_path}:{symbol_name}", project_dir=project_dir)
     _report_beliefs(result)
     print(result)
@@ -898,7 +902,7 @@ def cmd_explain_diff(args):
         sys.exit(1)
 
     safe_label = diff_label.replace("/", "-").replace(" ", "-")
-    _create_entry(f"diff-{safe_label}", f"Diff: {diff_label}", result)
+    _create_entry(f"diff-{safe_label}", f"Diff: {diff_label}", result, model=model)
     _enqueue_topics(result, source=f"diff:{diff_label}", project_dir=project_dir)
     _report_beliefs(result)
 
@@ -1063,7 +1067,7 @@ def cmd_walk_commits(args):
                     print(f"  Error: {r}", file=sys.stderr)
                 elif r is not None:
                     _, result, entry_name, entry_title, source = r
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
         else:
             for topic in batch:
                 prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
@@ -1076,7 +1080,7 @@ def cmd_walk_commits(args):
                 except Exception as e:
                     print(f"Error: {e}", file=sys.stderr)
                     continue
-                _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
 
         explored += len(batch)
 
@@ -2373,7 +2377,7 @@ def cmd_research(args):
                 print(f"  Error: {r}", file=sys.stderr)
             elif r is not None:
                 _, result, entry_name, entry_title, source = r
-                _finalize_topic(entry_name, entry_title, source, result, project_dir)
+                _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
     else:
         for topic in topics:
             prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
@@ -2386,7 +2390,7 @@ def cmd_research(args):
             except Exception as e:
                 print(f"  Error exploring {topic.target}: {e}", file=sys.stderr)
                 continue
-            _finalize_topic(entry_name, entry_title, source, result, project_dir)
+            _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
 
     # Step 7: Propose and accept beliefs from new entries
     print(f"\n{'=' * 40}", file=sys.stderr)

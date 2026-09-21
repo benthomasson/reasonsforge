@@ -39,6 +39,7 @@ class Node:
     source: str = ""
     source_url: str = ""
     source_hash: str = ""
+    model: str = ""
     text_hash: str = ""
     date: str = ""
     metadata: dict = field(default_factory=dict)
