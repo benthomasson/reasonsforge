@@ -4634,7 +4634,14 @@ def verify_dedup_clusters(
 
     total = len(clusters)
     total_tokens = 0
-    print(f"  Starting LLM verification of {total} cluster(s)...", file=sys.stderr, flush=True)
+
+    try:
+        from tqdm import tqdm
+        pbar = tqdm(clusters, desc="  Verifying clusters", unit="cluster",
+                    file=sys.stderr)
+    except ImportError:
+        pbar = None
+
     for i, cluster in enumerate(clusters, 1):
         beliefs_text = "\n".join(
             f"  - ID: {b['id']}\n    Text: {b['text']}"
@@ -4659,9 +4666,13 @@ def verify_dedup_clusters(
 
         est = max(1, len(prompt) // 4)
         total_tokens += est
-        print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
-              f"~{total_tokens:,} cumulative)...",
-              end="\r", file=sys.stderr, flush=True)
+        if pbar is not None:
+            pbar.set_postfix(tokens=f"~{total_tokens:,}")
+            pbar.update(1)
+        else:
+            print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
+                  f"~{total_tokens:,} cumulative)...",
+                  end="\r", file=sys.stderr, flush=True)
 
         try:
             response = invoke_model(prompt, model=model, timeout=timeout)
@@ -4694,6 +4705,8 @@ def verify_dedup_clusters(
         else:
             rejected.append(annotated)
 
+    if pbar is not None:
+        pbar.close()
     print(f"  Verified {total} cluster(s) (~{total_tokens:,} tokens): "
           f"{len(verified)} same, {len(rejected)} different, "
           f"{len(contradictions)} contradictions",
