@@ -4630,8 +4630,8 @@ def verify_dedup_clusters(
     contradictions = []
 
     total = len(clusters)
+    total_tokens = 0
     for i, cluster in enumerate(clusters, 1):
-        print(f"  Verifying cluster {i}/{total}...", end="\r", file=sys.stderr)
         beliefs_text = "\n".join(
             f"  - ID: {b['id']}\n    Text: {b['text']}"
             for b in cluster["beliefs"]
@@ -4652,6 +4652,12 @@ def verify_dedup_clusters(
             "VERDICT: <SAME_CLAIM|DIFFERENT_CLAIMS|CONTRADICTION>\n"
             "REASON: <one sentence explanation>"
         )
+
+        est = max(1, len(prompt) // 4)
+        total_tokens += est
+        print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
+              f"~{total_tokens:,} cumulative)...",
+              end="\r", file=sys.stderr)
 
         try:
             response = invoke_model(prompt, model=model, timeout=timeout)
@@ -4684,8 +4690,9 @@ def verify_dedup_clusters(
         else:
             rejected.append(annotated)
 
-    print(f"  Verified {total} cluster(s): {len(verified)} same, "
-          f"{len(rejected)} different, {len(contradictions)} contradictions",
+    print(f"  Verified {total} cluster(s) (~{total_tokens:,} tokens): "
+          f"{len(verified)} same, {len(rejected)} different, "
+          f"{len(contradictions)} contradictions",
           file=sys.stderr)
     return {
         "verified": verified,
