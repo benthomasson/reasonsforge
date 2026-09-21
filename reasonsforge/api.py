@@ -4657,7 +4657,7 @@ def verify_dedup_clusters(
         total_tokens += est
         print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
               f"~{total_tokens:,} cumulative)...",
-              end="\r", file=sys.stderr)
+              end="\r", file=sys.stderr, flush=True)
 
         try:
             response = invoke_model(prompt, model=model, timeout=timeout)
