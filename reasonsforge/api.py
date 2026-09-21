@@ -4631,6 +4631,7 @@ def verify_dedup_clusters(
 
     total = len(clusters)
     total_tokens = 0
+    print(f"  Starting LLM verification of {total} cluster(s)...", file=sys.stderr, flush=True)
     for i, cluster in enumerate(clusters, 1):
         beliefs_text = "\n".join(
             f"  - ID: {b['id']}\n    Text: {b['text']}"
