@@ -4629,7 +4629,9 @@ def verify_dedup_clusters(
     rejected = []
     contradictions = []
 
-    for cluster in clusters:
+    total = len(clusters)
+    for i, cluster in enumerate(clusters, 1):
+        print(f"  Verifying cluster {i}/{total}...", end="\r", file=sys.stderr)
         beliefs_text = "\n".join(
             f"  - ID: {b['id']}\n    Text: {b['text']}"
             for b in cluster["beliefs"]
@@ -4682,6 +4684,9 @@ def verify_dedup_clusters(
         else:
             rejected.append(annotated)
 
+    print(f"  Verified {total} cluster(s): {len(verified)} same, "
+          f"{len(rejected)} different, {len(contradictions)} contradictions",
+          file=sys.stderr)
     return {
         "verified": verified,
         "rejected": rejected,
