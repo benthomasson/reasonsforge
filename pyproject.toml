@@ -9,7 +9,7 @@ description = "Reasons Forge — automatic belief retraction and dependency-dire
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ['tqdm']
+dependencies = []
 
 [project.urls]
 Homepage = "https://reasonsforge.io"

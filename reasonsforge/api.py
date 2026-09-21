@@ -12,7 +12,10 @@ import logging
 import re
 import sqlite3
 import sys
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 from collections.abc import Callable
 from datetime import datetime, timezone
 from itertools import combinations
@@ -4570,7 +4573,10 @@ def deduplicate(
                         union(ids[i], ids[j])
         else:
             print(f'Jaccard similarity {len(in_nodes)}')
-            for i, (nid_a, _) in tqdm(enumerate(in_nodes), total=len(in_nodes)):
+            items = enumerate(in_nodes)
+            if tqdm is not None:
+                items = tqdm(items, total=len(in_nodes))
+            for i, (nid_a, _) in items:
                 for nid_b, _ in in_nodes[i + 1:]:
                     if _jaccard(tokens[nid_a], tokens[nid_b]) >= threshold:
                         union(nid_a, nid_b)
@@ -4635,11 +4641,10 @@ def verify_dedup_clusters(
     total = len(clusters)
     total_tokens = 0
 
-    try:
-        from tqdm import tqdm
+    if tqdm is not None:
         pbar = tqdm(clusters, desc="  Verifying clusters", unit="cluster",
                     file=sys.stderr)
-    except ImportError:
+    else:
         pbar = None
 
     for i, cluster in enumerate(clusters, 1):
