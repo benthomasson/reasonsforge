@@ -443,7 +443,8 @@ def cmd_propose_beliefs(args):
                     f.write(f"### {verdict} {bid}\n")
                     f.write(f"{claim}\n")
                     f.write(f"- Source: {source}\n")
-                    f.write(f"- Source URL: {source_url or 'none'}\n\n")
+                    f.write(f"- Source URL: {source_url or 'none'}\n")
+                    f.write(f"- Model: {args.model}\n\n")
 
             batch_entries = [Path(p) for p in batch_paths[i]]
             _save_processed(processed_path, batch_entries, processed)
@@ -486,6 +487,7 @@ def cmd_accept_beliefs(args):
         r"(.+?)\n"
         r"- Source: (.+?)\n"
         r"(?:- Source URL: (.+?)\n)?"
+        r"(?:- Model: (.+?)\n)?"
     )
     matches = pattern.findall(text)
 
@@ -505,8 +507,12 @@ def cmd_accept_beliefs(args):
     for match in matches:
         belief_id, claim_text, source = match[0], match[1], match[2]
         source_url = match[3] if len(match) > 3 else ""
+        model = match[4] if len(match) > 4 else ""
         if source_url and source_url.lower() == "none":
             source_url = ""
+        meta = {}
+        if model and model.strip():
+            meta["model"] = model.strip()
         try:
             if belief_id in net.nodes:
                 print(f"  EXISTS: {belief_id}")
@@ -517,6 +523,7 @@ def cmd_accept_beliefs(args):
                 text=claim_text.strip(),
                 source=source.strip(),
                 source_url=source_url.strip() if source_url else "",
+                metadata=meta if meta else None,
             )
             print(f"  Added: {belief_id}")
             added += 1

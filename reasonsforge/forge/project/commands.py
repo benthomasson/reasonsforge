@@ -80,7 +80,7 @@ def _get_source(config: dict) -> GitHubSource | GitLabSource | JiraSource:
         raise ValueError(f"Unknown platform: {platform}")
 
 
-def _create_entry(topic: str, title: str, content: str) -> Path | None:
+def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
@@ -88,7 +88,11 @@ def _create_entry(topic: str, title: str, content: str) -> Path | None:
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = summary_dir / f"{entry_name}.md"
-    entry_path.write_text(f"# {title}\n\n{content}\n")
+    parts = []
+    if model:
+        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
+    parts.append(f"# {title}\n\n{content}\n")
+    entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
     return entry_path
 
@@ -264,7 +268,7 @@ def _run_topic(args, topic: Topic) -> None:
         return
 
     safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-    _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+    _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
     _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
     _report_beliefs(result)
 
@@ -360,7 +364,7 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
             _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
             _report_beliefs(result)
             print(result)
@@ -369,7 +373,8 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
-def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB) -> None:
+def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
+                           model: str = "") -> None:
     """Parse LLM proposals and accept all beliefs directly via reasonsforge.api."""
     from reasonsforge.api import add_node, set_metadata
 
@@ -394,7 +399,8 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB) -> N
     skipped = 0
     for belief_id, claim_text, source in matches:
         try:
-            add_node(belief_id, claim_text.strip(), source=source.strip(), db_path=db_path)
+            add_node(belief_id, claim_text.strip(), source=source.strip(),
+                     model=model, db_path=db_path)
             print(f"  Added: {belief_id}", file=sys.stderr)
             added += 1
             now = datetime.now().isoformat(timespec="seconds")
@@ -1239,7 +1245,7 @@ def _run_scan_step(config, source, issues, project_name,
     state_suffix = f"-{state}" if state and state not in ("open", "opened") else ""
     page_suffix = f"-p{page}" if page > 1 else ""
     _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
-                  f"Scan: {project_name} ({state or 'open'}, page {page})", result)
+                  f"Scan: {project_name} ({state or 'open'}, page {page})", result, model=model)
     _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
     _report_beliefs(result)
     _cache_issues(issues, project_dir)
@@ -1519,7 +1525,7 @@ def cmd_scan(args):
                 page_suffix = f"-p{current_page}" if current_page > 1 else ""
                 _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
                               f"Scan: {project_name} ({state or 'open'}, page {current_page})",
-                              result)
+                              result, model=model)
                 _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
                 _report_beliefs(result)
                 _cache_issues(issues, project_dir)
@@ -1609,7 +1615,7 @@ def cmd_scan(args):
         state_suffix = f"-{state}" if state and state not in ("open", "opened") else ""
         page_suffix = f"-p{page}" if page > 1 else ""
         _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
-                      f"Scan: {project_name} ({state or 'open'}, page {page})", result)
+                      f"Scan: {project_name} ({state or 'open'}, page {page})", result, model=model)
         _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
         _report_beliefs(result)
         _cache_issues(issues, project_dir)
@@ -1716,7 +1722,7 @@ def cmd_explore(args):
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result)
+            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
             _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
             _report_beliefs(result)
             print(result)
@@ -1951,7 +1957,7 @@ def cmd_propose_beliefs(args):
         print(f"  Filtered {total_dup_skipped} already-accepted beliefs")
 
     if auto_accept:
-        _auto_accept_proposals(all_auto_proposals, db_path)
+        _auto_accept_proposals(all_auto_proposals, db_path, model=model)
         return
 
     print(f"\nWrote {output_path}")
@@ -2332,7 +2338,7 @@ def cmd_research(args):
         print(f"{'=' * 40}", file=sys.stderr)
 
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "-", bid)[:80]
-        _create_entry(f"research-{safe_id}", f"Research: {bid} [{verdict}]", result)
+        _create_entry(f"research-{safe_id}", f"Research: {bid} [{verdict}]", result, model=model)
 
         print(result)
 
@@ -2430,6 +2436,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
         f"issue-{safe_key}",
         f"Issue Analysis: {issue.id} — {issue.title}",
         issue_text,
+        model=model,
     )
 
     existing_beliefs = _load_existing_beliefs(db_path)
@@ -2488,7 +2495,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
         print(f"  Filtered {dup_skipped} already-accepted beliefs", file=sys.stderr)
 
     if auto_accept:
-        _auto_accept_proposals([filtered], db_path)
+        _auto_accept_proposals([filtered], db_path, model=model)
         _save_analyzed_issue(issue.id, issue.updated)
         return 1
 
@@ -2694,7 +2701,7 @@ def cmd_derive(args):
         print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
 
         if auto_add:
-            results = apply_proposals(valid, db_path=db_path)
+            results = apply_proposals(valid, db_path=db_path, model=model)
             added = sum(1 for _, r in results if isinstance(r, dict))
             print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
             total_added += added
@@ -2942,7 +2949,7 @@ def cmd_summary(args):
 
     short_name = project_name.split("//")[-1] if "//" in project_name else project_name
     safe_name = short_name.replace("/", "-")
-    _create_entry(f"summary-{safe_name}", f"Summary: {project_name}", result)
+    _create_entry(f"summary-{safe_name}", f"Summary: {project_name}", result, model=model)
 
     print(result)
 
@@ -3080,7 +3087,7 @@ def cmd_sprint_plan(args):
     short_name = project_name.split("//")[-1] if "//" in project_name else project_name
     safe_name = short_name.replace("/", "-")
     _create_entry(f"sprint-plan-{safe_name}",
-                  f"Sprint Plan: {project_name} ({sprint_length})", result)
+                  f"Sprint Plan: {project_name} ({sprint_length})", result, model=model)
 
     if output:
         Path(output).write_text(result)

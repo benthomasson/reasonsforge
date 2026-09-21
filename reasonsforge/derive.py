@@ -687,8 +687,13 @@ def validate_proposals(proposals, nodes):
     return valid, skipped
 
 
-def apply_proposals(valid, db_path="reasons.db"):
+def apply_proposals(valid, db_path="reasons.db", model=""):
     """Add valid proposals to the reasons database.
+
+    Args:
+        valid: List of validated proposal dicts.
+        db_path: Path to reasons database.
+        model: LLM model that generated the proposals.
 
     Returns list of (proposal, result_dict_or_error_string).
     """
@@ -705,6 +710,7 @@ def apply_proposals(valid, db_path="reasons.db"):
                 label=p["label"],
                 source_type="derived",
                 any_mode=p.get("mode") == "any",
+                model=model,
                 db_path=db_path,
             )
             results.append((p, result))
