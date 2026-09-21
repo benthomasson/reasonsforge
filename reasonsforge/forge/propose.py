@@ -9,6 +9,7 @@ from datetime import date
 from pathlib import Path
 
 from reasonsforge.api import add_node, list_nodes
+from reasonsforge.storage import Storage
 
 from .llm import check_model_available, extract_json, invoke, RETRY_JSON
 from .prompts import PROPOSE_BELIEFS, get_propose_extra
@@ -495,7 +496,11 @@ def cmd_accept_beliefs(args):
 
     print(f"Found {len(matches)} accepted beliefs")
 
+    store = Storage(REASONS_DB)
+    net = store.load()
+
     added = 0
+    skipped = 0
     failed = 0
     for match in matches:
         belief_id, claim_text, source = match[0], match[1], match[2]
@@ -503,21 +508,24 @@ def cmd_accept_beliefs(args):
         if source_url and source_url.lower() == "none":
             source_url = ""
         try:
-            add_node(
-                node_id=belief_id,
+            if belief_id in net.nodes:
+                print(f"  EXISTS: {belief_id}")
+                skipped += 1
+                continue
+            net.add_node(
+                id=belief_id,
                 text=claim_text.strip(),
                 source=source.strip(),
                 source_url=source_url.strip() if source_url else "",
-                db_path=REASONS_DB,
             )
             print(f"  Added: {belief_id}")
             added += 1
         except Exception as e:
-            err = str(e)
-            if "already exists" in err.lower() or "duplicate" in err.lower():
-                print(f"  EXISTS: {belief_id}")
-            else:
-                print(f"  FAIL: {belief_id}: {err}")
-                failed += 1
+            print(f"  FAIL: {belief_id}: {e}")
+            failed += 1
 
-    print(f"\nAccepted {added} beliefs ({failed} failed)")
+    if added > 0:
+        store.save(net)
+    store.close()
+
+    print(f"\nAccepted {added} beliefs ({skipped} existing, {failed} failed)")
