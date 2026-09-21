@@ -2220,13 +2220,14 @@ def derive_prompt(domain: str | None = None, db_path: str = DEFAULT_DB) -> dict:
     return {"prompt": prompt, "stats": stats}
 
 
-def derive_apply(proposals: list[dict], db_path: str = DEFAULT_DB) -> dict:
+def derive_apply(proposals: list[dict], db_path: str = DEFAULT_DB,
+                 model: str = "") -> dict:
     """Apply validated derive proposals to the network.
 
     Returns: {"added": list[dict], "failed": list[dict]}
     """
     from .derive import apply_proposals
-    results = apply_proposals(proposals, db_path=db_path)
+    results = apply_proposals(proposals, db_path=db_path, model=model)
 
     added = []
     failed = []

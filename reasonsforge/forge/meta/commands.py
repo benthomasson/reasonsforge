@@ -66,7 +66,7 @@ def _get_meta_dir() -> str:
     return str(Path.cwd() / META_DIR)
 
 
-def _create_entry(topic: str, title: str, content: str) -> Path | None:
+def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly to summaries/YYYY/MM/DD/."""
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
@@ -74,7 +74,11 @@ def _create_entry(topic: str, title: str, content: str) -> Path | None:
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = summary_dir / f"{entry_name}.md"
-    entry_path.write_text(f"# {title}\n\n{content}\n")
+    parts = []
+    if model:
+        parts.append(f"---\nmodel: {model}\ndate: {today.isoformat()}\n---\n\n")
+    parts.append(f"# {title}\n\n{content}\n")
+    entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
     return entry_path
 
@@ -521,6 +525,7 @@ def cmd_derive(args) -> None:
                 "derive",
                 f"Derived {total_applied} cross-domain beliefs ({round_num} rounds)",
                 f"Exhaustive derivation: {total_applied} beliefs across {round_num} round(s).",
+                model=model,
             )
         print(f"\nTotal: {total_applied} beliefs derived in {round_num} round(s)")
         return
@@ -562,6 +567,7 @@ def cmd_derive(args) -> None:
             "derive",
             f"Derived {applied} cross-domain beliefs",
             f"Applied {applied} cross-domain derivations.\n\n{response}",
+            model=model,
         )
     else:
         # Write to file for review
@@ -656,6 +662,7 @@ def cmd_ask(args) -> None:
         "ask",
         f"Question: {question[:60]}",
         f"## Question\n{question}\n\n## Answer\n{response}",
+        model=model,
     )
 
 
@@ -723,6 +730,7 @@ def cmd_contradictions(args) -> None:
             "contradictions",
             f"Found {applied} cross-domain contradictions",
             f"Detected {applied} cross-domain contradictions.\n\n{response}",
+            model=model,
         )
     else:
         output_path = "proposed-nogoods.md"
@@ -775,6 +783,7 @@ def cmd_summary(args) -> None:
         "summary",
         "Executive synthesis across all expert domains",
         response,
+        model=model,
     )
 
 
@@ -1025,6 +1034,7 @@ def cmd_update(args) -> None:
             f"- Derive: {results.get('derive', 'skipped')}\n"
             f"- Contradictions: {results.get('contradictions', 'skipped')}\n\n"
             f"## Summary\n{response}",
+            model=model,
         )
 
     # --- final status ---

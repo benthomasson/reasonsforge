@@ -236,7 +236,7 @@ def _stage_derive(args, round_label=""):
                 print(f"{prefix}  Saturated (no valid proposals)", file=sys.stderr)
                 break
 
-            results = apply_proposals(valid, db_path=REASONS_DB)
+            results = apply_proposals(valid, db_path=REASONS_DB, model=args.model)
             added = sum(1 for _, r in results if isinstance(r, dict))
             total_added += added
             print(f"{prefix}  Added {added} beliefs", file=sys.stderr)

@@ -1593,7 +1593,7 @@ def _derive_one_round(args, round_num=None, report_state=None,
         return 0
 
     if args.auto or args.exhaust:
-        results = apply_proposals(valid, db_path=args.db)
+        results = apply_proposals(valid, db_path=args.db, model=model)
         added = 0
         for p, result in results:
             if isinstance(result, dict):
