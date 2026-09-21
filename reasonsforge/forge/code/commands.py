@@ -111,7 +111,7 @@ def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path
     entry_path = summary_dir / f"{topic}.md"
     parts = []
     if model:
-        parts.append(f"---\nmodel: {model}\ndate: {today.isoformat()}\n---\n\n")
+        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
     parts.append(f"# {title}\n\n{content}\n")
     entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)

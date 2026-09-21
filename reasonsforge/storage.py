@@ -263,6 +263,7 @@ class Storage:
             nid, text, truth_value, supporting_j, source, source_url, source_hash, \
                 date, meta_json, created_at, updated_at, reviewed_at, verified_at, \
                 retracted_at, text_hash = row
+            meta = json.loads(meta_json)
             node = Node(
                 id=nid,
                 text=text,
@@ -272,9 +273,10 @@ class Storage:
                 source=source,
                 source_url=source_url or "",
                 source_hash=source_hash,
+                model=meta.get("model", ""),
                 text_hash=text_hash or "",
                 date=date,
-                metadata=json.loads(meta_json),
+                metadata=meta,
                 created_at=created_at or "",
                 updated_at=updated_at or "",
                 reviewed_at=reviewed_at or "",

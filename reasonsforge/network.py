@@ -99,6 +99,7 @@ class Network:
             created_at = now
             updated_at = now
 
+        meta = metadata or {}
         node = Node(
             id=id,
             text=text,
@@ -106,9 +107,10 @@ class Network:
             source=source,
             source_url=source_url,
             source_hash=source_hash,
+            model=meta.get("model", ""),
             text_hash=text_hash,
             date=date,
-            metadata=metadata or {},
+            metadata=meta,
             created_at=created_at,
             updated_at=updated_at,
             reviewed_at=reviewed_at,
