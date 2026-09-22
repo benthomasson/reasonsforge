@@ -9,6 +9,7 @@ All functions return dicts suitable for JSON serialization.
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import sys
@@ -2231,13 +2232,13 @@ def push_to_service(
     result = {}
 
     if include_network:
+        import tempfile
         backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
         network_data = export_network(**backend)
-        import tempfile
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            temp_path = f.name
-            json.dump(network_data, f, indent=2, sort_keys=True)
+        fd, temp_path = tempfile.mkstemp(suffix=".json")
         try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(network_data, f, indent=2, sort_keys=True)
             net_result = push_network(resolved_url, resolved_key, resolved_domain, temp_path)
             result["network"] = net_result
         finally:
