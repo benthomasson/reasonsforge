@@ -974,6 +974,37 @@ def cmd_export_api(args):
         print(f"Errors: {result['errors']}")
 
 
+def cmd_push(args):
+    try:
+        result = api.push_to_service(
+            url=args.url,
+            api_key=args.api_key,
+            domain_id=args.domain_id,
+            sources_dir=args.sources_dir,
+            summaries_dir=args.summaries_dir,
+            include_network=not args.no_network,
+            include_sources=not args.no_sources,
+            include_summaries=not args.no_summaries,
+            **_backend_kwargs(args),
+        )
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if "network" in result:
+        net = result["network"]
+        print(f"Network: {net.get('added', 0)} added, {net.get('updated', 0)} updated"
+              f" ({net.get('total_in_file', '?')} in file)")
+    if "sources" in result:
+        src = result["sources"]
+        print(f"Sources: {src.get('imported', 0)} imported, {src.get('skipped', 0)} skipped"
+              + (f" ({src['note']})" if src.get("note") else ""))
+    if "summaries" in result:
+        s = result["summaries"]
+        print(f"Summaries: {s.get('imported', 0)} imported, {s.get('skipped', 0)} skipped"
+              + (f" ({s['note']})" if s.get("note") else ""))
+
+
 def cmd_export(args):
     data = api.export_network(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
     output = json.dumps(data, indent=2)
@@ -3237,6 +3268,17 @@ def main():
     p.add_argument("--agent-id", help="Agent UUID (default: MIND_AGENT_ID env)")
     p.add_argument("--api-key", help="API key (default: MIND_API_KEY env)")
 
+    # push
+    p = sub.add_parser("push", help="Push forge artifacts to reasons-service")
+    p.add_argument("--url", help="Service URL (default: REASONS_SERVICE_URL env)")
+    p.add_argument("--api-key", help="API key (default: REASONS_SERVICE_API_KEY env)")
+    p.add_argument("--domain-id", help="Target domain UUID (default: REASONS_SERVICE_DOMAIN_ID env)")
+    p.add_argument("--sources-dir", default="sources", help="Sources directory (default: sources)")
+    p.add_argument("--summaries-dir", default="summaries", help="Summaries directory (default: summaries)")
+    p.add_argument("--no-network", action="store_true", help="Skip pushing the belief network")
+    p.add_argument("--no-sources", action="store_true", help="Skip pushing source documents")
+    p.add_argument("--no-summaries", action="store_true", help="Skip pushing summaries")
+
     # export
     p = sub.add_parser("export", help="Export network as JSON")
     p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
@@ -3696,6 +3738,7 @@ def main():
         "publish": cmd_publish,
         "import-api": cmd_import_api,
         "export-api": cmd_export_api,
+        "push": cmd_push,
         "export": cmd_export,
         "export-markdown": cmd_export_markdown,
         "export-card": cmd_export_card,
