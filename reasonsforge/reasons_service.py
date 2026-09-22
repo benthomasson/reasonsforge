@@ -3,8 +3,9 @@
 import json
 import os
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from uuid import uuid4
 
 
 def _resolve_config(
@@ -64,6 +65,10 @@ def _request(url: str, api_key: str, data: bytes | None = None,
         raise RuntimeError(
             f"HTTP {e.code} from {url}: {body}"
         ) from e
+    except URLError as e:
+        raise RuntimeError(
+            f"Connection failed for {url}: {e.reason}"
+        ) from e
 
 
 def push_network(
@@ -77,7 +82,7 @@ def push_network(
     content = path.read_bytes()
     filename = path.name
 
-    boundary = "----ReasonsforgePushBoundary"
+    boundary = f"----ReasonsforgePush{uuid4().hex}"
     body = (
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
@@ -110,6 +115,10 @@ def push_network(
             pass
         raise RuntimeError(
             f"Failed to push network: HTTP {e.code}: {err_body}"
+        ) from e
+    except URLError as e:
+        raise RuntimeError(
+            f"Connection failed for {endpoint}: {e.reason}"
         ) from e
 
 

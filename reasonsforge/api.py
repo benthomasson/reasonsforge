@@ -2235,8 +2235,8 @@ def push_to_service(
         network_data = export_network(**backend)
         import tempfile
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(network_data, f, indent=2, sort_keys=True)
             temp_path = f.name
+            json.dump(network_data, f, indent=2, sort_keys=True)
         try:
             net_result = push_network(resolved_url, resolved_key, resolved_domain, temp_path)
             result["network"] = net_result
