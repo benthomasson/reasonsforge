@@ -980,11 +980,11 @@ def cmd_push(args):
             url=args.url,
             api_key=args.api_key,
             domain_id=args.domain_id,
-            sources_dir=getattr(args, "sources_dir", "sources"),
-            summaries_dir=getattr(args, "summaries_dir", "summaries"),
-            include_network=not getattr(args, "no_network", False),
-            include_sources=not getattr(args, "no_sources", False),
-            include_summaries=not getattr(args, "no_summaries", False),
+            sources_dir=args.sources_dir,
+            summaries_dir=args.summaries_dir,
+            include_network=not args.no_network,
+            include_sources=not args.no_sources,
+            include_summaries=not args.no_summaries,
             **_backend_kwargs(args),
         )
     except RuntimeError as e:

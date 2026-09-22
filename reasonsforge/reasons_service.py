@@ -80,7 +80,7 @@ def push_network(
         raise RuntimeError(f"File not found: {network_path}")
 
     content = path.read_bytes()
-    filename = path.name
+    filename = path.name.replace('"', '_')
 
     boundary = f"----ReasonsforgePush{uuid4().hex}"
     body = (
@@ -91,35 +91,9 @@ def push_network(
     ).encode() + content + f"\r\n--{boundary}--\r\n".encode()
 
     endpoint = f"{url}/api/domains/{domain_id}/import-reasons"
-    req = Request(
-        endpoint,
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": f"multipart/form-data; boundary={boundary}",
-        },
-        method="POST",
-    )
-    try:
-        with urlopen(req, timeout=300) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except HTTPError as e:
-        if e.code == 401:
-            raise RuntimeError(
-                "Authentication failed. Check your REASONS_SERVICE_API_KEY."
-            ) from e
-        err_body = ""
-        try:
-            err_body = e.read().decode("utf-8")
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"Failed to push network: HTTP {e.code}: {err_body}"
-        ) from e
-    except URLError as e:
-        raise RuntimeError(
-            f"Connection failed for {endpoint}: {e.reason}"
-        ) from e
+    return _request(endpoint, api_key, data=body, method="POST",
+                    content_type=f"multipart/form-data; boundary={boundary}",
+                    timeout=300)
 
 
 def push_sources(
@@ -128,16 +102,6 @@ def push_sources(
     """Push sources via POST /api/domains/{domain_id}/import/sources."""
     endpoint = f"{url}/api/domains/{domain_id}/import/sources"
     payload = json.dumps({"sources": sources}).encode("utf-8")
-    return _request(endpoint, api_key, data=payload, method="POST",
-                    timeout=300)
-
-
-def push_entries(
-    url: str, api_key: str, domain_id: str, entries: list[dict],
-) -> dict:
-    """Push entries via POST /api/domains/{domain_id}/import/entries."""
-    endpoint = f"{url}/api/domains/{domain_id}/import/entries"
-    payload = json.dumps({"entries": entries}).encode("utf-8")
     return _request(endpoint, api_key, data=payload, method="POST",
                     timeout=300)
 
