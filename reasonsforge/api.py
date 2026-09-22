@@ -2204,6 +2204,141 @@ def export_api(url: str | None = None, agent_id: str | None = None,
     return {"nodes_exported": exported, "errors": errors}
 
 
+def push_to_service(
+    url: str | None = None,
+    api_key: str | None = None,
+    domain_id: str | None = None,
+    sources_dir: str = "sources",
+    summaries_dir: str = "summaries",
+    include_network: bool = True,
+    include_sources: bool = True,
+    include_summaries: bool = True,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None, project_id=None,
+) -> dict:
+    """Push local forge artifacts to a reasons-service instance.
+
+    Uploads network.json (beliefs with justification graphs), source
+    documents (with metadata from frontmatter), and summaries.
+
+    Returns: {"network": {...}, "sources": {...}, "summaries": {...}}
+    """
+    from .reasons_service import _resolve_config, push_network, push_sources, push_summaries
+
+    resolved_url, resolved_key, resolved_domain = _resolve_config(
+        url, api_key, domain_id)
+
+    result = {}
+
+    if include_network:
+        backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
+        network_data = export_network(**backend)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(network_data, f, indent=2, sort_keys=True)
+            temp_path = f.name
+        try:
+            net_result = push_network(resolved_url, resolved_key, resolved_domain, temp_path)
+            result["network"] = net_result
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    if include_sources:
+        src_dir = Path(sources_dir)
+        if src_dir.exists():
+            source_payloads = _collect_sources(src_dir)
+            if source_payloads:
+                src_result = push_sources(resolved_url, resolved_key, resolved_domain, source_payloads)
+                result["sources"] = src_result
+            else:
+                result["sources"] = {"imported": 0, "skipped": 0, "note": "no source files found"}
+        else:
+            result["sources"] = {"imported": 0, "skipped": 0, "note": f"{sources_dir}/ not found"}
+
+    if include_summaries:
+        sum_dir = Path(summaries_dir)
+        if sum_dir.exists():
+            summary_payloads = _collect_summaries(sum_dir)
+            if summary_payloads:
+                sum_result = push_summaries(resolved_url, resolved_key, resolved_domain, summary_payloads)
+                result["summaries"] = sum_result
+            else:
+                result["summaries"] = {"imported": 0, "skipped": 0, "note": "no summary files found"}
+        else:
+            result["summaries"] = {"imported": 0, "skipped": 0, "note": f"{summaries_dir}/ not found"}
+
+    return result
+
+
+def _parse_frontmatter(text: str) -> tuple[dict, str]:
+    """Extract YAML-style frontmatter and body from a document."""
+    if not text.startswith("---"):
+        return {}, text
+    end = text.find("---", 3)
+    if end == -1:
+        return {}, text
+    fm_block = text[3:end]
+    body = text[end + 3:].strip()
+    meta = {}
+    for line in fm_block.splitlines():
+        if ":" in line:
+            key, _, value = line.partition(":")
+            meta[key.strip()] = value.strip()
+    return meta, body
+
+
+def _collect_sources(src_dir: Path) -> list[dict]:
+    """Read source files from a directory and build import payloads."""
+    payloads = []
+    for md_file in sorted(src_dir.rglob("*.md")):
+        content = md_file.read_text()
+        meta, body = _parse_frontmatter(content)
+        if not body.strip():
+            continue
+        slug = str(md_file.relative_to(src_dir))
+        if slug.endswith(".md"):
+            slug = slug[:-3]
+        payload = {
+            "slug": slug,
+            "content": body,
+            "url": meta.get("source_url") or meta.get("source") or meta.get("url", ""),
+        }
+        if meta.get("title"):
+            payload["title"] = meta["title"]
+        if meta.get("author"):
+            payload["author"] = meta["author"]
+        if meta.get("content_type"):
+            payload["content_type"] = meta["content_type"]
+        if meta.get("license"):
+            payload["license"] = meta["license"]
+        if meta.get("description"):
+            payload["description"] = meta["description"]
+        payloads.append(payload)
+    return payloads
+
+
+def _collect_summaries(sum_dir: Path) -> list[dict]:
+    """Read summary files and build import payloads."""
+    payloads = []
+    for md_file in sorted(sum_dir.rglob("*.md")):
+        content = md_file.read_text()
+        meta, body = _parse_frontmatter(content)
+        if not body.strip():
+            continue
+        rel = str(md_file.relative_to(sum_dir))
+        topic = md_file.stem
+        entry_id = rel.replace("/", "-").replace(".md", "")
+        payload = {
+            "id": entry_id,
+            "topic": topic,
+            "content": body,
+        }
+        if meta.get("title"):
+            payload["title"] = meta["title"]
+        payloads.append(payload)
+    return payloads
+
+
 def derive_prompt(domain: str | None = None, db_path: str = DEFAULT_DB) -> dict:
     """Build a derive prompt from the current network.
 
