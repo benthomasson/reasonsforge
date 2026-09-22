@@ -2275,11 +2275,11 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     """Extract YAML-style frontmatter and body from a document."""
     if not text.startswith("---"):
         return {}, text
-    end = text.find("---", 3)
+    end = text.find("\n---", 3)
     if end == -1:
         return {}, text
     fm_block = text[3:end]
-    body = text[end + 3:].strip()
+    body = text[end + 4:].strip()
     meta = {}
     for line in fm_block.splitlines():
         if ":" in line:
