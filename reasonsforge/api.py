@@ -2214,6 +2214,8 @@ def push_to_service(
     include_network: bool = True,
     include_sources: bool = True,
     include_summaries: bool = True,
+    chunk_size: int = 50,
+    progress: bool = False,
     db_path: str = DEFAULT_DB,
     pg_conninfo=None, project_id=None,
 ) -> dict:
@@ -2249,7 +2251,8 @@ def push_to_service(
         if src_dir.exists():
             source_payloads = _collect_sources(src_dir)
             if source_payloads:
-                src_result = push_sources(resolved_url, resolved_key, resolved_domain, source_payloads)
+                src_result = push_sources(resolved_url, resolved_key, resolved_domain, source_payloads,
+                                          chunk_size=chunk_size, progress=progress)
                 result["sources"] = src_result
             else:
                 result["sources"] = {"imported": 0, "skipped": 0, "note": "no source files found"}
@@ -2261,7 +2264,8 @@ def push_to_service(
         if sum_dir.exists():
             summary_payloads = _collect_summaries(sum_dir)
             if summary_payloads:
-                sum_result = push_summaries(resolved_url, resolved_key, resolved_domain, summary_payloads)
+                sum_result = push_summaries(resolved_url, resolved_key, resolved_domain, summary_payloads,
+                                            chunk_size=chunk_size, progress=progress)
                 result["summaries"] = sum_result
             else:
                 result["summaries"] = {"imported": 0, "skipped": 0, "note": "no summary files found"}

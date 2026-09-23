@@ -985,6 +985,8 @@ def cmd_push(args):
             include_network=not args.no_network,
             include_sources=not args.no_sources,
             include_summaries=not args.no_summaries,
+            chunk_size=args.chunk_size,
+            progress=args.progress,
             **_backend_kwargs(args),
         )
     except RuntimeError as e:
@@ -3278,6 +3280,8 @@ def main():
     p.add_argument("--no-network", action="store_true", help="Skip pushing the belief network")
     p.add_argument("--no-sources", action="store_true", help="Skip pushing source documents")
     p.add_argument("--no-summaries", action="store_true", help="Skip pushing summaries")
+    p.add_argument("--chunk-size", type=int, default=50, help="Items per chunk for sources/summaries (default: 50)")
+    p.add_argument("--progress", action="store_true", help="Show tqdm progress bar for chunked uploads")
 
     # export
     p = sub.add_parser("export", help="Export network as JSON")

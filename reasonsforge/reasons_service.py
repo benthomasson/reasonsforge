@@ -42,6 +42,7 @@ def _request(url: str, api_key: str, data: bytes | None = None,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": content_type,
+            "User-Agent": "reasonsforge/1.0",
         },
         method=method,
     )
@@ -96,21 +97,48 @@ def push_network(
                     timeout=300)
 
 
+def _chunked_push(
+    url: str, api_key: str, items: list[dict], key: str,
+    chunk_size: int = 50, progress: bool = False,
+) -> dict:
+    """Push items in chunks, aggregating imported/skipped counts."""
+    total_imported = 0
+    total_skipped = 0
+
+    chunks = [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+    iterator = chunks
+
+    if progress:
+        try:
+            from tqdm import tqdm
+            iterator = tqdm(chunks, desc=f"  Pushing {key}", unit="chunk")
+        except ImportError:
+            pass
+
+    for chunk in iterator:
+        payload = json.dumps({key: chunk}).encode("utf-8")
+        result = _request(url, api_key, data=payload, method="POST", timeout=300)
+        total_imported += result.get("imported", 0)
+        total_skipped += result.get("skipped", 0)
+
+    return {"imported": total_imported, "skipped": total_skipped}
+
+
 def push_sources(
     url: str, api_key: str, domain_id: str, sources: list[dict],
+    chunk_size: int = 50, progress: bool = False,
 ) -> dict:
     """Push sources via POST /api/domains/{domain_id}/import/sources."""
     endpoint = f"{url}/api/domains/{domain_id}/import/sources"
-    payload = json.dumps({"sources": sources}).encode("utf-8")
-    return _request(endpoint, api_key, data=payload, method="POST",
-                    timeout=300)
+    return _chunked_push(endpoint, api_key, sources, "sources",
+                         chunk_size=chunk_size, progress=progress)
 
 
 def push_summaries(
     url: str, api_key: str, domain_id: str, summaries: list[dict],
+    chunk_size: int = 50, progress: bool = False,
 ) -> dict:
     """Push summaries via POST /api/domains/{domain_id}/import/summaries."""
     endpoint = f"{url}/api/domains/{domain_id}/import/summaries"
-    payload = json.dumps({"summaries": summaries}).encode("utf-8")
-    return _request(endpoint, api_key, data=payload, method="POST",
-                    timeout=300)
+    return _chunked_push(endpoint, api_key, summaries, "summaries",
+                         chunk_size=chunk_size, progress=progress)
