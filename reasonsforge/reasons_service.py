@@ -12,24 +12,48 @@ def _resolve_config(
     url: str | None = None,
     api_key: str | None = None,
     domain_id: str | None = None,
+    domain_name: str | None = None,
 ) -> tuple[str, str, str]:
-    """Resolve service config: explicit params > environment variables."""
+    """Resolve service config: explicit params > environment variables.
+
+    If domain_name is given instead of domain_id, looks up the domain
+    by name via the API.
+    """
     url = url or os.environ.get("REASONS_SERVICE_URL", "")
     api_key = api_key or os.environ.get("REASONS_SERVICE_API_KEY",
                 os.environ.get("EXPERT_SERVICE_API_KEY", ""))
     domain_id = domain_id or os.environ.get("REASONS_SERVICE_DOMAIN_ID", "")
+    domain_name = domain_name or os.environ.get("REASONS_SERVICE_DOMAIN_NAME", "")
 
     missing = []
     if not url:
         missing.append("url (--url or REASONS_SERVICE_URL)")
     if not api_key:
         missing.append("api-key (--api-key or REASONS_SERVICE_API_KEY)")
-    if not domain_id:
-        missing.append("domain-id (--domain-id or REASONS_SERVICE_DOMAIN_ID)")
+    if not domain_id and not domain_name:
+        missing.append("domain-id or domain-name (--domain-id/--domain-name or REASONS_SERVICE_DOMAIN_ID/REASONS_SERVICE_DOMAIN_NAME)")
     if missing:
         raise RuntimeError(f"Missing required config: {', '.join(missing)}")
 
-    return url.rstrip("/"), api_key, domain_id
+    resolved_url = url.rstrip("/")
+
+    if not domain_id and domain_name:
+        domain_id = _resolve_domain_name(resolved_url, api_key, domain_name)
+
+    return resolved_url, api_key, domain_id
+
+
+def _resolve_domain_name(url: str, api_key: str, name: str) -> str:
+    """Look up a domain ID by name via GET /api/domains."""
+    data = _request(f"{url}/api/domains?limit=1000", api_key)
+    domains = data.get("domains", data.get("items", []))
+    for d in domains:
+        if d.get("name", "").lower() == name.lower():
+            return d["id"]
+    available = [d.get("name", "") for d in domains[:20]]
+    raise RuntimeError(
+        f"Domain '{name}' not found. Available: {', '.join(available)}"
+    )
 
 
 def _request(url: str, api_key: str, data: bytes | None = None,

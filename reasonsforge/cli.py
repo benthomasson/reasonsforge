@@ -980,6 +980,7 @@ def cmd_push(args):
             url=args.url,
             api_key=args.api_key,
             domain_id=args.domain_id,
+            domain_name=args.domain_name,
             sources_dir=args.sources_dir,
             summaries_dir=args.summaries_dir,
             include_network=not args.no_network,
@@ -3281,6 +3282,7 @@ def main():
     p.add_argument("--url", help="Service URL (default: REASONS_SERVICE_URL env)")
     p.add_argument("--api-key", help="API key (default: REASONS_SERVICE_API_KEY env)")
     p.add_argument("--domain-id", help="Target domain UUID (default: REASONS_SERVICE_DOMAIN_ID env)")
+    p.add_argument("--domain-name", help="Target domain name (looked up via API, alternative to --domain-id)")
     p.add_argument("--sources-dir", default="sources", help="Sources directory (default: sources)")
     p.add_argument("--summaries-dir", default="summaries", help="Summaries directory (default: summaries)")
     p.add_argument("--no-network", action="store_true", help="Skip pushing the belief network")

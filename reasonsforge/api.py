@@ -2209,6 +2209,7 @@ def push_to_service(
     url: str | None = None,
     api_key: str | None = None,
     domain_id: str | None = None,
+    domain_name: str | None = None,
     sources_dir: str = "sources",
     summaries_dir: str = "summaries",
     include_network: bool = True,
@@ -2230,7 +2231,7 @@ def push_to_service(
     from .reasons_service import _resolve_config, push_network, push_sources, push_summaries, push_topics as _push_topics
 
     resolved_url, resolved_key, resolved_domain = _resolve_config(
-        url, api_key, domain_id)
+        url, api_key, domain_id, domain_name=domain_name)
 
     result = {}
 
