@@ -2214,6 +2214,7 @@ def push_to_service(
     include_network: bool = True,
     include_sources: bool = True,
     include_summaries: bool = True,
+    include_topics: bool = True,
     chunk_size: int = 50,
     progress: bool = False,
     db_path: str = DEFAULT_DB,
@@ -2222,11 +2223,11 @@ def push_to_service(
     """Push local forge artifacts to a reasons-service instance.
 
     Uploads network.json (beliefs with justification graphs), source
-    documents (with metadata from frontmatter), and summaries.
+    documents (with metadata from frontmatter), summaries, and topics.
 
-    Returns: {"network": {...}, "sources": {...}, "summaries": {...}}
+    Returns: {"network": {...}, "sources": {...}, "summaries": {...}, "topics": {...}}
     """
-    from .reasons_service import _resolve_config, push_network, push_sources, push_summaries
+    from .reasons_service import _resolve_config, push_network, push_sources, push_summaries, push_topics as _push_topics
 
     resolved_url, resolved_key, resolved_domain = _resolve_config(
         url, api_key, domain_id)
@@ -2271,6 +2272,19 @@ def push_to_service(
                 result["summaries"] = {"imported": 0, "skipped": 0, "note": "no summary files found"}
         else:
             result["summaries"] = {"imported": 0, "skipped": 0, "note": f"{summaries_dir}/ not found"}
+
+    if include_topics:
+        backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
+        topics_result = topics(limit=50, **backend)
+        topic_payloads = [
+            {"name": t["topic"], "belief_count": t["count"]}
+            for t in topics_result.get("topics", [])
+        ]
+        if topic_payloads:
+            t_result = _push_topics(resolved_url, resolved_key, resolved_domain, topic_payloads)
+            result["topics"] = t_result
+        else:
+            result["topics"] = {"imported": 0, "note": "no topics extracted"}
 
     return result
 

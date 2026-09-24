@@ -142,3 +142,12 @@ def push_summaries(
     endpoint = f"{url}/api/domains/{domain_id}/import/summaries"
     return _chunked_push(endpoint, api_key, summaries, "summaries",
                          chunk_size=chunk_size, progress=progress)
+
+
+def push_topics(
+    url: str, api_key: str, domain_id: str, topics: list[dict],
+) -> dict:
+    """Push topics via POST /api/domains/{domain_id}/import/topics."""
+    endpoint = f"{url}/api/domains/{domain_id}/import/topics"
+    payload = json.dumps({"topics": topics}).encode("utf-8")
+    return _request(endpoint, api_key, data=payload, method="POST")

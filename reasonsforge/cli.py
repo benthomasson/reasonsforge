@@ -985,6 +985,7 @@ def cmd_push(args):
             include_network=not args.no_network,
             include_sources=not args.no_sources,
             include_summaries=not args.no_summaries,
+            include_topics=not args.no_topics,
             chunk_size=args.chunk_size,
             progress=args.progress,
             **_backend_kwargs(args),
@@ -1005,6 +1006,11 @@ def cmd_push(args):
         s = result["summaries"]
         print(f"Summaries: {s.get('imported', 0)} imported, {s.get('skipped', 0)} skipped"
               + (f" ({s['note']})" if s.get("note") else ""))
+    if "topics" in result:
+        t = result["topics"]
+        print(f"Topics: {t.get('imported', 0)} imported"
+              + (f", {t['deleted_stale']} stale removed" if t.get("deleted_stale") else "")
+              + (f" ({t['note']})" if t.get("note") else ""))
 
 
 def cmd_export(args):
@@ -3280,6 +3286,7 @@ def main():
     p.add_argument("--no-network", action="store_true", help="Skip pushing the belief network")
     p.add_argument("--no-sources", action="store_true", help="Skip pushing source documents")
     p.add_argument("--no-summaries", action="store_true", help="Skip pushing summaries")
+    p.add_argument("--no-topics", action="store_true", help="Skip pushing topics")
     p.add_argument("--chunk-size", type=int, default=50, help="Items per chunk for sources/summaries (default: 50)")
     p.add_argument("--progress", action="store_true", help="Show tqdm progress bar for chunked uploads")
 
