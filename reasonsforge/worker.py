@@ -44,19 +44,19 @@ def _request(url: str, token: str, data: bytes | None = None,
 def _report_progress(base_url: str, token: str, task_id: str,
                      stage: str, percent: int = 0):
     data = json.dumps({"stage": stage, "percent": percent}).encode()
-    _request(f"{base_url}/api/tasks/{task_id}/progress", token,
+    _request(f"{base_url}/tasks/{task_id}/progress", token,
              data=data, method="POST")
 
 
 def _report_result(base_url: str, token: str, task_id: str, result: dict):
     data = json.dumps(result).encode()
-    _request(f"{base_url}/api/tasks/{task_id}/result", token,
+    _request(f"{base_url}/tasks/{task_id}/result", token,
              data=data, method="POST")
 
 
 def _report_failure(base_url: str, token: str, task_id: str, error: str):
     data = json.dumps({"error": error}).encode()
-    _request(f"{base_url}/api/tasks/{task_id}/fail", token,
+    _request(f"{base_url}/tasks/{task_id}/fail", token,
              data=data, method="POST")
 
 
@@ -237,7 +237,7 @@ def cmd_worker(args):
     print(f"[worker] poll interval: {poll_interval}s", file=sys.stderr)
 
     while True:
-        result = _request(f"{base_url}/api/tasks/pending", token)
+        result = _request(f"{base_url}/tasks/pending", token)
         if not result:
             if once:
                 print("[worker] no tasks, exiting (--once)", file=sys.stderr)
@@ -264,7 +264,7 @@ def cmd_worker(args):
             time.sleep(poll_interval)
             continue
 
-        claim = _request(f"{base_url}/api/tasks/{task_id}/claim", token,
+        claim = _request(f"{base_url}/tasks/{task_id}/claim", token,
                          data=b"{}", method="POST")
         if not claim:
             print(f"[worker] failed to claim task {task_id}", file=sys.stderr)
