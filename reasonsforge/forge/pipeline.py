@@ -173,12 +173,13 @@ def _stage_extract(args):
 def _stage_derive(args, round_label=""):
     """Stage 4: Derive new beliefs until saturated or max rounds hit.
 
-    Returns total number of beliefs added.
+    Returns (total_added, derived_ids) — count and list of IDs added this stage.
     """
     from reasonsforge.api import export_network
     from reasonsforge.derive import build_prompt, parse_proposals, validate_proposals, apply_proposals
 
     total_added = 0
+    all_derived_ids = []
     prefix = f"[{round_label}] " if round_label else ""
     search_rounds = getattr(args, "search_rounds", 0)
 
@@ -237,25 +238,33 @@ def _stage_derive(args, round_label=""):
                 break
 
             results = apply_proposals(valid, db_path=REASONS_DB, model=args.model)
-            added = sum(1 for _, r in results if isinstance(r, dict))
-            total_added += added
-            print(f"{prefix}  Added {added} beliefs", file=sys.stderr)
+            added_ids = [p["id"] for p, r in results if isinstance(r, dict)]
+            total_added += len(added_ids)
+            all_derived_ids.extend(added_ids)
+            print(f"{prefix}  Added {len(added_ids)} beliefs", file=sys.stderr)
     except KeyboardInterrupt:
         print(f"\n{prefix}  Ending derive early — {total_added} beliefs saved",
               file=sys.stderr)
 
-    return total_added
+    return total_added, all_derived_ids
 
 
-def _stage_review(args, round_label=""):
+def _stage_review(args, round_label="", belief_ids=None):
     """Stage 5: Review derived beliefs for validity.
+
+    Args:
+        belief_ids: If provided, only review these specific beliefs (from this round's derive).
 
     Returns the review results dict.
     """
     from reasonsforge.api import review_beliefs
 
     prefix = f"[{round_label}] " if round_label else ""
-    print(f"{prefix}Reviewing beliefs...", file=sys.stderr)
+    if belief_ids:
+        print(f"{prefix}Reviewing {len(belief_ids)} beliefs from this round...",
+              file=sys.stderr)
+    else:
+        print(f"{prefix}Reviewing beliefs...", file=sys.stderr)
 
     ns = getattr(args, "namespace", None)
     try:
@@ -263,6 +272,7 @@ def _stage_review(args, round_label=""):
             model=args.model,
             timeout=args.timeout,
             namespace=ns,
+            belief_ids=belief_ids,
             db_path=REASONS_DB,
         )
     except KeyboardInterrupt:
@@ -474,7 +484,7 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
         if on_stage:
             on_stage(cycle, 4, "start")
         t0 = time.monotonic()
-        added = _stage_derive(args, round_label=label)
+        added, derived_ids = _stage_derive(args, round_label=label)
         elapsed = time.monotonic() - t0
         summary["total_derived"] += added
         print(f"  DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
@@ -485,7 +495,8 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
         if on_stage:
             on_stage(cycle, 5, "start")
         t0 = time.monotonic()
-        review_result = _stage_review(args, round_label=label)
+        review_result = _stage_review(args, round_label=label,
+                                      belief_ids=derived_ids or None)
         elapsed = time.monotonic() - t0
         invalid_count = review_result.get("invalid", 0)
         summary["total_reviewed"] += review_result.get("reviewed", 0)
