@@ -233,12 +233,17 @@ TASK_HANDLERS = {
 }
 
 
+def _tenant_url(api_base: str, tenant_id: str) -> str:
+    return f"{api_base}/tenants/{tenant_id}"
+
+
 def cmd_worker(args):
     base_url = (args.url or os.environ.get("REASONS_SERVICE_URL", "")).rstrip("/")
     token = args.token or os.environ.get("REASONS_SERVICE_TOKEN", "")
     model = args.model
     poll_interval = args.poll_interval
     once = args.once
+    is_global = getattr(args, "scope", None) == "global"
 
     if not base_url:
         print("Error: --url or REASONS_SERVICE_URL required", file=sys.stderr)
@@ -247,7 +252,8 @@ def cmd_worker(args):
         print("Error: --token or REASONS_SERVICE_TOKEN required", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[worker] connecting to {base_url}", file=sys.stderr)
+    scope_label = "global" if is_global else "tenant-scoped"
+    print(f"[worker] connecting to {base_url} ({scope_label})", file=sys.stderr)
     print(f"[worker] model: {model}", file=sys.stderr)
     print(f"[worker] poll interval: {poll_interval}s", file=sys.stderr)
 
@@ -279,7 +285,13 @@ def cmd_worker(args):
             time.sleep(poll_interval)
             continue
 
-        claim = _request(f"{base_url}/tasks/{task_id}/claim", token,
+        if is_global:
+            tenant_id = task.get("tenant_id", "")
+            task_base = _tenant_url(base_url, tenant_id)
+        else:
+            task_base = base_url
+
+        claim = _request(f"{task_base}/tasks/{task_id}/claim", token,
                          data=b"{}", method="POST")
         if not claim:
             print(f"[worker] failed to claim task {task_id}", file=sys.stderr)
@@ -292,22 +304,22 @@ def cmd_worker(args):
         work_dir = Path(tempfile.mkdtemp(prefix=f"forge-{task_id[:8]}-"))
 
         try:
-            task_result = handler(work_dir, task, base_url, token, model)
+            task_result = handler(work_dir, task, task_base, token, model)
             if "error" in task_result:
-                _report_failure(base_url, token, task_id, task_result["error"])
+                _report_failure(task_base, token, task_id, task_result["error"])
                 print(f"[worker] task {task_id} failed: {task_result['error']}",
                       file=sys.stderr)
             else:
-                _report_result(base_url, token, task_id, task_result)
+                _report_result(task_base, token, task_id, task_result)
                 print(f"[worker] completed task {task_id}", file=sys.stderr)
         except KeyboardInterrupt:
-            _report_failure(base_url, token, task_id, "Worker interrupted")
+            _report_failure(task_base, token, task_id, "Worker interrupted")
             print(f"\n[worker] interrupted, reported failure for {task_id}",
                   file=sys.stderr)
             raise
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}"
-            _report_failure(base_url, token, task_id, error_msg)
+            _report_failure(task_base, token, task_id, error_msg)
             print(f"[worker] task {task_id} failed: {error_msg}",
                   file=sys.stderr)
         finally:

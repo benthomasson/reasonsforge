@@ -2967,6 +2967,8 @@ def main():
                    help="Seconds between task polls (default: 30)")
     p.add_argument("--once", action="store_true",
                    help="Process one task and exit (for CI/cron)")
+    p.add_argument("--scope", choices=["tenant", "global"], default="tenant",
+                   help="Worker scope: tenant (default) or global (cross-tenant)")
 
     # init
     p = sub.add_parser("init", help="Initialize a new RMS database")
