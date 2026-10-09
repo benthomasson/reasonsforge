@@ -2954,6 +2954,20 @@ def main():
     _forge_commands = register_forge_commands(sub)
     _forge_type_commands = register_forge_type_commands(sub)
 
+    # worker
+    p = sub.add_parser("worker",
+                       help="Run as a remote forge worker, pulling tasks from reasons-service-edge")
+    p.add_argument("--url", default=None,
+                   help="Service URL (or REASONS_SERVICE_URL env var)")
+    p.add_argument("--token", default=None,
+                   help="Service account token (or REASONS_SERVICE_TOKEN env var)")
+    p.add_argument("--model", default="claude",
+                   help="LLM model to use (default: claude)")
+    p.add_argument("--poll-interval", type=int, default=30,
+                   help="Seconds between task polls (default: 30)")
+    p.add_argument("--once", action="store_true",
+                   help="Process one task and exit (for CI/cron)")
+
     # init
     p = sub.add_parser("init", help="Initialize a new RMS database")
     p.add_argument("--force", action="store_true", help="Overwrite existing database")
@@ -3797,6 +3811,7 @@ def main():
         "contradictions": cmd_contradictions,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
+        "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
         "forge": lambda args: _dispatch_forge(args, _forge_commands),
         **_forge_type_commands,
     }
