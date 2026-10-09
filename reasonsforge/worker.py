@@ -293,8 +293,13 @@ def cmd_worker(args):
 
         try:
             task_result = handler(work_dir, task, base_url, token, model)
-            _report_result(base_url, token, task_id, task_result)
-            print(f"[worker] completed task {task_id}", file=sys.stderr)
+            if "error" in task_result:
+                _report_failure(base_url, token, task_id, task_result["error"])
+                print(f"[worker] task {task_id} failed: {task_result['error']}",
+                      file=sys.stderr)
+            else:
+                _report_result(base_url, token, task_id, task_result)
+                print(f"[worker] completed task {task_id}", file=sys.stderr)
         except KeyboardInterrupt:
             _report_failure(base_url, token, task_id, "Worker interrupted")
             print(f"\n[worker] interrupted, reported failure for {task_id}",
