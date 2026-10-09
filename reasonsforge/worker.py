@@ -104,10 +104,13 @@ def _run_document_forge(work_dir: Path, task: dict, base_url: str,
         if url:
             _download_file(url, token, sources_dir / fname)
 
-    db_url = config.get("reasons_db_url")
+    db_url = config.get("reasons_db_url",
+                        f"{base_url}/domains/{domain_id}/download-db")
     db_path = work_dir / "reasons.db"
-    if db_url:
+    try:
         _download_file(db_url, token, db_path)
+    except Exception:
+        pass  # OK if no existing DB — forge will create one
 
     domain = config.get("domain", "")
     forge_model = config.get("model", model)
@@ -146,8 +149,7 @@ def _run_document_forge(work_dir: Path, task: dict, base_url: str,
     _report_progress(base_url, token, task_id, "uploading", 90)
 
     if db_path.exists():
-        upload_url = (f"{base_url}/api/tenants/{tenant_id}"
-                      f"/domains/{domain_id}/import-reasons")
+        upload_url = f"{base_url}/domains/{domain_id}/import-reasons"
         _upload_file(upload_url, token, db_path)
 
     return {"status": "completed", "reasons_db_size": db_path.stat().st_size
@@ -163,9 +165,14 @@ def _run_derive_review_repair(work_dir: Path, task: dict, base_url: str,
 
     db_path = work_dir / "reasons.db"
     db_url = config.get("reasons_db_url")
-    if db_url:
-        _report_progress(base_url, token, task_id, "downloading", 5)
+    if not db_url:
+        db_url = f"{base_url}/domains/{domain_id}/download-db"
+
+    _report_progress(base_url, token, task_id, "downloading", 5)
+    try:
         _download_file(db_url, token, db_path)
+    except Exception as e:
+        return {"error": f"Failed to download reasons.db: {e}"}
 
     if not db_path.exists():
         return {"error": "No reasons.db available"}
@@ -199,8 +206,7 @@ def _run_derive_review_repair(work_dir: Path, task: dict, base_url: str,
     _report_progress(base_url, token, task_id, "uploading", 90)
 
     if db_path.exists():
-        upload_url = (f"{base_url}/api/tenants/{tenant_id}"
-                      f"/domains/{domain_id}/import-reasons")
+        upload_url = f"{base_url}/domains/{domain_id}/import-reasons"
         _upload_file(upload_url, token, db_path)
 
     return {"status": "completed"}
