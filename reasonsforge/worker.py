@@ -169,18 +169,26 @@ def _run_derive_review_repair(work_dir: Path, task: dict, base_url: str,
         db_url = f"{base_url}/domains/{domain_id}/download-db"
 
     _report_progress(base_url, token, task_id, "downloading", 5)
+    print(f"[worker] downloading {db_url}", file=sys.stderr)
     try:
         _download_file(db_url, token, db_path)
     except Exception as e:
+        print(f"[worker] download failed: {e}", file=sys.stderr)
         return {"error": f"Failed to download reasons.db: {e}"}
 
     if not db_path.exists():
+        print("[worker] reasons.db not found after download", file=sys.stderr)
         return {"error": "No reasons.db available"}
+
+    print(f"[worker] downloaded {db_path.stat().st_size} bytes", file=sys.stderr)
 
     os.chdir(str(work_dir))
 
     import reasonsforge.forge as forge
-    forge.REASONS_DB = str(db_path)
+    forge.REASONS_DB = "reasons.db"
+    # Also patch the already-imported module reference
+    import reasonsforge.forge.pipeline as pipeline_mod
+    pipeline_mod.REASONS_DB = "reasons.db"
 
     forge_model = config.get("model", model)
     rounds = config.get("rounds", 3)
@@ -201,13 +209,20 @@ def _run_derive_review_repair(work_dir: Path, task: dict, base_url: str,
         verify_dedup=True,
     )
 
+    print(f"[worker] running derive-review-repair (rounds={rounds}, "
+          f"model={forge_model})", file=sys.stderr)
     cmd_derive_review_repair(args)
 
     _report_progress(base_url, token, task_id, "uploading", 90)
 
     if db_path.exists():
         upload_url = f"{base_url}/domains/{domain_id}/import-reasons"
-        _upload_file(upload_url, token, db_path)
+        print(f"[worker] uploading {db_path.stat().st_size} bytes to {upload_url}",
+              file=sys.stderr)
+        result = _upload_file(upload_url, token, db_path)
+        print(f"[worker] upload result: {result}", file=sys.stderr)
+    else:
+        print("[worker] no reasons.db to upload", file=sys.stderr)
 
     return {"status": "completed"}
 
