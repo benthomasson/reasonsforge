@@ -394,6 +394,220 @@ def _stage_deduplicate(args, round_label=""):
     return result
 
 
+def _stage_rederive_superseded(args, round_label=""):
+    """Re-derive beliefs that went OUT because an antecedent was superseded."""
+    from reasonsforge.api import add_node, add_justification, propagate
+    from reasonsforge.storage import Storage
+    from .llm import extract_json
+
+    prefix = f"[{round_label}] " if round_label else ""
+
+    store = Storage(REASONS_DB)
+    net = store.load()
+    store.close()
+
+    nodes = net.nodes
+
+    def _get_meta(node):
+        meta = node.metadata if hasattr(node, "metadata") else {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, ValueError):
+                meta = {}
+        return meta
+
+    superseded_map = {}
+    for nid, node in nodes.items():
+        sup = _get_meta(node).get("superseded_by")
+        if sup:
+            superseded_map[nid] = sup
+
+    if not superseded_map:
+        print(f"{prefix}No superseded beliefs found", file=sys.stderr)
+        return {"rederived": 0}
+
+    node_map = nodes
+
+    casualties = []
+    seen = set()
+    for nid, node in nodes.items():
+        if node.truth_value != "OUT":
+            continue
+        node_meta = _get_meta(node)
+        if node_meta.get("superseded_by"):
+            continue
+        if node_meta.get("_retracted"):
+            continue
+
+        for j in node.justifications:
+            for ant_id in j.antecedents:
+                if ant_id in superseded_map:
+                    new_id = superseded_map[ant_id]
+                    new_node = node_map.get(new_id)
+                    if not new_node or new_node.truth_value != "IN":
+                        continue
+                    old_node = node_map.get(ant_id)
+                    if not old_node:
+                        continue
+
+                    key = (nid, ant_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+
+                    other_ants = [
+                        (a, node_map[a].text)
+                        for a in j.antecedents
+                        if a != ant_id and a in node_map
+                    ]
+                    casualties.append({
+                        "node_id": nid,
+                        "node_text": node.text,
+                        "old_ant_id": ant_id,
+                        "old_ant_text": old_node.text,
+                        "new_ant_id": new_id,
+                        "new_ant_text": new_node.text,
+                        "other_antecedents": other_ants,
+                    })
+
+    if not casualties:
+        print(f"{prefix}No supersession casualties found", file=sys.stderr)
+        return {"rederived": 0}
+
+    print(f"{prefix}Found {len(casualties)} supersession casualties to evaluate",
+          file=sys.stderr)
+
+    total_rederived = 0
+    batch_size = 10
+    round_num = round_label.split("/")[0].replace("cycle ", "") if round_label else "1"
+
+    for i in range(0, len(casualties), batch_size):
+        batch = casualties[i:i + batch_size]
+
+        batch_text = "\n\n".join(
+            "{num}. Dependent: **{nid}**: {ntext}\n"
+            "  Old antecedent: **{oid}**: {otext}\n"
+            "  New antecedent (replacement): **{newid}**: {newtext}\n"
+            "  Other antecedents:\n{others}".format(
+                num=k + 1,
+                nid=c["node_id"], ntext=c["node_text"],
+                oid=c["old_ant_id"], otext=c["old_ant_text"],
+                newid=c["new_ant_id"], newtext=c["new_ant_text"],
+                others=(
+                    "\n".join(f"    - {a}: {t}" for a, t in c["other_antecedents"])
+                    if c["other_antecedents"] else "    (none)"
+                ),
+            )
+            for k, c in enumerate(batch)
+        )
+
+        prompt = (
+            "A belief was superseded (replaced by a refined version). Its dependents went OUT "
+            "because their antecedent is gone. For each dependent below, decide whether the "
+            "conclusion still follows from the NEW antecedent.\n\n"
+            f"{batch_text}\n\n---\n\n"
+            "For each dependent, respond with ONE of:\n"
+            "- **rejustify**: The conclusion still follows from the new antecedent as-is. "
+            "We add a new justification referencing the new antecedent.\n"
+            "- **revise**: The conclusion needs rewording to follow from the new antecedent. "
+            "Provide updated text and a new ID.\n"
+            "- **drop**: The conclusion no longer follows from the new antecedent.\n\n"
+            'Respond with ONLY this JSON array:\n'
+            '[{"id": "<dependent-id>", "action": "rejustify|revise|drop", '
+            '"new_id": "<kebab-case-id if revise>", '
+            '"new_text": "<revised claim if revise>", '
+            '"reason": "<brief explanation>"}]'
+        )
+
+        try:
+            response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
+        except KeyboardInterrupt:
+            print(f"\n{prefix}  Ending re-derive early", file=sys.stderr)
+            break
+        except Exception as e:
+            print(f"{prefix}  LLM error: {e}", file=sys.stderr)
+            continue
+
+        decisions = extract_json(response)
+        if not isinstance(decisions, list):
+            print(f"{prefix}  Failed to parse re-derive response", file=sys.stderr)
+            continue
+
+        for decision in decisions:
+            dep_id = decision.get("id", "")
+            action = decision.get("action", "drop")
+            reason = decision.get("reason", "")
+
+            casualty = next((c for c in batch if c["node_id"] == dep_id), None)
+            if not casualty:
+                continue
+
+            if action == "rejustify":
+                new_ants = [casualty["new_ant_id"]]
+                for ant_id, _ in casualty["other_antecedents"]:
+                    n = node_map.get(ant_id)
+                    if n and n.truth_value == "IN":
+                        new_ants.append(ant_id)
+
+                if new_ants:
+                    add_justification(
+                        node_id=dep_id,
+                        sl=",".join(new_ants),
+                        label=f"re-derive-round-{round_num}",
+                        db_path=REASONS_DB,
+                    )
+                    print(f"{prefix}  rejustified {dep_id} ({reason})",
+                          file=sys.stderr)
+                    total_rederived += 1
+
+            elif action == "revise":
+                new_id = decision.get("new_id", "")
+                new_text = decision.get("new_text", "")
+                if not new_id or not new_text or new_id == dep_id:
+                    continue
+
+                new_ants = [casualty["new_ant_id"]]
+                for ant_id, _ in casualty["other_antecedents"]:
+                    n = node_map.get(ant_id)
+                    if n and n.truth_value == "IN":
+                        new_ants.append(ant_id)
+
+                add_node(
+                    node_id=new_id,
+                    text=new_text,
+                    sl=",".join(new_ants),
+                    unless=dep_id,
+                    label=f"re-derive-round-{round_num}",
+                    source=f"supersedes:{dep_id}",
+                    model=args.model,
+                    db_path=REASONS_DB,
+                )
+
+                store = Storage(REASONS_DB)
+                updated_net = store.load()
+                old_dep = updated_net.nodes.get(dep_id)
+                if old_dep:
+                    meta = _get_meta(old_dep)
+                    meta["superseded_by"] = new_id
+                    old_dep.metadata = meta
+                    store.save(updated_net)
+                store.close()
+
+                print(f"{prefix}  revised {dep_id} -> {new_id} ({reason})",
+                      file=sys.stderr)
+                total_rederived += 1
+
+            else:
+                print(f"{prefix}  dropped {dep_id} ({reason})", file=sys.stderr)
+
+    if total_rederived > 0:
+        propagate(db_path=REASONS_DB)
+
+    print(f"{prefix}Re-derived {total_rederived} casualties", file=sys.stderr)
+    return {"rederived": total_rederived}
+
+
 def _stage_export(args):
     """Export network and README card."""
     from reasonsforge.api import export_network, export_card
@@ -534,9 +748,17 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
             on_stage(cycle, 7, "end",
                      duration_seconds=round(elapsed, 2))
 
-        if invalid_count == 0 and added == 0:
+        t0 = time.monotonic()
+        rederive_result = _stage_rederive_superseded(args, round_label=label)
+        elapsed = time.monotonic() - t0
+        rederived = rederive_result.get("rederived", 0)
+        summary["total_rederived"] = summary.get("total_rederived", 0) + rederived
+        if rederived > 0:
+            print(f"  RE-DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
+
+        if invalid_count == 0 and added == 0 and rederived == 0:
             print(f"\nConverged after {cycle} cycles "
-                  f"(0 invalids, 0 new derivations)", file=sys.stderr)
+                  f"(0 invalids, 0 new derivations, 0 re-derived)", file=sys.stderr)
             summary["converged"] = True
             break
 
@@ -583,6 +805,7 @@ def cmd_derive_review_repair(args):
     print(f"  Linked: {summary['total_linked']}", file=sys.stderr)
     print(f"  Softened: {summary['total_softened']}", file=sys.stderr)
     print(f"  Abandoned: {summary['total_abandoned']}", file=sys.stderr)
+    print(f"Re-derived: {summary.get('total_rederived', 0)}", file=sys.stderr)
     print(f"Converged: {'yes' if summary['converged'] else 'no'}", file=sys.stderr)
 
 
