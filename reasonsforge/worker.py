@@ -265,8 +265,10 @@ def _run_generate_stories(work_dir: Path, task: dict, base_url: str,
     conn.row_factory = sqlite3.Row
 
     nodes = [dict(r) for r in conn.execute(
-        "SELECT id, text, truth_value, source, created_at, updated_at FROM nodes"
+        "SELECT id, text, truth_value, source, metadata, created_at, updated_at FROM nodes"
     ).fetchall()]
+    for n in nodes:
+        n["_meta"] = json.loads(n["metadata"]) if n.get("metadata") else {}
     if not nodes:
         return {"error": "No beliefs in domain"}
 
@@ -292,6 +294,8 @@ def _run_generate_stories(work_dir: Path, task: dict, base_url: str,
             continue
         node = node_map.get(j["node_id"])
         if not node or node["truth_value"] != "OUT":
+            continue
+        if node["_meta"].get("superseded_by"):
             continue
         if j["node_id"] in seen_gated:
             continue
