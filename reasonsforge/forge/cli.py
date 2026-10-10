@@ -771,6 +771,52 @@ def register_forge_type_commands(parent_subparsers):
     ds = data_sub.add_parser("status", help="Show data forge status")
     ds.add_argument("--output", default="reasons.db")
 
+    # routing — build routing EEMs from domain EEMs
+    p = parent_subparsers.add_parser(
+        "routing",
+        help="Build routing EEMs from domain EEMs for query routing")
+    p.add_argument("--model", default="claude", help="LLM model to use")
+    p.add_argument("--timeout", type=int, default=600, help="LLM timeout (s)")
+    p.add_argument("--output", default="routing.db",
+                   help="Output routing database path")
+
+    routing_sub = p.add_subparsers(dest="routing_command")
+
+    # routing extract
+    rs = routing_sub.add_parser("extract",
+                                help="Extract routing beliefs from a domain EEM")
+    rs.add_argument("--input", required=True,
+                    help="Path to domain EEM (reasons.db)")
+    rs.add_argument("--model", default="claude")
+    rs.add_argument("--timeout", type=int, default=600)
+    rs.add_argument("--output", default="routing.db")
+
+    # routing extract-all
+    rs = routing_sub.add_parser("extract-all",
+                                help="Extract routing beliefs from multiple domain EEMs")
+    rs.add_argument("inputs", nargs="+", metavar="DOMAIN_DB",
+                    help="Paths to domain EEMs")
+    rs.add_argument("--model", default="claude")
+    rs.add_argument("--timeout", type=int, default=600)
+    rs.add_argument("--output", default="routing.db")
+
+    # routing derive
+    rs = routing_sub.add_parser("derive",
+                                help="Derive cross-domain routing relationships")
+    rs.add_argument("--model", default="claude")
+    rs.add_argument("--timeout", type=int, default=600)
+    rs.add_argument("--output", default="routing.db")
+
+    # routing query
+    rs = routing_sub.add_parser("query",
+                                help="Test routing by searching the routing EEM")
+    rs.add_argument("query", help="Natural language query to route")
+    rs.add_argument("--output", default="routing.db")
+
+    # routing status
+    rs = routing_sub.add_parser("status", help="Show routing EEM status")
+    rs.add_argument("--output", default="routing.db")
+
     # run — sandbox wrapper (Phase 3)
     p = parent_subparsers.add_parser(
         "run",
@@ -779,7 +825,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta", "diary", "data"],
+                   choices=["document", "code", "product", "project", "meta", "diary", "data", "routing"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -792,6 +838,7 @@ def register_forge_type_commands(parent_subparsers):
         "meta": _cmd_meta,
         "diary": _cmd_diary,
         "data": _cmd_data,
+        "routing": _cmd_routing,
         "run": _cmd_run,
     }
 
@@ -1107,6 +1154,39 @@ def _cmd_data(args):
         cmd_pipeline(args)
     finally:
         _print_cost(args, operation=data_command or "data")
+
+
+def _cmd_routing(args):
+    """Run the routing forge or dispatch to a subcommand."""
+    from .routing.commands import (
+        cmd_derive as _routing_derive,
+        cmd_extract as _routing_extract,
+        cmd_extract_all as _routing_extract_all,
+        cmd_query as _routing_query,
+        cmd_status as _routing_status,
+    )
+
+    routing_command = getattr(args, "routing_command", None)
+
+    _routing_dispatch = {
+        "extract": _routing_extract,
+        "extract-all": _routing_extract_all,
+        "derive": _routing_derive,
+        "query": _routing_query,
+        "status": _routing_status,
+    }
+
+    try:
+        if routing_command and routing_command in _routing_dispatch:
+            _routing_dispatch[routing_command](args)
+            return
+
+        # No subcommand — show help
+        print("Usage: reasonsforge routing {extract,extract-all,derive,query,status}",
+              file=sys.stderr)
+        print("Run 'reasonsforge routing --help' for details.", file=sys.stderr)
+    finally:
+        _print_cost(args, operation=routing_command or "routing")
 
 
 def _cmd_run(args):
