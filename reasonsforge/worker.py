@@ -277,11 +277,11 @@ def _run_generate_stories(work_dir: Path, task: dict, base_url: str,
     node_map = {n["id"]: n for n in nodes}
 
     justs = [dict(r) for r in conn.execute(
-        "SELECT node_id, antecedents, outlist FROM justifications"
+        "SELECT node_id, antecedents_json, outlist_json FROM justifications"
     ).fetchall()]
     for j in justs:
-        j["antecedents"] = json.loads(j["antecedents"]) if j["antecedents"] else []
-        j["outlist"] = json.loads(j["outlist"]) if j["outlist"] else []
+        j["antecedents"] = json.loads(j["antecedents_json"]) if j["antecedents_json"] else []
+        j["outlist"] = json.loads(j["outlist_json"]) if j["outlist_json"] else []
 
     conn.close()
 
