@@ -10,9 +10,6 @@ from pathlib import Path
 from .prompts import DERIVE_ROUTING_PROMPT, EXTRACT_ROUTING_PROMPT
 
 
-REASONS_DB = "reasons.db"
-
-
 def _load_domain_beliefs(db_path: str, max_beliefs: int = 200) -> list[dict]:
     """Load IN beliefs from a domain EEM."""
     from reasonsforge.api import export_network

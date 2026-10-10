@@ -89,7 +89,7 @@ def parse_ddl(sql: str, source: str = "ddl") -> Schema:
 
     for table_name, body in tables:
         table = Table(name=table_name)
-        for line in body.split(","):
+        for line in _split_columns(body):
             line = line.strip().rstrip(",")
             if not line:
                 continue
@@ -163,6 +163,28 @@ def _apply_alter_tables(sql: str, schema: Schema) -> None:
             if default_match:
                 col.default = default_match.group(1).strip("'\"")
         table.columns.append(col)
+
+
+def _split_columns(body: str) -> list[str]:
+    """Split a CREATE TABLE body on commas, respecting parenthesized type args."""
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for ch in body:
+        if ch == "(":
+            depth += 1
+            current.append(ch)
+        elif ch == ")":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current))
+    return parts
 
 
 def _split_create_tables(sql: str) -> list[tuple[str, str]]:
@@ -320,7 +342,8 @@ def introspect_database(connection_url: str, source: str | None = None) -> Schem
               file=sys.stderr)
         raise
 
-    source = source or connection_url.split("@")[-1] if "@" in connection_url else connection_url
+    if source is None:
+        source = connection_url.split("@")[-1] if "@" in connection_url else connection_url
     engine = create_engine(connection_url)
     inspector = inspect(engine)
 
