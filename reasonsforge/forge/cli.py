@@ -721,6 +721,56 @@ def register_forge_type_commands(parent_subparsers):
     ds.add_argument("--input-dir", default="entries")
     ds.add_argument("--output", default="reasons.db")
 
+    # data — build EEMs from database schemas
+    p = parent_subparsers.add_parser(
+        "data",
+        help="Build beliefs from database schemas and semantic context")
+    p.add_argument("--ddl", action="append", help="SQL DDL files (repeatable)")
+    p.add_argument("--csv", action="append", help="CSV files (repeatable)")
+    p.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
+    p.add_argument("--connection", help="Database connection URL")
+    p.add_argument("--context", action="append",
+                   help="Context files/dirs (repeatable)")
+    p.add_argument("--profile", action="store_true",
+                   help="Include statistical profiling")
+    p.add_argument("--domain", help="Domain description")
+    _add_common_pipeline_args(p)
+
+    data_sub = p.add_subparsers(dest="data_command")
+
+    # data schema — parse and display schema
+    ds = data_sub.add_parser("schema", help="Parse schema sources and display")
+    ds.add_argument("--ddl", action="append", help="SQL DDL files (repeatable)")
+    ds.add_argument("--csv", action="append", help="CSV files (repeatable)")
+    ds.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
+    ds.add_argument("--connection", help="Database connection URL")
+
+    # data introspect — live database introspection
+    ds = data_sub.add_parser("introspect", help="Introspect a live database")
+    ds.add_argument("--connection", required=True, help="Database connection URL")
+
+    # data profile — statistical profiling
+    ds = data_sub.add_parser("profile", help="Profile data files for statistics")
+    ds.add_argument("--csv", action="append", help="CSV files (repeatable)")
+
+    # data enrich — semantic enrichment
+    ds = data_sub.add_parser("enrich", help="Enrich schema with semantic beliefs")
+    ds.add_argument("--ddl", action="append", help="SQL DDL files (repeatable)")
+    ds.add_argument("--csv", action="append", help="CSV files (repeatable)")
+    ds.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
+    ds.add_argument("--connection", help="Database connection URL")
+    ds.add_argument("--context", action="append",
+                    help="Context files/dirs (repeatable)")
+    ds.add_argument("--profile", action="store_true",
+                    help="Include statistical profiling")
+    ds.add_argument("--model", default="claude")
+    ds.add_argument("--timeout", type=int, default=600)
+    ds.add_argument("--output", default="reasons.db")
+
+    # data status
+    ds = data_sub.add_parser("status", help="Show data forge status")
+    ds.add_argument("--output", default="reasons.db")
+
     # run — sandbox wrapper (Phase 3)
     p = parent_subparsers.add_parser(
         "run",
@@ -729,7 +779,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta", "diary"],
+                   choices=["document", "code", "product", "project", "meta", "diary", "data"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -741,6 +791,7 @@ def register_forge_type_commands(parent_subparsers):
         "project": _cmd_project,
         "meta": _cmd_meta,
         "diary": _cmd_diary,
+        "data": _cmd_data,
         "run": _cmd_run,
     }
 
@@ -1024,6 +1075,38 @@ def _cmd_diary(args):
         _diary_update(args)
     finally:
         _print_cost(args, operation=diary_command or "diary-update")
+
+
+def _cmd_data(args):
+    """Run the data forge pipeline or dispatch to a subcommand."""
+    from .data.commands import (
+        cmd_enrich as _data_enrich,
+        cmd_introspect as _data_introspect,
+        cmd_profile as _data_profile,
+        cmd_schema as _data_schema,
+        cmd_status as _data_status,
+    )
+    from .data.pipeline import cmd_pipeline
+
+    data_command = getattr(args, "data_command", None)
+
+    _data_dispatch = {
+        "schema": _data_schema,
+        "introspect": _data_introspect,
+        "profile": _data_profile,
+        "enrich": _data_enrich,
+        "status": _data_status,
+    }
+
+    try:
+        if data_command and data_command in _data_dispatch:
+            _data_dispatch[data_command](args)
+            return
+
+        # No subcommand — run full pipeline
+        cmd_pipeline(args)
+    finally:
+        _print_cost(args, operation=data_command or "data")
 
 
 def _cmd_run(args):
