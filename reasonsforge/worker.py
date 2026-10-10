@@ -583,12 +583,21 @@ def cmd_worker(args):
     print(f"[worker] poll interval: {poll_interval}s", file=sys.stderr)
 
     while True:
-        result = _request(f"{base_url}/tasks/pending", token)
+        try:
+            result = _request(f"{base_url}/tasks/pending", token)
+        except KeyboardInterrupt:
+            print("\n[worker] shutting down", file=sys.stderr)
+            return
+
         if not result:
             if once:
                 print("[worker] no tasks, exiting (--once)", file=sys.stderr)
                 return
-            time.sleep(poll_interval)
+            try:
+                time.sleep(poll_interval)
+            except KeyboardInterrupt:
+                print("\n[worker] shutting down", file=sys.stderr)
+                return
             continue
 
         tasks = result.get("items", result.get("tasks", []))
@@ -596,7 +605,11 @@ def cmd_worker(args):
             if once:
                 print("[worker] no tasks, exiting (--once)", file=sys.stderr)
                 return
-            time.sleep(poll_interval)
+            try:
+                time.sleep(poll_interval)
+            except KeyboardInterrupt:
+                print("\n[worker] shutting down", file=sys.stderr)
+                return
             continue
 
         task = tasks[0]
@@ -641,7 +654,7 @@ def cmd_worker(args):
             _report_failure(task_base, token, task_id, "Worker interrupted")
             print(f"\n[worker] interrupted, reported failure for {task_id}",
                   file=sys.stderr)
-            raise
+            return
         except Exception as e:
             error_msg = f"{type(e).__name__}: {e}"
             _report_failure(task_base, token, task_id, error_msg)
