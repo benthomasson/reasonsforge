@@ -118,8 +118,12 @@ def _run_document_forge(work_dir: Path, task: dict, base_url: str,
     db_path = work_dir / "reasons.db"
     try:
         _download_file(db_url, token, db_path)
+        print(f"[worker] downloaded existing DB ({db_path.stat().st_size} bytes)",
+              file=sys.stderr)
     except Exception:
-        pass  # OK if no existing DB — forge will create one
+        from reasonsforge.storage import Storage
+        Storage(str(db_path))
+        print("[worker] initialized empty reasons.db", file=sys.stderr)
 
     domain = config.get("domain", "")
     forge_model = config.get("model", model)
@@ -127,9 +131,6 @@ def _run_document_forge(work_dir: Path, task: dict, base_url: str,
     max_derive = config.get("max_derive_rounds", 10)
 
     os.chdir(str(work_dir))
-
-    import reasonsforge.forge as forge
-    forge.REASONS_DB = str(db_path)
 
     _report_progress(base_url, token, task_id, "summarizing", 15)
 
