@@ -75,6 +75,13 @@ _COLUMN_RE = re.compile(
 )
 
 
+_ALTER_TABLE_RE = re.compile(
+    r"ALTER\s+TABLE\s+[`\"']?(\w+)[`\"']?\s+ADD\s+COLUMN\s+[`\"']?(\w+)[`\"']?\s+"
+    r"(\w+(?:\([^)]*\))?)(.*?);",
+    re.IGNORECASE,
+)
+
+
 def parse_ddl(sql: str, source: str = "ddl") -> Schema:
     """Parse SQL DDL statements into a Schema."""
     schema = Schema(source=source)
@@ -126,7 +133,36 @@ def parse_ddl(sql: str, source: str = "ddl") -> Schema:
 
         schema.tables.append(table)
 
+    _apply_alter_tables(sql, schema)
+
     return schema
+
+
+def _apply_alter_tables(sql: str, schema: Schema) -> None:
+    """Apply ALTER TABLE ADD COLUMN statements to existing tables."""
+    for m in _ALTER_TABLE_RE.finditer(sql):
+        table_name = m.group(1)
+        col_name = m.group(2)
+        col_type = m.group(3)
+        rest = m.group(4).upper()
+
+        table = schema.get_table(table_name)
+        if table is None:
+            continue
+
+        if any(c.name.lower() == col_name.lower() for c in table.columns):
+            continue
+
+        col = Column(
+            name=col_name,
+            type=col_type,
+            nullable="NOT NULL" not in rest,
+        )
+        if "DEFAULT" in rest:
+            default_match = re.search(r"DEFAULT\s+(\S+)", rest, re.IGNORECASE)
+            if default_match:
+                col.default = default_match.group(1).strip("'\"")
+        table.columns.append(col)
 
 
 def _split_create_tables(sql: str) -> list[tuple[str, str]]:

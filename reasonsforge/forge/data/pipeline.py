@@ -236,7 +236,7 @@ def cmd_pipeline(args):
         print("Stage 5: Derive...", file=sys.stderr)
         from ..pipeline import _run_convergence_loop
         try:
-            _run_convergence_loop(args)
+            _run_convergence_loop(args, rounds)
         except Exception as e:
             print(f"Warning: derive failed: {e}", file=sys.stderr)
 
