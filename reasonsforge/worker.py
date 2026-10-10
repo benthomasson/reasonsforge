@@ -97,6 +97,15 @@ def _run_document_forge(work_dir: Path, task: dict, base_url: str,
 
     _report_progress(base_url, token, task_id, "downloading", 5)
 
+    source_slugs = config.get("source_slugs", [])
+    for slug in source_slugs:
+        url = f"{base_url}/domains/{domain_id}/sources/{slug}"
+        result = _request(url, token)
+        if result and result.get("content"):
+            fname = f"{slug}.md"
+            (sources_dir / fname).write_text(result["content"], encoding="utf-8")
+            print(f"[worker] downloaded source: {slug}", file=sys.stderr)
+
     source_urls = config.get("source_urls", [])
     for i, src in enumerate(source_urls):
         fname = src.get("filename", f"source-{i}.md")
