@@ -156,33 +156,44 @@ def _pairs_by_justification(
     budget: int,
     max_hops: int = 2,
     seed: int | None = None,
+    allowed_ids: set[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Generate belief pairs using justification graph proximity.
 
     Walks N hops on the justification graph and pairs beliefs that are
-    within max_hops of each other. Prioritizes closer pairs (1-hop before
-    2-hop) and filters to IN beliefs only.
+    within max_hops of each other. The full graph is used for traversal
+    but only beliefs in allowed_ids (if provided) appear in output pairs.
+
+    Args:
+        nodes: Full nodes dict (used to build the justification graph).
+        budget: Maximum number of pairs to return.
+        max_hops: Maximum graph distance for pairing.
+        seed: Random seed for reproducibility.
+        allowed_ids: If provided, only pair beliefs in this set.
     """
     adj = _build_justification_graph(nodes)
 
-    in_beliefs = set()
+    all_in = set()
     for nid, node in nodes.items():
         tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
         if tv == "IN":
-            in_beliefs.add(nid)
+            all_in.add(nid)
+
+    start_set = all_in & allowed_ids if allowed_ids is not None else all_in
 
     pairs_by_distance: dict[int, set[tuple[str, str]]] = {}
 
-    for start in sorted(in_beliefs):
+    for start in sorted(start_set):
         visited = {start}
         frontier = {start}
         for hop in range(1, max_hops + 1):
             next_frontier = set()
             for node in frontier:
                 for neighbor in adj.get(node, set()):
-                    if neighbor not in visited and neighbor in in_beliefs:
-                        pair = (min(start, neighbor), max(start, neighbor))
-                        pairs_by_distance.setdefault(hop, set()).add(pair)
+                    if neighbor not in visited and neighbor in all_in:
+                        if allowed_ids is None or neighbor in allowed_ids:
+                            pair = (min(start, neighbor), max(start, neighbor))
+                            pairs_by_distance.setdefault(hop, set()).add(pair)
                         next_frontier.add(neighbor)
                 visited |= next_frontier
             frontier = next_frontier
@@ -243,7 +254,8 @@ def _sample_pairs(
         List of (belief_id_1, belief_id_2) tuples.
     """
     if strategy == "justification" and nodes:
-        return _pairs_by_justification(nodes, budget, seed=seed)
+        return _pairs_by_justification(nodes, budget, seed=seed,
+                                       allowed_ids=set(belief_ids) if belief_ids else None)
 
     if strategy == "all" or len(belief_ids) <= 1:
         pairs = list(combinations(sorted(belief_ids), 2))

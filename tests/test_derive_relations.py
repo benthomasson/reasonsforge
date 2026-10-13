@@ -331,6 +331,24 @@ def test_pairs_by_justification_1hop_no_2hop():
     assert ("field-definition", "group-definition") not in pair_set
 
 
+def test_pairs_by_justification_allowed_ids():
+    """Only pairs beliefs in allowed_ids, even though graph walks through others."""
+    allowed = {"ring-definition", "field-definition"}
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2,
+                                     allowed_ids=allowed)
+    for a, b in pairs:
+        assert a in allowed and b in allowed
+
+
+def test_pairs_by_justification_allowed_ids_uses_full_graph():
+    """Allowed filter restricts output but walks the full graph for proximity."""
+    allowed = {"group-definition", "field-definition"}
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2,
+                                     allowed_ids=allowed)
+    pair_set = set(pairs)
+    assert ("field-definition", "group-definition") in pair_set
+
+
 def test_sample_pairs_justification_strategy():
     pairs = _sample_pairs(
         list(JUSTIFICATION_NODES.keys()), budget=10, strategy="justification",
