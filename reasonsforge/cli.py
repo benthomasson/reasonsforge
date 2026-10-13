@@ -2975,6 +2975,128 @@ def cmd_relations(args):
     print(f"\n{len(triples)} relational beliefs found")
 
 
+def cmd_derive_relations(args):
+    _require_sqlite(args, "derive-relations")
+    from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+    reset_cost_tracker()
+
+    from .derive_relations import (
+        _sample_pairs,
+        _filter_existing_relations,
+        build_prompt,
+        parse_relation_proposals,
+        validate_proposals,
+        apply_proposals,
+        write_proposals_file,
+    )
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    in_nodes = {k: v for k, v in nodes.items() if v.get("truth_value") == "IN"}
+
+    if args.topic:
+        keywords = args.topic.lower().split()
+        in_nodes = {
+            k: v for k, v in in_nodes.items()
+            if any(kw in f"{k} {v.get('text', '')}".lower() for kw in keywords)
+        }
+
+    belief_ids = sorted(in_nodes.keys())
+    if len(belief_ids) > args.sample_budget:
+        import random
+        rng = random.Random(args.seed)
+        belief_ids = rng.sample(belief_ids, args.sample_budget)
+
+    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy)
+    pairs = _filter_existing_relations(pairs, nodes)
+
+    print(f"Network: {len(in_nodes)} IN beliefs", file=sys.stderr)
+    print(f"Sampled {len(belief_ids)} beliefs, {len(pairs)} pairs to analyze", file=sys.stderr)
+
+    if not pairs:
+        print("No pairs to analyze after filtering existing relations.", file=sys.stderr)
+        return
+
+    prompt = build_prompt(
+        nodes, pairs,
+        domain=args.domain,
+        use_case=args.use_case,
+    )
+
+    if args.dry_run:
+        print(f"\n=== Prompt ({len(prompt)} chars) ===\n")
+        print(prompt[:5000])
+        if len(prompt) > 5000:
+            print(f"\n... ({len(prompt) - 5000} more chars)")
+        return
+
+    model = args.model or "claude"
+    print(f"Deriving relations with {model}...", file=sys.stderr)
+
+    import subprocess
+    try:
+        response = invoke_model(prompt, model=model, timeout=args.timeout)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"Model timed out after {args.timeout}s", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    proposals = parse_relation_proposals(response)
+    if not proposals:
+        print("No relation proposals found.", file=sys.stderr)
+        return
+
+    if args.high_only:
+        proposals = [p for p in proposals if p["confidence"] == "HIGH"]
+        if not proposals:
+            print("No HIGH confidence proposals.", file=sys.stderr)
+            return
+
+    valid, skipped = validate_proposals(proposals, nodes)
+    for p, reason in skipped:
+        print(f"  SKIP {p['id']}: {reason}", file=sys.stderr)
+
+    print(f"\n{len(valid)} valid proposals ({len(skipped)} skipped)", file=sys.stderr)
+
+    if not valid:
+        return
+
+    if args.auto:
+        results = apply_proposals(valid, db_path=args.db, model=model)
+        added = 0
+        for p, result in results:
+            if isinstance(result, dict):
+                print(f"  Added {p['id']} [{result['truth_value']}] ({p['relation']})")
+                added += 1
+            else:
+                print(f"  FAIL {p['id']}: {result}", file=sys.stderr)
+        if added:
+            print(f"\nAdded {added} relational beliefs.", file=sys.stderr)
+    else:
+        from pathlib import Path
+        output_path = Path(args.output)
+        write_proposals_file(valid, output_path)
+        print(f"\nWrote {output_path} ({len(valid)} proposals)")
+
+    cost = format_cost_summary()
+    if cost:
+        print(f"\n{cost}", file=sys.stderr)
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -3819,6 +3941,32 @@ def main():
     p.add_argument("--format", choices=["text", "json"], default="text",
                    help="Output format (default: text)")
 
+    # derive-relations
+    p = sub.add_parser("derive-relations",
+                       help="Discover FOL relations between existing beliefs using LLM")
+    p.add_argument("--domain", "-d", help="Domain description for context")
+    p.add_argument("--topic", help="Filter beliefs by keyword")
+    p.add_argument("--budget", type=int, default=50,
+                   help="Max belief pairs to analyze (default: 50)")
+    p.add_argument("--sample-budget", type=int, default=100,
+                   help="Max beliefs to sample for pairing (default: 100)")
+    p.add_argument("--seed", type=int, help="Random seed for reproducible sampling")
+    p.add_argument("--strategy", choices=["random", "prefix", "all"], default="prefix",
+                   help="Pair sampling strategy (default: prefix)")
+    p.add_argument("--use-case", default="lesson-planning",
+                   help="Use case guidance (default: lesson-planning)")
+    p.add_argument("--model", "-m", help="LLM model (default: claude)")
+    p.add_argument("--timeout", type=int, default=300,
+                   help="Model timeout in seconds (default: 300)")
+    p.add_argument("--auto", action="store_true",
+                   help="Automatically apply valid proposals")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show the prompt without calling the LLM")
+    p.add_argument("--output", "-o", default="derive-relations-proposals.md",
+                   help="Output file for proposals (default: derive-relations-proposals.md)")
+    p.add_argument("--high-only", action="store_true",
+                   help="Only keep HIGH confidence proposals")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -3932,6 +4080,7 @@ def main():
         "research": cmd_repair,
         "contradictions": cmd_contradictions,
         "relations": cmd_relations,
+        "derive-relations": cmd_derive_relations,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
