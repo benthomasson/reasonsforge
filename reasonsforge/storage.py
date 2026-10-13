@@ -68,6 +68,18 @@ CREATE TABLE IF NOT EXISTS network_meta (
     value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS node_tags (
+    node_id TEXT NOT NULL REFERENCES nodes(id),
+    tag TEXT NOT NULL,
+    PRIMARY KEY (node_id, tag)
+);
+
+CREATE TABLE IF NOT EXISTS node_sources (
+    node_id TEXT NOT NULL REFERENCES nodes(id),
+    source_id TEXT NOT NULL,
+    PRIMARY KEY (node_id, source_id)
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(id, text, tokenize="porter unicode61");
 """
 
