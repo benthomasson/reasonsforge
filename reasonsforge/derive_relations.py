@@ -458,7 +458,7 @@ def apply_proposals(valid, db_path="reasons.db", model=""):
                 text=p["text"],
                 sl=sl,
                 label=p["label"],
-                source_type="derived-relation",
+                source_type="derived",
                 model=model,
                 db_path=db_path,
             )
