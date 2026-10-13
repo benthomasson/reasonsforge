@@ -2874,6 +2874,107 @@ def cmd_contradictions(args):
         _write_cost_report(args, "contradictions", cost_summary, model=model)
 
 
+def cmd_relations(args):
+    from .relations import (
+        apply_relations_to_network,
+        ensure_relations,
+        extract_all_relations,
+        find_prevention_conflicts,
+        find_unmet_requirements,
+        relation_stats,
+        transitive_closure,
+    )
+
+    from .storage import Storage
+    store = Storage(args.db)
+    network = store.load()
+
+    if args.apply:
+        count = apply_relations_to_network(network, include_broad_is=args.include_is)
+        store.save(network)
+        print(f"Stored {count} relation entries across node metadata")
+        stats = relation_stats(network)
+        print(f"  {stats['total_relations']} unique outgoing relations")
+        print(f"  {stats['nodes_with_relations']}/{stats['total_nodes']} nodes have relations ({stats['coverage_pct']}%)")
+        return
+
+    if args.closure:
+        ensure_relations(network, include_broad_is=args.include_is)
+        chain = transitive_closure(network, args.closure, args.closure_type)
+        if not chain:
+            print(f"No {args.closure_type} chain from {args.closure}")
+            return
+        print(f"Transitive {args.closure_type} closure from {args.closure}:")
+        for i, node_id in enumerate(chain, 1):
+            node = network.nodes.get(node_id)
+            text = node.text[:80] if node else "?"
+            print(f"  {i}. {node_id}: {text}")
+        return
+
+    if args.check:
+        ensure_relations(network, include_broad_is=args.include_is)
+        unmet = find_unmet_requirements(network)
+        conflicts = find_prevention_conflicts(network)
+
+        if unmet:
+            print(f"Unmet requirements ({len(unmet)}):")
+            for node_id, target in unmet:
+                print(f"  {node_id} requires {target} (OUT)")
+        else:
+            print("No unmet requirements.")
+
+        if conflicts:
+            print(f"\nPrevention conflicts ({len(conflicts)}):")
+            for preventer, prevented in conflicts:
+                print(f"  {preventer} prevents {prevented} (both IN)")
+        else:
+            print("No prevention conflicts.")
+        return
+
+    if args.stats:
+        ensure_relations(network, include_broad_is=args.include_is)
+        stats = relation_stats(network)
+        fmt = getattr(args, "format", "text")
+        if fmt == "json":
+            import json as _json
+            print(_json.dumps(stats, indent=2))
+            return
+        print(f"Relations: {stats['total_relations']} across {stats['nodes_with_relations']}/{stats['total_nodes']} nodes ({stats['coverage_pct']}%)")
+        print(f"\n{'Relation':<14} {'Count':>6}")
+        print("-" * 22)
+        for rel, count in stats["by_type"].items():
+            print(f"{rel:<14} {count:>6}")
+        return
+
+    # Default: list relations
+    nodes_dict = {}
+    for node_id, node in network.nodes.items():
+        nodes_dict[node_id] = {"truth_value": node.truth_value}
+
+    triples = extract_all_relations(
+        nodes_dict,
+        relation_filter=args.relation,
+        include_broad_is=args.include_is,
+    )
+
+    if not triples:
+        print("No relational beliefs found.")
+        return
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        import json as _json
+        out = [{"id": bid, "subject": r.subject, "relation": r.relation, "object": r.object} for bid, r in triples]
+        print(_json.dumps(out, indent=2))
+        return
+
+    print(f"{'Relation':<14} {'Subject':<40} {'Object':<40}")
+    print("-" * 94)
+    for bid, rel in triples:
+        print(f"{rel.relation:<14} {rel.subject:<40} {rel.object:<40}")
+    print(f"\n{len(triples)} relational beliefs found")
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -3699,6 +3800,25 @@ def main():
     p.add_argument("--accept", metavar="FILE",
                    help="Apply a reviewed contradiction plan file")
 
+    # relations
+    p = sub.add_parser("relations", help="Extract and query FOL relations from belief names")
+    p.add_argument("--apply", action="store_true",
+                   help="Extract relations and store in node metadata")
+    p.add_argument("--stats", action="store_true",
+                   help="Show relation statistics")
+    p.add_argument("--relation", metavar="TYPE",
+                   help="Filter to a specific relation type (e.g., requires)")
+    p.add_argument("--check", action="store_true",
+                   help="Check for unmet requirements and prevention conflicts")
+    p.add_argument("--closure", metavar="NODE_ID",
+                   help="Compute transitive closure from a node")
+    p.add_argument("--closure-type", default="requires",
+                   help="Relation type for closure (default: requires)")
+    p.add_argument("--include-is", action="store_true",
+                   help="Include broad 'is' and 'is-not' patterns")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Output format (default: text)")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -3811,6 +3931,7 @@ def main():
         "repair": cmd_repair,
         "research": cmd_repair,
         "contradictions": cmd_contradictions,
+        "relations": cmd_relations,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
