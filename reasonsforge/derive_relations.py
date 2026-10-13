@@ -114,11 +114,121 @@ they clearly apply.
 """
 
 
+def _build_justification_graph(nodes: dict) -> dict[str, set[str]]:
+    """Build an undirected adjacency graph from justification links.
+
+    Two beliefs are adjacent if:
+    - One is an antecedent of the other (direct justification link)
+    - They share an antecedent (co-justified siblings)
+    """
+    adj: dict[str, set[str]] = {}
+    antecedent_to_dependents: dict[str, set[str]] = {}
+
+    for nid, node in nodes.items():
+        if isinstance(node, dict):
+            justs = node.get("justifications", [])
+        else:
+            justs = getattr(node, "justifications", [])
+            if hasattr(justs, "__iter__") and not isinstance(justs, (str, dict)):
+                justs = [{"antecedents": getattr(j, "antecedents", [])} for j in justs]
+            else:
+                justs = []
+
+        for j in justs:
+            antes = j.get("antecedents", [])
+            for a in antes:
+                adj.setdefault(nid, set()).add(a)
+                adj.setdefault(a, set()).add(nid)
+                antecedent_to_dependents.setdefault(a, set()).add(nid)
+
+    for ante, deps in antecedent_to_dependents.items():
+        dep_list = list(deps)
+        for i in range(len(dep_list)):
+            for j in range(i + 1, len(dep_list)):
+                adj.setdefault(dep_list[i], set()).add(dep_list[j])
+                adj.setdefault(dep_list[j], set()).add(dep_list[i])
+
+    return adj
+
+
+def _pairs_by_justification(
+    nodes: dict,
+    budget: int,
+    max_hops: int = 2,
+    seed: int | None = None,
+) -> list[tuple[str, str]]:
+    """Generate belief pairs using justification graph proximity.
+
+    Walks N hops on the justification graph and pairs beliefs that are
+    within max_hops of each other. Prioritizes closer pairs (1-hop before
+    2-hop) and filters to IN beliefs only.
+    """
+    adj = _build_justification_graph(nodes)
+
+    in_beliefs = set()
+    for nid, node in nodes.items():
+        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        if tv == "IN":
+            in_beliefs.add(nid)
+
+    pairs_by_distance: dict[int, set[tuple[str, str]]] = {}
+
+    for start in sorted(in_beliefs):
+        visited = {start}
+        frontier = {start}
+        for hop in range(1, max_hops + 1):
+            next_frontier = set()
+            for node in frontier:
+                for neighbor in adj.get(node, set()):
+                    if neighbor not in visited and neighbor in in_beliefs:
+                        pair = (min(start, neighbor), max(start, neighbor))
+                        pairs_by_distance.setdefault(hop, set()).add(pair)
+                        next_frontier.add(neighbor)
+                visited |= next_frontier
+            frontier = next_frontier
+
+    all_pairs = []
+    for hop in range(1, max_hops + 1):
+        hop_pairs = sorted(pairs_by_distance.get(hop, set()))
+        all_pairs.extend(hop_pairs)
+
+    seen = set()
+    deduped = []
+    for p in all_pairs:
+        if p not in seen:
+            seen.add(p)
+            deduped.append(p)
+
+    if len(deduped) <= budget:
+        return deduped
+
+    rng = random.Random(seed)
+    hop1 = sorted(pairs_by_distance.get(1, set()))
+    hop2 = sorted(pairs_by_distance.get(2, set()) - pairs_by_distance.get(1, set()))
+
+    result = []
+    hop1_budget = min(len(hop1), budget * 2 // 3)
+    if len(hop1) > hop1_budget:
+        result.extend(rng.sample(hop1, hop1_budget))
+    else:
+        result.extend(hop1)
+
+    remaining = budget - len(result)
+    if remaining > 0 and hop2:
+        if len(hop2) > remaining:
+            result.extend(rng.sample(hop2, remaining))
+        else:
+            result.extend(hop2)
+
+    return result
+
+
 def _sample_pairs(
     belief_ids: list[str],
     budget: int,
     seed: int | None = None,
     strategy: str = "random",
+    nodes: dict | None = None,
 ) -> list[tuple[str, str]]:
     """Sample belief pairs for relation analysis.
 
@@ -126,11 +236,15 @@ def _sample_pairs(
         belief_ids: List of belief IDs to pair.
         budget: Maximum number of pairs to return.
         seed: Random seed for reproducibility.
-        strategy: Sampling strategy — "random", "prefix", or "all".
+        strategy: Sampling strategy — "random", "prefix", "justification", or "all".
+        nodes: Full nodes dict (required for "justification" strategy).
 
     Returns:
         List of (belief_id_1, belief_id_2) tuples.
     """
+    if strategy == "justification" and nodes:
+        return _pairs_by_justification(nodes, budget, seed=seed)
+
     if strategy == "all" or len(belief_ids) <= 1:
         pairs = list(combinations(sorted(belief_ids), 2))
         if len(pairs) <= budget:

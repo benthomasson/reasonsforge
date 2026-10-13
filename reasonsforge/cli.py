@@ -3016,7 +3016,7 @@ def cmd_derive_relations(args):
         rng = random.Random(args.seed)
         belief_ids = rng.sample(belief_ids, args.sample_budget)
 
-    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy)
+    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy, nodes=nodes)
     pairs = _filter_existing_relations(pairs, nodes)
 
     print(f"Network: {len(in_nodes)} IN beliefs", file=sys.stderr)
@@ -3951,8 +3951,9 @@ def main():
     p.add_argument("--sample-budget", type=int, default=100,
                    help="Max beliefs to sample for pairing (default: 100)")
     p.add_argument("--seed", type=int, help="Random seed for reproducible sampling")
-    p.add_argument("--strategy", choices=["random", "prefix", "all"], default="prefix",
-                   help="Pair sampling strategy (default: prefix)")
+    p.add_argument("--strategy", choices=["random", "prefix", "justification", "all"],
+                   default="justification",
+                   help="Pair sampling strategy (default: justification)")
     p.add_argument("--use-case", default="lesson-planning",
                    help="Use case guidance (default: lesson-planning)")
     p.add_argument("--model", "-m", help="LLM model (default: claude)")

@@ -1,7 +1,9 @@
 """Tests for the derive_relations module."""
 
 from reasonsforge.derive_relations import (
+    _build_justification_graph,
     _filter_existing_relations,
+    _pairs_by_justification,
     _sample_pairs,
     build_existing_relations_section,
     build_pairs_section,
@@ -238,3 +240,102 @@ def test_validate_proposals_deduplicates():
     assert len(valid) == 1
     assert len(skipped) == 1
     assert "duplicate" in skipped[0][1]
+
+
+# --- Justification proximity tests ---
+
+JUSTIFICATION_NODES = {
+    "group-definition": {
+        "truth_value": "IN", "text": "A group is a set with a binary operation",
+        "justifications": [],
+    },
+    "ring-definition": {
+        "truth_value": "IN", "text": "A ring is a group under addition",
+        "justifications": [
+            {"antecedents": ["group-definition"], "outlist": []}
+        ],
+    },
+    "field-definition": {
+        "truth_value": "IN", "text": "A field is a commutative ring with inverses",
+        "justifications": [
+            {"antecedents": ["ring-definition"], "outlist": []}
+        ],
+    },
+    "integers-are-ring": {
+        "truth_value": "IN", "text": "The integers form a ring",
+        "justifications": [
+            {"antecedents": ["ring-definition"], "outlist": []}
+        ],
+    },
+    "unrelated-premise": {
+        "truth_value": "IN", "text": "Something unrelated",
+        "justifications": [],
+    },
+}
+
+
+def test_build_justification_graph_direct_links():
+    adj = _build_justification_graph(JUSTIFICATION_NODES)
+    assert "group-definition" in adj["ring-definition"]
+    assert "ring-definition" in adj["group-definition"]
+
+
+def test_build_justification_graph_siblings():
+    """Beliefs sharing an antecedent should be adjacent."""
+    adj = _build_justification_graph(JUSTIFICATION_NODES)
+    assert "integers-are-ring" in adj["field-definition"]
+    assert "field-definition" in adj["integers-are-ring"]
+
+
+def test_build_justification_graph_no_spurious():
+    """Unrelated premise should not be connected."""
+    adj = _build_justification_graph(JUSTIFICATION_NODES)
+    assert "unrelated-premise" not in adj
+
+
+def test_pairs_by_justification_finds_neighbors():
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2)
+    pair_set = set(pairs)
+    assert ("group-definition", "ring-definition") in pair_set
+    assert ("field-definition", "ring-definition") in pair_set
+
+
+def test_pairs_by_justification_finds_siblings():
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=1)
+    pair_set = set(pairs)
+    assert ("field-definition", "integers-are-ring") in pair_set
+
+
+def test_pairs_by_justification_excludes_unrelated():
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2)
+    for a, b in pairs:
+        assert a != "unrelated-premise" and b != "unrelated-premise"
+
+
+def test_pairs_by_justification_respects_budget():
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=2, max_hops=2, seed=42)
+    assert len(pairs) <= 2
+
+
+def test_pairs_by_justification_2hop():
+    """group-definition and field-definition are 2 hops apart."""
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2)
+    pair_set = set(pairs)
+    assert ("field-definition", "group-definition") in pair_set
+
+
+def test_pairs_by_justification_1hop_no_2hop():
+    """With max_hops=1, should not find 2-hop pairs."""
+    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=1)
+    pair_set = set(pairs)
+    assert ("field-definition", "group-definition") not in pair_set
+
+
+def test_sample_pairs_justification_strategy():
+    pairs = _sample_pairs(
+        list(JUSTIFICATION_NODES.keys()), budget=10, strategy="justification",
+        nodes=JUSTIFICATION_NODES,
+    )
+    assert len(pairs) > 0
+    for a, b in pairs:
+        assert a != "unrelated-premise" and b != "unrelated-premise"
