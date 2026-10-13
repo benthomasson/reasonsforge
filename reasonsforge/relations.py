@@ -205,12 +205,12 @@ def build_subject_index(network) -> dict[str, list[dict]]:
     index: dict[str, list[dict]] = {}
     for node in network.nodes.values():
         for rel_dict in node.metadata.get("relations", []):
-            if rel_dict["direction"] == "outgoing":
-                triple = extract_triple(node.id)
-                if triple:
-                    index.setdefault(triple.subject, []).append(rel_dict)
-            if rel_dict["direction"] == "outgoing" and node.id in network.nodes:
-                index.setdefault(node.id, []).append(rel_dict)
+            if rel_dict["direction"] != "outgoing":
+                continue
+            index.setdefault(node.id, []).append(rel_dict)
+            triple = extract_triple(node.id)
+            if triple and triple.subject != node.id:
+                index.setdefault(triple.subject, []).append(rel_dict)
     return index
 
 
@@ -271,11 +271,11 @@ def transitive_closure(
     return chain
 
 
-def find_unmet_requirements(network) -> list[tuple[str, str, str]]:
+def find_unmet_requirements(network) -> list[tuple[str, str]]:
     """Find beliefs where a required target is OUT.
 
     Returns:
-        list of (belief_id, relation_belief_id, required_target) tuples
+        list of (node_id, required_target) tuples
     """
     results = []
     for node_id, node in network.nodes.items():
@@ -284,7 +284,7 @@ def find_unmet_requirements(network) -> list[tuple[str, str, str]]:
         for rel_dict in get_relations(node.metadata, relation_type="requires", direction="outgoing"):
             target = rel_dict["target"]
             if target in network.nodes and network.nodes[target].truth_value == "OUT":
-                results.append((node_id, f"{node_id}-requires-{target}", target))
+                results.append((node_id, target))
     return results
 
 

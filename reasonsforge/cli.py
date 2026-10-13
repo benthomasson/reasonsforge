@@ -2918,7 +2918,7 @@ def cmd_relations(args):
 
         if unmet:
             print(f"Unmet requirements ({len(unmet)}):")
-            for node_id, rel_id, target in unmet:
+            for node_id, target in unmet:
                 print(f"  {node_id} requires {target} (OUT)")
         else:
             print("No unmet requirements.")

@@ -175,7 +175,7 @@ def test_find_unmet_requirements():
     apply_relations_to_network(network)
     unmet = find_unmet_requirements(network)
     assert len(unmet) == 1
-    assert unmet[0][2] == "b"
+    assert unmet[0] == ("a-requires-b", "b")
 
 
 def test_find_prevention_conflicts():
