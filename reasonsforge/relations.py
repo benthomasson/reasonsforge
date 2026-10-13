@@ -191,10 +191,6 @@ def apply_relations_to_network(network, include_broad_is: bool = False) -> int:
             store_relation_metadata(network.nodes[rel.object].metadata, rel, "incoming")
             count += 1
 
-        if rel.subject in network.nodes and rel.subject != belief_id:
-            store_relation_metadata(network.nodes[rel.subject].metadata, rel, "outgoing")
-            count += 1
-
     return count
 
 
