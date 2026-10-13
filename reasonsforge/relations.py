@@ -152,6 +152,20 @@ def get_relations(
     return relations
 
 
+def has_stored_relations(network) -> bool:
+    """Check if any node in the network already has stored relation metadata."""
+    for node in network.nodes.values():
+        if node.metadata.get("relations"):
+            return True
+    return False
+
+
+def ensure_relations(network, include_broad_is: bool = False) -> None:
+    """Apply relations only if none are already stored."""
+    if not has_stored_relations(network):
+        apply_relations_to_network(network, include_broad_is=include_broad_is)
+
+
 def apply_relations_to_network(network, include_broad_is: bool = False) -> int:
     """Extract relations from all belief names and store in node metadata.
 

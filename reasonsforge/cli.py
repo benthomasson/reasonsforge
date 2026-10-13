@@ -2877,6 +2877,7 @@ def cmd_contradictions(args):
 def cmd_relations(args):
     from .relations import (
         apply_relations_to_network,
+        ensure_relations,
         extract_all_relations,
         find_prevention_conflicts,
         find_unmet_requirements,
@@ -2898,7 +2899,7 @@ def cmd_relations(args):
         return
 
     if args.closure:
-        apply_relations_to_network(network, include_broad_is=args.include_is)
+        ensure_relations(network, include_broad_is=args.include_is)
         chain = transitive_closure(network, args.closure, args.closure_type)
         if not chain:
             print(f"No {args.closure_type} chain from {args.closure}")
@@ -2911,7 +2912,7 @@ def cmd_relations(args):
         return
 
     if args.check:
-        apply_relations_to_network(network, include_broad_is=args.include_is)
+        ensure_relations(network, include_broad_is=args.include_is)
         unmet = find_unmet_requirements(network)
         conflicts = find_prevention_conflicts(network)
 
@@ -2931,7 +2932,7 @@ def cmd_relations(args):
         return
 
     if args.stats:
-        apply_relations_to_network(network, include_broad_is=args.include_is)
+        ensure_relations(network, include_broad_is=args.include_is)
         stats = relation_stats(network)
         fmt = getattr(args, "format", "text")
         if fmt == "json":
