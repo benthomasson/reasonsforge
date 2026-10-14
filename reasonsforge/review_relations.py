@@ -11,7 +11,7 @@ import json
 import sys
 
 from .llm import invoke_model
-from .relations import RELATION_TYPES, extract_triple
+from .relations import RELATION_TYPES, extract_triple, Relation
 
 REVIEW_BATCH_SIZE = 15
 
@@ -255,3 +255,101 @@ def review_relations(nodes, belief_ids=None, model="claude", timeout=300,
             print(f"  WARN: batch {batch_num} failed: {e}", file=sys.stderr)
 
     return all_results
+
+
+def build_fixed_id(original_id, review):
+    """Build a corrected belief ID from the review result.
+
+    Handles wrong type, wrong direction, or both.
+    Returns (new_id, new_text) or None if no fix is possible.
+    """
+    triple = extract_triple(original_id)
+    if not triple:
+        return None
+
+    subject = triple.subject
+    obj = triple.object
+    relation = triple.relation
+
+    if review.get("suggested_direction") == "reverse":
+        subject, obj = obj, subject
+
+    if review.get("suggested_type") and review["suggested_type"] in RELATION_TYPES:
+        relation = review["suggested_type"]
+
+    new_id = f"{subject}-{relation}-{obj}"
+    if new_id == original_id:
+        return None
+
+    new_triple = Relation(subject=subject, relation=relation, object=obj)
+    display_subject = subject.replace("-", " ").title()
+    display_object = obj.replace("-", " ").title()
+    new_text = f"{display_subject} {relation} {display_object}"
+
+    return new_id, new_text
+
+
+def fix_relations(reviews, nodes, db_path="reasons.db"):
+    """Fix relations flagged with wrong type or direction.
+
+    For each fixable review result:
+    1. Retract the original belief
+    2. Add a corrected belief with the suggested type/direction
+    3. Preserve justification links from the original
+
+    Returns list of (original_id, new_id, status) tuples.
+    """
+    from . import api
+
+    results = []
+    for r in reviews:
+        has_wrong_type = not r.get("type_correct", True) and r.get("suggested_type")
+        has_wrong_dir = not r.get("direction_correct", True)
+
+        if not has_wrong_type and not has_wrong_dir:
+            continue
+
+        original_id = r["id"]
+        fix = build_fixed_id(original_id, r)
+        if fix is None:
+            results.append((original_id, None, "no-fix-possible"))
+            continue
+
+        new_id, new_text = fix
+
+        if new_id in nodes:
+            node_data = nodes[new_id]
+            tv = node_data.get("truth_value", "IN") if isinstance(node_data, dict) else getattr(node_data, "truth_value", "IN")
+            if tv == "IN":
+                results.append((original_id, new_id, "already-exists"))
+                continue
+
+        original_node = nodes.get(original_id, {})
+        justs = original_node.get("justifications", []) if isinstance(original_node, dict) else getattr(original_node, "justifications", [])
+        sl_parts = []
+        for j in justs:
+            antes = j.get("antecedents", []) if isinstance(j, dict) else getattr(j, "antecedents", [])
+            sl_parts.extend(antes)
+        sl = ",".join(sl_parts) if sl_parts else ""
+
+        reason = f"review-relations fix: {r.get('comment', 'corrected relation')}"
+        try:
+            api.retract_node(original_id, reason=reason, db_path=db_path)
+        except Exception as e:
+            results.append((original_id, new_id, f"retract-failed: {e}"))
+            continue
+
+        try:
+            api.add_node(
+                node_id=new_id,
+                text=new_text,
+                sl=sl,
+                label=f"fix:{original_id}",
+                source_type="derived",
+                db_path=db_path,
+            )
+            results.append((original_id, new_id, "fixed"))
+        except Exception as e:
+            results.append((original_id, new_id, f"add-failed: {e}"))
+
+    return results

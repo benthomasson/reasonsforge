@@ -3105,7 +3105,7 @@ def cmd_review_relations(args):
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
     reset_cost_tracker()
 
-    from .review_relations import review_relations, find_relational_beliefs
+    from .review_relations import review_relations, find_relational_beliefs, fix_relations
 
     model = getattr(args, "model", None) or "claude"
     ts = datetime.now().isoformat(timespec="seconds")
@@ -3270,6 +3270,23 @@ def cmd_review_relations(args):
             except Exception as e:
                 print(f"  ERROR retracting {r['id']}: {e}", file=sys.stderr)
 
+    fixed_count = 0
+    if getattr(args, "auto_fix", False) and not args.dry_run:
+        fixable = [r for r in reviews
+                   if (not r.get("type_correct", True) and r.get("suggested_type"))
+                   or not r.get("direction_correct", True)]
+        if fixable:
+            print(f"\nFixing {len(fixable)} relation(s)...")
+            fix_results = fix_relations(fixable, nodes, db_path=args.db)
+            for original_id, new_id, status in fix_results:
+                if status == "fixed":
+                    print(f"  FIXED {original_id} → {new_id}")
+                    fixed_count += 1
+                elif status == "already-exists":
+                    print(f"  SKIP {original_id} → {new_id} (already exists)")
+                else:
+                    print(f"  ERROR {original_id}: {status}", file=sys.stderr)
+
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
@@ -3279,6 +3296,7 @@ def cmd_review_relations(args):
             args, "review-relations", cost_summary,
             model=model,
             beliefs_retracted=retracted_count,
+            beliefs_fixed=fixed_count,
         )
 
 
@@ -4286,6 +4304,8 @@ def main():
                    help="Report findings without taking action")
     p.add_argument("--auto-retract", action="store_true",
                    help="Retract relations found incorrect")
+    p.add_argument("--auto-fix", action="store_true",
+                   help="Fix wrong type/direction: retract and re-add with correction")
     p.add_argument("-o", "--output", default=None,
                    help="Write findings to markdown file")
     p.add_argument("--report-dir", default="reviews",

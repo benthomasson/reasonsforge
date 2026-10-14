@@ -2,6 +2,7 @@
 
 from reasonsforge.review_relations import (
     build_existing_relations_section,
+    build_fixed_id,
     find_relational_beliefs,
     format_relation_for_review,
     parse_review_response,
@@ -191,3 +192,82 @@ def test_parse_review_response_wrong_direction():
     assert len(results) == 1
     assert results[0]["direction_correct"] is False
     assert results[0]["suggested_direction"] == "reverse"
+
+
+def test_build_fixed_id_wrong_type():
+    review = {
+        "id": "field-is-a-ring",
+        "type_correct": False,
+        "suggested_type": "extends",
+        "direction_correct": True,
+        "suggested_direction": "",
+    }
+    result = build_fixed_id("field-is-a-ring", review)
+    assert result is not None
+    new_id, new_text = result
+    assert new_id == "field-extends-ring"
+    assert "Field" in new_text
+    assert "extends" in new_text
+    assert "Ring" in new_text
+
+
+def test_build_fixed_id_wrong_direction():
+    review = {
+        "id": "a-enables-b",
+        "type_correct": True,
+        "suggested_type": "",
+        "direction_correct": False,
+        "suggested_direction": "reverse",
+    }
+    result = build_fixed_id("a-enables-b", review)
+    assert result is not None
+    new_id, new_text = result
+    assert new_id == "b-enables-a"
+
+
+def test_build_fixed_id_both_wrong():
+    review = {
+        "id": "x-requires-y",
+        "type_correct": False,
+        "suggested_type": "enables",
+        "direction_correct": False,
+        "suggested_direction": "reverse",
+    }
+    result = build_fixed_id("x-requires-y", review)
+    assert result is not None
+    new_id, new_text = result
+    assert new_id == "y-enables-x"
+
+
+def test_build_fixed_id_no_change():
+    review = {
+        "id": "ring-requires-group",
+        "type_correct": True,
+        "suggested_type": "",
+        "direction_correct": True,
+        "suggested_direction": "",
+    }
+    result = build_fixed_id("ring-requires-group", review)
+    assert result is None
+
+
+def test_build_fixed_id_non_relational():
+    review = {
+        "id": "plain-fact",
+        "type_correct": False,
+        "suggested_type": "enables",
+    }
+    result = build_fixed_id("plain-fact", review)
+    assert result is None
+
+
+def test_build_fixed_id_invalid_suggested_type():
+    review = {
+        "id": "a-requires-b",
+        "type_correct": False,
+        "suggested_type": "not-a-real-type",
+        "direction_correct": True,
+        "suggested_direction": "",
+    }
+    result = build_fixed_id("a-requires-b", review)
+    assert result is None
