@@ -3097,6 +3097,190 @@ def cmd_derive_relations(args):
         print(f"\n{cost}", file=sys.stderr)
 
 
+def cmd_review_relations(args):
+    _require_sqlite(args, "review-relations")
+    import json as json_mod
+    from datetime import datetime
+    from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+    reset_cost_tracker()
+
+    from .review_relations import review_relations, find_relational_beliefs
+
+    model = getattr(args, "model", None) or "claude"
+    ts = datetime.now().isoformat(timespec="seconds")
+    write_report = not args.no_report
+
+    report_path = None
+    if write_report:
+        report_dir = Path(args.report_dir)
+        report_dir.mkdir(parents=True, exist_ok=True)
+        report_path = report_dir / f"review-relations-{ts.replace(':', '')}.json"
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    belief_ids = args.ids or None
+    if belief_ids is None:
+        belief_ids = find_relational_beliefs(
+            nodes, topic=args.topic,
+            relation_type=args.relation_type,
+        )
+
+    if args.sample and len(belief_ids) > args.sample:
+        import random
+        rng = random.Random(42)
+        belief_ids = rng.sample(belief_ids, args.sample)
+
+    if not belief_ids:
+        print("No relational beliefs to review.", file=sys.stderr)
+        return
+
+    print(f"Reviewing {len(belief_ids)} relational beliefs...", file=sys.stderr)
+
+    def _build_report(results, status):
+        incorrect_type = sum(1 for r in results if not r.get("type_correct", True))
+        wrong_direction = sum(1 for r in results if not r.get("direction_correct", True))
+        ungrounded = sum(1 for r in results if not r.get("grounded", True))
+        redundant = sum(1 for r in results if r.get("redundant", False))
+        return {
+            "timestamp": ts,
+            "status": status,
+            "model": model,
+            "timeout": args.timeout,
+            "dry_run": args.dry_run,
+            "filters": {
+                "belief_ids": args.ids or None,
+                "topic": args.topic,
+                "relation_type": args.relation_type,
+                "sample": args.sample,
+            },
+            "reviewed": len(results),
+            "summary": {
+                "incorrect_type": incorrect_type,
+                "wrong_direction": wrong_direction,
+                "ungrounded": ungrounded,
+                "redundant": redundant,
+            },
+            "results": results,
+        }
+
+    def _write_report(results, status):
+        if report_path is not None:
+            report_path.write_text(json_mod.dumps(_build_report(results, status), indent=2))
+
+    on_batch = (lambda results: _write_report(results, "partial")) if write_report else None
+
+    reviews = review_relations(
+        nodes, belief_ids=belief_ids,
+        model=model, timeout=args.timeout,
+        on_batch=on_batch,
+    )
+
+    if not reviews:
+        print("No review results returned.")
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+        return
+
+    issues = []
+    for r in reviews:
+        flags = []
+        if not r.get("type_correct", True):
+            suggested = r.get("suggested_type", "")
+            flag = f"WRONG_TYPE→{suggested}" if suggested else "WRONG_TYPE"
+            flags.append(flag)
+        if not r.get("direction_correct", True):
+            flags.append("WRONG_DIRECTION")
+        if not r.get("grounded", True):
+            flags.append("UNGROUNDED")
+        if r.get("redundant", False):
+            flags.append("REDUNDANT")
+
+        if flags:
+            issues.append(r)
+            print(f"  [{' | '.join(flags)}] {r['id']}")
+            if r.get("comment"):
+                print(f"    {r['comment']}")
+
+    incorrect_type = sum(1 for r in reviews if not r.get("type_correct", True))
+    wrong_direction = sum(1 for r in reviews if not r.get("direction_correct", True))
+    ungrounded = sum(1 for r in reviews if not r.get("grounded", True))
+    redundant = sum(1 for r in reviews if r.get("redundant", False))
+    passed = len(reviews) - len(issues)
+
+    print(f"\nReviewed {len(reviews)} relational beliefs")
+    print(f"  Passed: {passed}  Wrong type: {incorrect_type}  "
+          f"Wrong direction: {wrong_direction}  Ungrounded: {ungrounded}  "
+          f"Redundant: {redundant}")
+
+    if report_path is not None:
+        report = _build_report(reviews, "complete")
+        report_path.write_text(json_mod.dumps(report, indent=2))
+        print(f"  Report: {report_path}")
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write("# Relation Review Findings\n\n")
+            for r in reviews:
+                tc = "PASS" if r.get("type_correct", True) else "FAIL"
+                dc = "PASS" if r.get("direction_correct", True) else "FAIL"
+                gr = "PASS" if r.get("grounded", True) else "FAIL"
+                rd = "YES" if r.get("redundant", False) else "no"
+                f.write(f"### {r['id']}\n")
+                f.write(f"- Type correct: {tc}\n- Direction correct: {dc}\n")
+                f.write(f"- Grounded: {gr}\n- Redundant: {rd}\n")
+                if r.get("suggested_type"):
+                    f.write(f"- Suggested type: {r['suggested_type']}\n")
+                if r.get("suggested_direction"):
+                    f.write(f"- Suggested direction: {r['suggested_direction']}\n")
+                if r.get("comment"):
+                    f.write(f"- Comment: {r['comment']}\n")
+                f.write("\n")
+        print(f"\nWrote findings to {args.output}")
+
+    retract_candidates = [r for r in reviews
+                          if not r.get("grounded", True)
+                          or not r.get("direction_correct", True)]
+
+    retracted_count = 0
+    if args.auto_retract and not args.dry_run and retract_candidates:
+        print(f"\nRetracting {len(retract_candidates)} incorrect relation(s)...")
+        for r in retract_candidates:
+            reason = f"review-relations: {r.get('comment', 'incorrect relation')}"
+            try:
+                node_data = nodes.get(r["id"], {})
+                tv = node_data.get("truth_value", "IN") if isinstance(node_data, dict) else getattr(node_data, "truth_value", "IN")
+                if tv == "OUT":
+                    api.set_metadata(r["id"], "retract_reason", reason, db_path=args.db)
+                    print(f"  UPDATED reason for {r['id']}")
+                else:
+                    api.retract_node(r["id"], reason=reason, db_path=args.db)
+                    print(f"  RETRACTED {r['id']}")
+                    retracted_count += 1
+            except Exception as e:
+                print(f"  ERROR retracting {r['id']}: {e}", file=sys.stderr)
+
+    cost = format_cost_summary()
+    if cost:
+        print(f"  {cost}", file=sys.stderr)
+    cost_summary = get_cost_summary()
+    if cost_summary["calls"] > 0:
+        _write_cost_report(
+            args, "review-relations", cost_summary,
+            model=model,
+            beliefs_retracted=retracted_count,
+        )
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -3941,6 +4125,32 @@ def main():
     p.add_argument("--format", choices=["text", "json"], default="text",
                    help="Output format (default: text)")
 
+    # review-relations
+    p = sub.add_parser("review-relations",
+                       help="Review relational beliefs for type accuracy, direction, and grounding")
+    p.add_argument("ids", nargs="*", help="Specific relation IDs to review (default: all)")
+    p.add_argument("-m", "--model", default=None,
+                   help="Model to use (default: claude)")
+    p.add_argument("--timeout", type=int, default=600,
+                   help="LLM timeout in seconds (default: 600)")
+    p.add_argument("--topic", help="Filter relations by keyword")
+    p.add_argument("--relation-type", choices=[
+        "requires", "enables", "extends", "is-a", "has-a", "contains",
+        "implements", "produces", "causes", "replaces", "prevents", "maps-to",
+    ], help="Only review this relation type")
+    p.add_argument("--sample", type=int, default=None,
+                   help="Randomly sample N relations to review")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Report findings without taking action")
+    p.add_argument("--auto-retract", action="store_true",
+                   help="Retract relations found incorrect")
+    p.add_argument("-o", "--output", default=None,
+                   help="Write findings to markdown file")
+    p.add_argument("--report-dir", default="reviews",
+                   help="Directory for JSON reports (default: reviews/)")
+    p.add_argument("--no-report", action="store_true",
+                   help="Skip JSON report generation")
+
     # derive-relations
     p = sub.add_parser("derive-relations",
                        help="Discover FOL relations between existing beliefs using LLM")
@@ -4082,6 +4292,7 @@ def main():
         "contradictions": cmd_contradictions,
         "relations": cmd_relations,
         "derive-relations": cmd_derive_relations,
+        "review-relations": cmd_review_relations,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
