@@ -357,3 +357,93 @@ def test_sample_pairs_justification_strategy():
     assert len(pairs) > 0
     for a, b in pairs:
         assert a != "unrelated-premise" and b != "unrelated-premise"
+
+
+# --- Embedding similarity tests ---
+
+try:
+    from reasonsforge.cluster import HAS_CLUSTER_DEPS
+except ImportError:
+    HAS_CLUSTER_DEPS = False
+
+import pytest
+
+EMBEDDING_NODES = {
+    "group-definition": {
+        "truth_value": "IN", "text": "A group is a set with a binary operation satisfying closure, associativity, identity and inverses",
+        "justifications": [],
+    },
+    "ring-definition": {
+        "truth_value": "IN", "text": "A ring is an abelian group under addition with a second associative binary operation",
+        "justifications": [
+            {"antecedents": ["group-definition"], "outlist": []}
+        ],
+    },
+    "vector-space": {
+        "truth_value": "IN", "text": "A vector space is a set of vectors with scalar multiplication over a field",
+        "justifications": [],
+    },
+    "matrix-algebra": {
+        "truth_value": "IN", "text": "Matrix algebra studies rectangular arrays with addition and multiplication operations",
+        "justifications": [],
+    },
+    "topology-basics": {
+        "truth_value": "IN", "text": "Topology studies properties preserved under continuous deformations of space",
+        "justifications": [],
+    },
+}
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_pairs_by_embedding_returns_pairs():
+    from reasonsforge.derive_relations import _pairs_by_embedding
+    pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=5)
+    assert len(pairs) > 0
+    assert len(pairs) <= 5
+    for a, b in pairs:
+        assert a in EMBEDDING_NODES and b in EMBEDDING_NODES
+        assert a != b
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_pairs_by_embedding_excludes_justification_connected():
+    from reasonsforge.derive_relations import _pairs_by_embedding
+    pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=100, cross_topic_only=True)
+    pair_set = set(pairs)
+    assert ("group-definition", "ring-definition") not in pair_set
+    assert ("ring-definition", "group-definition") not in pair_set
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_pairs_by_embedding_includes_justification_connected_when_disabled():
+    from reasonsforge.derive_relations import _pairs_by_embedding
+    pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=100, cross_topic_only=False)
+    pair_set = set(pairs)
+    normalized = {(min(a, b), max(a, b)) for a, b in pair_set}
+    assert ("group-definition", "ring-definition") in normalized
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_pairs_by_embedding_respects_budget():
+    from reasonsforge.derive_relations import _pairs_by_embedding
+    pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=2)
+    assert len(pairs) <= 2
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_pairs_by_embedding_allowed_ids():
+    from reasonsforge.derive_relations import _pairs_by_embedding
+    allowed = {"vector-space", "matrix-algebra"}
+    pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=10, allowed_ids=allowed)
+    for a, b in pairs:
+        assert a in allowed and b in allowed
+
+
+@pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
+def test_sample_pairs_embedding_strategy():
+    pairs = _sample_pairs(
+        list(EMBEDDING_NODES.keys()), budget=5, strategy="embedding",
+        nodes=EMBEDDING_NODES,
+    )
+    assert len(pairs) > 0
+    assert len(pairs) <= 5

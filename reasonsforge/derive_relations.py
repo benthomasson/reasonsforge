@@ -234,12 +234,94 @@ def _pairs_by_justification(
     return result
 
 
+def _pairs_by_embedding(
+    nodes: dict,
+    budget: int,
+    seed: int | None = None,
+    allowed_ids: set[str] | None = None,
+    embedding_model: str | None = None,
+    cross_topic_only: bool = True,
+) -> list[tuple[str, str]]:
+    """Generate belief pairs using embedding cosine similarity.
+
+    Embeds belief texts and pairs those with high semantic similarity.
+    When cross_topic_only is True (default), excludes pairs that are
+    already connected through the justification graph — focusing on
+    cross-topic relations that justification proximity cannot find.
+
+    Args:
+        nodes: Full nodes dict.
+        budget: Maximum number of pairs to return.
+        seed: Random seed for tie-breaking.
+        allowed_ids: If provided, only pair beliefs in this set.
+        embedding_model: Sentence-transformers model name.
+        cross_topic_only: If True, exclude justification-connected pairs.
+    """
+    from .cluster import ClusterCache, HAS_CLUSTER_DEPS
+    if not HAS_CLUSTER_DEPS:
+        raise ImportError(
+            "sentence-transformers and scikit-learn are required for embedding strategy. "
+            "Install with: pip install 'reasonsforge[cluster]'"
+        )
+    import numpy as np
+
+    beliefs = {}
+    for nid, node in nodes.items():
+        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        if tv != "IN":
+            continue
+        if allowed_ids is not None and nid not in allowed_ids:
+            continue
+        text = node.get("text", "") if isinstance(node, dict) else getattr(node, "text", "")
+        if text:
+            beliefs[nid] = text
+
+    if len(beliefs) < 2:
+        return []
+
+    cache = ClusterCache(embedding_model or "all-MiniLM-L6-v2")
+    ids, embeddings = cache.embed(beliefs)
+
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1, norms)
+    normed = embeddings / norms
+    sim_matrix = normed @ normed.T
+
+    justification_neighbors = set()
+    if cross_topic_only:
+        adj = _build_justification_graph(nodes)
+        for nid in ids:
+            for neighbor in adj.get(nid, set()):
+                pair = (min(nid, neighbor), max(nid, neighbor))
+                justification_neighbors.add(pair)
+
+    scored_pairs = []
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            pair = (min(ids[i], ids[j]), max(ids[i], ids[j]))
+            if cross_topic_only and pair in justification_neighbors:
+                continue
+            scored_pairs.append((sim_matrix[i, j], pair))
+
+    scored_pairs.sort(key=lambda x: -x[0])
+
+    if len(scored_pairs) <= budget:
+        return [p for _, p in scored_pairs]
+
+    rng = random.Random(seed)
+    top_pool = scored_pairs[:budget * 2]
+    selected = rng.sample(top_pool, min(budget, len(top_pool)))
+    selected.sort(key=lambda x: -x[0])
+    return [p for _, p in selected]
+
+
 def _sample_pairs(
     belief_ids: list[str],
     budget: int,
     seed: int | None = None,
     strategy: str = "random",
     nodes: dict | None = None,
+    embedding_model: str | None = None,
 ) -> list[tuple[str, str]]:
     """Sample belief pairs for relation analysis.
 
@@ -247,12 +329,21 @@ def _sample_pairs(
         belief_ids: List of belief IDs to pair.
         budget: Maximum number of pairs to return.
         seed: Random seed for reproducibility.
-        strategy: Sampling strategy — "random", "prefix", "justification", or "all".
-        nodes: Full nodes dict (required for "justification" strategy).
+        strategy: Sampling strategy — "random", "prefix", "justification",
+            "embedding", or "all".
+        nodes: Full nodes dict (required for "justification" and "embedding").
+        embedding_model: Sentence-transformers model (for "embedding" strategy).
 
     Returns:
         List of (belief_id_1, belief_id_2) tuples.
     """
+    if strategy == "embedding" and nodes:
+        return _pairs_by_embedding(
+            nodes, budget, seed=seed,
+            allowed_ids=set(belief_ids) if belief_ids else None,
+            embedding_model=embedding_model,
+        )
+
     if strategy == "justification" and nodes:
         return _pairs_by_justification(nodes, budget, seed=seed,
                                        allowed_ids=set(belief_ids) if belief_ids else None)
