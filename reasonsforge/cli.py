@@ -3296,7 +3296,7 @@ def cmd_review_relations(args):
             args, "review-relations", cost_summary,
             model=model,
             beliefs_retracted=retracted_count,
-            beliefs_fixed=fixed_count,
+            beliefs_added=fixed_count,
         )
 
 
