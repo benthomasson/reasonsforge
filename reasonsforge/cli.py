@@ -3441,6 +3441,79 @@ def cmd_generate_lesson(args):
             print(f"  {cost}", file=sys.stderr)
 
 
+def cmd_consolidate_lessons(args):
+    _require_sqlite(args, "consolidate-lessons")
+    from .llm import reset_cost_tracker, format_cost_summary
+    from .lesson_plan import (
+        build_lesson_plan,
+        consolidate_lessons,
+        format_consolidated_markdown,
+        _identify_standalone_lessons,
+    )
+
+    model = getattr(args, "model", None) or "claude"
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    plan = build_lesson_plan(nodes)
+    if not plan["lessons"]:
+        print("No relational beliefs found — cannot consolidate.", file=sys.stderr)
+        sys.exit(1)
+
+    connected, standalone = _identify_standalone_lessons(plan)
+    print(f"Found {len(connected)} connected + {len(standalone)} standalone lessons.",
+          file=sys.stderr)
+
+    if args.dry_run:
+        print(f"\nStandalone concepts ({len(standalone)}):")
+        for l in standalone:
+            print(f"  {l['concept']}")
+        print(f"\nConnected concepts ({len(connected)}):")
+        for l in connected:
+            print(f"  {l['concept']} ({', '.join(l['prerequisites']) or 'root'})")
+        return
+
+    reset_cost_tracker()
+    consolidated = consolidate_lessons(
+        plan, model=model, timeout=args.timeout,
+        batch_size=getattr(args, "batch_size", 80),
+    )
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        import json as _json
+        output = _json.dumps(consolidated, indent=2)
+    else:
+        output = format_consolidated_markdown(consolidated, title=args.title)
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(output)
+            if not output.endswith("\n"):
+                f.write("\n")
+        print(f"Wrote consolidated plan to {args.output}", file=sys.stderr)
+    else:
+        print(output)
+
+    stats = consolidated["stats"]
+    print(f"\n  {stats['consolidated_from']} → {stats['total_lessons']} lessons "
+          f"({stats['standalone_grouped']} standalone → {stats['groups_created']} groups)",
+          file=sys.stderr)
+
+    cost = format_cost_summary()
+    if cost:
+        print(f"  {cost}", file=sys.stderr)
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -4372,6 +4445,26 @@ def main():
     p.add_argument("--dry-run", action="store_true",
                    help="Show the prompt without calling the LLM")
 
+    # consolidate-lessons
+    p = sub.add_parser("consolidate-lessons",
+                       help="Consolidate granular lessons into broader teaching units using LLM")
+    p.add_argument("--title", default=None,
+                   help="Title for the consolidated plan")
+    p.add_argument("--domain", "-d", default="",
+                   help="Domain name for context")
+    p.add_argument("--model", "-m", default=None,
+                   help="LLM model (default: claude)")
+    p.add_argument("--timeout", type=int, default=300,
+                   help="Model timeout in seconds (default: 300)")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Output format (default: text)")
+    p.add_argument("-o", "--output", default=None,
+                   help="Write consolidated plan to file")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show standalone concepts without calling LLM")
+    p.add_argument("--batch-size", type=int, default=80,
+                   help="Concepts per LLM batch (default: 80)")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -4489,6 +4582,7 @@ def main():
         "review-relations": cmd_review_relations,
         "lesson-plan": cmd_lesson_plan,
         "generate-lesson": cmd_generate_lesson,
+        "consolidate-lessons": cmd_consolidate_lessons,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),

@@ -11,6 +11,11 @@ from reasonsforge.lesson_plan import (
     _topological_sort,
     _classify_modules,
     _parse_lesson_response,
+    _identify_standalone_lessons,
+    _build_consolidation_prompt,
+    _parse_consolidation_response,
+    consolidate_lessons,
+    format_consolidated_markdown,
 )
 
 
@@ -364,3 +369,130 @@ BELIEFS: ring, ring-requires-group"""
     assert result["concept"] == "ring"
     assert result["module"] == ring_lesson["module"]
     assert "ring" in result["beliefs"]
+
+
+# --- Consolidation tests ---
+
+STANDALONE_NODES = {
+    # Connected concepts (via requires/enables)
+    "alpha": {"text": "Alpha concept", "truth_value": "IN", "metadata": {}},
+    "beta": {"text": "Beta concept", "truth_value": "IN", "metadata": {}},
+    "gamma": {"text": "Gamma concept", "truth_value": "IN", "metadata": {}},
+    "delta": {"text": "Delta concept", "truth_value": "IN", "metadata": {}},
+    "alpha-requires-beta": {"text": "Alpha requires Beta", "truth_value": "IN", "metadata": {}},
+    "gamma-enables-delta": {"text": "Gamma enables Delta", "truth_value": "IN", "metadata": {}},
+    # Standalone concepts (only connected via contains — no lesson fields)
+    "topics": {"text": "Topics", "truth_value": "IN", "metadata": {}},
+    "topic-a": {"text": "Topic A", "truth_value": "IN", "metadata": {}},
+    "topic-b": {"text": "Topic B", "truth_value": "IN", "metadata": {}},
+    "topic-c": {"text": "Topic C", "truth_value": "IN", "metadata": {}},
+    "topics-contains-topic-a": {"text": "Topics contains Topic A", "truth_value": "IN", "metadata": {}},
+    "topics-contains-topic-b": {"text": "Topics contains Topic B", "truth_value": "IN", "metadata": {}},
+    "topics-contains-topic-c": {"text": "Topics contains Topic C", "truth_value": "IN", "metadata": {}},
+}
+
+
+def test_identify_standalone_lessons():
+    plan = build_lesson_plan(STANDALONE_NODES)
+    connected, standalone = _identify_standalone_lessons(plan)
+    connected_concepts = {l["concept"] for l in connected}
+    standalone_concepts = {l["concept"] for l in standalone}
+    assert "alpha" in connected_concepts
+    assert "beta" in connected_concepts
+    assert "gamma" in connected_concepts
+    assert "delta" in connected_concepts
+    assert len(standalone) > 0
+    for l in standalone:
+        assert l["concept"] in standalone_concepts
+
+
+def test_identify_standalone_all_connected():
+    plan = build_lesson_plan(NODES)
+    connected, standalone = _identify_standalone_lessons(plan)
+    assert len(connected) > 0
+    assert len(connected) + len(standalone) == len(plan["lessons"])
+
+
+def test_build_consolidation_prompt():
+    concepts = ["alpha", "beta", "gamma"]
+    prompt = _build_consolidation_prompt(concepts)
+    assert "3 standalone concepts" in prompt
+    assert "alpha" in prompt
+    assert "beta" in prompt
+    assert "JSON" in prompt
+
+
+def test_parse_consolidation_response_valid():
+    response = '''[
+        {"title": "Greek Letters", "concepts": ["alpha", "beta"], "rationale": "Both Greek"},
+        {"title": "More Greek", "concepts": ["gamma"], "rationale": "Also Greek"}
+    ]'''
+    groups = _parse_consolidation_response(response)
+    assert len(groups) == 2
+    assert groups[0]["title"] == "Greek Letters"
+    assert groups[0]["concepts"] == ["alpha", "beta"]
+    assert groups[1]["concepts"] == ["gamma"]
+
+
+def test_parse_consolidation_response_with_preamble():
+    response = '''Here are the groups:
+    ```json
+    [{"title": "Group A", "concepts": ["x", "y"], "rationale": "Related"}]
+    ```'''
+    groups = _parse_consolidation_response(response)
+    assert len(groups) == 1
+    assert groups[0]["concepts"] == ["x", "y"]
+
+
+def test_parse_consolidation_response_invalid():
+    groups = _parse_consolidation_response("Not valid JSON at all")
+    assert groups == []
+
+
+def test_consolidate_lessons_with_mock():
+    plan = build_lesson_plan(STANDALONE_NODES)
+    _, standalone = _identify_standalone_lessons(plan)
+    standalone_concepts = [l["concept"] for l in standalone]
+
+    mock_response = '[{"title": "Misc Topics", "concepts": '
+    import json as _json
+    mock_response += _json.dumps(standalone_concepts)
+    mock_response += ', "rationale": "Grouped standalone concepts"}]'
+
+    def mock_invoke(prompt, model):
+        return mock_response
+
+    consolidated = consolidate_lessons(plan, invoke_fn=mock_invoke)
+    assert consolidated["stats"]["total_lessons"] <= plan["stats"]["total_lessons"]
+    assert "consolidated_from" in consolidated["stats"]
+
+    concept_or_subtopic = set()
+    for l in consolidated["lessons"]:
+        concept_or_subtopic.add(l["concept"])
+        concept_or_subtopic.update(l.get("subtopics", []))
+    for c in standalone_concepts:
+        assert c in concept_or_subtopic
+
+
+def test_consolidate_no_standalone():
+    plan = build_lesson_plan(NODES)
+    connected, standalone = _identify_standalone_lessons(plan)
+    if not standalone:
+        result = consolidate_lessons(plan, invoke_fn=lambda p, m: "[]")
+        assert result is plan
+
+
+def test_format_consolidated_markdown():
+    plan = build_lesson_plan(STANDALONE_NODES)
+    _, standalone = _identify_standalone_lessons(plan)
+    standalone_concepts = [l["concept"] for l in standalone]
+
+    import json as _json
+    mock_response = '[{"title": "Misc Topics", "concepts": '
+    mock_response += _json.dumps(standalone_concepts)
+    mock_response += ', "rationale": "Standalone concepts"}]'
+
+    consolidated = consolidate_lessons(plan, invoke_fn=lambda p, m: mock_response)
+    md = format_consolidated_markdown(consolidated, title="Test Consolidated")
+    assert "# Test Consolidated" in md
+    assert "Covers" in md or "Misc Topics" in md

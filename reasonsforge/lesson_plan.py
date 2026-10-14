@@ -459,3 +459,216 @@ def _parse_lesson_response(content: str) -> dict:
     body = "\n".join(lines[body_start:body_end]).strip()
 
     return {"title": title, "body": body, "beliefs": beliefs}
+
+
+def _identify_standalone_lessons(plan: dict) -> tuple[list[dict], list[dict]]:
+    """Split lessons into connected (have prereqs/dependents/motivation) and standalone."""
+    has_prereqs = {l["concept"] for l in plan["lessons"] if l["prerequisites"]}
+    is_prereq_of = set()
+    for l in plan["lessons"]:
+        is_prereq_of.update(l["prerequisites"])
+    has_motivation = {l["concept"] for l in plan["lessons"] if l["motivation"]}
+    has_examples = {l["concept"] for l in plan["lessons"] if l["examples"]}
+    has_crossrefs = {l["concept"] for l in plan["lessons"] if l["cross_references"]}
+    mentioned_in_motivation = set()
+    for l in plan["lessons"]:
+        if l["motivation"]:
+            for c in l["motivation"].replace("Unlocks: ", "").split(", "):
+                mentioned_in_motivation.add(c.strip())
+    mentioned_in_examples = set()
+    for l in plan["lessons"]:
+        for e in l["examples"]:
+            mentioned_in_examples.add(e)
+    mentioned_in_crossrefs = set()
+    for l in plan["lessons"]:
+        for x in l["cross_references"]:
+            mentioned_in_crossrefs.add(x)
+
+    connected_concepts = (has_prereqs | is_prereq_of | has_motivation |
+                          has_examples | has_crossrefs |
+                          mentioned_in_motivation | mentioned_in_examples |
+                          mentioned_in_crossrefs)
+
+    standalone = []
+    connected = []
+    for l in plan["lessons"]:
+        if l["concept"] in connected_concepts:
+            connected.append(l)
+        else:
+            standalone.append(l)
+
+    return connected, standalone
+
+
+def _build_consolidation_prompt(concepts: list[str], batch_num: int = 1) -> str:
+    """Build prompt asking LLM to group standalone concepts into teaching units."""
+    concept_list = "\n".join(f"- {c}" for c in concepts)
+    return f"""You are a curriculum designer. Below are {len(concepts)} standalone concepts from a knowledge domain. Group them into coherent teaching units of 3-8 concepts each. Each unit should have a clear theme.
+
+Concepts:
+{concept_list}
+
+Return your grouping as JSON — a list of objects, each with:
+- "title": a short descriptive title for the teaching unit (2-5 words)
+- "concepts": list of concept names from the input that belong together
+- "rationale": one sentence explaining the grouping
+
+Every concept must appear in exactly one group. If a concept doesn't fit any group, put it in a group called "Miscellaneous Topics".
+
+Return ONLY the JSON array, no other text."""
+
+
+def _parse_consolidation_response(content: str) -> list[dict]:
+    """Parse LLM response into list of groups."""
+    import json as _json
+    import re
+    match = re.search(r'\[.*\]', content, re.DOTALL)
+    if not match:
+        return []
+    try:
+        groups = _json.loads(match.group())
+        for g in groups:
+            if not isinstance(g.get("concepts"), list):
+                g["concepts"] = []
+            if not g.get("title"):
+                g["title"] = "Untitled Group"
+        return groups
+    except (_json.JSONDecodeError, TypeError):
+        return []
+
+
+def consolidate_lessons(
+    plan: dict,
+    model: str = "claude",
+    timeout: int = 300,
+    batch_size: int = 80,
+    invoke_fn=None,
+) -> dict:
+    """Consolidate granular lessons into broader teaching units using an LLM.
+
+    Connected lessons (with prereqs/dependents/motivation) stay as-is.
+    Standalone lessons are grouped by the LLM into thematic units.
+
+    Returns a new plan with consolidated lessons.
+    """
+    connected, standalone = _identify_standalone_lessons(plan)
+
+    if not standalone:
+        return plan
+
+    if invoke_fn is None:
+        from .llm import invoke_model
+        invoke_fn = lambda prompt, model: invoke_model(prompt, model=model, timeout=timeout)
+
+    all_groups: list[dict] = []
+    standalone_concepts = [l["concept"] for l in standalone]
+
+    for i in range(0, len(standalone_concepts), batch_size):
+        batch = standalone_concepts[i:i + batch_size]
+        prompt = _build_consolidation_prompt(batch, batch_num=i // batch_size + 1)
+        response = invoke_fn(prompt, model)
+        groups = _parse_consolidation_response(response)
+        if groups:
+            all_groups.extend(groups)
+        else:
+            all_groups.append({
+                "title": "Ungrouped",
+                "concepts": batch,
+                "rationale": "LLM grouping failed for this batch",
+            })
+
+    standalone_by_concept = {l["concept"]: l for l in standalone}
+
+    consolidated_lessons = []
+    lesson_num = 1
+
+    for lesson in connected:
+        consolidated_lessons.append({
+            **lesson,
+            "number": lesson_num,
+            "subtopics": [],
+        })
+        lesson_num += 1
+
+    for group in all_groups:
+        subtopics = []
+        for c in group["concepts"]:
+            if c in standalone_by_concept:
+                subtopics.append(standalone_by_concept[c])
+
+        if not subtopics:
+            continue
+
+        consolidated_lessons.append({
+            "number": lesson_num,
+            "concept": group["title"].lower().replace(" ", "-"),
+            "module": "consolidated",
+            "prerequisites": [],
+            "motivation": group.get("rationale"),
+            "examples": [],
+            "cross_references": [],
+            "subtopics": [s["concept"] for s in subtopics],
+            "title": group["title"],
+        })
+        lesson_num += 1
+
+    modules: dict[str, list[dict]] = defaultdict(list)
+    for l in consolidated_lessons:
+        modules[l["module"]].append(l)
+
+    stats = {
+        "total_lessons": len(consolidated_lessons),
+        "total_modules": len(modules),
+        "total_relations": plan["stats"]["total_relations"],
+        "concepts": plan["stats"]["concepts"],
+        "relations_by_type": plan["stats"]["relations_by_type"],
+        "consolidated_from": plan["stats"]["total_lessons"],
+        "standalone_grouped": len(standalone),
+        "groups_created": len(all_groups),
+    }
+
+    return {
+        "lessons": consolidated_lessons,
+        "modules": dict(modules),
+        "stats": stats,
+    }
+
+
+def format_consolidated_markdown(plan: dict, title: Optional[str] = None) -> str:
+    """Format a consolidated lesson plan as markdown."""
+    lines = []
+    title = title or "Consolidated Lesson Plan"
+    lines.append(f"# {title}")
+    lines.append("")
+
+    stats = plan["stats"]
+    summary = f"**{stats['total_lessons']} lessons**"
+    if "consolidated_from" in stats:
+        summary += f" (consolidated from {stats['consolidated_from']})"
+    lines.append(summary)
+    lines.append("")
+
+    module_sizes = sorted(plan["modules"].items(),
+                          key=lambda x: (-len(x[1]), x[0]))
+    for module_name, module_lessons in module_sizes:
+        display = module_name.replace("-", " ").title()
+        lines.append(f"## {display}")
+        lines.append(f"*{len(module_lessons)} lessons*")
+        lines.append("")
+
+        for lesson in module_lessons:
+            concept_display = lesson.get("title", lesson["concept"].replace("-", " ").title())
+            lines.append(f"### Lesson {lesson['number']}: {concept_display}")
+            if lesson.get("prerequisites"):
+                lines.append(f"- **Prerequisites**: {', '.join(lesson['prerequisites'])}")
+            if lesson.get("motivation"):
+                lines.append(f"- **Motivation**: {lesson['motivation']}")
+            if lesson.get("subtopics"):
+                lines.append(f"- **Covers**: {', '.join(lesson['subtopics'])}")
+            if lesson.get("examples"):
+                lines.append(f"- **Examples**: {', '.join(lesson['examples'])}")
+            if lesson.get("cross_references"):
+                lines.append(f"- **See also**: {', '.join(lesson['cross_references'])}")
+            lines.append("")
+
+    return "\n".join(lines)
