@@ -3251,6 +3251,7 @@ def cmd_review_relations(args):
                           if not r.get("grounded", True)
                           or not r.get("direction_correct", True)]
 
+    retracted_count = 0
     if args.auto_retract and not args.dry_run and retract_candidates:
         print(f"\nRetracting {len(retract_candidates)} incorrect relation(s)...")
         for r in retract_candidates:
@@ -3264,6 +3265,7 @@ def cmd_review_relations(args):
                 else:
                     api.retract_node(r["id"], reason=reason, db_path=args.db)
                     print(f"  RETRACTED {r['id']}")
+                    retracted_count += 1
             except Exception as e:
                 print(f"  ERROR retracting {r['id']}: {e}", file=sys.stderr)
 
@@ -3275,7 +3277,7 @@ def cmd_review_relations(args):
         _write_cost_report(
             args, "review-relations", cost_summary,
             model=model,
-            beliefs_retracted=len(retract_candidates) if args.auto_retract else 0,
+            beliefs_retracted=retracted_count,
         )
 
 
