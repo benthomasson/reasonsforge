@@ -19,32 +19,75 @@ MOTIVATION_RELATIONS = {"enables"}
 EXAMPLE_RELATIONS = {"implements"}
 CROSSREF_RELATIONS = {"maps-to"}
 
-MODULE_KEYWORDS = [
-    ("foundations", ["set", "zfc", "nbg", "axiom", "cardinality", "paradox",
-                     "logic", "proof", "predicate", "propositional"]),
-    ("group-theory", ["group", "subgroup", "abelian", "cyclic", "permutation",
-                      "symmetry", "homomorphism", "isomorphism", "coset",
-                      "lagrange", "cayley"]),
-    ("ring-and-field-theory", ["ring", "field", "ideal", "polynomial",
-                               "frobenius", "galois", "commutative",
-                               "integral-domain", "euclidean", "principal"]),
-    ("linear-algebra", ["vector", "matrix", "linear", "dimension", "basis",
-                        "kernel", "eigenvalue", "determinant", "rank",
-                        "span", "transformation", "gaussian"]),
-    ("representation-theory", ["representation", "maschke", "reducible",
-                               "character", "module", "composition",
-                               "semisimple"]),
-    ("algebra-structures", ["algebra", "star", "jordan", "lie", "tensor",
-                            "antimultiplicativity", "involution"]),
-]
+def _classify_modules(concepts: set[str], triples: list[tuple[str, Relation]]) -> dict[str, str]:
+    """Classify concepts into modules using the relation graph.
 
+    Strategy:
+    1. Explicit grouping: contains/is-a relations define parent modules
+    2. Connected components: concepts linked by any relation share a module
+    3. The module is named after the most-connected concept in the component
+    """
+    explicit_groups: dict[str, str] = {}
+    for _, rel in triples:
+        if rel.relation == "contains" and rel.subject in concepts:
+            explicit_groups[rel.object] = rel.subject
+        elif rel.relation == "is-a" and rel.object in concepts:
+            explicit_groups[rel.subject] = rel.object
 
-def _classify_module(concept: str) -> str:
-    concept_lower = concept.lower()
-    for module_name, keywords in MODULE_KEYWORDS:
-        if any(kw in concept_lower for kw in keywords):
-            return module_name
-    return "other"
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    for _, rel in triples:
+        if rel.subject in concepts and rel.object in concepts:
+            adjacency[rel.subject].add(rel.object)
+            adjacency[rel.object].add(rel.subject)
+
+    visited: set[str] = set()
+    components: list[set[str]] = []
+
+    for concept in sorted(concepts):
+        if concept in visited:
+            continue
+        component: set[str] = set()
+        queue = [concept]
+        while queue:
+            current = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+            component.add(current)
+            for neighbor in adjacency.get(current, set()):
+                if neighbor not in visited:
+                    queue.append(neighbor)
+        components.append(component)
+
+    concept_to_module: dict[str, str] = {}
+
+    for component in components:
+        for c in component:
+            if c in explicit_groups:
+                module_name = explicit_groups[c]
+                break
+        else:
+            degree = {c: len(adjacency.get(c, set())) for c in component}
+            module_name = max(component, key=lambda c: (degree[c], c))
+
+        for c in component:
+            concept_to_module[c] = module_name
+
+    for c in concepts:
+        if c not in concept_to_module:
+            concept_to_module[c] = c
+
+    min_size = 3
+    module_members: dict[str, list[str]] = defaultdict(list)
+    for c, m in concept_to_module.items():
+        module_members[m].append(c)
+
+    for module_name, members in list(module_members.items()):
+        if len(members) < min_size:
+            for c in members:
+                concept_to_module[c] = "other"
+
+    return concept_to_module
 
 
 def build_lesson_plan(nodes: dict) -> dict:
@@ -85,11 +128,12 @@ def build_lesson_plan(nodes: dict) -> dict:
             maps_to_map[rel.subject].append(rel.object)
 
     order = _topological_sort(concepts, prereqs)
+    concept_to_module = _classify_modules(concepts, triples)
 
     modules: dict[str, list[dict]] = defaultdict(list)
     lessons = []
     for i, concept in enumerate(order, 1):
-        module = _classify_module(concept)
+        module = concept_to_module.get(concept, concept)
         motivation = None
         enabled = enables_map.get(concept, [])
         if enabled:
@@ -175,18 +219,10 @@ def format_lesson_plan_markdown(plan: dict, title: Optional[str] = None) -> str:
                  f"**{stats['total_relations']} relations**")
     lines.append("")
 
-    module_order = [name for name, _ in MODULE_KEYWORDS] + ["other"]
-    seen_modules = set()
-
-    for module_name in module_order:
-        if module_name not in plan["modules"]:
-            continue
-        seen_modules.add(module_name)
-        _format_module(lines, module_name, plan["modules"][module_name])
-
-    for module_name in sorted(plan["modules"].keys()):
-        if module_name not in seen_modules:
-            _format_module(lines, module_name, plan["modules"][module_name])
+    module_sizes = sorted(plan["modules"].items(),
+                          key=lambda x: (-len(x[1]), x[0]))
+    for module_name, module_lessons in module_sizes:
+        _format_module(lines, module_name, module_lessons)
 
     return "\n".join(lines)
 
