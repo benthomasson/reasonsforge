@@ -213,3 +213,197 @@ def _format_module(lines: list[str], module_name: str, lessons: list[dict]) -> N
 def format_lesson_plan_json(plan: dict) -> dict:
     """Return a JSON-serializable lesson plan."""
     return plan
+
+
+def build_lesson_prompt(
+    lesson: dict,
+    beliefs: list[dict],
+    domain: str = "",
+    completed: list[str] | None = None,
+) -> str:
+    """Build an LLM prompt for generating a single lesson.
+
+    Augments the standard lesson prompt with plan context:
+    prerequisites, motivation, cross-references.
+
+    Args:
+        lesson: a lesson dict from build_lesson_plan
+        beliefs: list of {"id": str, "text": str} for this concept
+        domain: domain name for context
+        completed: list of concept names the student has already learned
+    """
+    concept = lesson["concept"]
+    display = concept.replace("-", " ").title()
+    domain_clause = f' from the "{domain}" knowledge domain' if domain else ""
+
+    parts = [
+        f'You are an expert teacher creating a lesson about "{display}"{domain_clause}.',
+        "",
+    ]
+
+    if lesson.get("prerequisites"):
+        prereq_names = [p.replace("-", " ").title() for p in lesson["prerequisites"]]
+        parts.append(f"Prerequisites: {', '.join(prereq_names)}.")
+        if completed:
+            completed_set = set(completed)
+            met = [p for p in lesson["prerequisites"] if p in completed_set]
+            if met:
+                met_names = [p.replace("-", " ").title() for p in met]
+                parts.append(
+                    f"The student has already learned: {', '.join(met_names)}. "
+                    "Build on that knowledge — don't re-explain these concepts."
+                )
+        parts.append("")
+
+    if lesson.get("motivation"):
+        parts.append(f"Context: {lesson['motivation']}.")
+        parts.append("Open the lesson by explaining why this concept matters.")
+        parts.append("")
+
+    parts.append(
+        "Using the beliefs below, write a clear, structured lesson that:\n"
+        "1. Introduces the key concepts and why they matter\n"
+        "2. Explains how the concepts relate to each other\n"
+        "3. Highlights the most important things to understand\n"
+        "4. Notes any nuances, exceptions, or common misconceptions"
+    )
+    parts.append("")
+
+    if lesson.get("cross_references"):
+        xref_names = [x.replace("-", " ").title() for x in lesson["cross_references"]]
+        parts.append(
+            f"Where relevant, connect to: {', '.join(xref_names)}."
+        )
+        parts.append("")
+
+    if lesson.get("examples"):
+        ex_names = [e.replace("-", " ").title() for e in lesson["examples"]]
+        parts.append(
+            f"Include concrete examples related to: {', '.join(ex_names)}."
+        )
+        parts.append("")
+
+    parts.append(
+        "Write 3-5 paragraphs. Be clear and educational. Use plain language. "
+        "Refer to beliefs by their IDs to ground your claims."
+    )
+    parts.append("")
+
+    beliefs_text = "\n".join(f"[{b['id']}] {b['text']}" for b in beliefs)
+    parts.append(f"Available beliefs:\n{beliefs_text}")
+    parts.append("")
+    parts.append(
+        "Start with TITLE: followed by a lesson title on one line.\n"
+        "Then write the lesson.\n"
+        "End with BELIEFS: followed by a comma-separated list "
+        "of the belief IDs you referenced."
+    )
+
+    return "\n".join(parts)
+
+
+def select_beliefs_for_lesson(
+    lesson: dict,
+    nodes: dict,
+    max_beliefs: int = 30,
+) -> list[dict]:
+    """Select relevant beliefs for a lesson concept.
+
+    Matches beliefs whose ID contains the concept name or
+    whose text mentions it. Prioritizes exact ID matches.
+    """
+    concept = lesson["concept"]
+    concept_words = set(concept.split("-"))
+
+    scored: list[tuple[float, str]] = []
+    for node_id, node in nodes.items():
+        if node.get("truth_value") != "IN":
+            continue
+        node_words = set(node_id.split("-"))
+        overlap = len(concept_words & node_words)
+        if overlap == 0:
+            text_lower = node.get("text", "").lower()
+            concept_readable = concept.replace("-", " ")
+            if concept_readable in text_lower:
+                overlap = 0.5
+        if overlap > 0:
+            is_relational = any(f"-{r}-" in node_id for r in ORDERING_RELATIONS | MOTIVATION_RELATIONS | EXAMPLE_RELATIONS | CROSSREF_RELATIONS | GROUPING_RELATIONS)
+            priority = overlap + (0 if is_relational else 0.1)
+            scored.append((priority, node_id))
+
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    selected = scored[:max_beliefs]
+
+    return [
+        {"id": node_id, "text": nodes[node_id].get("text", "")}
+        for _, node_id in selected
+    ]
+
+
+def generate_lesson(
+    lesson: dict,
+    nodes: dict,
+    model: str = "claude",
+    domain: str = "",
+    completed: list[str] | None = None,
+    timeout: int = 300,
+    invoke_fn=None,
+) -> dict | None:
+    """Generate a single lesson from a plan entry.
+
+    Args:
+        lesson: lesson dict from build_lesson_plan
+        nodes: full node dict from api.export_network
+        model: LLM model name
+        domain: domain name
+        completed: concepts already taught
+        timeout: LLM timeout
+        invoke_fn: callable(prompt, model) -> str; if None, uses llm.invoke_model
+
+    Returns:
+        dict with title, body, beliefs, concept, module keys
+    """
+    beliefs = select_beliefs_for_lesson(lesson, nodes)
+    if not beliefs:
+        return None
+
+    prompt = build_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
+
+    if invoke_fn is None:
+        from .llm import invoke_model
+        result = invoke_model(prompt, model=model, timeout=timeout)
+    else:
+        result = invoke_fn(prompt, model)
+
+    parsed = _parse_lesson_response(result)
+    parsed["concept"] = lesson["concept"]
+    parsed["module"] = lesson["module"]
+    parsed["lesson_number"] = lesson["number"]
+    return parsed
+
+
+def _parse_lesson_response(content: str) -> dict:
+    """Parse TITLE: ... body ... BELIEFS: ... format."""
+    title = ""
+    body = content
+    beliefs = []
+
+    lines = content.strip().split("\n")
+    body_start = 0
+    for i, line in enumerate(lines):
+        if line.startswith("TITLE:"):
+            title = line[len("TITLE:"):].strip()
+            body_start = i + 1
+            break
+
+    body_end = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        if lines[i].startswith("BELIEFS:"):
+            beliefs_str = lines[i][len("BELIEFS:"):].strip()
+            beliefs = [b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()]
+            body_end = i
+            break
+
+    body = "\n".join(lines[body_start:body_end]).strip()
+
+    return {"title": title, "body": body, "beliefs": beliefs}

@@ -3323,6 +3323,106 @@ def cmd_lesson_plan(args):
         print(output)
 
 
+def cmd_generate_lesson(args):
+    _require_sqlite(args, "generate-lesson")
+    from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+    reset_cost_tracker()
+    from .lesson_plan import (
+        build_lesson_plan,
+        build_lesson_prompt,
+        select_beliefs_for_lesson,
+        generate_lesson,
+    )
+
+    model = getattr(args, "model", None) or "claude"
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    plan = build_lesson_plan(nodes)
+    if not plan["lessons"]:
+        print("No relational beliefs found — cannot generate lessons.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.concept:
+        targets = [l for l in plan["lessons"] if l["concept"] == args.concept]
+        if not targets:
+            print(f"Concept '{args.concept}' not found in lesson plan.", file=sys.stderr)
+            concepts = [l["concept"] for l in plan["lessons"]]
+            close = [c for c in concepts if args.concept in c]
+            if close:
+                print(f"  Did you mean: {', '.join(close[:5])}?", file=sys.stderr)
+            sys.exit(1)
+    elif getattr(args, "all", False):
+        targets = plan["lessons"]
+    elif args.count:
+        targets = plan["lessons"][:args.count]
+    else:
+        targets = plan["lessons"][:1]
+
+    output_dir = None
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    completed = []
+    generated = 0
+
+    for lesson in targets:
+        concept = lesson["concept"]
+        print(f"\n--- Lesson {lesson['number']}: {concept} ---", file=sys.stderr)
+
+        if args.dry_run:
+            beliefs = select_beliefs_for_lesson(lesson, nodes)
+            prompt = build_lesson_prompt(
+                lesson, beliefs, domain=args.domain, completed=completed,
+            )
+            print(prompt)
+            print(f"\n({len(beliefs)} beliefs selected)", file=sys.stderr)
+            completed.append(concept)
+            continue
+
+        result = generate_lesson(
+            lesson, nodes, model=model, domain=args.domain,
+            completed=completed, timeout=args.timeout,
+        )
+
+        if not result:
+            print(f"  No beliefs found for '{concept}', skipping.", file=sys.stderr)
+            continue
+
+        if output_dir:
+            filename = f"{lesson['number']:03d}-{concept}.md"
+            filepath = output_dir / filename
+            with open(filepath, "w") as f:
+                f.write(f"# {result['title']}\n\n")
+                f.write(result["body"])
+                f.write("\n")
+            print(f"  Wrote {filepath}", file=sys.stderr)
+        else:
+            print(f"\n# {result['title']}\n")
+            print(result["body"])
+            if result.get("beliefs"):
+                print(f"\nBeliefs: {', '.join(result['beliefs'])}")
+
+        completed.append(concept)
+        generated += 1
+
+    if not args.dry_run:
+        print(f"\nGenerated {generated} lesson(s).", file=sys.stderr)
+        cost = format_cost_summary()
+        if cost:
+            print(f"  {cost}", file=sys.stderr)
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -4232,6 +4332,26 @@ def main():
     p.add_argument("-o", "--output", default=None,
                    help="Write lesson plan to file")
 
+    # generate-lesson
+    p = sub.add_parser("generate-lesson",
+                       help="Generate individual lessons from a lesson plan using LLM")
+    p.add_argument("concept", nargs="?", default=None,
+                   help="Concept to generate a lesson for (default: next in plan)")
+    p.add_argument("--all", action="store_true",
+                   help="Generate lessons for all concepts in order")
+    p.add_argument("--count", type=int, default=None,
+                   help="Generate N lessons starting from the next untaught concept")
+    p.add_argument("--domain", "-d", default="",
+                   help="Domain name for prompt context")
+    p.add_argument("--model", "-m", default=None,
+                   help="LLM model (default: claude)")
+    p.add_argument("--timeout", type=int, default=300,
+                   help="Model timeout in seconds (default: 300)")
+    p.add_argument("-o", "--output-dir", default=None,
+                   help="Directory to write lesson files (default: stdout)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show the prompt without calling the LLM")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -4348,6 +4468,7 @@ def main():
         "derive-relations": cmd_derive_relations,
         "review-relations": cmd_review_relations,
         "lesson-plan": cmd_lesson_plan,
+        "generate-lesson": cmd_generate_lesson,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
