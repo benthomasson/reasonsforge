@@ -3514,6 +3514,73 @@ def cmd_consolidate_lessons(args):
         print(f"  {cost}", file=sys.stderr)
 
 
+def cmd_survey_lessons(args):
+    _require_sqlite(args, "survey-lessons")
+    from .llm import reset_cost_tracker, format_cost_summary
+    from .lesson_plan import (
+        build_lesson_plan,
+        survey_lessons,
+        format_survey_markdown,
+    )
+
+    model = getattr(args, "model", None) or "claude"
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    plan = build_lesson_plan(nodes)
+    if not plan["lessons"]:
+        print("No relational beliefs found — cannot create survey.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Building survey from {len(plan['lessons'])} concepts "
+          f"(target: {args.target_lessons} lessons).", file=sys.stderr)
+
+    if args.dry_run:
+        print(f"\nAll concepts ({len(plan['lessons'])}):")
+        for l in plan["lessons"]:
+            print(f"  {l['concept']}")
+        return
+
+    reset_cost_tracker()
+    survey = survey_lessons(
+        plan, model=model, timeout=args.timeout,
+        target_lessons=args.target_lessons,
+    )
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        import json as _json
+        output = _json.dumps(survey, indent=2)
+    else:
+        output = format_survey_markdown(survey, title=args.title)
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(output)
+            if not output.endswith("\n"):
+                f.write("\n")
+        print(f"Wrote survey plan to {args.output}", file=sys.stderr)
+    else:
+        print(output)
+
+    stats = survey["stats"]
+    print(f"\n  {stats['survey_from']} concepts → {stats['total_lessons']} survey lessons",
+          file=sys.stderr)
+
+    cost = format_cost_summary()
+    if cost:
+        print(f"  {cost}", file=sys.stderr)
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -4465,6 +4532,24 @@ def main():
     p.add_argument("--batch-size", type=int, default=80,
                    help="Concepts per LLM batch (default: 80)")
 
+    # survey-lessons
+    p = sub.add_parser("survey-lessons",
+                       help="Create a high-level survey course grouping all concepts into broad lessons")
+    p.add_argument("--title", default=None,
+                   help="Title for the survey course")
+    p.add_argument("--model", "-m", default=None,
+                   help="LLM model (default: claude)")
+    p.add_argument("--timeout", type=int, default=600,
+                   help="Model timeout in seconds (default: 600)")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Output format (default: text)")
+    p.add_argument("-o", "--output", default=None,
+                   help="Write survey plan to file")
+    p.add_argument("--target-lessons", type=int, default=12,
+                   help="Target number of survey lessons (default: 12)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show all concepts without calling LLM")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -4583,6 +4668,7 @@ def main():
         "lesson-plan": cmd_lesson_plan,
         "generate-lesson": cmd_generate_lesson,
         "consolidate-lessons": cmd_consolidate_lessons,
+        "survey-lessons": cmd_survey_lessons,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),

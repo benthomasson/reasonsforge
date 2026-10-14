@@ -672,3 +672,140 @@ def format_consolidated_markdown(plan: dict, title: Optional[str] = None) -> str
             lines.append("")
 
     return "\n".join(lines)
+
+
+def _build_survey_prompt(concepts: list[str], target_lessons: int = 12) -> str:
+    """Build prompt asking LLM to group all concepts into broad survey lessons."""
+    concept_list = "\n".join(f"- {c}" for c in concepts)
+    return f"""You are a curriculum designer creating a high-level survey course. Below are {len(concepts)} concepts from a knowledge domain. Group ALL of them into {target_lessons}-{target_lessons + 3} broad thematic lessons.
+
+Each lesson should:
+- Cover a coherent theme at an introductory level
+- Contain 10-30 concepts that belong together
+- Have a title suitable for a survey course (e.g., "Foundations of Belief Revision" not "TMS")
+- Be ordered so earlier lessons provide context for later ones
+
+Concepts:
+{concept_list}
+
+Return your grouping as a JSON array. Each element:
+- "title": descriptive lesson title (3-8 words)
+- "concepts": list of concept names from the input
+- "summary": one-sentence description of what this lesson covers
+- "order": integer (1 = teach first)
+
+Every concept must appear in exactly one group. Return ONLY the JSON array."""
+
+
+def _parse_survey_response(content: str) -> list[dict]:
+    """Parse LLM response into ordered list of survey groups."""
+    import json as _json
+    import re
+    match = re.search(r'\[.*\]', content, re.DOTALL)
+    if not match:
+        return []
+    try:
+        groups = _json.loads(match.group())
+        for g in groups:
+            if not isinstance(g.get("concepts"), list):
+                g["concepts"] = []
+            if not g.get("title"):
+                g["title"] = "Untitled"
+        groups.sort(key=lambda g: g.get("order", 999))
+        return groups
+    except (_json.JSONDecodeError, TypeError):
+        return []
+
+
+def survey_lessons(
+    plan: dict,
+    model: str = "claude",
+    timeout: int = 600,
+    target_lessons: int = 12,
+    batch_size: int = 300,
+    invoke_fn=None,
+) -> dict:
+    """Create a high-level survey course from a detailed lesson plan.
+
+    All concepts are grouped into broad thematic lessons by the LLM.
+    """
+    if not plan["lessons"]:
+        return plan
+
+    if invoke_fn is None:
+        from .llm import invoke_model
+        invoke_fn = lambda prompt, model: invoke_model(prompt, model=model, timeout=timeout)
+
+    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_groups: list[dict] = []
+
+    for i in range(0, len(all_concepts), batch_size):
+        batch = all_concepts[i:i + batch_size]
+        prompt = _build_survey_prompt(batch, target_lessons=target_lessons)
+        response = invoke_fn(prompt, model)
+        groups = _parse_survey_response(response)
+        if groups:
+            all_groups.extend(groups)
+        else:
+            all_groups.append({
+                "title": "Survey",
+                "concepts": batch,
+                "summary": "LLM grouping failed",
+                "order": 1,
+            })
+
+    lessons = []
+    for i, group in enumerate(all_groups, 1):
+        lessons.append({
+            "number": i,
+            "concept": group["title"].lower().replace(" ", "-"),
+            "module": "survey",
+            "prerequisites": [],
+            "motivation": group.get("summary"),
+            "examples": [],
+            "cross_references": [],
+            "subtopics": group["concepts"],
+            "title": group["title"],
+        })
+
+    stats = {
+        "total_lessons": len(lessons),
+        "total_modules": 1,
+        "total_relations": plan["stats"]["total_relations"],
+        "concepts": plan["stats"]["concepts"],
+        "relations_by_type": plan["stats"]["relations_by_type"],
+        "survey_from": plan["stats"]["total_lessons"],
+    }
+
+    return {
+        "lessons": lessons,
+        "modules": {"survey": lessons},
+        "stats": stats,
+    }
+
+
+def format_survey_markdown(plan: dict, title: Optional[str] = None) -> str:
+    """Format a survey lesson plan as markdown."""
+    lines = []
+    title = title or "Survey Course"
+    lines.append(f"# {title}")
+    lines.append("")
+
+    stats = plan["stats"]
+    summary = f"**{stats['total_lessons']} lessons**"
+    if "survey_from" in stats:
+        summary += f" covering {stats['concepts']} concepts"
+    lines.append(summary)
+    lines.append("")
+
+    for lesson in plan["lessons"]:
+        display = lesson.get("title", lesson["concept"].replace("-", " ").title())
+        lines.append(f"## Lesson {lesson['number']}: {display}")
+        if lesson.get("motivation"):
+            lines.append(f"*{lesson['motivation']}*")
+        lines.append("")
+        if lesson.get("subtopics"):
+            lines.append(f"**Topics**: {', '.join(lesson['subtopics'])}")
+            lines.append("")
+
+    return "\n".join(lines)

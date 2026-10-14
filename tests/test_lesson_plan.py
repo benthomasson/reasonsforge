@@ -16,6 +16,10 @@ from reasonsforge.lesson_plan import (
     _parse_consolidation_response,
     consolidate_lessons,
     format_consolidated_markdown,
+    _build_survey_prompt,
+    _parse_survey_response,
+    survey_lessons,
+    format_survey_markdown,
 )
 
 
@@ -496,3 +500,85 @@ def test_format_consolidated_markdown():
     md = format_consolidated_markdown(consolidated, title="Test Consolidated")
     assert "# Test Consolidated" in md
     assert "Covers" in md or "Misc Topics" in md
+
+
+# --- Survey tests ---
+
+
+def test_build_survey_prompt():
+    concepts = ["alpha", "beta", "gamma", "delta"]
+    prompt = _build_survey_prompt(concepts, target_lessons=2)
+    assert "4 concepts" in prompt
+    assert "2-5 broad thematic lessons" in prompt
+    assert "alpha" in prompt
+    assert "JSON" in prompt
+
+
+def test_parse_survey_response_valid():
+    response = '''[
+        {"title": "Foundations", "concepts": ["a", "b"], "summary": "Basics", "order": 1},
+        {"title": "Advanced", "concepts": ["c", "d"], "summary": "Deep stuff", "order": 2}
+    ]'''
+    groups = _parse_survey_response(response)
+    assert len(groups) == 2
+    assert groups[0]["title"] == "Foundations"
+    assert groups[1]["title"] == "Advanced"
+    assert groups[0]["concepts"] == ["a", "b"]
+
+
+def test_parse_survey_response_orders_by_order():
+    response = '''[
+        {"title": "Second", "concepts": ["x"], "summary": "Later", "order": 2},
+        {"title": "First", "concepts": ["y"], "summary": "Earlier", "order": 1}
+    ]'''
+    groups = _parse_survey_response(response)
+    assert groups[0]["title"] == "First"
+    assert groups[1]["title"] == "Second"
+
+
+def test_parse_survey_response_invalid():
+    groups = _parse_survey_response("not json")
+    assert groups == []
+
+
+def test_survey_lessons_with_mock():
+    plan = build_lesson_plan(NODES)
+    all_concepts = [l["concept"] for l in plan["lessons"]]
+
+    import json as _json
+    mock_response = _json.dumps([
+        {"title": "Algebra Basics", "concepts": all_concepts[:len(all_concepts)//2],
+         "summary": "Foundation concepts", "order": 1},
+        {"title": "Advanced Algebra", "concepts": all_concepts[len(all_concepts)//2:],
+         "summary": "Building on basics", "order": 2},
+    ])
+
+    survey = survey_lessons(plan, invoke_fn=lambda p, m: mock_response, target_lessons=2)
+    assert survey["stats"]["total_lessons"] == 2
+    assert survey["stats"]["survey_from"] == len(all_concepts)
+    assert len(survey["lessons"]) == 2
+    assert survey["lessons"][0]["title"] == "Algebra Basics"
+    assert len(survey["lessons"][0]["subtopics"]) > 0
+
+
+def test_survey_empty_plan():
+    plan = build_lesson_plan({})
+    result = survey_lessons(plan, invoke_fn=lambda p, m: "[]")
+    assert result is plan
+
+
+def test_format_survey_markdown():
+    plan = build_lesson_plan(NODES)
+    all_concepts = [l["concept"] for l in plan["lessons"]]
+
+    import json as _json
+    mock_response = _json.dumps([
+        {"title": "All Topics", "concepts": all_concepts,
+         "summary": "Everything in one lesson", "order": 1},
+    ])
+
+    survey = survey_lessons(plan, invoke_fn=lambda p, m: mock_response)
+    md = format_survey_markdown(survey, title="Test Survey")
+    assert "# Test Survey" in md
+    assert "Lesson 1: All Topics" in md
+    assert "Topics" in md
