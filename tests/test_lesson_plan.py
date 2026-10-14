@@ -75,6 +75,11 @@ NODES = {
         "truth_value": "IN",
         "metadata": {},
     },
+    "symmetry": {
+        "text": "Symmetry is invariance under transformation.",
+        "truth_value": "IN",
+        "metadata": {},
+    },
     "group-maps-to-symmetry": {
         "text": "Group maps to symmetry in physics",
         "truth_value": "IN",

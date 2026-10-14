@@ -108,23 +108,39 @@ def build_lesson_plan(nodes: dict) -> dict:
     implements_map: dict[str, list[str]] = defaultdict(list)
     maps_to_map: dict[str, list[str]] = defaultdict(list)
 
+    in_node_ids = {nid for nid, n in nodes.items()
+                   if (n.get("truth_value") if isinstance(n, dict)
+                       else getattr(n, "truth_value", "IN")) == "IN"}
+
+    def _is_concept(name: str) -> bool:
+        """Filter out data points that aren't teachable concepts."""
+        if name in in_node_ids:
+            return True
+        first_word = name.split("-")[0] if name else ""
+        if first_word.isdigit():
+            return False
+        return True
+
     concepts: set[str] = set()
 
     for belief_id, rel in triples:
-        concepts.add(rel.subject)
-        concepts.add(rel.object)
+        if _is_concept(rel.subject):
+            concepts.add(rel.subject)
+        if _is_concept(rel.object):
+            concepts.add(rel.object)
 
-        if rel.relation in ORDERING_RELATIONS:
+        both_real = rel.subject in concepts and rel.object in concepts
+        if rel.relation in ORDERING_RELATIONS and both_real:
             prereqs[rel.subject].add(rel.object)
-        elif rel.relation == "enables":
+        elif rel.relation == "enables" and both_real:
             enables_map[rel.subject].append(rel.object)
-        elif rel.relation == "contains":
+        elif rel.relation == "contains" and both_real:
             contains_map[rel.subject].append(rel.object)
-        elif rel.relation == "is-a":
+        elif rel.relation == "is-a" and both_real:
             isa_map[rel.subject].append(rel.object)
-        elif rel.relation == "implements":
+        elif rel.relation == "implements" and both_real:
             implements_map[rel.subject].append(rel.object)
-        elif rel.relation == "maps-to":
+        elif rel.relation == "maps-to" and both_real:
             maps_to_map[rel.subject].append(rel.object)
 
     order = _topological_sort(concepts, prereqs)
