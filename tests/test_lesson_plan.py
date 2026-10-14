@@ -5,9 +5,12 @@ import pytest
 
 from reasonsforge.lesson_plan import (
     build_lesson_plan,
+    build_lesson_prompt,
+    select_beliefs_for_lesson,
     format_lesson_plan_markdown,
     _topological_sort,
     _classify_module,
+    _parse_lesson_response,
 )
 
 
@@ -202,3 +205,139 @@ def test_json_output_serializable():
     serialized = json.dumps(plan)
     deserialized = json.loads(serialized)
     assert deserialized["stats"]["total_lessons"] == plan["stats"]["total_lessons"]
+
+
+# --- Lesson generation tests ---
+
+
+def test_build_lesson_prompt_basic():
+    lesson = {
+        "concept": "field",
+        "prerequisites": ["ring", "group"],
+        "motivation": "Unlocks: vector-space",
+        "examples": ["rational-numbers"],
+        "cross_references": ["linear-algebra-scalars"],
+        "number": 3,
+        "module": "ring-and-field-theory",
+    }
+    beliefs = [
+        {"id": "field", "text": "A field is a ring with multiplicative inverses."},
+    ]
+    prompt = build_lesson_prompt(lesson, beliefs, domain="algebra")
+    assert "Field" in prompt
+    assert "algebra" in prompt
+    assert "Ring" in prompt
+    assert "Group" in prompt
+    assert "vector-space" in prompt.lower() or "Unlocks" in prompt
+    assert "Rational Numbers" in prompt
+    assert "Linear Algebra Scalars" in prompt
+    assert "[field]" in prompt
+
+
+def test_build_lesson_prompt_with_completed():
+    lesson = {
+        "concept": "field",
+        "prerequisites": ["ring", "group"],
+        "motivation": None,
+        "examples": [],
+        "cross_references": [],
+        "number": 3,
+        "module": "ring-and-field-theory",
+    }
+    beliefs = [{"id": "field", "text": "A field."}]
+    prompt = build_lesson_prompt(lesson, beliefs, completed=["group"])
+    assert "already learned" in prompt.lower()
+    assert "Group" in prompt
+
+
+def test_build_lesson_prompt_no_prereqs():
+    lesson = {
+        "concept": "set-theory",
+        "prerequisites": [],
+        "motivation": None,
+        "examples": [],
+        "cross_references": [],
+        "number": 1,
+        "module": "foundations",
+    }
+    beliefs = [{"id": "set-theory", "text": "Set theory."}]
+    prompt = build_lesson_prompt(lesson, beliefs)
+    assert "Prerequisites" not in prompt
+    assert "already learned" not in prompt.lower()
+
+
+def test_select_beliefs_for_lesson():
+    plan = build_lesson_plan(NODES)
+    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    ring_lesson = lessons_by_concept["ring"]
+    beliefs = select_beliefs_for_lesson(ring_lesson, NODES)
+    ids = [b["id"] for b in beliefs]
+    assert "ring" in ids
+
+
+def test_select_beliefs_respects_max():
+    plan = build_lesson_plan(NODES)
+    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    group_lesson = lessons_by_concept["group"]
+    beliefs = select_beliefs_for_lesson(group_lesson, NODES, max_beliefs=2)
+    assert len(beliefs) <= 2
+
+
+def test_select_beliefs_ignores_out():
+    plan = build_lesson_plan(NODES)
+    lesson = {"concept": "retracted", "number": 1, "module": "other",
+              "prerequisites": [], "motivation": None, "examples": [],
+              "cross_references": []}
+    beliefs = select_beliefs_for_lesson(lesson, NODES)
+    ids = [b["id"] for b in beliefs]
+    assert "retracted-requires-something" not in ids
+
+
+def test_parse_lesson_response():
+    content = """TITLE: Introduction to Fields
+A field is a ring where every nonzero element has an inverse.
+
+This is important because it lets us do division.
+
+Fields are everywhere in mathematics.
+
+BELIEFS: field, ring-requires-group, field-requires-ring"""
+    parsed = _parse_lesson_response(content)
+    assert parsed["title"] == "Introduction to Fields"
+    assert "ring where every" in parsed["body"]
+    assert "field" in parsed["beliefs"]
+    assert "ring-requires-group" in parsed["beliefs"]
+
+
+def test_parse_lesson_response_no_markers():
+    content = "Just some text without markers."
+    parsed = _parse_lesson_response(content)
+    assert parsed["body"] == content
+    assert parsed["title"] == ""
+    assert parsed["beliefs"] == []
+
+
+def test_generate_lesson_with_mock():
+    from reasonsforge.lesson_plan import generate_lesson
+    plan = build_lesson_plan(NODES)
+    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    ring_lesson = lessons_by_concept["ring"]
+
+    mock_response = """TITLE: Understanding Rings
+A ring builds on the group concept.
+
+Rings add a second operation.
+
+BELIEFS: ring, ring-requires-group"""
+
+    def mock_invoke(prompt, model):
+        return mock_response
+
+    result = generate_lesson(
+        ring_lesson, NODES, invoke_fn=mock_invoke,
+    )
+    assert result is not None
+    assert result["title"] == "Understanding Rings"
+    assert result["concept"] == "ring"
+    assert result["module"] == "ring-and-field-theory"
+    assert "ring" in result["beliefs"]
