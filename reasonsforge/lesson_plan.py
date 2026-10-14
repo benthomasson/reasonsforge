@@ -392,6 +392,96 @@ def select_beliefs_for_lesson(
     ]
 
 
+def select_beliefs_for_survey_lesson(
+    lesson: dict,
+    nodes: dict,
+    max_beliefs: int = 50,
+) -> list[dict]:
+    """Select beliefs across all subtopics for a survey lesson."""
+    subtopics = lesson.get("subtopics", [])
+    if not subtopics:
+        return select_beliefs_for_lesson(lesson, nodes, max_beliefs=max_beliefs)
+
+    per_topic = max(2, max_beliefs // len(subtopics))
+    seen: set[str] = set()
+    result: list[dict] = []
+
+    for topic in subtopics:
+        topic_lesson = {"concept": topic}
+        beliefs = select_beliefs_for_lesson(topic_lesson, nodes, max_beliefs=per_topic)
+        for b in beliefs:
+            if b["id"] not in seen:
+                seen.add(b["id"])
+                result.append(b)
+
+    return result[:max_beliefs]
+
+
+def build_survey_lesson_prompt(
+    lesson: dict,
+    beliefs: list[dict],
+    domain: str = "",
+    completed: list[str] | None = None,
+) -> str:
+    """Build an LLM prompt for generating a survey-level lesson.
+
+    Covers multiple subtopics at a high level rather than one concept in depth.
+    """
+    title = lesson.get("title", lesson["concept"].replace("-", " ").title())
+    domain_clause = f' from the "{domain}" knowledge domain' if domain else ""
+    subtopics = lesson.get("subtopics", [])
+    topic_names = [t.replace("-", " ").title() for t in subtopics]
+
+    parts = [
+        f'You are an expert teacher creating a survey-level lesson on "{title}"{domain_clause}.',
+        "",
+    ]
+
+    if lesson.get("motivation"):
+        parts.append(f"Theme: {lesson['motivation']}")
+        parts.append("")
+
+    parts.append(f"This lesson introduces {len(subtopics)} topics at a high level:")
+    for name in topic_names:
+        parts.append(f"  - {name}")
+    parts.append("")
+
+    if completed:
+        completed_names = [c.replace("-", " ").title() for c in completed[-5:]]
+        parts.append(
+            f"Previous lessons covered: {', '.join(completed_names)}. "
+            "Build on that context where relevant."
+        )
+        parts.append("")
+
+    parts.append(
+        "Using the beliefs below, write a broad overview lesson that:\n"
+        "1. Opens with why this theme matters\n"
+        "2. Introduces each topic in 1-2 sentences — enough to orient, not to master\n"
+        "3. Shows how the topics connect to each other\n"
+        "4. Closes with what the student should explore deeper"
+    )
+    parts.append("")
+
+    parts.append(
+        "Write 4-6 paragraphs. Keep it accessible — this is an introduction, "
+        "not a deep dive. Refer to beliefs by their IDs to ground your claims."
+    )
+    parts.append("")
+
+    beliefs_text = "\n".join(f"[{b['id']}] {b['text']}" for b in beliefs)
+    parts.append(f"Available beliefs:\n{beliefs_text}")
+    parts.append("")
+    parts.append(
+        "Start with TITLE: followed by a lesson title on one line.\n"
+        "Then write the lesson.\n"
+        "End with BELIEFS: followed by a comma-separated list "
+        "of the belief IDs you referenced."
+    )
+
+    return "\n".join(parts)
+
+
 def generate_lesson(
     lesson: dict,
     nodes: dict,
@@ -400,26 +490,34 @@ def generate_lesson(
     completed: list[str] | None = None,
     timeout: int = 300,
     invoke_fn=None,
+    survey: bool = False,
 ) -> dict | None:
     """Generate a single lesson from a plan entry.
 
     Args:
-        lesson: lesson dict from build_lesson_plan
+        lesson: lesson dict from build_lesson_plan or survey_lessons
         nodes: full node dict from api.export_network
         model: LLM model name
         domain: domain name
         completed: concepts already taught
         timeout: LLM timeout
         invoke_fn: callable(prompt, model) -> str; if None, uses llm.invoke_model
+        survey: if True, generate a broad overview covering subtopics lightly
 
     Returns:
         dict with title, body, beliefs, concept, module keys
     """
-    beliefs = select_beliefs_for_lesson(lesson, nodes)
+    if survey and lesson.get("subtopics"):
+        beliefs = select_beliefs_for_survey_lesson(lesson, nodes)
+    else:
+        beliefs = select_beliefs_for_lesson(lesson, nodes)
     if not beliefs:
         return None
 
-    prompt = build_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
+    if survey and lesson.get("subtopics"):
+        prompt = build_survey_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
+    else:
+        prompt = build_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
 
     if invoke_fn is None:
         from .llm import invoke_model
@@ -431,6 +529,8 @@ def generate_lesson(
     parsed["concept"] = lesson["concept"]
     parsed["module"] = lesson["module"]
     parsed["lesson_number"] = lesson["number"]
+    if lesson.get("subtopics"):
+        parsed["subtopics"] = lesson["subtopics"]
     return parsed
 
 

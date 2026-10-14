@@ -20,6 +20,8 @@ from reasonsforge.lesson_plan import (
     _parse_survey_response,
     survey_lessons,
     format_survey_markdown,
+    select_beliefs_for_survey_lesson,
+    build_survey_lesson_prompt,
 )
 
 
@@ -582,3 +584,112 @@ def test_format_survey_markdown():
     assert "# Test Survey" in md
     assert "Lesson 1: All Topics" in md
     assert "Topics" in md
+
+
+# --- Survey lesson generation tests ---
+
+
+def test_select_beliefs_for_survey_lesson():
+    plan = build_lesson_plan(NODES)
+    all_concepts = [l["concept"] for l in plan["lessons"]]
+    survey_lesson = {
+        "concept": "algebra-overview",
+        "subtopics": all_concepts,
+        "title": "Algebra Overview",
+        "module": "survey",
+        "number": 1,
+        "prerequisites": [],
+        "motivation": "Survey of algebra",
+        "examples": [],
+        "cross_references": [],
+    }
+    beliefs = select_beliefs_for_survey_lesson(survey_lesson, NODES)
+    assert len(beliefs) > 0
+    ids = {b["id"] for b in beliefs}
+    assert "group" in ids or "ring" in ids or "field" in ids
+
+
+def test_select_beliefs_for_survey_lesson_no_subtopics():
+    plan = build_lesson_plan(NODES)
+    lesson = plan["lessons"][0]
+    beliefs_survey = select_beliefs_for_survey_lesson(lesson, NODES)
+    beliefs_regular = select_beliefs_for_lesson(lesson, NODES)
+    assert beliefs_survey == beliefs_regular
+
+
+def test_build_survey_lesson_prompt():
+    lesson = {
+        "concept": "algebra-overview",
+        "subtopics": ["group", "ring", "field"],
+        "title": "Algebra Overview",
+        "module": "survey",
+        "number": 1,
+        "prerequisites": [],
+        "motivation": "Foundations of abstract algebra",
+        "examples": [],
+        "cross_references": [],
+    }
+    beliefs = [
+        {"id": "group", "text": "A group is a set with a binary operation."},
+        {"id": "ring", "text": "A ring is an abelian group under addition."},
+    ]
+    prompt = build_survey_lesson_prompt(lesson, beliefs, domain="algebra")
+    assert "survey-level" in prompt.lower()
+    assert "Algebra Overview" in prompt
+    assert "Group" in prompt
+    assert "Ring" in prompt
+    assert "Field" in prompt
+    assert "3 topics" in prompt
+    assert "broad overview" in prompt.lower()
+    assert "[group]" in prompt
+
+
+def test_build_survey_lesson_prompt_with_completed():
+    lesson = {
+        "concept": "advanced-topics",
+        "subtopics": ["vector-space"],
+        "title": "Advanced Topics",
+        "module": "survey",
+        "number": 2,
+        "prerequisites": [],
+        "motivation": None,
+        "examples": [],
+        "cross_references": [],
+    }
+    beliefs = [{"id": "vs", "text": "Vector spaces."}]
+    prompt = build_survey_lesson_prompt(lesson, beliefs, completed=["group", "ring"])
+    assert "Previous lessons" in prompt
+    assert "Group" in prompt
+
+
+def test_generate_lesson_survey_mode():
+    from reasonsforge.lesson_plan import generate_lesson
+    plan = build_lesson_plan(NODES)
+    all_concepts = [l["concept"] for l in plan["lessons"]]
+    survey_lesson = {
+        "concept": "algebra-overview",
+        "subtopics": all_concepts,
+        "title": "Algebra Overview",
+        "module": "survey",
+        "number": 1,
+        "prerequisites": [],
+        "motivation": "Survey of algebra",
+        "examples": [],
+        "cross_references": [],
+    }
+
+    mock_response = """TITLE: Introduction to Abstract Algebra
+Abstract algebra studies groups, rings, and fields.
+
+Groups are the foundation. Rings add a second operation. Fields add inverses.
+
+BELIEFS: group, ring, field"""
+
+    result = generate_lesson(
+        survey_lesson, NODES, invoke_fn=lambda p, m: mock_response,
+        survey=True,
+    )
+    assert result is not None
+    assert result["title"] == "Introduction to Abstract Algebra"
+    assert result["subtopics"] == all_concepts
+    assert "group" in result["beliefs"]

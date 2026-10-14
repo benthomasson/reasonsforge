@@ -3348,11 +3348,16 @@ def cmd_generate_lesson(args):
     from .lesson_plan import (
         build_lesson_plan,
         build_lesson_prompt,
+        build_survey_lesson_prompt,
         select_beliefs_for_lesson,
+        select_beliefs_for_survey_lesson,
+        survey_lessons,
         generate_lesson,
     )
 
     model = getattr(args, "model", None) or "claude"
+    use_survey = getattr(args, "survey", False)
+    from_plan = getattr(args, "from_plan", None)
 
     try:
         result = api.export_network(db_path=args.db)
@@ -3365,10 +3370,32 @@ def cmd_generate_lesson(args):
         print("No nodes in the network.", file=sys.stderr)
         sys.exit(1)
 
-    plan = build_lesson_plan(nodes)
-    if not plan["lessons"]:
-        print("No relational beliefs found — cannot generate lessons.", file=sys.stderr)
-        sys.exit(1)
+    if from_plan:
+        import json as _json
+        try:
+            with open(from_plan) as f:
+                plan = _json.load(f)
+        except Exception as e:
+            print(f"Error loading plan from {from_plan}: {e}", file=sys.stderr)
+            sys.exit(1)
+        has_subtopics = any(l.get("subtopics") for l in plan.get("lessons", []))
+        if has_subtopics:
+            use_survey = True
+        print(f"Loaded plan from {from_plan}: {len(plan['lessons'])} lessons.",
+              file=sys.stderr)
+    else:
+        base_plan = build_lesson_plan(nodes)
+        if not base_plan["lessons"]:
+            print("No relational beliefs found — cannot generate lessons.", file=sys.stderr)
+            sys.exit(1)
+
+        if use_survey:
+            print("Building survey plan...", file=sys.stderr)
+            plan = survey_lessons(base_plan, model=model, timeout=args.timeout)
+            print(f"Survey: {len(plan['lessons'])} lessons covering "
+                  f"{base_plan['stats']['concepts']} concepts.", file=sys.stderr)
+        else:
+            plan = base_plan
 
     if args.concept:
         targets = [l for l in plan["lessons"] if l["concept"] == args.concept]
@@ -3396,13 +3423,22 @@ def cmd_generate_lesson(args):
 
     for lesson in targets:
         concept = lesson["concept"]
-        print(f"\n--- Lesson {lesson['number']}: {concept} ---", file=sys.stderr)
+        title = lesson.get("title", concept)
+        subtopics = lesson.get("subtopics", [])
+        label = f"{title} ({len(subtopics)} topics)" if subtopics else concept
+        print(f"\n--- Lesson {lesson['number']}: {label} ---", file=sys.stderr)
 
         if args.dry_run:
-            beliefs = select_beliefs_for_lesson(lesson, nodes)
-            prompt = build_lesson_prompt(
-                lesson, beliefs, domain=args.domain, completed=completed,
-            )
+            if use_survey and subtopics:
+                beliefs = select_beliefs_for_survey_lesson(lesson, nodes)
+                prompt = build_survey_lesson_prompt(
+                    lesson, beliefs, domain=args.domain, completed=completed,
+                )
+            else:
+                beliefs = select_beliefs_for_lesson(lesson, nodes)
+                prompt = build_lesson_prompt(
+                    lesson, beliefs, domain=args.domain, completed=completed,
+                )
             print(prompt)
             print(f"\n({len(beliefs)} beliefs selected)", file=sys.stderr)
             completed.append(concept)
@@ -3411,6 +3447,7 @@ def cmd_generate_lesson(args):
         result = generate_lesson(
             lesson, nodes, model=model, domain=args.domain,
             completed=completed, timeout=args.timeout,
+            survey=use_survey,
         )
 
         if not result:
@@ -3579,6 +3616,92 @@ def cmd_survey_lessons(args):
     cost = format_cost_summary()
     if cost:
         print(f"  {cost}", file=sys.stderr)
+
+
+def cmd_import_lessons(args):
+    _require_sqlite(args, "import-lessons")
+    import re
+    import sqlite3
+    from datetime import datetime, timezone
+
+    lesson_dir = Path(args.lesson_dir)
+    if not lesson_dir.is_dir():
+        print(f"Error: {lesson_dir} is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    files = sorted(lesson_dir.glob("*.md"))
+    if not files:
+        print(f"No .md files found in {lesson_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    conn = sqlite3.connect(args.db)
+    conn.execute("""CREATE TABLE IF NOT EXISTS stories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT DEFAULT '',
+        image_path TEXT DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT '',
+        algorithm TEXT DEFAULT ''
+    )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS story_beliefs (
+        story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+        belief_id TEXT NOT NULL,
+        PRIMARY KEY (story_id, belief_id)
+    )""")
+
+    imported = 0
+    for filepath in files:
+        content = filepath.read_text()
+        lines = content.strip().split("\n")
+
+        title = filepath.stem.replace("-", " ").title()
+        body = content
+        beliefs = []
+
+        for i, line in enumerate(lines):
+            if line.startswith("# "):
+                title = line[2:].strip()
+                body = "\n".join(lines[i + 1:]).strip()
+                break
+
+        # Extract trailing BELIEFS: line if present
+        body_lines = body.split("\n")
+        for i in range(len(body_lines) - 1, -1, -1):
+            if body_lines[i].startswith("BELIEFS:"):
+                beliefs_str = body_lines[i][8:].strip()
+                beliefs = [b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()]
+                body = "\n".join(body_lines[:i]).strip()
+                break
+
+        # Also extract inline [belief-id] references from body
+        inline_refs = re.findall(r'\[([a-z0-9][\w-]*(?:-[\w-]+)+)\]', body)
+        for ref in inline_refs:
+            if ref not in beliefs:
+                beliefs.append(ref)
+
+        if args.dry_run:
+            print(f"  {filepath.name}: {title} ({len(beliefs)} beliefs)")
+            continue
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO stories (title, image_path, body, created_at, algorithm) VALUES (?, '', ?, ?, 'lesson')",
+            (title, body, now),
+        )
+        story_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        for bid in beliefs:
+            conn.execute(
+                "INSERT OR IGNORE INTO story_beliefs (story_id, belief_id) VALUES (?, ?)",
+                (story_id, bid),
+            )
+        imported += 1
+
+    if not args.dry_run:
+        conn.commit()
+    conn.close()
+
+    print(f"{'Would import' if args.dry_run else 'Imported'} {imported if not args.dry_run else len(files)} lesson(s) from {lesson_dir}",
+          file=sys.stderr)
 
 
 def cmd_costs(args):
@@ -4511,6 +4634,10 @@ def main():
                    help="Directory to write lesson files (default: stdout)")
     p.add_argument("--dry-run", action="store_true",
                    help="Show the prompt without calling the LLM")
+    p.add_argument("--survey", action="store_true",
+                   help="Use survey plan — broad overview lessons covering subtopics lightly")
+    p.add_argument("--from-plan", default=None, metavar="JSON_FILE",
+                   help="Load lesson plan from JSON file instead of building from TMS")
 
     # consolidate-lessons
     p = sub.add_parser("consolidate-lessons",
@@ -4549,6 +4676,14 @@ def main():
                    help="Target number of survey lessons (default: 12)")
     p.add_argument("--dry-run", action="store_true",
                    help="Show all concepts without calling LLM")
+
+    # import-lessons
+    p = sub.add_parser("import-lessons",
+                       help="Import generated lesson markdown files as feed stories")
+    p.add_argument("lesson_dir",
+                   help="Directory containing lesson .md files")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show what would be imported without writing")
 
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
@@ -4669,6 +4804,7 @@ def main():
         "generate-lesson": cmd_generate_lesson,
         "consolidate-lessons": cmd_consolidate_lessons,
         "survey-lessons": cmd_survey_lessons,
+        "import-lessons": cmd_import_lessons,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
