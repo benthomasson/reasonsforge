@@ -9,7 +9,7 @@ from reasonsforge.lesson_plan import (
     select_beliefs_for_lesson,
     format_lesson_plan_markdown,
     _topological_sort,
-    _classify_module,
+    _classify_modules,
     _parse_lesson_response,
 )
 
@@ -137,12 +137,30 @@ def test_out_beliefs_ignored():
     assert "something" not in concepts
 
 
-def test_module_classification():
-    assert _classify_module("group") == "group-theory"
-    assert _classify_module("ring") == "ring-and-field-theory"
-    assert _classify_module("vector-space") == "linear-algebra"
-    assert _classify_module("set-theory-axiom") == "foundations"
-    assert _classify_module("unknown-concept-xyz") == "other"
+def test_module_classification_from_graph():
+    from reasonsforge.relations import extract_all_relations
+    triples = extract_all_relations(NODES)
+    concepts = set()
+    for _, rel in triples:
+        concepts.add(rel.subject)
+        concepts.add(rel.object)
+    modules = _classify_modules(concepts, triples)
+    assert modules["ring"] == modules["group"]
+    assert modules["field"] == modules["ring"]
+    assert "symmetry" in modules
+
+
+def test_module_classification_contains():
+    from reasonsforge.relations import Relation
+    concepts = {"parent", "child1", "child2", "isolated"}
+    triples = [
+        ("parent-contains-child1", Relation("parent", "contains", "child1")),
+        ("parent-contains-child2", Relation("parent", "contains", "child2")),
+    ]
+    modules = _classify_modules(concepts, triples)
+    assert modules["child1"] == "parent"
+    assert modules["child2"] == "parent"
+    assert modules["isolated"] == "other"
 
 
 def test_topological_sort_no_cycles():
@@ -339,5 +357,5 @@ BELIEFS: ring, ring-requires-group"""
     assert result is not None
     assert result["title"] == "Understanding Rings"
     assert result["concept"] == "ring"
-    assert result["module"] == "ring-and-field-theory"
+    assert result["module"] == ring_lesson["module"]
     assert "ring" in result["beliefs"]
