@@ -3282,6 +3282,47 @@ def cmd_review_relations(args):
         )
 
 
+def cmd_lesson_plan(args):
+    _require_sqlite(args, "lesson-plan")
+    from .lesson_plan import build_lesson_plan, format_lesson_plan_markdown
+
+    try:
+        result = api.export_network(db_path=args.db)
+    except Exception as e:
+        print(f"Error loading network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    nodes = result.get("nodes", {})
+    if not nodes:
+        print("No nodes in the network.", file=sys.stderr)
+        sys.exit(1)
+
+    plan = build_lesson_plan(nodes)
+
+    if not plan["lessons"]:
+        print("No relational beliefs found — cannot generate lesson plan.", file=sys.stderr)
+        sys.exit(1)
+
+    fmt = getattr(args, "format", "text")
+    if fmt == "json":
+        import json as _json
+        output = _json.dumps(plan, indent=2)
+    else:
+        output = format_lesson_plan_markdown(plan, title=args.title)
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(output)
+            if not output.endswith("\n"):
+                f.write("\n")
+        print(f"Wrote lesson plan to {args.output}", file=sys.stderr)
+        print(f"  {plan['stats']['total_lessons']} lessons, "
+              f"{plan['stats']['total_modules']} modules, "
+              f"{plan['stats']['total_relations']} relations", file=sys.stderr)
+    else:
+        print(output)
+
+
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
     costs_dir = args.costs_dir
@@ -4181,6 +4222,16 @@ def main():
     p.add_argument("--high-only", action="store_true",
                    help="Only keep HIGH confidence proposals")
 
+    # lesson-plan
+    p = sub.add_parser("lesson-plan",
+                       help="Generate a sequenced lesson plan from FOL relations")
+    p.add_argument("--format", choices=["text", "json"], default="text",
+                   help="Output format (default: text)")
+    p.add_argument("--title", default=None,
+                   help="Title for the lesson plan")
+    p.add_argument("-o", "--output", default=None,
+                   help="Write lesson plan to file")
+
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
     p.add_argument("--format", choices=["text", "json"], default="text",
@@ -4296,6 +4347,7 @@ def main():
         "relations": cmd_relations,
         "derive-relations": cmd_derive_relations,
         "review-relations": cmd_review_relations,
+        "lesson-plan": cmd_lesson_plan,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
         "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
