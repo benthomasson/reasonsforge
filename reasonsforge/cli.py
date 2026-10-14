@@ -3016,7 +3016,8 @@ def cmd_derive_relations(args):
         rng = random.Random(args.seed)
         belief_ids = rng.sample(belief_ids, args.sample_budget)
 
-    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy, nodes=nodes)
+    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy,
+                          nodes=nodes, embedding_model=getattr(args, "embedding_model", None))
     pairs = _filter_existing_relations(pairs, nodes)
 
     print(f"Network: {len(in_nodes)} IN beliefs", file=sys.stderr)
@@ -4161,9 +4162,11 @@ def main():
     p.add_argument("--sample-budget", type=int, default=100,
                    help="Max beliefs to sample for pairing (default: 100)")
     p.add_argument("--seed", type=int, help="Random seed for reproducible sampling")
-    p.add_argument("--strategy", choices=["random", "prefix", "justification", "all"],
+    p.add_argument("--strategy", choices=["random", "prefix", "justification", "embedding", "all"],
                    default="justification",
                    help="Pair sampling strategy (default: justification)")
+    p.add_argument("--embedding-model", default=None,
+                   help="Sentence-transformers model for embedding strategy (default: all-MiniLM-L6-v2)")
     p.add_argument("--use-case", default="lesson-planning",
                    help="Use case guidance (default: lesson-planning)")
     p.add_argument("--model", "-m", help="LLM model (default: claude)")
