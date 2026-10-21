@@ -567,6 +567,14 @@ def _stage_rederive_superseded(args, round_label=""):
                 if not new_id or not new_text or new_id == dep_id:
                     continue
 
+                check_store = Storage(REASONS_DB)
+                check_net = check_store.load()
+                check_store.close()
+                if new_id in check_net.nodes:
+                    print(f"{prefix}  SKIP revise {dep_id} -> {new_id}: "
+                          f"node already exists", file=sys.stderr)
+                    continue
+
                 new_ants = [casualty["new_ant_id"]]
                 for ant_id, _ in casualty["other_antecedents"]:
                     n = node_map.get(ant_id)
