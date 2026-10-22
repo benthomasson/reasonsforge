@@ -663,21 +663,20 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
 
     if tool_name == "list":
         try:
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-            if tool_arg.startswith("-") or tool_arg.endswith("-"):
-                cur.execute(
-                    "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
-                    (f"%{tool_arg}%",),
-                )
-            else:
-                cur.execute(
-                    "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
-                    (f"{tool_arg}%",),
-                )
-            rows = cur.fetchall()
-            conn.close()
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                if tool_arg.startswith("-") or tool_arg.endswith("-"):
+                    cur.execute(
+                        "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                        (f"%{tool_arg}%",),
+                    )
+                else:
+                    cur.execute(
+                        "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                        (f"{tool_arg}%",),
+                    )
+                rows = cur.fetchall()
         except Exception:
             return f"No beliefs matching '{tool_arg}'"
         if not rows:
@@ -688,8 +687,21 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
         return "\n".join(lines)
 
     if tool_name == "get":
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT id, belief FROM nodes WHERE id = ? AND status = 'IN'",
+                    (tool_arg,),
+                )
+                row = cur.fetchone()
+        except Exception:
+            return f"No belief found: {tool_arg}"
+        if not row:
+            return f"No belief found: {tool_arg}"
         result = api.search(tool_arg, db_path=db_path, format="markdown", depth=1)
-        return result if result and result != "No results found." else f"No belief found: {tool_arg}"
+        return result if result and result != "No results found." else f"- `{row['id']}` — {row['belief']}"
 
     return f"Unknown tool: {tool_name}"
 
