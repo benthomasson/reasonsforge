@@ -563,3 +563,192 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
             return response.strip()
 
     return _beliefs_or_no_match(beliefs_context)
+
+
+# ---------------------------------------------------------------------------
+# Elevate: transform a naive prompt into an expert prompt using EEM beliefs
+# ---------------------------------------------------------------------------
+
+ELEVATE_SYSTEM = """\
+You are a domain expert with access to an external epistemic memory (EEM) — \
+a structured belief network containing justified domain knowledge. Your job \
+is to elevate a naive question into an expert-quality question by searching \
+the EEM for relevant domain knowledge and incorporating it.
+
+To search the memory, write one of these commands on its own line:
+
+SEARCH: authentication SAML
+(searches beliefs by keyword)
+
+LIST: auth-
+(lists beliefs whose ID starts with this prefix)
+
+LIST: -requires-
+(lists relational beliefs: -requires-, -enables-, -produces-, -contradicts-)
+
+GET: saml-requires-idm-configuration
+(gets a specific belief by exact ID with its justification)
+
+You may issue multiple commands in one response. I will return the results and \
+you can search again or produce the final elevated question.
+
+When you have gathered enough domain knowledge, write the elevated question \
+on a line starting with ELEVATED: followed by the complete expert-quality question.
+
+Workflow:
+1. Read the naive question and identify what domain knowledge would improve it
+2. Search the EEM broadly for relevant beliefs
+3. Follow relational beliefs: if you find X-requires-Y, search for Y too
+4. Identify constraints, dependencies, gotchas, and context the naive question misses
+5. Write the elevated question incorporating this knowledge
+
+Rules:
+- Keep the original intent of the question
+- Add specific domain context the user didn't know to ask about
+- Include relevant constraints, dependencies, and known issues
+- The elevated question should be self-contained — a reader shouldn't need \
+the original question to understand it
+- Do NOT answer the question — only improve it
+"""
+
+ELEVATE_USER = """\
+Elevate this naive question into an expert-quality question:
+
+{question}
+"""
+
+SUMMARIZE_PROMPT = """\
+Summarize this response concisely for quick reading. Preserve all key facts, \
+recommendations, and caveats. Remove repetition, filler, and verbose explanation. \
+Keep any citations or belief references.
+
+## Response
+
+{response}
+
+## Summary
+"""
+
+
+def _parse_elevate_tool_calls(response):
+    """Extract SEARCH/LIST/GET commands from model response."""
+    calls = []
+    for line in response.split("\n"):
+        line = line.strip()
+        if line.startswith("SEARCH:"):
+            calls.append(("search", line[7:].strip()))
+        elif line.startswith("LIST:"):
+            calls.append(("list", line[5:].strip()))
+        elif line.startswith("GET:"):
+            calls.append(("get", line[4:].strip()))
+    return calls
+
+
+def _extract_elevated(response):
+    """Extract the ELEVATED: line from a model response."""
+    for line in response.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("ELEVATED:"):
+            return stripped[9:].strip()
+    return None
+
+
+def _execute_elevate_tool(tool_name, tool_arg, db_path):
+    """Execute a pseudo-tool call against the belief database."""
+    tool_arg = tool_arg.strip()
+
+    if tool_name == "search":
+        result = api.search(tool_arg, db_path=db_path, format="compact", depth=0)
+        return result if result and result != "No results found." else "No results found."
+
+    if tool_name == "list":
+        try:
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            if tool_arg.startswith("-") or tool_arg.endswith("-"):
+                cur.execute(
+                    "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                    (f"%{tool_arg}%",),
+                )
+            else:
+                cur.execute(
+                    "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                    (f"{tool_arg}%",),
+                )
+            rows = cur.fetchall()
+            conn.close()
+        except Exception:
+            return f"No beliefs matching '{tool_arg}'"
+        if not rows:
+            return f"No beliefs matching '{tool_arg}'"
+        lines = [f"- `{r['id']}` — {r['belief']}" for r in rows[:30]]
+        if len(rows) > 30:
+            lines.append(f"... and {len(rows) - 30} more")
+        return "\n".join(lines)
+
+    if tool_name == "get":
+        result = api.search(tool_arg, db_path=db_path, format="markdown", depth=1)
+        return result if result and result != "No results found." else f"No belief found: {tool_arg}"
+
+    return f"Unknown tool: {tool_name}"
+
+
+MAX_ELEVATE_ROUNDS = 10
+
+
+def elevate_prompt(question, db_path="reasons.db", model="claude", timeout=300,
+                   max_rounds=MAX_ELEVATE_ROUNDS):
+    """Elevate a naive question into an expert question using EEM beliefs.
+
+    Returns (elevated_question, search_count) or (original_question, 0) on failure.
+    """
+    user_msg = ELEVATE_USER.format(question=question)
+    transcript = f"{ELEVATE_SYSTEM}\n\n{user_msg}"
+
+    total_searches = 0
+    for round_num in range(1, max_rounds + 1):
+        print(f"Elevate round {round_num}...", file=sys.stderr)
+
+        try:
+            response = invoke_model(transcript, model=model, timeout=timeout)
+        except (subprocess.TimeoutExpired, Exception) as e:
+            print(f"  Elevate LLM error: {e}", file=sys.stderr)
+            break
+
+        elevated = _extract_elevated(response)
+        if elevated:
+            print(f"Elevated in {round_num} round(s), {total_searches} search(es)",
+                  file=sys.stderr)
+            return elevated, total_searches
+
+        tool_calls = _parse_elevate_tool_calls(response)
+        if not tool_calls:
+            print(f"Elevate: model produced output without tools or ELEVATED tag",
+                  file=sys.stderr)
+            return question, 0
+
+        transcript += f"\n\nAssistant: {response}\n\n"
+
+        for tool_name, tool_arg in tool_calls:
+            print(f"  {tool_name}({tool_arg})", file=sys.stderr)
+            result = _execute_elevate_tool(tool_name, tool_arg, db_path)
+            transcript += (f"Result of {tool_name}(\"{tool_arg}\"):\n"
+                           f"```\n{result}\n```\n\n")
+            total_searches += 1
+
+    print(f"Elevate: reached max rounds ({max_rounds}), using original question",
+          file=sys.stderr)
+    return question, total_searches
+
+
+def summarize_response(response, model="claude", timeout=300):
+    """Summarize a long response for quick reading."""
+    prompt = SUMMARIZE_PROMPT.format(response=response)
+    print("Summarizing...", file=sys.stderr)
+    try:
+        result = invoke_model(prompt, model=model, timeout=timeout)
+        return result.strip()
+    except Exception as e:
+        print(f"Summarize error: {e}", file=sys.stderr)
+        return response

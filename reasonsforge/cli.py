@@ -1310,7 +1310,21 @@ def cmd_search_sources(args):
 
 def cmd_ask(args):
     _require_sqlite(args, "ask")
-    from .ask import ask
+    from .ask import ask, elevate_prompt, summarize_response
+
+    question = args.question
+    model = args.model or "claude"
+
+    if args.elevate or args.elevate_only:
+        print(f"Original question: {question}", file=sys.stderr)
+        question, searches = elevate_prompt(
+            question, db_path=args.db, model=model, timeout=args.timeout,
+        )
+        if searches > 0:
+            print(f"Elevated question: {question}", file=sys.stderr)
+        if args.elevate_only:
+            print(question)
+            return
 
     mcp_servers = []
     try:
@@ -1322,18 +1336,22 @@ def cmd_ask(args):
                 mcp_servers.append(bridge)
 
         result = ask(
-            question=args.question,
+            question=question,
             db_path=args.db,
             timeout=args.timeout,
             no_synth=args.no_synth,
             format=getattr(args, "format", None),
-            model=args.model or "claude",
+            model=model,
             simple=args.simple,
             sources_db=args.full_sources,
             natural=args.natural,
             dual=args.dual,
             mcp_servers=mcp_servers or None,
         )
+
+        if args.summarize and result:
+            result = summarize_response(result, model=model, timeout=args.timeout)
+
         print(result)
     finally:
         for bridge in mcp_servers:
@@ -4244,6 +4262,12 @@ def main():
                    help="Run TMS and FTS RAG separately, then merge (requires --full-sources)")
     p.add_argument("--mcp", action="append", default=None,
                    help="MCP server command as data source (repeatable, e.g. --mcp snowflake-mcp)")
+    p.add_argument("--elevate", action="store_true",
+                   help="Elevate the question using EEM beliefs before processing (agentic loop)")
+    p.add_argument("--summarize", action="store_true",
+                   help="Summarize the response for quick reading")
+    p.add_argument("--elevate-only", action="store_true",
+                   help="Only elevate the question, don't process it")
 
     # search-sources
     p = sub.add_parser("search-sources", help="Search source document chunks from an FTS5 index (no LLM)")
