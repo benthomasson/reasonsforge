@@ -668,12 +668,12 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
                 cur = conn.cursor()
                 if tool_arg.startswith("-") or tool_arg.endswith("-"):
                     cur.execute(
-                        "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                        "SELECT id, text FROM nodes WHERE truth_value = 'IN' AND id LIKE ?",
                         (f"%{tool_arg}%",),
                     )
                 else:
                     cur.execute(
-                        "SELECT id, belief FROM nodes WHERE status = 'IN' AND id LIKE ?",
+                        "SELECT id, text FROM nodes WHERE truth_value = 'IN' AND id LIKE ?",
                         (f"{tool_arg}%",),
                     )
                 rows = cur.fetchall()
@@ -681,7 +681,7 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
             return f"No beliefs matching '{tool_arg}'"
         if not rows:
             return f"No beliefs matching '{tool_arg}'"
-        lines = [f"- `{r['id']}` — {r['belief']}" for r in rows[:30]]
+        lines = [f"- `{r['id']}` — {r['text']}" for r in rows[:30]]
         if len(rows) > 30:
             lines.append(f"... and {len(rows) - 30} more")
         return "\n".join(lines)
@@ -692,7 +692,7 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute(
-                    "SELECT id, belief FROM nodes WHERE id = ? AND status = 'IN'",
+                    "SELECT id, text FROM nodes WHERE id = ? AND truth_value = 'IN'",
                     (tool_arg,),
                 )
                 row = cur.fetchone()
@@ -701,7 +701,7 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
         if not row:
             return f"No belief found: {tool_arg}"
         result = api.search(tool_arg, db_path=db_path, format="markdown", depth=1)
-        return result if result and result != "No results found." else f"- `{row['id']}` — {row['belief']}"
+        return result if result and result != "No results found." else f"- `{row['id']}` — {row['text']}"
 
     return f"Unknown tool: {tool_name}"
 
