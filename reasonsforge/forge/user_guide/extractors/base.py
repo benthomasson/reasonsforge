@@ -93,8 +93,10 @@ def detect_language(repo_path: str) -> str | None:
     root = Path(repo_path)
     for lang, files in markers.items():
         for f in files:
-            if (root / f).exists():
-                return lang
+            for match in root.rglob(f):
+                rel = match.relative_to(root)
+                if len(rel.parts) <= 3:
+                    return lang
     return None
 
 
