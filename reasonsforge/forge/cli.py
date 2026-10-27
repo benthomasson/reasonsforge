@@ -825,6 +825,8 @@ def register_forge_type_commands(parent_subparsers):
     p.add_argument("--repo", required=True, help="Path to repository")
     p.add_argument("--language", help="Language (auto-detected if omitted)")
     p.add_argument("--components", help="Comma-separated component names to extract")
+    p.add_argument("--domain", default="component-api",
+                   help="Domain description for derive context")
     _add_common_pipeline_args(p)
 
     ug_sub = p.add_subparsers(dest="ug_command")
