@@ -818,6 +818,27 @@ def register_forge_type_commands(parent_subparsers):
     rs = routing_sub.add_parser("status", help="Show routing EEM status")
     rs.add_argument("--output", default="routing.db")
 
+    # user-guide — extract API documentation beliefs from codebases
+    p = parent_subparsers.add_parser(
+        "user-guide",
+        help="Extract API documentation and usage beliefs from codebases")
+    p.add_argument("--repo", required=True, help="Path to repository")
+    p.add_argument("--language", help="Language (auto-detected if omitted)")
+    p.add_argument("--components", help="Comma-separated component names to extract")
+    _add_common_pipeline_args(p)
+
+    ug_sub = p.add_subparsers(dest="ug_command")
+
+    # user-guide extract — extract and display interfaces
+    us = ug_sub.add_parser("extract", help="Extract interfaces and display")
+    us.add_argument("--repo", required=True, help="Path to repository")
+    us.add_argument("--language", help="Language (auto-detected if omitted)")
+    us.add_argument("--components", help="Comma-separated component names")
+
+    # user-guide status
+    us = ug_sub.add_parser("status", help="Show user-guide forge status")
+    us.add_argument("--output", default="reasons.db")
+
     # run — sandbox wrapper (Phase 3)
     p = parent_subparsers.add_parser(
         "run",
@@ -826,7 +847,7 @@ def register_forge_type_commands(parent_subparsers):
                    choices=["none", "container", "vm", "lightweight"],
                    help="Sandbox tier")
     p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta", "diary", "data", "routing"],
+                   choices=["document", "code", "product", "project", "meta", "diary", "data", "routing", "user-guide"],
                    help="Forge type to run")
     p.add_argument("forge_args", nargs="*",
                    help="Arguments passed to the forge")
@@ -840,6 +861,7 @@ def register_forge_type_commands(parent_subparsers):
         "diary": _cmd_diary,
         "data": _cmd_data,
         "routing": _cmd_routing,
+        "user-guide": _cmd_user_guide,
         "run": _cmd_run,
     }
 
@@ -1188,6 +1210,32 @@ def _cmd_routing(args):
         print("Run 'reasonsforge routing --help' for details.", file=sys.stderr)
     finally:
         _print_cost(args, operation=routing_command or "routing")
+
+
+def _cmd_user_guide(args):
+    """Run the user-guide forge pipeline or dispatch to a subcommand."""
+    from .user_guide.commands import (
+        cmd_extract as _ug_extract,
+        cmd_status as _ug_status,
+    )
+    from .user_guide.pipeline import cmd_pipeline
+
+    ug_command = getattr(args, "ug_command", None)
+
+    _ug_dispatch = {
+        "extract": _ug_extract,
+        "status": _ug_status,
+    }
+
+    try:
+        if ug_command and ug_command in _ug_dispatch:
+            _ug_dispatch[ug_command](args)
+            return
+
+        # No subcommand — run full pipeline
+        cmd_pipeline(args)
+    finally:
+        _print_cost(args, operation=ug_command or "user-guide")
 
 
 def _cmd_run(args):
