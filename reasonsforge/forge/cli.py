@@ -752,6 +752,7 @@ def register_forge_type_commands(parent_subparsers):
     # data profile — statistical profiling
     ds = data_sub.add_parser("profile", help="Profile data files for statistics")
     ds.add_argument("--csv", action="append", help="CSV files (repeatable)")
+    ds.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
 
     # data enrich — semantic enrichment
     ds = data_sub.add_parser("enrich", help="Enrich schema with semantic beliefs")

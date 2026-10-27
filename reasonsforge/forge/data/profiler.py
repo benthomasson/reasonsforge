@@ -103,6 +103,7 @@ def profile_csv(path: str | Path, table_name: str | None = None) -> DataProfile:
 def profile_parquet(path: str | Path, table_name: str | None = None) -> DataProfile:
     """Profile a Parquet file for column statistics."""
     try:
+        import pyarrow as pa
         import pyarrow.parquet as pq
         import pyarrow.compute as pc
         import pyarrow.types as pat
@@ -141,12 +142,15 @@ def profile_parquet(path: str | Path, table_name: str | None = None) -> DataProf
             if mean is not None:
                 cp.mean_value = float(mean)
         elif row_count > null_count:
-            dropped = pc.drop_null(column)
-            if len(dropped) > 0:
-                cast = pc.cast(dropped, "string")
-                sorted_vals = pc.sort_indices(cast)
-                cp.min_value = cast[sorted_vals[0].as_py()].as_py()
-                cp.max_value = cast[sorted_vals[-1].as_py()].as_py()
+            try:
+                dropped = pc.drop_null(column)
+                if len(dropped) > 0:
+                    cast = pc.cast(dropped, "string")
+                    sorted_vals = pc.sort_indices(cast)
+                    cp.min_value = cast[sorted_vals[0].as_py()].as_py()
+                    cp.max_value = cast[sorted_vals[-1].as_py()].as_py()
+            except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
+                pass
 
         if unique_count <= 50 and row_count > null_count:
             vc = pc.value_counts(column)
