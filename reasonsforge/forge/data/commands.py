@@ -46,6 +46,17 @@ def cmd_profile(args):
         p = profile_csv(path)
         profiles.tables.extend(p.tables)
 
+    parquet_files = getattr(args, "parquet", None) or []
+    if parquet_files:
+        from .profiler import profile_parquet
+        for pq_path in parquet_files:
+            path = Path(pq_path)
+            if not path.is_file():
+                print(f"File not found: {pq_path}", file=sys.stderr)
+                continue
+            p = profile_parquet(path)
+            profiles.tables.extend(p.tables)
+
     if not profiles.tables:
         print("No data files to profile.", file=sys.stderr)
         return
@@ -66,7 +77,8 @@ def cmd_enrich(args):
         return
 
     db_path = getattr(args, "output", REASONS_DB)
-    added = stage_accept_beliefs(beliefs, db_path)
+    model = getattr(args, "model", "")
+    added = stage_accept_beliefs(beliefs, db_path, model=model)
     print(f"Added {added} belief(s) to {db_path}", file=sys.stderr)
 
 
