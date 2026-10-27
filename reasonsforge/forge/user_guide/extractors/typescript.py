@@ -235,8 +235,6 @@ class TypeScriptExtractor(Extractor):
                 stem = f.stem.lower().replace(".test", "").replace(".spec", "")
                 if any(c in stem for c in lower_comps):
                     filtered.append(f)
-                else:
-                    filtered.append(f)
             test_files = filtered
 
         patterns: list[TestPattern] = []

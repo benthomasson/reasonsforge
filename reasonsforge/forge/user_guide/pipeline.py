@@ -84,6 +84,16 @@ def _format_tests(tests) -> str:
     return "\n".join(parts)
 
 
+def _format_examples(examples: list[str]) -> str:
+    """Format extracted usage examples for LLM prompt."""
+    if not examples:
+        return "(none extracted)"
+    parts = []
+    for i, snippet in enumerate(examples[:10], 1):
+        parts.append(f"### Example {i}\n```\n{snippet}\n```")
+    return "\n\n".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Pipeline stages
 # ---------------------------------------------------------------------------
@@ -121,6 +131,7 @@ def stage_propose(args, extracted: dict) -> list[dict]:
         interfaces_text=_format_interfaces(extracted["interfaces"]),
         config_text=_format_config(extracted["config"]),
         test_text=_format_tests(extracted["tests"]),
+        examples_text=_format_examples(extracted.get("examples", [])),
     )
 
     response = invoke_sync(prompt, model=model, timeout=timeout)
@@ -193,8 +204,10 @@ def cmd_pipeline(args):
     n_props = sum(len(i.props) for i in extracted["interfaces"])
     n_config = len(extracted["config"])
     n_tests = len(extracted["tests"])
+    n_examples = len(extracted["examples"])
     print(f"  {n_ifaces} interfaces, {n_props} props, {n_config} config values, "
-          f"{n_tests} test patterns ({_fmt_duration(elapsed)})", file=sys.stderr)
+          f"{n_tests} test patterns, {n_examples} examples ({_fmt_duration(elapsed)})",
+          file=sys.stderr)
 
     if not extracted["interfaces"] and not extracted["config"]:
         print("No interfaces or config extracted. Check your --repo path.",

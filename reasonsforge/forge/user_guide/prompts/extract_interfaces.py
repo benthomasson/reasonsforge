@@ -16,6 +16,10 @@ how this API should be used.
 
 {test_text}
 
+## Usage Examples
+
+{examples_text}
+
 ## Instructions
 
 Generate beliefs about the API:
@@ -23,6 +27,7 @@ Generate beliefs about the API:
 2. For prop combinations: which props work together, which are mutually exclusive
 3. For configuration values: what each value means and when to use it
 4. For test-revealed patterns: edge cases, error states, required handlers
+5. For usage examples: common patterns, idiomatic usage, integration approaches
 
 ## Output Format
 
