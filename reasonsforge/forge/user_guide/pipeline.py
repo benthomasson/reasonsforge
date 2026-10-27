@@ -119,29 +119,96 @@ def stage_extract(args, extractor) -> dict:
     }
 
 
-def stage_propose(args, extracted: dict) -> list[dict]:
-    """Stage 2: LLM proposes beliefs from extracted facts."""
-    from ..llm import invoke_sync
-    from .prompts.extract_interfaces import PROPOSE_BELIEFS_PROMPT
-
-    model = getattr(args, "model", "claude")
-    timeout = getattr(args, "timeout", 600)
-
-    prompt = PROPOSE_BELIEFS_PROMPT.format(
-        interfaces_text=_format_interfaces(extracted["interfaces"]),
-        config_text=_format_config(extracted["config"]),
-        test_text=_format_tests(extracted["tests"]),
-        examples_text=_format_examples(extracted.get("examples", [])),
-    )
-
-    response = invoke_sync(prompt, model=model, timeout=timeout)
-
+def _parse_beliefs(response: str) -> list[dict]:
+    """Parse belief list items from an LLM response."""
     beliefs = []
     pattern = re.compile(r"^[-*]\s+`([^`]+)`\s*(?:—|-|:)\s*(.+)$", re.MULTILINE)
     for m in pattern.finditer(response):
         beliefs.append({"id": m.group(1), "text": m.group(2).strip()})
-
     return beliefs
+
+
+def _group_by_component(extracted: dict) -> dict[str, dict]:
+    """Group interfaces, tests, and examples by component name."""
+    components: dict[str, dict] = {}
+    for iface in extracted["interfaces"]:
+        comp = iface.component_name or iface.name
+        if comp not in components:
+            components[comp] = {"interfaces": [], "tests": [], "examples": []}
+        components[comp]["interfaces"].append(iface)
+
+    for tp in extracted.get("tests", []):
+        stem = Path(tp.file_path).stem.lower().replace(".test", "").replace(".spec", "")
+        matched = False
+        for comp in components:
+            if comp.lower() in stem:
+                components[comp]["tests"].append(tp)
+                matched = True
+                break
+        if not matched:
+            for comp in components:
+                components[comp].setdefault("unmatched_tests", [])
+            break
+
+    return components
+
+
+def _propose_batch(
+    interfaces, config, tests, examples, model, timeout,
+) -> list[dict]:
+    """Propose beliefs for a single batch."""
+    from ..llm import invoke_sync
+    from .prompts.extract_interfaces import PROPOSE_BELIEFS_PROMPT
+
+    prompt = PROPOSE_BELIEFS_PROMPT.format(
+        interfaces_text=_format_interfaces(interfaces),
+        config_text=_format_config(config),
+        test_text=_format_tests(tests),
+        examples_text=_format_examples(examples),
+    )
+    response = invoke_sync(prompt, model=model, timeout=timeout)
+    return _parse_beliefs(response)
+
+
+def stage_propose(args, extracted: dict) -> list[dict]:
+    """Stage 2: LLM proposes beliefs from extracted facts."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 600)
+    parallel = getattr(args, "parallel", 1)
+
+    components = _group_by_component(extracted)
+    config = extracted.get("config", [])
+    examples = extracted.get("examples", [])
+
+    if len(components) <= 1:
+        return _propose_batch(
+            extracted["interfaces"], config,
+            extracted.get("tests", []), examples,
+            model, timeout,
+        )
+
+    batches = list(components.items())
+    n_batches = len(batches)
+    print(f"  Batching {n_batches} components (parallel={parallel})",
+          file=sys.stderr)
+
+    all_beliefs: list[dict] = []
+
+    def _run(item):
+        comp_name, comp_data = item
+        return _propose_batch(
+            comp_data["interfaces"], config,
+            comp_data["tests"], examples,
+            model, timeout,
+        )
+
+    with ThreadPoolExecutor(max_workers=parallel) as executor:
+        for beliefs in executor.map(_run, batches):
+            all_beliefs.extend(beliefs)
+
+    return all_beliefs
 
 
 def stage_accept(beliefs: list[dict], db_path: str, model: str = "") -> int:
