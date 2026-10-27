@@ -128,29 +128,38 @@ def _parse_beliefs(response: str) -> list[dict]:
     return beliefs
 
 
-def _group_by_component(extracted: dict) -> dict[str, dict]:
-    """Group interfaces, tests, and examples by component name."""
+BATCH_SIZE = 20
+
+
+def _build_batches(extracted: dict) -> list[dict]:
+    """Group interfaces into batches of ~BATCH_SIZE with matched tests."""
     components: dict[str, dict] = {}
     for iface in extracted["interfaces"]:
         comp = iface.component_name or iface.name
         if comp not in components:
-            components[comp] = {"interfaces": [], "tests": [], "examples": []}
+            components[comp] = {"interfaces": [], "tests": []}
         components[comp]["interfaces"].append(iface)
 
     for tp in extracted.get("tests", []):
         stem = Path(tp.file_path).stem.lower().replace(".test", "").replace(".spec", "")
-        matched = False
         for comp in components:
             if comp.lower() in stem:
                 components[comp]["tests"].append(tp)
-                matched = True
                 break
-        if not matched:
-            for comp in components:
-                components[comp].setdefault("unmatched_tests", [])
-            break
 
-    return components
+    batches: list[dict] = []
+    current: dict = {"interfaces": [], "tests": [], "names": []}
+    for comp_name, comp_data in components.items():
+        current["interfaces"].extend(comp_data["interfaces"])
+        current["tests"].extend(comp_data["tests"])
+        current["names"].append(comp_name)
+        if len(current["interfaces"]) >= BATCH_SIZE:
+            batches.append(current)
+            current = {"interfaces": [], "tests": [], "names": []}
+    if current["interfaces"]:
+        batches.append(current)
+
+    return batches
 
 
 def _propose_batch(
@@ -172,41 +181,49 @@ def _propose_batch(
 
 def stage_propose(args, extracted: dict) -> list[dict]:
     """Stage 2: LLM proposes beliefs from extracted facts."""
-    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 600)
     parallel = getattr(args, "parallel", 1)
 
-    components = _group_by_component(extracted)
+    batches = _build_batches(extracted)
     config = extracted.get("config", [])
     examples = extracted.get("examples", [])
 
-    if len(components) <= 1:
+    if len(batches) <= 1:
         return _propose_batch(
             extracted["interfaces"], config,
             extracted.get("tests", []), examples,
             model, timeout,
         )
 
-    batches = list(components.items())
     n_batches = len(batches)
-    print(f"  Batching {n_batches} components (parallel={parallel})",
-          file=sys.stderr)
+    print(f"  {n_batches} batches (~{BATCH_SIZE} interfaces each, "
+          f"parallel={parallel})", file=sys.stderr)
 
     all_beliefs: list[dict] = []
+    lock = threading.Lock()
+    done = [0]
 
-    def _run(item):
-        comp_name, comp_data = item
-        return _propose_batch(
-            comp_data["interfaces"], config,
-            comp_data["tests"], examples,
+    def _run(batch):
+        beliefs = _propose_batch(
+            batch["interfaces"], config,
+            batch["tests"], examples,
             model, timeout,
         )
+        with lock:
+            done[0] += 1
+            print(f"  Batch {done[0]}/{n_batches}: "
+                  f"{len(batch['interfaces'])} interfaces → "
+                  f"{len(beliefs)} beliefs", file=sys.stderr)
+        return beliefs
 
     with ThreadPoolExecutor(max_workers=parallel) as executor:
-        for beliefs in executor.map(_run, batches):
-            all_beliefs.extend(beliefs)
+        futures = [executor.submit(_run, b) for b in batches]
+        for future in as_completed(futures):
+            all_beliefs.extend(future.result())
 
     return all_beliefs
 
