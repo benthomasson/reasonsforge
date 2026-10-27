@@ -831,7 +831,6 @@ def register_forge_type_commands(parent_subparsers):
 
     # user-guide extract — extract and display interfaces
     us = ug_sub.add_parser("extract", help="Extract interfaces and display")
-    us.add_argument("--repo", required=True, help="Path to repository")
     us.add_argument("--language", help="Language (auto-detected if omitted)")
     us.add_argument("--components", help="Comma-separated component names")
 
