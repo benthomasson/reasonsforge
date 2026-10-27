@@ -100,6 +100,65 @@ def profile_csv(path: str | Path, table_name: str | None = None) -> DataProfile:
     return DataProfile(tables=[table])
 
 
+def profile_parquet(path: str | Path, table_name: str | None = None) -> DataProfile:
+    """Profile a Parquet file for column statistics."""
+    try:
+        import pyarrow.parquet as pq
+        import pyarrow.compute as pc
+        import pyarrow.types as pat
+    except ImportError:
+        print("pyarrow is required for Parquet profiling: pip install pyarrow",
+              file=sys.stderr)
+        raise
+
+    path = Path(path)
+    table_name = table_name or path.stem.replace("-", "_").replace(" ", "_")
+
+    table = pq.read_table(path)
+    row_count = table.num_rows
+
+    columns = []
+    for col_name in table.column_names:
+        column = table.column(col_name)
+        null_count = column.null_count
+        unique_count = pc.count_distinct(column).as_py()
+
+        cp = ColumnProfile(
+            name=col_name,
+            row_count=row_count,
+            null_count=null_count,
+            unique_count=unique_count,
+        )
+
+        col_type = column.type
+        is_numeric = (pat.is_integer(col_type) or pat.is_floating(col_type)
+                      or pat.is_decimal(col_type))
+
+        if is_numeric and row_count > null_count:
+            cp.min_value = str(pc.min(column).as_py())
+            cp.max_value = str(pc.max(column).as_py())
+            mean = pc.mean(column).as_py()
+            if mean is not None:
+                cp.mean_value = float(mean)
+        elif row_count > null_count:
+            dropped = pc.drop_null(column)
+            if len(dropped) > 0:
+                cast = pc.cast(dropped, "string")
+                sorted_vals = pc.sort_indices(cast)
+                cp.min_value = cast[sorted_vals[0].as_py()].as_py()
+                cp.max_value = cast[sorted_vals[-1].as_py()].as_py()
+
+        if unique_count <= 50 and row_count > null_count:
+            vc = pc.value_counts(column)
+            top = sorted(vc.to_pylist(), key=lambda x: -x["counts"])[:10]
+            cp.top_values = [(str(v["values"]), v["counts"]) for v in top]
+
+        columns.append(cp)
+
+    tp = TableProfile(name=table_name, row_count=row_count, columns=columns)
+    return DataProfile(tables=[tp])
+
+
 def profile_to_text(profile: DataProfile) -> str:
     """Render a DataProfile as text for LLM consumption."""
     parts = []

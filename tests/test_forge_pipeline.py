@@ -142,7 +142,7 @@ class TestStageDerive:
     def test_returns_zero_on_empty_network(self, work_dir):
         args = make_pipeline_args()
         with patch("reasonsforge.api.export_network", return_value={"nodes": {}}):
-            added = _stage_derive(args)
+            added, _ = _stage_derive(args)
         assert added == 0
 
     def test_saturates_on_no_proposals(self, work_dir):
@@ -153,7 +153,7 @@ class TestStageDerive:
              patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)), \
              patch("reasonsforge.forge.llm.invoke_sync", return_value="No proposals"), \
              patch("reasonsforge.derive.parse_proposals", return_value=[]):
-            added = _stage_derive(args)
+            added, _ = _stage_derive(args)
         assert added == 0
 
     def test_applies_valid_proposals(self, work_dir):
@@ -171,7 +171,7 @@ class TestStageDerive:
              patch("reasonsforge.derive.parse_proposals", return_value=[proposal]), \
              patch("reasonsforge.derive.validate_proposals", return_value=([proposal], [])), \
              patch("reasonsforge.derive.apply_proposals", return_value=[(proposal, {"truth_value": "IN"})]):
-            added = _stage_derive(args)
+            added, _ = _stage_derive(args)
         assert added == 1
 
 
@@ -263,7 +263,7 @@ class TestCmdPipeline:
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
              patch("reasonsforge.forge.pipeline._stage_export"), \
@@ -282,7 +282,7 @@ class TestCmdPipeline:
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=1), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_repair"), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
@@ -319,7 +319,7 @@ class TestPipelineState:
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
              patch("reasonsforge.forge.pipeline._stage_export"), \
@@ -370,7 +370,7 @@ class TestPipelineState:
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize") as mock_summarize, \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
              patch("reasonsforge.forge.pipeline._stage_export"), \
@@ -413,7 +413,7 @@ class TestPipelineState:
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
              patch("reasonsforge.forge.pipeline._stage_export"), \
@@ -453,7 +453,7 @@ class TestConvergenceLoop:
         args = make_drr_args(rounds=3)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"):
             summary = _run_convergence_loop(args, rounds=3)
@@ -468,7 +468,7 @@ class TestConvergenceLoop:
         ]}
         repair_result = {"linked": 1, "softened": 0, "abandoned": 0}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=1), \
+        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_repair", return_value=repair_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"):
@@ -483,7 +483,7 @@ class TestConvergenceLoop:
         args = make_drr_args(rounds=1)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=1), \
+        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_repair") as mock_repair, \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"):
@@ -499,7 +499,7 @@ class TestConvergenceLoop:
         ]}
         repair_result = {"linked": 0, "softened": 1, "abandoned": 0}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=2), \
+        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(2, ["d-1", "d-2"])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_repair", return_value=repair_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"):
@@ -518,7 +518,7 @@ class TestConvergenceLoop:
         def on_stage(cycle, stage_num, event, **kwargs):
             events.append((cycle, stage_num, event))
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"):
             _run_convergence_loop(args, rounds=1, on_stage=on_stage)
@@ -552,7 +552,7 @@ class TestCmdDeriveReviewRepair:
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
         with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=0), \
+             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
              patch("reasonsforge.forge.caffeinate.hold"):

@@ -66,7 +66,8 @@ def cmd_enrich(args):
         return
 
     db_path = getattr(args, "output", REASONS_DB)
-    added = stage_accept_beliefs(beliefs, db_path)
+    model = getattr(args, "model", "")
+    added = stage_accept_beliefs(beliefs, db_path, model=model)
     print(f"Added {added} belief(s) to {db_path}", file=sys.stderr)
 
 
