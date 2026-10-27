@@ -229,26 +229,30 @@ def stage_propose(args, extracted: dict) -> list[dict]:
 
 
 def stage_accept(beliefs: list[dict], db_path: str, model: str = "") -> int:
-    """Stage 3: Accept beliefs into reasons.db."""
-    from reasonsforge.api import add_node, init_db
+    """Stage 3: Accept beliefs into reasons.db (bulk insert, single DB open)."""
+    from reasonsforge.api import _with_network, init_db
 
     if not Path(db_path).exists():
         init_db(db_path=db_path)
 
+    metadata = {}
+    if model:
+        metadata["model"] = model
+
     added = 0
-    for belief in beliefs:
-        try:
-            add_node(
-                belief["id"],
-                belief["text"],
-                source="user-guide-forge",
-                model=model,
-                db_path=db_path,
-            )
-            added += 1
-        except Exception as e:
-            if "already exists" not in str(e):
-                print(f"  Failed to add {belief['id']}: {e}", file=sys.stderr)
+    with _with_network(db_path, write=True) as net:
+        for belief in beliefs:
+            try:
+                net.add_node(
+                    id=belief["id"],
+                    text=belief["text"],
+                    source="user-guide-forge",
+                    metadata=metadata or None,
+                )
+                added += 1
+            except Exception as e:
+                if "already exists" not in str(e):
+                    print(f"  Failed to add {belief['id']}: {e}", file=sys.stderr)
     return added
 
 
