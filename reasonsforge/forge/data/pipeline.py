@@ -285,6 +285,7 @@ def cmd_pipeline(args):
     no_auto_accept = getattr(args, "no_auto_accept", False)
     rounds = getattr(args, "rounds", 1)
 
+    ran_convergence = False
     if rounds > 0 and not no_auto_accept:
         print("Stage 5: Derive...", file=sys.stderr)
         t0 = time.monotonic()
@@ -293,24 +294,26 @@ def cmd_pipeline(args):
             _run_convergence_loop(args, rounds)
             elapsed = time.monotonic() - t0
             print(f"  DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
+            ran_convergence = True
         except Exception as e:
             elapsed = time.monotonic() - t0
             print(f"  Derive failed: {e} ({_fmt_duration(elapsed)})", file=sys.stderr)
 
-    print("Stage 6: Deduplication...", file=sys.stderr)
-    t0 = time.monotonic()
-    try:
-        from reasonsforge.api import deduplicate
-        dedup_result = deduplicate(auto=True, db_path=db_path)
-        retracted = dedup_result.get("retracted", [])
-        elapsed = time.monotonic() - t0
-        if retracted:
-            print(f"  Retracted {len(retracted)} duplicate(s) ({_fmt_duration(elapsed)})", file=sys.stderr)
-        else:
-            print(f"  No duplicates found ({_fmt_duration(elapsed)})", file=sys.stderr)
-    except Exception as e:
-        elapsed = time.monotonic() - t0
-        print(f"  Dedup skipped: {e} ({_fmt_duration(elapsed)})", file=sys.stderr)
+    if not ran_convergence:
+        print("Stage 6: Deduplication...", file=sys.stderr)
+        t0 = time.monotonic()
+        try:
+            from reasonsforge.api import deduplicate
+            dedup_result = deduplicate(auto=True, db_path=db_path)
+            retracted = dedup_result.get("retracted", [])
+            elapsed = time.monotonic() - t0
+            if retracted:
+                print(f"  Retracted {len(retracted)} duplicate(s) ({_fmt_duration(elapsed)})", file=sys.stderr)
+            else:
+                print(f"  No duplicates found ({_fmt_duration(elapsed)})", file=sys.stderr)
+        except Exception as e:
+            elapsed = time.monotonic() - t0
+            print(f"  Dedup skipped: {e} ({_fmt_duration(elapsed)})", file=sys.stderr)
 
     total_tables = len(schema.tables)
     total_cols = sum(len(t.columns) for t in schema.tables)
