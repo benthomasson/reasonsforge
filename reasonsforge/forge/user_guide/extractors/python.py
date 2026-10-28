@@ -17,7 +17,7 @@ SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".tox", ".nox",
              "dist", "build", ".eggs", ".mypy_cache", ".ruff_cache"}
 
 _DATACLASS_RE = re.compile(
-    r"@dataclass(?:es\.dataclass)?(?:\([^)]*\))?\s*\n\s*class\s+(\w+)",
+    r"@dataclass(?:es\.dataclass)?(?:\([^)]*\))?\s*\n(?:\s*@\w+(?:\([^)]*\))?\s*\n)*\s*class\s+(\w+)",
     re.MULTILINE,
 )
 _PYDANTIC_RE = re.compile(
@@ -64,7 +64,7 @@ def _iter_files(repo: Path, extensions: set[str]) -> list[Path]:
 def _extract_docstring(text: str, class_end: int) -> str:
     """Extract the docstring immediately after a class/def line."""
     rest = text[class_end:]
-    m = re.match(r'\s*:\s*\n\s+(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', rest, re.DOTALL)
+    m = re.match(r'[^:\n]*:\s*(?:#.*)?\n\s+(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', rest, re.DOTALL)
     if m:
         doc = (m.group(1) or m.group(2) or "").strip()
         lines = doc.splitlines()
@@ -127,9 +127,11 @@ def _parse_fields(body: str) -> list[PropInfo]:
             name = m.group(1)
             ftype = m.group(2).strip()
             field_args = m.group(3)
-            required = "default" not in field_args and "default_factory" not in field_args
+            has_default = bool(re.search(r"\bdefault\s*=", field_args))
+            has_factory = bool(re.search(r"\bdefault_factory\s*=", field_args))
+            required = not has_default and not has_factory
             default_val = None
-            dm = re.search(r"default\s*=\s*([^,)]+)", field_args)
+            dm = re.search(r"\bdefault\s*=\s*([^,)]+)", field_args)
             if dm:
                 default_val = dm.group(1).strip()
             props.append(PropInfo(
