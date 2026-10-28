@@ -40,10 +40,6 @@ _TEST_FN_RE = re.compile(
     r"#\[test\]\s*(?:#\[[\w(,\s)]+\]\s*)*fn\s+(\w+)",
     re.MULTILINE,
 )
-_DOC_COMMENT_RE = re.compile(
-    r"(?:^\s*///\s?(.*)$\n)+",
-    re.MULTILINE,
-)
 _MD_CODE_BLOCK_RE = re.compile(
     r"```rust\n(.*?)```",
     re.DOTALL,
@@ -95,26 +91,24 @@ def _extract_doc_comment(text: str, pos: int) -> str:
 
 
 def _extract_derives(text: str, pos: int) -> list[str]:
-    """Extract #[derive(...)] traits from attributes above `pos`."""
-    before = text[:pos]
+    """Extract #[derive(...)] traits from attribute block directly above `pos`."""
+    before = text[:pos].rstrip()
+    lines = before.split("\n")
     derives = []
-    for m in _DERIVE_RE.finditer(before):
-        if m.end() <= pos and pos - m.end() < 200:
-            for trait in m.group(1).split(","):
-                t = trait.strip()
-                if t:
-                    derives.append(t)
+    for line in reversed(lines):
+        stripped = line.strip()
+        if stripped.startswith("#["):
+            m = _DERIVE_RE.search(stripped)
+            if m:
+                for trait in m.group(1).split(","):
+                    t = trait.strip()
+                    if t:
+                        derives.append(t)
+        elif stripped.startswith("///") or stripped.startswith("//"):
+            continue
+        else:
+            break
     return derives
-
-
-def _extract_serde_attrs(text: str, pos: int) -> list[str]:
-    """Extract #[serde(...)] attributes from above `pos`."""
-    before = text[:pos]
-    attrs = []
-    for m in _SERDE_ATTR_RE.finditer(before):
-        if m.end() <= pos and pos - m.end() < 200:
-            attrs.append(m.group(1).strip())
-    return attrs
 
 
 def _parse_struct_fields(body: str) -> list[PropInfo]:
