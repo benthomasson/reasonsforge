@@ -108,4 +108,7 @@ def get_extractor(language: str) -> Extractor:
     if language == "python":
         from .python import PythonExtractor
         return PythonExtractor()
+    if language == "rust":
+        from .rust import RustExtractor
+        return RustExtractor()
     raise ValueError(f"No extractor for language: {language}")
