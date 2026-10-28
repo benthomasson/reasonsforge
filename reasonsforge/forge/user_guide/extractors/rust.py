@@ -1,4 +1,4 @@
-"""Rust extractor — structs, enums, traits, const/static, tests, doc comments."""
+"""Rust extractor — structs, enums, const/static, tests, doc comments."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ _FIELD_RE = re.compile(
     r"^\s+(?:pub(?:\([^)]*\))?\s+)?(\w+)\s*:\s*(.+?)\s*,?\s*$",
 )
 _CONST_RE = re.compile(
-    r"^(?:pub\s+)?(?:const|static)\s+(\w+)\s*:\s*([^=]+?)\s*=\s*(.+?)\s*;",
+    r"^(?:pub(?:\([^)]*\))?\s+)?(?:const|static)\s+(\w+)\s*:\s*([^=]+?)\s*=\s*(.+?)\s*;",
     re.MULTILINE,
 )
 _TEST_FN_RE = re.compile(
@@ -291,7 +291,8 @@ class RustExtractor(Extractor):
                 ctype = m.group(2).strip()
                 value = m.group(3).strip().rstrip(";")
 
-                category = "static" if "static" in text[m.start():m.start() + 10] else "const"
+                matched_text = m.group(0)
+                category = "static" if "static" in matched_text else "const"
 
                 values.append(ConfigValue(
                     name=name,
