@@ -14,22 +14,18 @@ from .base import (
 )
 
 SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".tox", ".nox",
-             "dist", "build", ".eggs", "*.egg-info", ".mypy_cache", ".ruff_cache"}
+             "dist", "build", ".eggs", ".mypy_cache", ".ruff_cache"}
 
 _DATACLASS_RE = re.compile(
     r"@dataclass(?:es\.dataclass)?(?:\([^)]*\))?\s*\n\s*class\s+(\w+)",
     re.MULTILINE,
 )
 _PYDANTIC_RE = re.compile(
-    r"class\s+(\w+)\s*\(\s*(?:pydantic\.)?BaseModel\s*\)",
+    r"class\s+(\w+)\s*\([^)]*(?:pydantic\.)?BaseModel[^)]*\)",
     re.MULTILINE,
 )
 _TYPEDDICT_RE = re.compile(
-    r"class\s+(\w+)\s*\(\s*(?:typing\.)?TypedDict\s*\)",
-    re.MULTILINE,
-)
-_CLASS_RE = re.compile(
-    r"^class\s+(\w+)\s*(?:\([^)]*\))?\s*:",
+    r"class\s+(\w+)\s*\([^)]*(?:typing\.)?TypedDict[^)]*\)",
     re.MULTILINE,
 )
 _FIELD_RE = re.compile(
@@ -41,9 +37,6 @@ _FIELD_WITH_FIELD_CALL = re.compile(
 _PYTEST_DESC_RE = re.compile(
     r"^def\s+(test_\w+)",
     re.MULTILINE,
-)
-_PYTEST_PARAMETRIZE_RE = re.compile(
-    r"@pytest\.mark\.parametrize\s*\(",
 )
 _ENV_VAR_RE = re.compile(
     r"""os\.(?:environ|getenv)\s*(?:\[|\.get\s*\()\s*['"](\w+)['"]""",
@@ -61,7 +54,7 @@ _MD_CODE_BLOCK_RE = re.compile(
 def _iter_files(repo: Path, extensions: set[str]) -> list[Path]:
     results = []
     for p in repo.rglob("*"):
-        if any(part in SKIP_DIRS for part in p.parts):
+        if any(part in SKIP_DIRS or part.endswith(".egg-info") for part in p.parts):
             continue
         if p.is_file() and p.suffix in extensions:
             results.append(p)
@@ -82,11 +75,10 @@ def _extract_docstring(text: str, class_end: int) -> str:
 def _extract_class_body(text: str, class_match_end: int) -> str:
     """Extract the indented body of a class definition."""
     rest = text[class_match_end:]
-    # Skip past the colon and any base classes
-    colon_idx = rest.find(":\n")
-    if colon_idx == -1:
+    colon_match = re.search(r":\s*(?:#.*)?\n", rest)
+    if not colon_match:
         return ""
-    rest = rest[colon_idx + 2:]
+    rest = rest[colon_match.end():]
     lines = rest.split("\n")
     body_lines = []
     for line in lines:
@@ -96,7 +88,7 @@ def _extract_class_body(text: str, class_match_end: int) -> str:
     return "\n".join(body_lines)
 
 
-def _parse_fields(body: str, is_pydantic: bool = False) -> list[PropInfo]:
+def _parse_fields(body: str) -> list[PropInfo]:
     """Parse field declarations from a class body."""
     props = []
     lines = body.splitlines()
@@ -158,8 +150,6 @@ def _parse_fields(body: str, is_pydantic: bool = False) -> list[PropInfo]:
             default = m.group(3)
             optional = ftype.startswith("Optional") or "| None" in ftype
             required = default is None and not optional
-            if is_pydantic and default is None and optional:
-                required = False
             default_val = default.strip() if default else None
             props.append(PropInfo(
                 name=name, type=ftype, required=required,
@@ -217,11 +207,7 @@ class PythonExtractor(Extractor):
 
             rel_path = str(fpath.relative_to(repo))
 
-            for pattern, is_pydantic in [
-                (_DATACLASS_RE, False),
-                (_PYDANTIC_RE, True),
-                (_TYPEDDICT_RE, False),
-            ]:
+            for pattern in (_DATACLASS_RE, _PYDANTIC_RE, _TYPEDDICT_RE):
                 for m in pattern.finditer(text):
                     class_name = m.group(1)
 
@@ -230,7 +216,7 @@ class PythonExtractor(Extractor):
 
                     line_number = text[:m.start()].count("\n") + 1
                     body = _extract_class_body(text, m.end())
-                    props = _parse_fields(body, is_pydantic=is_pydantic)
+                    props = _parse_fields(body)
 
                     if not props:
                         continue
