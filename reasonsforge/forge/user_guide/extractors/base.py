@@ -105,4 +105,7 @@ def get_extractor(language: str) -> Extractor:
     if language == "typescript":
         from .typescript import TypeScriptExtractor
         return TypeScriptExtractor()
+    if language == "python":
+        from .python import PythonExtractor
+        return PythonExtractor()
     raise ValueError(f"No extractor for language: {language}")
