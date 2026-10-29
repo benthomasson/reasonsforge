@@ -107,7 +107,7 @@ def stage_extract(args, extractor) -> dict:
         components = [c.strip() for c in components.split(",")]
 
     interfaces = extractor.extract_interfaces(repo_path, components=components)
-    config = extractor.extract_config(repo_path)
+    config = extractor.extract_config(repo_path, components=components)
     tests = extractor.extract_tests(repo_path, components=components)
     examples = extractor.extract_examples(repo_path, components=components)
 

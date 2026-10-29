@@ -65,7 +65,9 @@ class Extractor(ABC):
         """Extract interface/type definitions from the codebase."""
 
     @abstractmethod
-    def extract_config(self, repo_path: str) -> list[ConfigValue]:
+    def extract_config(
+        self, repo_path: str, components: list[str] | None = None,
+    ) -> list[ConfigValue]:
         """Extract configuration values, design tokens, or constants."""
 
     @abstractmethod

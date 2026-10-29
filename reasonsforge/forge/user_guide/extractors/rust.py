@@ -44,6 +44,25 @@ _MD_CODE_BLOCK_RE = re.compile(
     r"```rust\n(.*?)```",
     re.DOTALL,
 )
+_DECLARE_CLASS_RE = re.compile(
+    r"declare_class!\s*\(",
+    re.MULTILINE,
+)
+_CLASS_NAME_RE = re.compile(
+    r"""const\s+NAME\s*:\s*&'static\s+str\s*=\s*"(\w+)"\s*;""",
+)
+_CLASS_SUPER_RE = re.compile(
+    r"type\s+Super\s*=\s*(\w+)\s*;",
+)
+_CLASS_INHERITS_RE = re.compile(
+    r"#\[inherits\(([^)]+)\)\]",
+)
+_UNSAFE_IMPL_RE = re.compile(
+    r"unsafe\s+impl\s+(\w+)\s+for\s+(\w+)",
+)
+_METHOD_RE = re.compile(
+    r"""#\[method\((\w+(?::[\w]*)*)\)\]\s*fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*(\S+))?""",
+)
 
 
 def _iter_files(repo: Path, extensions: set[str]) -> list[Path]:
@@ -203,12 +222,125 @@ def _parse_enum_variants(body: str) -> list[PropInfo]:
     return props
 
 
-def _matches_component(name: str, components: list[str]) -> bool:
+def _matches_component(name: str, components: list[str], file_path: str = "") -> bool:
+    """Match by struct/class name OR by file path containing the component."""
     lower = name.lower()
+    lower_path = file_path.lower()
     for comp in components:
-        if lower == comp.lower():
+        c = comp.lower()
+        if lower == c:
+            return True
+        if c in lower_path:
             return True
     return False
+
+
+def _parse_declare_class(text: str, start: int, rel_path: str) -> InterfaceInfo | None:
+    """Parse a declare_class!(...) macro invocation into an InterfaceInfo."""
+    body = _extract_brace_block(text, start)
+    if not body:
+        paren_start = text.find("(", start)
+        if paren_start < 0:
+            return None
+        # declare_class! uses () not {} — find matching paren
+        depth = 0
+        i = paren_start
+        while i < len(text):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    body = text[paren_start + 1:i]
+                    break
+            i += 1
+        if not body:
+            return None
+
+    # Extract Rust struct name
+    struct_m = re.search(r"(?:pub(?:\([^)]*\))?\s+)?struct\s+(\w+)", body)
+    rust_name = struct_m.group(1) if struct_m else "Unknown"
+
+    # Extract ObjC runtime class name (const NAME)
+    name_m = _CLASS_NAME_RE.search(body)
+    objc_name = name_m.group(1) if name_m else rust_name
+
+    # Extract superclass
+    super_m = _CLASS_SUPER_RE.search(body)
+    superclass = super_m.group(1) if super_m else ""
+
+    # Extract #[inherits(...)] chain
+    inherits_m = _CLASS_INHERITS_RE.search(body)
+    inherits = []
+    if inherits_m:
+        inherits = [s.strip() for s in inherits_m.group(1).split(",")]
+
+    # Extract protocol conformances (unsafe impl Protocol for Type)
+    protocols = []
+    for proto_m in _UNSAFE_IMPL_RE.finditer(body):
+        proto_name = proto_m.group(1)
+        if proto_name != rust_name and proto_name not in ("ClassType", "DeclaredClass", "NSObjectProtocol"):
+            protocols.append(proto_name)
+
+    # Extract methods (#[method(selector)] fn name)
+    methods = []
+    for method_m in _METHOD_RE.finditer(body):
+        selector = method_m.group(1)
+        fn_name = method_m.group(2)
+        params = method_m.group(3).strip()
+        ret = method_m.group(4) or "void"
+        methods.append((selector, fn_name, params, ret))
+
+    # Build props from the extracted information
+    props = []
+    props.append(PropInfo(
+        name="objc_class_name",
+        type="&'static str",
+        required=True,
+        description=f"ObjC runtime class name (use with objc_getClass). Rust struct name is '{rust_name}'.",
+        default_value=f'"{objc_name}"',
+    ))
+    if superclass:
+        chain = " > ".join([superclass] + inherits) if inherits else superclass
+        props.append(PropInfo(
+            name="superclass",
+            type="ObjC class",
+            required=True,
+            description=f"Inheritance chain: {chain}",
+        ))
+    for proto in protocols:
+        props.append(PropInfo(
+            name=f"protocol_{proto}",
+            type="protocol conformance",
+            required=True,
+            description=f"Conforms to {proto} protocol",
+        ))
+    for selector, fn_name, params, ret in methods:
+        props.append(PropInfo(
+            name=fn_name,
+            type=f"fn({params}) -> {ret}",
+            required=True,
+            description=f"ObjC selector: {selector}",
+        ))
+
+    line_number = text[:start].count("\n") + 1
+    description = _extract_doc_comment(text, start)
+    if not description:
+        desc_parts = [f"ObjC class '{objc_name}'"]
+        if superclass:
+            desc_parts.append(f"extends {superclass}")
+        if protocols:
+            desc_parts.append(f"conforms to {', '.join(protocols)}")
+        description = " ".join(desc_parts)
+
+    return InterfaceInfo(
+        name=f"{rust_name} ({objc_name})",
+        file_path=rel_path,
+        line_number=line_number,
+        props=props,
+        description=description,
+        component_name=rust_name,
+    )
 
 
 def _humanize_test_name(name: str) -> str:
@@ -240,6 +372,7 @@ class RustExtractor(Extractor):
 
             rel_path = str(fpath.relative_to(repo))
 
+            # Standard struct/enum extraction
             for pattern, parser in [
                 (_STRUCT_RE, _parse_struct_fields),
                 (_ENUM_RE, _parse_enum_variants),
@@ -247,7 +380,7 @@ class RustExtractor(Extractor):
                 for m in pattern.finditer(text):
                     struct_name = m.group(1)
 
-                    if components and not _matches_component(struct_name, components):
+                    if components and not _matches_component(struct_name, components, rel_path):
                         continue
 
                     body = _extract_brace_block(text, m.end() - 1)
@@ -271,9 +404,22 @@ class RustExtractor(Extractor):
                         component_name=struct_name,
                     ))
 
+            # declare_class! macro extraction (ObjC interop)
+            for m in _DECLARE_CLASS_RE.finditer(text):
+                if components and not _matches_component("", components, rel_path):
+                    continue
+
+                info = _parse_declare_class(text, m.start() + len("declare_class!") - 1, rel_path)
+                if info:
+                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                        continue
+                    interfaces.append(info)
+
         return interfaces
 
-    def extract_config(self, repo_path: str) -> list[ConfigValue]:
+    def extract_config(
+        self, repo_path: str, components: list[str] | None = None,
+    ) -> list[ConfigValue]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".rs"})
         values: list[ConfigValue] = []
@@ -285,6 +431,9 @@ class RustExtractor(Extractor):
                 continue
 
             rel_path = str(fpath.relative_to(repo))
+
+            if components and not _matches_component("", components, rel_path):
+                continue
 
             for m in _CONST_RE.finditer(text):
                 name = m.group(1)
@@ -333,9 +482,6 @@ class RustExtractor(Extractor):
         repo = Path(repo_path)
         files = _iter_files(repo, {".rs"})
 
-        if components:
-            lower_comps = [c.lower() for c in components]
-
         patterns: list[TestPattern] = []
         for fpath in files:
             try:
@@ -348,10 +494,8 @@ class RustExtractor(Extractor):
 
             rel_path = str(fpath.relative_to(repo))
 
-            if components:
-                stem = fpath.stem.lower()
-                if not any(c in stem for c in lower_comps):
-                    continue
+            if components and not _matches_component(fpath.stem, components, rel_path):
+                continue
 
             for m in _TEST_FN_RE.finditer(text):
                 func_name = m.group(1)

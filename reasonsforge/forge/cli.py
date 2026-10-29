@@ -832,9 +832,7 @@ def register_forge_type_commands(parent_subparsers):
     ug_sub = p.add_subparsers(dest="ug_command")
 
     # user-guide extract — extract and display interfaces
-    us = ug_sub.add_parser("extract", help="Extract interfaces and display")
-    us.add_argument("--language", help="Language (auto-detected if omitted)")
-    us.add_argument("--components", help="Comma-separated component names")
+    ug_sub.add_parser("extract", help="Extract interfaces and display")
 
     # user-guide status
     us = ug_sub.add_parser("status", help="Show user-guide forge status")

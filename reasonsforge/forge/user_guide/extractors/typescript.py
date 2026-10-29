@@ -184,7 +184,9 @@ class TypeScriptExtractor(Extractor):
 
         return interfaces
 
-    def extract_config(self, repo_path: str) -> list[ConfigValue]:
+    def extract_config(
+        self, repo_path: str, components: list[str] | None = None,
+    ) -> list[ConfigValue]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".css", ".scss"})
         values: list[ConfigValue] = []
