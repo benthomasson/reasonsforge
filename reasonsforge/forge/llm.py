@@ -21,7 +21,7 @@ except ImportError:
     _HAS_OPENAI = False
 
 MODEL_COMMANDS: dict[str, list[str]] = {
-    "claude": ["claude", "-p", "--max-turns", "1", "--output-format", "json"],
+    "claude": ["claude", "-p", "--max-turns", "1", "--output-format", "json", "--allowedTools", ""],
     "gemini": ["gemini", "--skip-trust", "-o", "json", "-p", ""],
 }
 
@@ -63,7 +63,7 @@ def resolve_model_cmd(model: str) -> list[str]:
         return MODEL_COMMANDS[model]
     if model.startswith("claude:"):
         submodel = model.split(":", 1)[1]
-        return ["claude", "-p", "--model", submodel, "--max-turns", "1", "--output-format", "json"]
+        return ["claude", "-p", "--model", submodel, "--max-turns", "1", "--output-format", "json", "--allowedTools", ""]
     if model.startswith("gemini:"):
         submodel = model.split(":", 1)[1]
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
@@ -335,9 +335,19 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
         raise TimeoutError(f"Model {model} timed out after {timeout}s") from None
 
     if proc.returncode != 0:
+        raw = stdout.decode().strip()
+        # Claude CLI exits non-zero when stop_reason is "tool_use" (max-turns
+        # reached while model wanted to use tools). Treat as success — use
+        # whatever result text was produced (may be empty).
+        if raw:
+            try:
+                data = json.loads(raw)
+                if data.get("stop_reason") == "tool_use":
+                    return _parse_cli_json(raw, model)
+            except (json.JSONDecodeError, ValueError):
+                pass
         err = stderr.decode().strip()
         if not err:
-            raw = stdout.decode().strip()
             try:
                 data = json.loads(raw)
                 err = data.get("result") or data.get("error") or raw[:500]
