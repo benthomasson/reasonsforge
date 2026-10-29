@@ -21,7 +21,7 @@ except ImportError:
     _HAS_OPENAI = False
 
 MODEL_COMMANDS: dict[str, list[str]] = {
-    "claude": ["claude", "-p", "--max-turns", "1", "--output-format", "json", "--allowedTools", "none"],
+    "claude": ["claude", "-p", "--max-turns", "1", "--output-format", "json", "--tools", ""],
     "gemini": ["gemini", "--skip-trust", "-o", "json", "-p", ""],
 }
 
@@ -63,7 +63,7 @@ def resolve_model_cmd(model: str) -> list[str]:
         return MODEL_COMMANDS[model]
     if model.startswith("claude:"):
         submodel = model.split(":", 1)[1]
-        return ["claude", "-p", "--model", submodel, "--max-turns", "1", "--output-format", "json", "--allowedTools", "none"]
+        return ["claude", "-p", "--model", submodel, "--max-turns", "1", "--output-format", "json", "--tools", ""]
     if model.startswith("gemini:"):
         submodel = model.split(":", 1)[1]
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
