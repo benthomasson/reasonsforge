@@ -63,6 +63,29 @@ _UNSAFE_IMPL_RE = re.compile(
 _METHOD_RE = re.compile(
     r"""#\[method\((\w+(?::[\w]*)*)\)\]\s*fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*(\S+))?""",
 )
+_METHOD_ID_RE = re.compile(
+    r"""#\[method_id\(([^)]+)\)\]\s*(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*(.+?))\s*[{;]""",
+    re.DOTALL,
+)
+_EXTERN_CLASS_RE = re.compile(
+    r"extern_class!\s*\(",
+    re.MULTILINE,
+)
+_EXTERN_METHODS_RE = re.compile(
+    r"extern_methods!\s*\(",
+    re.MULTILINE,
+)
+_EXTERN_PROTOCOL_RE = re.compile(
+    r"extern_protocol!\s*\(",
+    re.MULTILINE,
+)
+_PROTOCOL_TRAIT_RE = re.compile(
+    r"pub\s+unsafe\s+trait\s+(\w+)\s*:\s*([^{]+)\{",
+)
+_EXTERN_IMPL_RE = re.compile(
+    r"unsafe\s+impl\s+(\w+)\s*\{",
+)
+_OPTIONAL_RE = re.compile(r"#\[optional\]")
 
 
 def _iter_files(repo: Path, extensions: set[str]) -> list[Path]:
@@ -83,6 +106,21 @@ def _extract_brace_block(text: str, start: int) -> str:
         if text[i] == "{":
             depth += 1
         elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i]
+        i += 1
+    return text[start + 1:]
+
+
+def _extract_paren_block(text: str, start: int) -> str:
+    """Extract text inside matched parens starting at `start` (the opening paren)."""
+    depth = 0
+    i = start
+    while i < len(text):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
             depth -= 1
             if depth == 0:
                 return text[start + 1:i]
@@ -343,6 +381,187 @@ def _parse_declare_class(text: str, start: int, rel_path: str) -> InterfaceInfo 
     )
 
 
+def _extract_methods_from_body(body: str) -> list[PropInfo]:
+    """Extract #[method(...)] and #[method_id(...)] from an impl or trait body."""
+    props: list[PropInfo] = []
+
+    lines = body.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        is_optional = False
+        if line == "#[optional]":
+            is_optional = True
+            i += 1
+            if i >= len(lines):
+                break
+            line = lines[i].strip()
+
+        # Skip #[cfg(...)] lines
+        while line.startswith("#[cfg("):
+            i += 1
+            if i >= len(lines):
+                break
+            line = lines[i].strip()
+        if i >= len(lines):
+            break
+
+        # Match #[method(selector)] or #[method_id(@... selector)]
+        method_match = re.match(r"#\[method(?:_id)?\(([^)]+)\)\]", line)
+        if method_match:
+            selector_raw = method_match.group(1)
+            # Strip @__retain_semantics prefix
+            selector = re.sub(r"@__retain_semantics\s+\w+\s+", "", selector_raw).strip()
+
+            # Find the fn on the next non-attribute lines
+            j = i + 1
+            while j < len(lines):
+                fn_line = lines[j].strip()
+                if fn_line.startswith("#[") or not fn_line:
+                    j += 1
+                    continue
+                fn_match = re.match(
+                    r"(?:pub\s+)?(?:unsafe\s+)?fn\s+(\w+)\s*\(([^)]*)\)(?:\s*->\s*(.+?))?(?:\s*[{;]|$)",
+                    fn_line,
+                )
+                if fn_match:
+                    fn_name = fn_match.group(1)
+                    params = fn_match.group(2).strip()
+                    ret = fn_match.group(3) or "void"
+                    ret = ret.rstrip("{;").strip()
+                    desc = f"ObjC selector: {selector}"
+                    if is_optional:
+                        desc += " (optional)"
+                    props.append(PropInfo(
+                        name=fn_name,
+                        type=f"fn({params}) -> {ret}",
+                        required=not is_optional,
+                        description=desc,
+                    ))
+                    i = j
+                break
+        i += 1
+
+    return props
+
+
+def _parse_extern_class(text: str, paren_start: int, rel_path: str) -> InterfaceInfo | None:
+    """Parse an extern_class!(...) macro invocation."""
+    body = _extract_paren_block(text, paren_start)
+    if not body:
+        return None
+
+    struct_m = re.search(r"(?:pub\s+)?struct\s+(\w+)", body)
+    if not struct_m:
+        return None
+    class_name = struct_m.group(1)
+
+    super_m = _CLASS_SUPER_RE.search(body)
+    superclass = super_m.group(1) if super_m else ""
+
+    inherits_m = _CLASS_INHERITS_RE.search(body)
+    inherits = []
+    if inherits_m:
+        inherits = [s.strip() for s in inherits_m.group(1).split(",")]
+
+    props = []
+    if superclass:
+        chain = " > ".join([superclass] + inherits) if inherits else superclass
+        props.append(PropInfo(
+            name="superclass",
+            type="ObjC class",
+            required=True,
+            description=f"Inheritance chain: {chain}",
+        ))
+
+    line_number = text[:paren_start].count("\n") + 1
+    desc_parts = [f"ObjC class '{class_name}'"]
+    if superclass:
+        desc_parts.append(f"extends {superclass}")
+    description = " ".join(desc_parts)
+
+    return InterfaceInfo(
+        name=class_name,
+        file_path=rel_path,
+        line_number=line_number,
+        props=props,
+        description=description,
+        component_name=class_name,
+    )
+
+
+def _parse_extern_methods(text: str, paren_start: int, rel_path: str) -> tuple[str, list[PropInfo]]:
+    """Parse an extern_methods!(...) block. Returns (class_name, methods)."""
+    body = _extract_paren_block(text, paren_start)
+    if not body:
+        return ("", [])
+
+    impl_m = _EXTERN_IMPL_RE.search(body)
+    if not impl_m:
+        return ("", [])
+
+    class_name = impl_m.group(1)
+    impl_body = _extract_brace_block(body, impl_m.end() - 1)
+    methods = _extract_methods_from_body(impl_body)
+    return (class_name, methods)
+
+
+def _parse_extern_protocol(text: str, paren_start: int, rel_path: str) -> InterfaceInfo | None:
+    """Parse an extern_protocol!(...) macro invocation."""
+    body = _extract_paren_block(text, paren_start)
+    if not body:
+        return None
+
+    trait_m = _PROTOCOL_TRAIT_RE.search(body)
+    if not trait_m:
+        return None
+
+    protocol_name = trait_m.group(1)
+    super_traits = trait_m.group(2).strip().rstrip("{").strip()
+
+    trait_body = _extract_brace_block(body, trait_m.end() - 1)
+    methods = _extract_methods_from_body(trait_body)
+
+    props = []
+    if super_traits:
+        props.append(PropInfo(
+            name="super_traits",
+            type="protocol",
+            required=True,
+            description=f"Requires: {super_traits}",
+        ))
+    props.extend(methods)
+
+    if not props:
+        return None
+
+    line_number = text[:paren_start].count("\n") + 1
+
+    return InterfaceInfo(
+        name=protocol_name,
+        file_path=rel_path,
+        line_number=line_number,
+        props=props,
+        description=f"ObjC protocol '{protocol_name}'",
+        component_name=protocol_name,
+    )
+
+
+def _collect_protocol_conformances(text: str, class_name: str) -> list[str]:
+    """Find `unsafe impl ProtocolName for ClassName {}` outside macro bodies."""
+    protocols = []
+    for m in re.finditer(
+        rf"unsafe\s+impl\s+(\w+)\s+for\s+{re.escape(class_name)}\s*\{{\}}",
+        text,
+    ):
+        proto = m.group(1)
+        skip = {"ClassType", "DeclaredClass", "NSObjectProtocol", "Encode", "RefEncode"}
+        if proto not in skip:
+            protocols.append(proto)
+    return protocols
+
+
 def _humanize_test_name(name: str) -> str:
     s = name.removeprefix("test_")
     return s.replace("_", " ")
@@ -404,12 +623,66 @@ class RustExtractor(Extractor):
                         component_name=struct_name,
                     ))
 
-            # declare_class! macro extraction (ObjC interop)
+            # declare_class! macro extraction (ObjC interop — user-defined classes)
             for m in _DECLARE_CLASS_RE.finditer(text):
                 if components and not _matches_component("", components, rel_path):
                     continue
 
                 info = _parse_declare_class(text, m.start() + len("declare_class!") - 1, rel_path)
+                if info:
+                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                        continue
+                    interfaces.append(info)
+
+            # extern_class! macro extraction (ObjC interop — external class bindings)
+            extern_class_map: dict[str, InterfaceInfo] = {}
+            for m in _EXTERN_CLASS_RE.finditer(text):
+                paren_start = text.find("(", m.start())
+                if paren_start < 0:
+                    continue
+                info = _parse_extern_class(text, paren_start, rel_path)
+                if info:
+                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                        continue
+                    # Collect protocol conformances from the file
+                    protos = _collect_protocol_conformances(text, info.name)
+                    for proto in protos:
+                        info.props.append(PropInfo(
+                            name=f"protocol_{proto}",
+                            type="protocol conformance",
+                            required=True,
+                            description=f"Conforms to {proto} protocol",
+                        ))
+                    extern_class_map[info.name] = info
+
+            # extern_methods! — attach methods to extern_class! entries
+            for m in _EXTERN_METHODS_RE.finditer(text):
+                paren_start = text.find("(", m.start())
+                if paren_start < 0:
+                    continue
+                class_name, methods = _parse_extern_methods(text, paren_start, rel_path)
+                if class_name and methods:
+                    if class_name in extern_class_map:
+                        extern_class_map[class_name].props.extend(methods)
+                    elif not components or _matches_component(class_name, components, rel_path):
+                        # Standalone extern_methods for a class defined elsewhere
+                        extern_class_map[class_name] = InterfaceInfo(
+                            name=class_name,
+                            file_path=rel_path,
+                            line_number=text[:m.start()].count("\n") + 1,
+                            props=methods,
+                            description=f"ObjC class '{class_name}' methods",
+                            component_name=class_name,
+                        )
+
+            interfaces.extend(extern_class_map.values())
+
+            # extern_protocol! macro extraction (ObjC protocol bindings)
+            for m in _EXTERN_PROTOCOL_RE.finditer(text):
+                paren_start = text.find("(", m.start())
+                if paren_start < 0:
+                    continue
+                info = _parse_extern_protocol(text, paren_start, rel_path)
                 if info:
                     if components and not _matches_component(info.component_name or "", components, rel_path):
                         continue
