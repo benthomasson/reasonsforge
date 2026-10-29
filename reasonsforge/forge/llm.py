@@ -303,6 +303,7 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
     Ollama models use the HTTP API for clean JSON responses.
     CLI models use --output-format json to capture token/cost data.
     Accumulated stats available via get_cost_summary().
+    Retries up to 2 times on tool_use stop_reason.
     """
     if model.startswith("ollama:"):
         return await _invoke_ollama(prompt, model, timeout)
@@ -314,48 +315,51 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
         return await _invoke_cursor(prompt, model, timeout)
 
     cmd = resolve_model_cmd(model)
-
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env=env,
-    )
-
-    try:
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(prompt.encode()),
-            timeout=timeout,
+    max_retries = 2
+    for attempt in range(1 + max_retries):
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
-    except TimeoutError:
-        proc.kill()
-        raise TimeoutError(f"Model {model} timed out after {timeout}s") from None
 
-    if proc.returncode != 0:
-        raw = stdout.decode().strip()
-        # Claude CLI exits non-zero when stop_reason is "tool_use" (max-turns
-        # reached while model wanted to use tools). Treat as success — use
-        # whatever result text was produced (may be empty).
-        if raw:
-            try:
-                data = json.loads(raw)
-                if data.get("stop_reason") == "tool_use":
-                    return _parse_cli_json(raw, model)
-            except (json.JSONDecodeError, ValueError):
-                pass
-        err = stderr.decode().strip()
-        if not err:
-            try:
-                data = json.loads(raw)
-                err = data.get("result") or data.get("error") or raw[:500]
-            except (json.JSONDecodeError, ValueError):
-                err = raw[:500]
-        raise RuntimeError(f"Model {model} failed: {err}")
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(prompt.encode()),
+                timeout=timeout,
+            )
+        except TimeoutError:
+            proc.kill()
+            raise TimeoutError(f"Model {model} timed out after {timeout}s") from None
 
-    return _parse_cli_json(stdout.decode(), model)
+        if proc.returncode != 0:
+            raw = stdout.decode().strip()
+            if raw:
+                try:
+                    data = json.loads(raw)
+                    if data.get("stop_reason") == "tool_use":
+                        _parse_cli_json(raw, model)
+                        if attempt < max_retries:
+                            import sys
+                            print(f"  (retry {attempt + 1}/{max_retries}: tool_use stop_reason)", file=sys.stderr)
+                            continue
+                        return _parse_cli_json(raw, model)
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            err = stderr.decode().strip()
+            if not err:
+                try:
+                    data = json.loads(raw)
+                    err = data.get("result") or data.get("error") or raw[:500]
+                except (json.JSONDecodeError, ValueError):
+                    err = raw[:500]
+            raise RuntimeError(f"Model {model} failed: {err}")
+
+        return _parse_cli_json(stdout.decode(), model)
 
 
 def invoke_sync(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
