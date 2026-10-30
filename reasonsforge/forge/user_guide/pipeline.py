@@ -120,7 +120,21 @@ def stage_extract(args, extractor) -> dict:
 
 
 def _parse_beliefs(response: str) -> list[dict]:
-    """Parse belief list items from an LLM response."""
+    """Parse beliefs from an LLM response (JSON array or markdown fallback)."""
+    from ..llm import extract_json
+
+    data = extract_json(response)
+    if isinstance(data, list):
+        beliefs = []
+        for item in data:
+            if isinstance(item, dict) and "id" in item and "text" in item:
+                belief = {"id": item["id"], "text": item["text"]}
+                if item.get("example"):
+                    belief["example"] = item["example"]
+                beliefs.append(belief)
+        if beliefs:
+            return beliefs
+
     beliefs = []
     pattern = re.compile(r"^[-*]\s+`([^`]+)`\s*(?:—|-|:)\s*(.+)$", re.MULTILINE)
     for m in pattern.finditer(response):
@@ -243,11 +257,14 @@ def stage_accept(beliefs: list[dict], db_path: str, model: str = "") -> int:
     with _with_network(db_path, write=True) as net:
         for belief in beliefs:
             try:
+                node_meta = dict(metadata) if metadata else {}
+                if belief.get("example"):
+                    node_meta["example"] = belief["example"]
                 net.add_node(
                     id=belief["id"],
                     text=belief["text"],
                     source="user-guide-forge",
-                    metadata=metadata or None,
+                    metadata=node_meta or None,
                 )
                 added += 1
             except Exception as e:

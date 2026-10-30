@@ -31,8 +31,14 @@ Generate beliefs about the API:
 
 ## Output Format
 
-Output each belief as a markdown list item:
-- `component-name-prop-description` — description of the belief
+Output a JSON array. Each element has "id", "text", and optionally "example" (a short code snippet demonstrating the belief):
+```json
+[
+  {{"id": "component-prop-description", "text": "description of the belief", "example": "code snippet"}},
+  {{"id": "another-belief-id", "text": "another belief"}}
+]
+```
+Output ONLY the JSON array, no other text.
 """
 
 VERIFY_BELIEFS_PROMPT = """\
