@@ -43,6 +43,7 @@ def cmd_init(args):
         gitignore.write_text(
             "reasons.db\n"
             "rag_fts.db\n"
+            "logs/\n"
         )
         print("Created .gitignore")
 
