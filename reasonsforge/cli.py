@@ -721,6 +721,21 @@ def cmd_nogood(args):
         print(f"Retracted: {', '.join(result['changed'])}")
 
 
+def cmd_list_nogoods(args):
+    nogoods = api.list_nogoods(**_backend_kwargs(args))
+    if not nogoods:
+        print("No nogoods recorded.")
+        return
+    for ng in nogoods:
+        nodes_str = ", ".join(ng["nodes"])
+        print(f"  [{ng['id']}] {nodes_str}")
+        if ng.get("discovered"):
+            print(f"    discovered: {ng['discovered']}")
+        if ng.get("resolution"):
+            print(f"    resolution: {ng['resolution']}")
+    print(f"\n{len(nogoods)} nogood(s)")
+
+
 def cmd_trace_access_tags(args):
     try:
         result = api.trace_access_tags(args.node_id, visible_to=_parse_visible_to(args),
@@ -3993,6 +4008,9 @@ def main():
     p = sub.add_parser("nogood", help="Record a contradiction")
     p.add_argument("node_ids", nargs="+", help="Node IDs that cannot all be IN")
 
+    # list-nogoods
+    p = sub.add_parser("list-nogoods", help="List all recorded nogoods")
+
     # trace
     p = sub.add_parser("trace-access-tags", help="Trace all access tags in a node's dependency chain")
     p.add_argument("node_id", help="Node to trace")
@@ -4762,6 +4780,7 @@ def main():
         "show": cmd_show,
         "explain": cmd_explain,
         "nogood": cmd_nogood,
+        "list-nogoods": cmd_list_nogoods,
         "propagate": cmd_propagate,
         "log": cmd_log,
         "add-repo": cmd_add_repo,

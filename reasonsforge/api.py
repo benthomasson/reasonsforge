@@ -1523,6 +1523,21 @@ def add_nogood(node_ids: list[str], db_path: str = DEFAULT_DB,
         }
 
 
+def list_nogoods(db_path: str = DEFAULT_DB,
+                 pg_conninfo=None, project_id=None) -> list[dict]:
+    """List all recorded nogoods.
+
+    Returns: list of {"id": str, "nodes": list[str], "discovered": str, "resolution": str}
+    """
+    if pg_conninfo:
+        return _pg_dispatch(pg_conninfo, project_id, "list_nogoods")
+    with _with_network(db_path) as net:
+        return [
+            {"id": ng.id, "nodes": ng.nodes, "discovered": ng.discovered, "resolution": ng.resolution}
+            for ng in net.nogoods
+        ]
+
+
 def get_belief_set(db_path: str = DEFAULT_DB,
                    pg_conninfo=None, project_id=None) -> list[str]:
     """Return all node IDs currently IN."""
