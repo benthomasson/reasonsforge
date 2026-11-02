@@ -133,12 +133,13 @@ def _get_source(config: dict) -> GitHubSource | GitLabSource | JiraSource:
 
 def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
+    from ..utils import unique_path
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
     summary_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
-    entry_path = summary_dir / f"{entry_name}.md"
+    entry_path = unique_path(summary_dir / f"{entry_name}.md")
     parts = []
     if model:
         parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")

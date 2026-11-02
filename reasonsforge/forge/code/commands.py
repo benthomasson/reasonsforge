@@ -105,10 +105,11 @@ def _sanitize_path_for_filename(path: str) -> str:
 
 def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
+    from ..utils import unique_path
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
     summary_dir.mkdir(parents=True, exist_ok=True)
-    entry_path = summary_dir / f"{topic}.md"
+    entry_path = unique_path(summary_dir / f"{topic}.md")
     parts = []
     if model:
         parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")

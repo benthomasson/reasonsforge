@@ -55,11 +55,12 @@ def _prepare_source(source_path):
 
 def _write_entry(source_path, summary, source_url, source_id, model=None):
     """Write summary file with provenance frontmatter."""
+    from .utils import unique_path
     topic = source_path.stem
     today = date.today()
     summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
     summary_dir.mkdir(parents=True, exist_ok=True)
-    entry_path = summary_dir / f"{topic}.md"
+    entry_path = unique_path(summary_dir / f"{topic}.md")
 
     fm_lines = [f"source: {source_path}"]
     if source_url:
