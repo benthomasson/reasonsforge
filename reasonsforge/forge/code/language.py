@@ -131,11 +131,32 @@ GO = LanguageProfile(
     decorator_prefix=None,
 )
 
+WGSL = LanguageProfile(
+    name="wgsl",
+    source_globs=["*.wgsl", "*.wesl"],
+    source_extensions=[".wgsl", ".wesl"],
+    fence_language="wgsl",
+    definition_patterns=[
+        r"^fn\s+{symbol}\s*\(",
+        r"^(struct|enum)\s+{symbol}\b",
+        r"^(var|let|const)\s*(<[^>]*>)?\s+{symbol}\b",
+        r"^alias\s+{symbol}\b",
+    ],
+    import_line_prefixes=["import ", "#import "],
+    scope_style="brace",
+    test_globs=[],
+    entry_point_candidates=[],
+    config_files=[],
+    primary_extension=".wgsl",
+    decorator_prefix="@",
+)
+
 LANGUAGE_REGISTRY: dict[str, LanguageProfile] = {
     "python": PYTHON,
     "cpp": CPP,
     "rust": RUST,
     "go": GO,
+    "wgsl": WGSL,
 }
 
 _CONFIG_TO_LANGUAGE: dict[str, str] = {
@@ -181,6 +202,18 @@ def detect_language(repo_path: str) -> LanguageProfile:
             best_lang = lang
 
     return best_lang or PYTHON
+
+
+_EXT_TO_LANGUAGE: dict[str, LanguageProfile] = {}
+for _lang in LANGUAGE_REGISTRY.values():
+    for _ext in _lang.source_extensions:
+        _EXT_TO_LANGUAGE[_ext] = _lang
+
+
+def language_for_file(file_path: str, fallback: LanguageProfile | None = None) -> LanguageProfile:
+    """Return the language profile matching a file's extension."""
+    ext = os.path.splitext(file_path)[1].lower()
+    return _EXT_TO_LANGUAGE.get(ext, fallback or PYTHON)
 
 
 def get_grep_include_args(lang: LanguageProfile) -> list[str]:

@@ -33,7 +33,7 @@ from .git_utils import (
     load_diff_checkpoint,
     save_diff_checkpoint,
 )
-from .language import PYTHON, detect_language
+from .language import PYTHON, detect_language, language_for_file
 from .observations import parse_observation_requests, run_observations
 from .prompts import (
     PROPOSE_BELIEFS_CODE,
@@ -332,7 +332,7 @@ def cmd_scan(args):
 
 
 def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
-    lang = lang or PYTHON
+    lang = language_for_file(topic.target, fallback=lang or PYTHON)
     file_path = topic.target
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
 
@@ -367,7 +367,8 @@ def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
 
 
 def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
-    lang = lang or PYTHON
+    file_part = topic.target.rsplit(":", 1)[0] if ":" in topic.target else topic.target
+    lang = language_for_file(file_part, fallback=lang or PYTHON)
     if ":" not in topic.target:
         print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
         return None
