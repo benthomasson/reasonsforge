@@ -138,6 +138,49 @@ def identify_sections(pages: list[str]) -> list[dict]:
     return sections
 
 
+def fill_gaps(sections: list[dict], total_pages: int, pages_per_chunk: int = 5) -> list[dict]:
+    """Add chunks for page ranges not covered by any detected section."""
+    covered = set()
+    for s in sections:
+        for p in range(s["start_page"], s["end_page"] + 1):
+            covered.add(p)
+
+    uncovered = sorted(set(range(1, total_pages + 1)) - covered)
+    if not uncovered:
+        return sections
+
+    # Group consecutive uncovered pages into chunks
+    gap_sections = []
+    chunk_start = uncovered[0]
+    prev = uncovered[0]
+    chunk_idx = 1
+
+    for p in uncovered[1:]:
+        if p == prev + 1 and (p - chunk_start) < pages_per_chunk:
+            prev = p
+            continue
+        gap_sections.append({
+            "number": f"G{chunk_idx}",
+            "title": f"Pages {chunk_start}-{prev}",
+            "start_page": chunk_start,
+            "end_page": prev,
+        })
+        chunk_idx += 1
+        chunk_start = p
+        prev = p
+
+    gap_sections.append({
+        "number": f"G{chunk_idx}",
+        "title": f"Pages {chunk_start}-{prev}",
+        "start_page": chunk_start,
+        "end_page": prev,
+    })
+
+    combined = sections + gap_sections
+    combined.sort(key=lambda s: s["start_page"])
+    return combined
+
+
 def slugify(text: str) -> str:
     """Convert text to kebab-case slug."""
     text = text.lower().strip()
@@ -206,11 +249,15 @@ def cmd_chunk_pdf(args):
     sections = identify_sections(pages)
 
     if not sections:
-        print("  No sections found. Falling back to one entry per page.")
-        sections = [
-            {"number": str(i + 1), "title": f"Page {i + 1}", "start_page": i + 1, "end_page": i + 1}
-            for i in range(len(pages))
-        ]
+        print("  No sections found. Falling back to page-range chunks.")
+        sections = fill_gaps([], len(pages))
+    else:
+        # Check coverage — if sections cover less than half the document,
+        # fill gaps (common for slide decks where only "References" matches)
+        covered = sum(s["end_page"] - s["start_page"] + 1 for s in sections)
+        if covered < len(pages) * 0.5:
+            print(f"  Sections cover only {covered}/{len(pages)} pages — filling gaps.")
+            sections = fill_gaps(sections, len(pages))
 
     print(f"  Found {len(sections)} sections:")
     for s in sections:
