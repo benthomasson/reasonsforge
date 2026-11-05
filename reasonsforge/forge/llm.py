@@ -277,7 +277,8 @@ async def _invoke_openai(prompt: str, model: str, timeout: int) -> str:
     openai_model = model.split(":", 1)[1]
 
     def _do_request():
-        client = _openai_mod.OpenAI()
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        client = _openai_mod.OpenAI(**{"base_url": base_url} if base_url else {})
         return client.responses.create(
             model=openai_model,
             input=prompt,

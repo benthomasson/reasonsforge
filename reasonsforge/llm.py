@@ -332,7 +332,8 @@ def _invoke_openai(prompt: str, model: str, timeout: int = 300) -> str:
             "Install with: pip install 'reasonsforge[openai]'"
         )
     openai_model = model.split(":", 1)[1]
-    client = _openai_mod.OpenAI()
+    base_url = os.environ.get("OPENAI_BASE_URL")
+    client = _openai_mod.OpenAI(**{"base_url": base_url} if base_url else {})
     response = client.responses.create(
         model=openai_model,
         input=prompt,
