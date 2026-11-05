@@ -151,12 +151,35 @@ WGSL = LanguageProfile(
     decorator_prefix="@",
 )
 
+TERRAFORM = LanguageProfile(
+    name="terraform",
+    source_globs=["*.tf", "*.tfvars"],
+    source_extensions=[".tf", ".tfvars"],
+    fence_language="hcl",
+    definition_patterns=[
+        r"^(resource|data)\s+\"[^\"]+\"\s+\"{symbol}\"",
+        r"^(variable|output|module|provider|locals|terraform)\s+\"{symbol}\"",
+        r"^(variable|output|module|provider|locals|terraform)\s+{symbol}\b",
+    ],
+    import_line_prefixes=["source "],
+    scope_style="brace",
+    test_globs=[],
+    entry_point_candidates=[
+        "main.tf", "terraform/main.tf",
+    ],
+    config_files=["main.tf"],
+    primary_extension=".tf",
+    config_entry_point_marker=None,
+    decorator_prefix=None,
+)
+
 LANGUAGE_REGISTRY: dict[str, LanguageProfile] = {
     "python": PYTHON,
     "cpp": CPP,
     "rust": RUST,
     "go": GO,
     "wgsl": WGSL,
+    "terraform": TERRAFORM,
 }
 
 _CONFIG_TO_LANGUAGE: dict[str, str] = {
@@ -170,6 +193,7 @@ _CONFIG_TO_LANGUAGE: dict[str, str] = {
     "go.mod": "go",
     "pom.xml": "java",
     "build.gradle": "java",
+    "main.tf": "terraform",
 }
 
 
