@@ -1526,37 +1526,40 @@ def _score_by_keywords(
 
 
 def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tuple[int, int, int]:
-    from reasonsforge.api import add_node, set_metadata
+    from reasonsforge.storage import Storage
 
-    print("Using reasonsforge API as primary store...")
+    print("Batch-loading network...")
+    store = Storage(db_path)
+    net = store.load()
+
     added = 0
     failed = 0
     skipped = 0
+    now = datetime.now().isoformat(timespec="seconds")
     for belief_id, claim_text, source in matches:
+        if belief_id in net.nodes:
+            print(f"  EXISTS: {belief_id}")
+            skipped += 1
+            continue
         try:
-            result = add_node(belief_id, claim_text.strip(), source=source.strip(), db_path=db_path)
-            print(f"  Added: {belief_id}")
-            added += 1
-            now = datetime.now().isoformat(timespec="seconds")
-            try:
-                set_metadata(belief_id, "accepted_at", now, db_path=db_path)
-            except Exception:
-                pass
+            net.add_node(
+                id=belief_id,
+                text=claim_text.strip(),
+                source=source.strip(),
+                metadata={"accepted_at": now},
+            )
             src_file = _extract_source_file(source.strip())
             if src_file:
-                try:
-                    set_metadata(belief_id, "source_file", src_file, db_path=db_path)
-                except Exception:
-                    pass
+                net.nodes[belief_id].metadata["source_file"] = src_file
+            print(f"  Added: {belief_id}")
+            added += 1
         except Exception as e:
-            err_str = str(e)
-            if "already exists" in err_str:
-                print(f"  EXISTS: {belief_id}")
-                skipped += 1
-            else:
-                print(f"  FAIL: {belief_id}: {e}")
-                failed += 1
+            print(f"  FAIL: {belief_id}: {e}")
+            failed += 1
 
+    print(f"Saving {added} new beliefs...")
+    store.save(net)
+    store.close()
     print(f"\nAccepted {added} beliefs ({skipped} existing, {failed} failed)")
     return added, skipped, failed
 
