@@ -2862,8 +2862,10 @@ def _phase_accept(all_proposals, db_path, model=""):
                                  db_path=db_path)
                     set_metadata(p["belief_id"], "issue_id", issue_id,
                                  db_path=db_path)
-                except Exception:
-                    pass
+                except Exception as meta_err:
+                    print(f"    Warning: metadata failed for "
+                          f"{p['belief_id']}: {meta_err}",
+                          file=sys.stderr)
                 added += 1
             except Exception as e:
                 if "already exists" in str(e):
@@ -2911,7 +2913,7 @@ def _phase_derive(args, db_path):
         return 0
 
     results = apply_proposals(valid, db_path=db_path, model=model)
-    derived = sum(1 for r in results if r.get("added"))
+    derived = sum(1 for _, r in results if isinstance(r, dict))
     return derived
 
 
