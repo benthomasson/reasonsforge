@@ -2655,6 +2655,270 @@ def _save_watchlist(data: dict) -> None:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
+def _extract_proposals(issue, model, timeout, db_path):
+    """Run LLM analysis on an issue and return parsed proposals.
+
+    Returns list of dicts: [{"belief_id": str, "text": str, "source": str}]
+    Does NOT accept beliefs or modify the database.
+    """
+    from ..llm import invoke
+
+    issue_text = issue.to_prompt_text()
+
+    safe_key = re.sub(r"[^a-zA-Z0-9_-]", "-", issue.id).lower()
+    _create_entry(
+        f"issue-{safe_key}",
+        f"Issue Analysis: {issue.id} — {issue.title}",
+        issue_text,
+        model=model,
+    )
+
+    existing_beliefs = _load_existing_beliefs(db_path)
+    existing_ids = {b["id"] for b in existing_beliefs}
+    dedup_context = ""
+    if existing_beliefs:
+        scored = _score_by_keywords(existing_beliefs, issue_text, [])
+        detailed = scored[:30]
+        if detailed:
+            parts = [
+                "\n\n## Already Accepted Beliefs\n\n"
+                "The following beliefs already exist. Do NOT propose beliefs "
+                "with these IDs or that duplicate their meaning.\n"
+                "\nRelevant existing beliefs:"
+            ]
+            for _, belief in detailed:
+                parts.append(f"- `{belief['id']}`: {belief['text']}")
+            dedup_context = "\n".join(parts) + "\n"
+
+    prompt = ANALYZE_ISSUE_PROMPT.format(
+        issue_id=issue.id,
+        issue_text=issue_text,
+    ) + dedup_context
+
+    result = asyncio.run(invoke(prompt, model, timeout=timeout))
+
+    accept_pattern = re.compile(
+        r"### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]?\s*(\S+)\n"
+        r"(.+?)\n"
+        r"- Source: (.+?)(?:\n|$)",
+        re.MULTILINE,
+    )
+    proposals = []
+    for m in accept_pattern.finditer(result):
+        belief_id = m.group(1)
+        if belief_id not in existing_ids:
+            proposals.append({
+                "belief_id": belief_id,
+                "text": m.group(2).strip(),
+                "source": m.group(3).strip(),
+            })
+
+    return proposals
+
+
+def _phase_fetch(entries, source, platform, force):
+    """Phase 1 — Fetch: pull tracked issues, filter unchanged ones.
+
+    Returns (changed, skipped, errors) where changed is a list of
+    (issue, entry) tuples for issues that need analysis.
+    """
+    changed = []
+    skipped = []
+    errors = []
+    seen_ids: set[str] = set()
+
+    total = len(entries)
+    for i, entry in enumerate(entries):
+        issue_key = entry["key"]
+        print(f"  [{i + 1}/{total}] Fetching {issue_key}...", file=sys.stderr)
+        try:
+            issue = _fetch_issue(source, platform, issue_key)
+        except Exception as e:
+            print(f"    Error: {e}", file=sys.stderr)
+            errors.append(issue_key)
+            continue
+
+        if issue.id not in seen_ids:
+            seen_ids.add(issue.id)
+            if _issue_needs_analysis(issue.id, issue.updated, force):
+                changed.append((issue, entry))
+            else:
+                print(f"    Unchanged", file=sys.stderr)
+                skipped.append(issue_key)
+
+        if entry.get("walk") and (issue.children or issue.linked):
+            queue = deque(issue.children)
+            while queue:
+                child_key = queue.popleft()
+                if child_key in seen_ids:
+                    continue
+                seen_ids.add(child_key)
+                try:
+                    child = _fetch_issue(source, platform, child_key)
+                except Exception as e:
+                    print(f"    Error fetching child {child_key}: {e}",
+                          file=sys.stderr)
+                    errors.append(child_key)
+                    continue
+                if _issue_needs_analysis(child.id, child.updated, force):
+                    changed.append((child, entry))
+                else:
+                    skipped.append(child_key)
+                for gc in child.children:
+                    if gc not in seen_ids:
+                        queue.append(gc)
+
+    return changed, skipped, errors
+
+
+def _phase_analyze(changed, model, timeout, db_path):
+    """Phase 2 — Analyze: run LLM on changed issues, return proposals.
+
+    Returns dict mapping issue_id -> list of proposal dicts.
+    Issues that fail analysis are excluded (not mapped to []) so that
+    reconciliation doesn't retract their existing beliefs.
+    """
+    all_proposals: dict[str, list[dict]] = {}
+
+    for i, (issue, _entry) in enumerate(changed):
+        print(f"  [{i + 1}/{len(changed)}] {issue.id}: {issue.title}",
+              file=sys.stderr)
+        try:
+            proposals = _extract_proposals(issue, model, timeout, db_path)
+            all_proposals[issue.id] = proposals
+            print(f"    {len(proposals)} proposal(s)", file=sys.stderr)
+            _save_analyzed_issue(issue.id, issue.updated)
+        except Exception as e:
+            print(f"    Error (skipping reconcile for this issue): {e}",
+                  file=sys.stderr)
+
+    return all_proposals
+
+
+def _phase_reconcile(all_proposals, db_path):
+    """Phase 3 — Reconcile: compare new proposals against existing beliefs
+    by issue_id metadata. Retract stale beliefs no longer present.
+
+    Returns (retracted_count, kept_count).
+    """
+    from reasonsforge.api import export_network, retract_node
+
+    try:
+        network = export_network(db_path=db_path)
+        nodes = network.get("nodes", {})
+    except Exception:
+        return 0, 0
+
+    existing_by_issue: dict[str, list[str]] = defaultdict(list)
+    for nid, node in nodes.items():
+        issue_id = node.get("metadata", {}).get("issue_id")
+        if issue_id and node.get("truth_value") == "IN":
+            existing_by_issue[issue_id].append(nid)
+
+    retracted = 0
+    kept = 0
+
+    for issue_id, proposals in all_proposals.items():
+        new_ids = {p["belief_id"] for p in proposals}
+        existing_ids = existing_by_issue.get(issue_id, [])
+
+        for nid in existing_ids:
+            if nid not in new_ids:
+                try:
+                    retract_node(
+                        nid,
+                        reason=f"No longer present in updated issue {issue_id}",
+                        db_path=db_path,
+                    )
+                    print(f"    Retracted stale: {nid}", file=sys.stderr)
+                    retracted += 1
+                except Exception as e:
+                    print(f"    Error retracting {nid}: {e}", file=sys.stderr)
+            else:
+                kept += 1
+
+    return retracted, kept
+
+
+def _phase_accept(all_proposals, db_path, model=""):
+    """Phase 4 — Accept: write new beliefs to the database.
+
+    Returns (added, existed, failed) counts.
+    """
+    from reasonsforge.api import add_node, set_metadata
+
+    added = 0
+    failed = 0
+    existed = 0
+
+    for issue_id, proposals in all_proposals.items():
+        for p in proposals:
+            try:
+                add_node(
+                    p["belief_id"], p["text"],
+                    source=p["source"], model=model, db_path=db_path,
+                )
+                now = datetime.now().isoformat(timespec="seconds")
+                try:
+                    set_metadata(p["belief_id"], "accepted_at", now,
+                                 db_path=db_path)
+                    set_metadata(p["belief_id"], "issue_id", issue_id,
+                                 db_path=db_path)
+                except Exception as meta_err:
+                    print(f"    Warning: metadata failed for "
+                          f"{p['belief_id']}: {meta_err}",
+                          file=sys.stderr)
+                added += 1
+            except Exception as e:
+                if "already exists" in str(e):
+                    existed += 1
+                else:
+                    print(f"    FAIL: {p['belief_id']}: {e}", file=sys.stderr)
+                    failed += 1
+
+    return added, existed, failed
+
+
+def _phase_derive(args, db_path):
+    """Phase 5 — Derive: run cross-issue reasoning."""
+    from reasonsforge.derive import (
+        apply_proposals, build_prompt, parse_proposals, validate_proposals,
+    )
+    from reasonsforge.api import export_network
+    from ..llm import invoke_sync
+
+    model = getattr(args, "model", "claude")
+    timeout = max(getattr(args, "timeout", 300), 600)
+
+    try:
+        network = export_network(db_path=db_path)
+        nodes = network.get("nodes", {})
+    except Exception as e:
+        print(f"    Error loading network: {e}", file=sys.stderr)
+        return 0
+
+    prompt, _stats = build_prompt(nodes, domain=None, budget=300, sample=True)
+    try:
+        response = invoke_sync(prompt, model=model, timeout=timeout)
+    except Exception as e:
+        print(f"    Error: {e}", file=sys.stderr)
+        return 0
+
+    proposals = parse_proposals(response)
+    if not proposals:
+        print("    No derivations proposed.", file=sys.stderr)
+        return 0
+
+    valid, _skipped = validate_proposals(proposals, nodes)
+    if not valid:
+        print("    No valid derivations after validation.", file=sys.stderr)
+        return 0
+
+    results = apply_proposals(valid, db_path=db_path, model=model)
+    derived = sum(1 for _, r in results if isinstance(r, dict))
+    return derived
+
+
 def cmd_track(args):
     """Process issues from the watchlist configuration."""
     from ..caffeinate import hold as _caffeinate
@@ -2722,7 +2986,7 @@ def cmd_track(args):
                 print(f"  {key}{walk} — not yet analyzed")
         return
 
-    # Default: run the watchlist
+    # Default: run the watchlist through the 5-phase pipeline
     watchlist = _load_watchlist()
     issues = watchlist.get("issues", [])
     if not issues:
@@ -2744,46 +3008,94 @@ def cmd_track(args):
     source = _get_source(config)
     platform = config["platform"]
 
-    total = len(issues)
-    analyzed = 0
-    skipped = 0
-    errors = 0
+    # Phase 1: Fetch
+    print("Phase 1/5: Fetch — pulling tracked issues...", file=sys.stderr)
+    changed, skipped, fetch_errors = _phase_fetch(
+        issues, source, platform, force,
+    )
+    print(f"  {len(changed)} changed, {len(skipped)} unchanged, "
+          f"{len(fetch_errors)} errors", file=sys.stderr)
 
-    print(f"Processing {total} tracked issue(s)...", file=sys.stderr)
+    if not changed:
+        print("\nNo issues need analysis.", file=sys.stderr)
+        return
 
-    for i, entry in enumerate(issues):
-        issue_key = entry["key"]
-        walk = entry.get("walk", False)
-        auto_accept = entry.get("auto", cli_auto)
+    # Phase 2: Analyze
+    print("\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
+          file=sys.stderr)
+    all_proposals = _phase_analyze(changed, model, timeout, db_path)
+    total_proposals = sum(len(p) for p in all_proposals.values())
+    print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)",
+          file=sys.stderr)
 
-        print(f"\n=== [{i + 1}/{total}] {issue_key} ===", file=sys.stderr)
+    if not total_proposals:
+        print("\nNo proposals extracted.", file=sys.stderr)
+        return
 
-        try:
-            issue = _fetch_issue(source, platform, issue_key)
-        except Exception as e:
-            print(f"  Error fetching {issue_key}: {e}", file=sys.stderr)
-            errors += 1
-            continue
+    # Split proposals by per-entry auto flag
+    auto_proposals: dict[str, list[dict]] = {}
+    manual_proposals: dict[str, list[dict]] = {}
+    entry_auto_map = {}
+    for issue, entry in changed:
+        entry_auto_map[issue.id] = entry.get("auto", cli_auto)
 
-        try:
-            if _issue_needs_analysis(issue.id, issue.updated, force):
-                _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
-                                   proposals_output)
-                analyzed += 1
-            else:
-                print(f"  Skipping {issue.id} (unchanged since last analysis)",
-                      file=sys.stderr)
-                skipped += 1
+    for issue_id, proposals in all_proposals.items():
+        if entry_auto_map.get(issue_id, cli_auto):
+            auto_proposals[issue_id] = proposals
+        else:
+            manual_proposals[issue_id] = proposals
 
-            if walk:
-                _walk_children(issue, source, platform, model, timeout, db_path,
-                               auto_accept, proposals_output, force)
-        except Exception as e:
-            print(f"  Error processing {issue_key}: {e}", file=sys.stderr)
-            errors += 1
+    if manual_proposals:
+        output_path = Path(proposals_output)
+        with output_path.open("w") as f:
+            f.write("# Proposed Beliefs\n\n")
+            f.write("Edit each entry: change `[ACCEPT/REJECT]` to "
+                    "`[ACCEPT]` or `[REJECT]`.\n")
+            f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
+            f.write(f"**Generated:** {date.today().isoformat()}\n")
+            f.write(f"**Model:** {model}\n\n---\n\n")
+            for issue_id, proposals in manual_proposals.items():
+                f.write(f"## {issue_id}\n\n")
+                for p in proposals:
+                    f.write(f"### [ACCEPT/REJECT] {p['belief_id']}\n")
+                    f.write(f"{p['text']}\n")
+                    f.write(f"- Source: {p['source']}\n\n")
+        n_manual = sum(len(p) for p in manual_proposals.values())
+        print(f"  Wrote {n_manual} proposal(s) to {output_path} "
+              f"(manual review)", file=sys.stderr)
 
-    print(f"\nTrack complete: {analyzed} analyzed, {skipped} unchanged, "
-          f"{errors} errors", file=sys.stderr)
+    if not auto_proposals:
+        print("\nNo auto-accept proposals. Skipping phases 3-5.",
+              file=sys.stderr)
+        return
+
+    # Phase 3: Reconcile
+    print("\nPhase 3/5: Reconcile — retracting stale beliefs...",
+          file=sys.stderr)
+    retracted, kept = _phase_reconcile(auto_proposals, db_path)
+    print(f"  {retracted} retracted, {kept} kept", file=sys.stderr)
+
+    # Phase 4: Accept
+    print("\nPhase 4/5: Accept — writing new beliefs to database...",
+          file=sys.stderr)
+    added, existed, failed = _phase_accept(auto_proposals, db_path, model=model)
+    print(f"  {added} added, {existed} existing, {failed} failed",
+          file=sys.stderr)
+
+    # Phase 5: Derive
+    no_derive = getattr(args, "no_derive", False)
+    if no_derive:
+        print("\nPhase 5/5: Derive — skipped (--no-derive)", file=sys.stderr)
+        derived = 0
+    else:
+        print("\nPhase 5/5: Derive — cross-issue reasoning...",
+              file=sys.stderr)
+        derived = _phase_derive(args, db_path)
+        print(f"  {derived} derivation(s) added", file=sys.stderr)
+
+    print(f"\nTrack complete: {len(changed)} analyzed, {len(skipped)} unchanged, "
+          f"{len(fetch_errors)} fetch errors, {retracted} retracted, "
+          f"{added} accepted, {derived} derived", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

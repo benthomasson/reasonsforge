@@ -623,6 +623,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--no-auto", action="store_false", dest="auto",
                     help="Write proposals to file instead of auto-accepting")
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
+    ps.add_argument("--no-derive", action="store_true",
+                    help="Skip the derive phase (faster)")
 
     track_sub = ps.add_subparsers(dest="track_command")
 
