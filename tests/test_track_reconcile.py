@@ -81,3 +81,25 @@ def test_reconcile_empty_db(db):
 
     assert retracted == 0
     assert kept == 0
+
+
+def test_reconcile_skips_issues_not_in_proposals(db):
+    """If an issue failed analysis and is absent from proposals,
+    its existing beliefs should NOT be retracted."""
+    _add_belief(db, "safe-belief", "Should survive", "PROJ-FAILED")
+    _add_belief(db, "other-belief", "Also safe", "PROJ-OK")
+
+    proposals = {
+        "PROJ-OK": [
+            {"belief_id": "replacement", "text": "New belief", "source": "PROJ-OK"},
+        ],
+    }
+
+    retracted, kept = _phase_reconcile(proposals, db)
+
+    assert retracted == 1  # other-belief replaced by replacement
+    assert kept == 0
+
+    network = export_network(db_path=db)
+    assert network["nodes"]["safe-belief"]["truth_value"] == "IN"
+    assert network["nodes"]["other-belief"]["truth_value"] == "OUT"

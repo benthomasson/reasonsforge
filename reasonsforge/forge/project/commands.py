@@ -2773,6 +2773,8 @@ def _phase_analyze(changed, model, timeout, db_path):
     """Phase 2 — Analyze: run LLM on changed issues, return proposals.
 
     Returns dict mapping issue_id -> list of proposal dicts.
+    Issues that fail analysis are excluded (not mapped to []) so that
+    reconciliation doesn't retract their existing beliefs.
     """
     all_proposals: dict[str, list[dict]] = {}
 
@@ -2785,8 +2787,8 @@ def _phase_analyze(changed, model, timeout, db_path):
             print(f"    {len(proposals)} proposal(s)", file=sys.stderr)
             _save_analyzed_issue(issue.id, issue.updated)
         except Exception as e:
-            print(f"    Error: {e}", file=sys.stderr)
-            all_proposals[issue.id] = []
+            print(f"    Error (skipping reconcile for this issue): {e}",
+                  file=sys.stderr)
 
     return all_proposals
 
@@ -2993,6 +2995,7 @@ def cmd_track(args):
     db_path = getattr(args, "output", REASONS_DB)
     force = getattr(args, "force", False)
     cli_auto = getattr(args, "auto", True)
+    proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -3025,31 +3028,48 @@ def cmd_track(args):
         print("\nNo proposals extracted.", file=sys.stderr)
         return
 
-    if not cli_auto:
-        proposals_output = getattr(args, "proposals_output",
-                                   "proposed-beliefs.md")
+    # Split proposals by per-entry auto flag
+    auto_proposals: dict[str, list[dict]] = {}
+    manual_proposals: dict[str, list[dict]] = {}
+    entry_auto_map = {}
+    for issue, entry in changed:
+        entry_auto_map[issue.id] = entry.get("auto", cli_auto)
+
+    for issue_id, proposals in all_proposals.items():
+        if entry_auto_map.get(issue_id, cli_auto):
+            auto_proposals[issue_id] = proposals
+        else:
+            manual_proposals[issue_id] = proposals
+
+    if manual_proposals:
         output_path = Path(proposals_output)
         with output_path.open("w") as f:
             f.write("# Proposed Beliefs\n\n")
-            for issue_id, proposals in all_proposals.items():
+            for issue_id, proposals in manual_proposals.items():
                 f.write(f"## {issue_id}\n\n")
                 for p in proposals:
                     f.write(f"### [ACCEPT/REJECT] {p['belief_id']}\n")
                     f.write(f"{p['text']}\n")
                     f.write(f"- Source: {p['source']}\n\n")
-        print(f"\nWrote proposals to {output_path}", file=sys.stderr)
+        n_manual = sum(len(p) for p in manual_proposals.values())
+        print(f"  Wrote {n_manual} proposal(s) to {output_path} "
+              f"(manual review)", file=sys.stderr)
+
+    if not auto_proposals:
+        print("\nNo auto-accept proposals. Skipping phases 3-5.",
+              file=sys.stderr)
         return
 
     # Phase 3: Reconcile
     print("\nPhase 3/5: Reconcile — retracting stale beliefs...",
           file=sys.stderr)
-    retracted, kept = _phase_reconcile(all_proposals, db_path)
+    retracted, kept = _phase_reconcile(auto_proposals, db_path)
     print(f"  {retracted} retracted, {kept} kept", file=sys.stderr)
 
     # Phase 4: Accept
     print("\nPhase 4/5: Accept — writing new beliefs to database...",
           file=sys.stderr)
-    added = _phase_accept(all_proposals, db_path, model=model)
+    added = _phase_accept(auto_proposals, db_path, model=model)
     print(f"  {added} belief(s) added", file=sys.stderr)
 
     # Phase 5: Derive
