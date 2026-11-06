@@ -2843,7 +2843,7 @@ def _phase_reconcile(all_proposals, db_path):
 def _phase_accept(all_proposals, db_path, model=""):
     """Phase 4 — Accept: write new beliefs to the database.
 
-    Returns count of beliefs added.
+    Returns (added, existed, failed) counts.
     """
     from reasonsforge.api import add_node, set_metadata
 
@@ -2876,7 +2876,7 @@ def _phase_accept(all_proposals, db_path, model=""):
                     print(f"    FAIL: {p['belief_id']}: {e}", file=sys.stderr)
                     failed += 1
 
-    return added
+    return added, existed, failed
 
 
 def _phase_derive(args, db_path):
@@ -3078,8 +3078,9 @@ def cmd_track(args):
     # Phase 4: Accept
     print("\nPhase 4/5: Accept — writing new beliefs to database...",
           file=sys.stderr)
-    added = _phase_accept(auto_proposals, db_path, model=model)
-    print(f"  {added} belief(s) added", file=sys.stderr)
+    added, existed, failed = _phase_accept(auto_proposals, db_path, model=model)
+    print(f"  {added} added, {existed} existing, {failed} failed",
+          file=sys.stderr)
 
     # Phase 5: Derive
     no_derive = getattr(args, "no_derive", False)
