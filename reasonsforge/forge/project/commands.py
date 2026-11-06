@@ -2725,6 +2725,7 @@ def _phase_fetch(entries, source, platform, force):
     changed = []
     skipped = []
     errors = []
+    seen_ids: set[str] = set()
 
     total = len(entries)
     for i, entry in enumerate(entries):
@@ -2737,20 +2738,21 @@ def _phase_fetch(entries, source, platform, force):
             errors.append(issue_key)
             continue
 
-        if _issue_needs_analysis(issue.id, issue.updated, force):
-            changed.append((issue, entry))
-        else:
-            print(f"    Unchanged", file=sys.stderr)
-            skipped.append(issue_key)
+        if issue.id not in seen_ids:
+            seen_ids.add(issue.id)
+            if _issue_needs_analysis(issue.id, issue.updated, force):
+                changed.append((issue, entry))
+            else:
+                print(f"    Unchanged", file=sys.stderr)
+                skipped.append(issue_key)
 
         if entry.get("walk") and (issue.children or issue.linked):
-            seen = {issue.id}
             queue = deque(issue.children)
             while queue:
                 child_key = queue.popleft()
-                if child_key in seen:
+                if child_key in seen_ids:
                     continue
-                seen.add(child_key)
+                seen_ids.add(child_key)
                 try:
                     child = _fetch_issue(source, platform, child_key)
                 except Exception as e:
@@ -2763,7 +2765,7 @@ def _phase_fetch(entries, source, platform, force):
                 else:
                     skipped.append(child_key)
                 for gc in child.children:
-                    if gc not in seen:
+                    if gc not in seen_ids:
                         queue.append(gc)
 
     return changed, skipped, errors
@@ -3047,6 +3049,11 @@ def cmd_track(args):
         output_path = Path(proposals_output)
         with output_path.open("w") as f:
             f.write("# Proposed Beliefs\n\n")
+            f.write("Edit each entry: change `[ACCEPT/REJECT]` to "
+                    "`[ACCEPT]` or `[REJECT]`.\n")
+            f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
+            f.write(f"**Generated:** {date.today().isoformat()}\n")
+            f.write(f"**Model:** {model}\n\n---\n\n")
             for issue_id, proposals in manual_proposals.items():
                 f.write(f"## {issue_id}\n\n")
                 for p in proposals:
