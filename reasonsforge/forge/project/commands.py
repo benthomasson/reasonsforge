@@ -2765,18 +2765,22 @@ def cmd_track(args):
             errors += 1
             continue
 
-        if _issue_needs_analysis(issue.id, issue.updated, force):
-            _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
-                               proposals_output)
-            analyzed += 1
-        else:
-            print(f"  Skipping {issue.id} (unchanged since last analysis)",
-                  file=sys.stderr)
-            skipped += 1
+        try:
+            if _issue_needs_analysis(issue.id, issue.updated, force):
+                _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
+                                   proposals_output)
+                analyzed += 1
+            else:
+                print(f"  Skipping {issue.id} (unchanged since last analysis)",
+                      file=sys.stderr)
+                skipped += 1
 
-        if walk:
-            _walk_children(issue, source, platform, model, timeout, db_path,
-                           auto_accept, proposals_output, force)
+            if walk:
+                _walk_children(issue, source, platform, model, timeout, db_path,
+                               auto_accept, proposals_output, force)
+        except Exception as e:
+            print(f"  Error processing {issue_key}: {e}", file=sys.stderr)
+            errors += 1
 
     print(f"\nTrack complete: {analyzed} analyzed, {skipped} unchanged, "
           f"{errors} errors", file=sys.stderr)
