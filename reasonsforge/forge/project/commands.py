@@ -2624,35 +2624,24 @@ def cmd_analyze_issue(args):
 # ---------------------------------------------------------------------------
 
 def _watchlist_path() -> Path:
-    return Path.cwd() / PROJECT_DIR / "watchlist.yaml"
+    return Path.cwd() / PROJECT_DIR / "watchlist.json"
 
 
 def _load_watchlist() -> dict:
     path = _watchlist_path()
     if path.exists():
-        try:
-            import yaml
-        except ImportError:
-            print("pyyaml is required: pip install reasonsforge[forge]",
-                  file=sys.stderr)
-            sys.exit(1)
         with path.open() as f:
-            data = yaml.safe_load(f) or {}
-        return data
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
     return {}
 
 
 def _save_watchlist(data: dict) -> None:
-    try:
-        import yaml
-    except ImportError:
-        print("pyyaml is required: pip install reasonsforge[forge]",
-              file=sys.stderr)
-        sys.exit(1)
     path = _watchlist_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+        json.dump(data, f, indent=2)
+        f.write("\n")
 
 
 def _extract_proposals(issue, model, timeout, db_path):
