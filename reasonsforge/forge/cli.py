@@ -618,6 +618,10 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
     ps.add_argument("--force", action="store_true",
                     help="Re-analyze even if unchanged")
+    ps.add_argument("--auto", action="store_true", default=True, dest="auto",
+                    help="Auto-accept proposed beliefs (default)")
+    ps.add_argument("--no-auto", action="store_false", dest="auto",
+                    help="Write proposals to file instead of auto-accepting")
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
 
     track_sub = ps.add_subparsers(dest="track_command")

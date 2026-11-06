@@ -2623,22 +2623,35 @@ def cmd_analyze_issue(args):
 # track — recurring issue watchlist
 # ---------------------------------------------------------------------------
 
-WATCHLIST_PATH = Path(".forge/project/watchlist.yaml")
+def _watchlist_path() -> Path:
+    return Path.cwd() / PROJECT_DIR / "watchlist.yaml"
 
 
 def _load_watchlist() -> dict:
-    if WATCHLIST_PATH.exists():
-        import yaml
-        with WATCHLIST_PATH.open() as f:
+    path = _watchlist_path()
+    if path.exists():
+        try:
+            import yaml
+        except ImportError:
+            print("pyyaml is required: pip install reasonsforge[forge]",
+                  file=sys.stderr)
+            sys.exit(1)
+        with path.open() as f:
             data = yaml.safe_load(f) or {}
         return data
     return {}
 
 
 def _save_watchlist(data: dict) -> None:
-    import yaml
-    WATCHLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with WATCHLIST_PATH.open("w") as f:
+    try:
+        import yaml
+    except ImportError:
+        print("pyyaml is required: pip install reasonsforge[forge]",
+              file=sys.stderr)
+        sys.exit(1)
+    path = _watchlist_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False)
 
 
@@ -2721,6 +2734,7 @@ def cmd_track(args):
     timeout = getattr(args, "timeout", 300)
     db_path = getattr(args, "output", REASONS_DB)
     force = getattr(args, "force", False)
+    cli_auto = getattr(args, "auto", True)
     proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
     if not check_model_available(model):
@@ -2740,7 +2754,7 @@ def cmd_track(args):
     for i, entry in enumerate(issues):
         issue_key = entry["key"]
         walk = entry.get("walk", False)
-        auto_accept = entry.get("auto", True)
+        auto_accept = entry.get("auto", cli_auto)
 
         print(f"\n=== [{i + 1}/{total}] {issue_key} ===", file=sys.stderr)
 
