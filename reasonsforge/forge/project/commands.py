@@ -407,6 +407,7 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
             now = datetime.now().isoformat(timespec="seconds")
             try:
                 set_metadata(belief_id, "accepted_at", now, db_path=db_path)
+                set_metadata(belief_id, "issue_id", source.strip(), db_path=db_path)
             except Exception:
                 pass
         except Exception as e:
@@ -2616,6 +2617,173 @@ def cmd_analyze_issue(args):
         if walk:
             _walk_children(issue, source, platform, model, timeout, db_path,
                            auto_accept, proposals_output, force)
+
+
+# ---------------------------------------------------------------------------
+# track — recurring issue watchlist
+# ---------------------------------------------------------------------------
+
+def _watchlist_path() -> Path:
+    return Path.cwd() / PROJECT_DIR / "watchlist.yaml"
+
+
+def _load_watchlist() -> dict:
+    path = _watchlist_path()
+    if path.exists():
+        try:
+            import yaml
+        except ImportError:
+            print("pyyaml is required: pip install reasonsforge[forge]",
+                  file=sys.stderr)
+            sys.exit(1)
+        with path.open() as f:
+            data = yaml.safe_load(f) or {}
+        return data
+    return {}
+
+
+def _save_watchlist(data: dict) -> None:
+    try:
+        import yaml
+    except ImportError:
+        print("pyyaml is required: pip install reasonsforge[forge]",
+              file=sys.stderr)
+        sys.exit(1)
+    path = _watchlist_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w") as f:
+        yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+
+def cmd_track(args):
+    """Process issues from the watchlist configuration."""
+    from ..caffeinate import hold as _caffeinate
+    from ..llm import check_model_available
+    _caffeinate()
+
+    config = _load_config()
+    if not config:
+        print("Not initialized. Run: reasonsforge project init --github <owner/repo>",
+              file=sys.stderr)
+        sys.exit(1)
+
+    sub = getattr(args, "track_command", None)
+
+    if sub == "add":
+        watchlist = _load_watchlist()
+        issues = watchlist.setdefault("issues", [])
+        existing_keys = {entry["key"] for entry in issues}
+        added = 0
+        for key in args.issue_key:
+            if key in existing_keys:
+                print(f"  Already tracked: {key}", file=sys.stderr)
+                continue
+            entry = {"key": key}
+            if getattr(args, "walk", False):
+                entry["walk"] = True
+            issues.append(entry)
+            added += 1
+            print(f"  Added: {key}", file=sys.stderr)
+        if added:
+            _save_watchlist(watchlist)
+            print(f"Added {added} issue(s) to watchlist", file=sys.stderr)
+        return
+
+    if sub == "remove":
+        watchlist = _load_watchlist()
+        issues = watchlist.get("issues", [])
+        keys_to_remove = set(args.issue_key)
+        before = len(issues)
+        issues = [e for e in issues if e["key"] not in keys_to_remove]
+        watchlist["issues"] = issues
+        removed = before - len(issues)
+        if removed:
+            _save_watchlist(watchlist)
+            print(f"Removed {removed} issue(s) from watchlist", file=sys.stderr)
+        else:
+            print("No matching issues found in watchlist", file=sys.stderr)
+        return
+
+    if sub == "list":
+        watchlist = _load_watchlist()
+        issues = watchlist.get("issues", [])
+        if not issues:
+            print("Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123")
+            return
+        analyzed = _load_analyzed_issues()
+        for entry in issues:
+            key = entry["key"]
+            walk = " (walk)" if entry.get("walk") else ""
+            prev = analyzed.get(key)
+            if prev:
+                last = prev.get("analyzed_at", "unknown")
+                print(f"  {key}{walk} — last analyzed: {last}")
+            else:
+                print(f"  {key}{walk} — not yet analyzed")
+        return
+
+    # Default: run the watchlist
+    watchlist = _load_watchlist()
+    issues = watchlist.get("issues", [])
+    if not issues:
+        print("Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123",
+              file=sys.stderr)
+        sys.exit(1)
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 300)
+    db_path = getattr(args, "output", REASONS_DB)
+    force = getattr(args, "force", False)
+    cli_auto = getattr(args, "auto", True)
+    proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    source = _get_source(config)
+    platform = config["platform"]
+
+    total = len(issues)
+    analyzed = 0
+    skipped = 0
+    errors = 0
+
+    print(f"Processing {total} tracked issue(s)...", file=sys.stderr)
+
+    for i, entry in enumerate(issues):
+        issue_key = entry["key"]
+        walk = entry.get("walk", False)
+        auto_accept = entry.get("auto", cli_auto)
+
+        print(f"\n=== [{i + 1}/{total}] {issue_key} ===", file=sys.stderr)
+
+        try:
+            issue = _fetch_issue(source, platform, issue_key)
+        except Exception as e:
+            print(f"  Error fetching {issue_key}: {e}", file=sys.stderr)
+            errors += 1
+            continue
+
+        try:
+            if _issue_needs_analysis(issue.id, issue.updated, force):
+                _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
+                                   proposals_output)
+                analyzed += 1
+            else:
+                print(f"  Skipping {issue.id} (unchanged since last analysis)",
+                      file=sys.stderr)
+                skipped += 1
+
+            if walk:
+                _walk_children(issue, source, platform, model, timeout, db_path,
+                               auto_accept, proposals_output, force)
+        except Exception as e:
+            print(f"  Error processing {issue_key}: {e}", file=sys.stderr)
+            errors += 1
+
+    print(f"\nTrack complete: {analyzed} analyzed, {skipped} unchanged, "
+          f"{errors} errors", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

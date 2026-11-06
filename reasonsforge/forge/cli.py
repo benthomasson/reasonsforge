@@ -610,6 +610,34 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
 
+    # project track — recurring issue watchlist
+    ps = project_sub.add_parser("track",
+                                help="Process issues from a watchlist")
+    ps.add_argument("--model", default="claude")
+    ps.add_argument("--timeout", type=int, default=300)
+    ps.add_argument("--output", default="reasons.db")
+    ps.add_argument("--force", action="store_true",
+                    help="Re-analyze even if unchanged")
+    ps.add_argument("--auto", action="store_true", default=True, dest="auto",
+                    help="Auto-accept proposed beliefs (default)")
+    ps.add_argument("--no-auto", action="store_false", dest="auto",
+                    help="Write proposals to file instead of auto-accepting")
+    ps.add_argument("--proposals-output", default="proposed-beliefs.md")
+
+    track_sub = ps.add_subparsers(dest="track_command")
+
+    ts = track_sub.add_parser("add", help="Add issues to the watchlist")
+    ts.add_argument("issue_key", nargs="+", metavar="ISSUE",
+                    help="Issue key(s) to track")
+    ts.add_argument("--walk", action="store_true",
+                    help="Also track child/subtask issues")
+
+    ts = track_sub.add_parser("remove", help="Remove issues from the watchlist")
+    ts.add_argument("issue_key", nargs="+", metavar="ISSUE",
+                    help="Issue key(s) to remove")
+
+    ts = track_sub.add_parser("list", help="Show tracked issues")
+
     # meta — cross-domain reasoning
     p = parent_subparsers.add_parser(
         "meta",
@@ -1038,6 +1066,7 @@ def _cmd_project(args):
         cmd_status as _proj_status,
         cmd_summary as _proj_summary,
         cmd_topics as _proj_topics,
+        cmd_track as _proj_track,
         cmd_update as _proj_update,
     )
     from .project.pipeline import cmd_analyze
@@ -1060,6 +1089,7 @@ def _cmd_project(args):
         "sprint-plan": _proj_sprint,
         "topics": _proj_topics,
         "status": _proj_status,
+        "track": _proj_track,
         "update": _proj_update,
     }
 
