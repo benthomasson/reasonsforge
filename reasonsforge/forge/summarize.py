@@ -135,8 +135,13 @@ def cmd_summarize(args):
     if args.limit:
         sources = sources[:args.limit]
 
-    manifest = Path(".summarized")
+    manifest = Path(".forge/code/summarized")
+    manifest.parent.mkdir(parents=True, exist_ok=True)
     done = set()
+    # migrate legacy manifest
+    legacy = Path(".summarized")
+    if legacy.exists() and not manifest.exists():
+        legacy.rename(manifest)
     if manifest.exists():
         done = set(manifest.read_text().strip().split("\n"))
 
