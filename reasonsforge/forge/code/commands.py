@@ -87,7 +87,7 @@ def _get_repo(args) -> str:
 
 
 def _get_project_dir(args) -> str:
-    return os.path.join(_get_repo(args), PROJECT_DIR)
+    return os.path.join(os.getcwd(), PROJECT_DIR)
 
 
 def _get_lang(args, repo_path=None):
