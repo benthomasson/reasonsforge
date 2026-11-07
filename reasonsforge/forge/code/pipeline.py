@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from . import PROJECT_DIR
+from ..report import Report
 from .commands import (
     REASONS_DB,
     _get_project_dir,
@@ -68,10 +69,13 @@ def _write_step_cost_report(args, pipeline: str, step_key: str,
         pass
 
 
-def _run_step(name, func, args, errors):
+def _run_step(name, func, args, errors, report=None, step_key=None):
     """Run a pipeline step, catching failures without stopping. Returns elapsed seconds."""
     print(f"\n=== {name} ===\n", file=sys.stderr)
+    if report and step_key:
+        report.start_step(step_key)
     t0 = time.monotonic()
+    failed = False
     try:
         func(args)
     except KeyboardInterrupt:
@@ -80,11 +84,19 @@ def _run_step(name, func, args, errors):
         if e.code and e.code != 0:
             errors.append(f"{name} exited with code {e.code}")
             print(f"WARN: {name} failed (exit {e.code}), continuing...", file=sys.stderr)
+            failed = True
     except Exception as e:
         errors.append(f"{name}: {e}")
         print(f"WARN: {name} failed: {e}, continuing...", file=sys.stderr)
+        failed = True
     elapsed = time.monotonic() - t0
-    print(f"  {name} took {_fmt_duration(elapsed)}", file=sys.stderr)
+    detail = f"{_fmt_duration(elapsed)}"
+    if report and step_key:
+        if failed:
+            report.fail_step(errors[-1])
+        else:
+            report.complete_step(detail)
+    print(f"  {name} took {detail}", file=sys.stderr)
     return elapsed
 
 
@@ -132,13 +144,14 @@ def _review_file_path(project_dir):
     return os.path.join(project_dir, "last-review-beliefs.json")
 
 
-def _run_review_beliefs(db_path, model, project_dir, errors):
+def _run_review_beliefs(db_path, model, project_dir, errors, report=None):
     """Review derived beliefs for validity; persist results for repair."""
     from reasonsforge.api import review_beliefs
 
     print("\n=== Review beliefs ===\n", file=sys.stderr)
+    if report:
+        report.start_step("review-beliefs")
     review_path = _review_file_path(project_dir)
-    # Remove stale report so repair won't act on outdated data if this step fails
     if os.path.isfile(review_path):
         os.remove(review_path)
     try:
@@ -148,19 +161,26 @@ def _run_review_beliefs(db_path, model, project_dir, errors):
         )
         reviewed = result.get("reviewed", 0)
         invalid = result.get("invalid", 0)
+        detail = f"reviewed {reviewed}, {invalid} invalid"
         print(f"  Reviewed {reviewed} derived beliefs, {invalid} invalid",
               file=sys.stderr)
         os.makedirs(project_dir, exist_ok=True)
         with open(review_path, "w") as f:
             json.dump(result, f, indent=2)
+        if report:
+            report.complete_step(detail)
     except KeyboardInterrupt:
         print(f"\n  Ending review early", file=sys.stderr)
+        if report:
+            report.complete_step("ended early")
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
         print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
+        if report:
+            report.fail_step(str(e))
 
 
-def _run_repair(db_path, model, project_dir, errors):
+def _run_repair(db_path, model, project_dir, errors, report=None):
     """Repair invalid beliefs using the persisted review-beliefs report."""
     from reasonsforge.api import repair
 
@@ -168,6 +188,9 @@ def _run_repair(db_path, model, project_dir, errors):
     if not os.path.isfile(review_path):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  No review-beliefs report found, skipping", file=sys.stderr)
+        if report:
+            report.start_step("repair")
+            report.complete_step("skipped — no review report")
         return
 
     try:
@@ -182,13 +205,21 @@ def _run_repair(db_path, model, project_dir, errors):
     except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  Could not read review-beliefs report, skipping", file=sys.stderr)
+        if report:
+            report.start_step("repair")
+            report.complete_step("skipped — corrupt review report")
         return
 
     if not invalid_ids:
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  No invalid beliefs to repair", file=sys.stderr)
+        if report:
+            report.start_step("repair")
+            report.complete_step("nothing to repair")
         return
 
+    if report:
+        report.start_step("repair")
     print(f"\n=== Repair beliefs ({len(invalid_ids)} invalid) ===\n", file=sys.stderr)
     try:
         result = repair(
@@ -196,20 +227,31 @@ def _run_repair(db_path, model, project_dir, errors):
             model=model,
             db_path=db_path,
         )
+        detail = (f"linked {result.get('linked', 0)}, "
+                  f"softened {result.get('softened', 0)}, "
+                  f"abandoned {result.get('abandoned', 0)}")
         print(f"  Linked: {result.get('linked', 0)}, "
               f"Softened: {result.get('softened', 0)}, "
               f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
+        if report:
+            report.complete_step(detail)
     except KeyboardInterrupt:
         print(f"\n  Ending repair early", file=sys.stderr)
+        if report:
+            report.complete_step("ended early")
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
+        if report:
+            report.fail_step(str(e))
 
 
-def _run_deduplicate(db_path, errors, verify=True, model="claude"):
+def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None):
     """Run deduplication on the belief network with optional LLM verification."""
     from reasonsforge.api import deduplicate, verify_dedup_clusters, apply_dedup_plan, add_nogood
 
+    if report:
+        report.start_step("deduplicate")
     print(f"\n=== Deduplicate{' (with LLM verify)' if verify else ''} ===\n",
           file=sys.stderr)
     try:
@@ -218,6 +260,8 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude"):
 
         if not clusters:
             print("  No duplicates found", file=sys.stderr)
+            if report:
+                report.complete_step("no duplicates found")
             return
 
         if not verify:
@@ -225,6 +269,8 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude"):
             if retracted:
                 print(f"  {len(clusters)} cluster(s), retracted {len(retracted)} duplicate(s)",
                       file=sys.stderr)
+            if report:
+                report.complete_step(f"{len(clusters)} cluster(s), {len(retracted)} retracted")
             return
 
         print(f"  {len(clusters)} candidate cluster(s), verifying...",
@@ -254,18 +300,34 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude"):
                 except Exception:
                     pass
 
+        if report:
+            parts = []
+            if vresult.get("verified"):
+                parts.append(f"{len(vresult['verified'])} verified")
+            if vresult.get("rejected"):
+                parts.append(f"{len(vresult['rejected'])} rejected")
+            if vresult.get("contradictions"):
+                parts.append(f"{len(vresult['contradictions'])} contradictions")
+            report.complete_step(", ".join(parts) if parts else "no action needed")
+
     except KeyboardInterrupt:
         print(f"\n  Ending deduplicate early — partial results saved",
               file=sys.stderr)
+        if report:
+            report.complete_step("ended early")
     except Exception as e:
         errors.append(f"deduplicate: {e}")
         print(f"WARN: deduplicate failed: {e}, continuing...", file=sys.stderr)
+        if report:
+            report.fail_step(str(e))
 
 
-def _run_contradictions(db_path, model, errors):
+def _run_contradictions(db_path, model, errors, report=None):
     """Detect and auto-apply contradictions."""
     from reasonsforge.api import detect_contradictions
 
+    if report:
+        report.start_step("contradictions")
     print("\n=== Detect contradictions ===\n", file=sys.stderr)
     try:
         result = detect_contradictions(
@@ -277,15 +339,23 @@ def _run_contradictions(db_path, model, errors):
         applied = result.get("applied", 0)
         checked = result.get("checked", 0)
         if found:
+            detail = f"checked {checked}, found {found}, applied {applied}"
             print(f"  Checked {checked} beliefs, found {found} contradiction(s), "
                   f"applied {applied} nogood(s)", file=sys.stderr)
         else:
+            detail = f"checked {checked}, none found"
             print(f"  Checked {checked} beliefs, no contradictions found", file=sys.stderr)
+        if report:
+            report.complete_step(detail)
     except KeyboardInterrupt:
         print(f"\n  Ending contradiction detection early", file=sys.stderr)
+        if report:
+            report.complete_step("ended early")
     except Exception as e:
         errors.append(f"contradictions: {e}")
         print(f"WARN: contradictions failed: {e}, continuing...", file=sys.stderr)
+        if report:
+            report.fail_step(str(e))
 
 
 def cmd_update(args):
@@ -326,29 +396,43 @@ def cmd_update(args):
 
     model = getattr(args, "model", None) or "claude"
 
+    report = Report("code-update", [
+        "walk-commits", "propose-beliefs", "review-proposals",
+        "accept-beliefs", "derive", "review-beliefs", "repair",
+        "deduplicate", "contradictions",
+    ])
+
     steps = [
         ("walk-commits", "Step 1: Walk commits",
-         lambda: _run_step("Step 1: Walk commits", cmd_walk_commits, args, errors)),
+         lambda: _run_step("Step 1: Walk commits", cmd_walk_commits, args, errors,
+                           report=report, step_key="walk-commits")),
         ("propose-beliefs", "Step 2: Propose beliefs",
          lambda: _run_step("Step 2: Propose beliefs", cmd_propose_beliefs,
-                           SimpleNamespace(**vars(args), since=effective_since, auto=False), errors)),
+                           SimpleNamespace(**vars(args), since=effective_since, auto=False), errors,
+                           report=report, step_key="propose-beliefs")),
         ("review-proposals", "Step 3: Review proposals",
-         lambda: _run_step("Step 3: Review proposals", cmd_review_proposals, args, errors)),
+         lambda: _run_step("Step 3: Review proposals", cmd_review_proposals, args, errors,
+                           report=report, step_key="review-proposals")),
         ("accept-beliefs", "Step 4: Accept beliefs",
-         lambda: _run_step("Step 4: Accept beliefs", cmd_accept_beliefs, args, errors)),
+         lambda: _run_step("Step 4: Accept beliefs", cmd_accept_beliefs, args, errors,
+                           report=report, step_key="accept-beliefs")),
         ("derive", "Step 5: Derive (exhaust)",
          lambda: _run_step("Step 5: Derive (exhaust)", cmd_derive,
-                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors,
+                           report=report, step_key="derive")),
         ("review-beliefs", "Step 6: Review beliefs",
-         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors,
+                                     report=report)),
         ("repair", "Step 7: Repair beliefs",
-         lambda: _run_repair(db_path, model, project_dir, errors)),
+         lambda: _run_repair(db_path, model, project_dir, errors,
+                             report=report)),
         ("deduplicate", "Step 8: Deduplicate",
          lambda: _run_deduplicate(db_path, errors,
                                   verify=getattr(args, "verify_dedup", True),
-                                  model=model)),
+                                  model=model, report=report)),
         ("contradictions", "Step 9: Detect contradictions",
-         lambda: _run_contradictions(db_path, model, errors)),
+         lambda: _run_contradictions(db_path, model, errors,
+                                     report=report)),
     ]
 
     logs_dir = getattr(args, "logs_dir", "logs/")
@@ -388,6 +472,7 @@ def cmd_update(args):
     print(f"Update checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
     _clear_step_checkpoint(project_dir, "update")
+    report.complete()
 
     print("\n=== Update complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
@@ -424,13 +509,22 @@ def cmd_analyze(args):
     if resume and completed:
         print(f"Resuming analysis — skipping completed steps: {', '.join(sorted(completed))}", file=sys.stderr)
 
-    def _run_explore(label: str):
+    report = Report("code-analyze", [
+        "init", "scan", "explore", "propose-beliefs", "review-proposals",
+        "accept-beliefs", "derive", "review-beliefs", "repair",
+        "deduplicate", "contradictions",
+    ])
+
+    def _run_explore(label: str, step_key: str = "explore"):
         eff_limit = explore_limit
         if eff_limit <= 0:
             eff_limit = pending_count(project_dir) or 500
         explore_args = SimpleNamespace(**vars(args))
         explore_args.loop = eff_limit
+        report.start_step(step_key)
         print(f"\n=== {label}: Explore (up to {eff_limit} topics) ===\n", file=sys.stderr)
+        t0 = time.monotonic()
+        failed = False
         try:
             cmd_explore(explore_args)
         except KeyboardInterrupt:
@@ -440,9 +534,15 @@ def cmd_analyze(args):
             if e.code and e.code != 0:
                 errors.append(f"explore exited with code {e.code}")
                 print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
+                failed = True
         except Exception as e:
             errors.append(f"explore: {e}")
             print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
+            failed = True
+        if failed:
+            report.fail_step(errors[-1])
+        else:
+            report.complete_step(f"{_fmt_duration(time.monotonic() - t0)}")
 
     model = getattr(args, "model", None) or "claude"
 
@@ -456,31 +556,40 @@ def cmd_analyze(args):
     # Round 1: init + scan + explore + propose + review + accept + derive + review-beliefs + repair + dedup + contradictions
     round1_steps = [
         ("init", "Step 1: Init",
-         lambda: _run_step("Step 1: Init", cmd_init, args, errors)),
+         lambda: _run_step("Step 1: Init", cmd_init, args, errors,
+                           report=report, step_key="init")),
         ("scan", "Step 2: Scan",
-         lambda: _run_step("Step 2: Scan", cmd_scan, args, errors)),
+         lambda: _run_step("Step 2: Scan", cmd_scan, args, errors,
+                           report=report, step_key="scan")),
         ("r1-explore", "Step 3: Explore",
-         lambda: _run_explore("Step 3")),
+         lambda: _run_explore("Step 3", step_key="explore")),
         ("r1-propose", "Step 4: Propose beliefs",
          lambda: _run_step("Step 4: Propose beliefs", cmd_propose_beliefs,
-                           SimpleNamespace(**vars(args), auto=False), errors)),
+                           SimpleNamespace(**vars(args), auto=False), errors,
+                           report=report, step_key="propose-beliefs")),
         ("r1-review", "Step 5: Review proposals",
-         lambda: _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors)),
+         lambda: _run_step("Step 5: Review proposals", cmd_review_proposals, args, errors,
+                           report=report, step_key="review-proposals")),
         ("r1-accept", "Step 6: Accept beliefs",
-         lambda: _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)),
+         lambda: _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors,
+                           report=report, step_key="accept-beliefs")),
         ("r1-derive", "Step 7: Derive (exhaust)",
          lambda: _run_step("Step 7: Derive (exhaust)", cmd_derive,
-                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors)),
+                           SimpleNamespace(**vars(args), exhaust=True, auto=True), errors,
+                           report=report, step_key="derive")),
         ("r1-review-beliefs", "Step 8: Review beliefs",
-         lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+         lambda: _run_review_beliefs(db_path, model, project_dir, errors,
+                                     report=report)),
         ("r1-repair", "Step 9: Repair beliefs",
-         lambda: _run_repair(db_path, model, project_dir, errors)),
+         lambda: _run_repair(db_path, model, project_dir, errors,
+                             report=report)),
         ("r1-deduplicate", "Step 10: Deduplicate",
          lambda: _run_deduplicate(db_path, errors,
                                   verify=getattr(args, "verify_dedup", True),
-                                  model=model)),
+                                  model=model, report=report)),
         ("r1-contradictions", "Step 11: Detect contradictions",
-         lambda: _run_contradictions(db_path, model, errors)),
+         lambda: _run_contradictions(db_path, model, errors,
+                                     report=report)),
     ]
 
     logs_dir = getattr(args, "logs_dir", "logs/")
@@ -512,30 +621,38 @@ def cmd_analyze(args):
         prefix = f"r{round_num}"
         round_steps = [
             (f"{prefix}-explore", f"Round {round_num} Explore",
-             lambda rn=round_num: _run_explore(f"Round {rn}")),
+             lambda rn=round_num: _run_explore(f"Round {rn}",
+                                               step_key=f"r{rn}-explore")),
             (f"{prefix}-propose", f"Round {round_num} Propose beliefs",
              lambda rn=round_num: _run_step(f"Round {rn}: Propose beliefs", cmd_propose_beliefs,
-                                            SimpleNamespace(**vars(args), auto=False), errors)),
+                                            SimpleNamespace(**vars(args), auto=False), errors,
+                                            report=report, step_key=f"r{rn}-propose")),
             (f"{prefix}-review", f"Round {round_num} Review proposals",
              lambda rn=round_num: _run_step(f"Round {rn}: Review proposals",
-                                            cmd_review_proposals, args, errors)),
+                                            cmd_review_proposals, args, errors,
+                                            report=report, step_key=f"r{rn}-review")),
             (f"{prefix}-accept", f"Round {round_num} Accept beliefs",
              lambda rn=round_num: _run_step(f"Round {rn}: Accept beliefs",
-                                            cmd_accept_beliefs, args, errors)),
+                                            cmd_accept_beliefs, args, errors,
+                                            report=report, step_key=f"r{rn}-accept")),
             (f"{prefix}-derive", f"Round {round_num} Derive (exhaust)",
              lambda rn=round_num: _run_step(f"Round {rn}: Derive (exhaust)", cmd_derive,
                                             SimpleNamespace(**vars(args), exhaust=True, auto=True),
-                                            errors)),
+                                            errors,
+                                            report=report, step_key=f"r{rn}-derive")),
             (f"{prefix}-review-beliefs", f"Round {round_num} Review beliefs",
-             lambda: _run_review_beliefs(db_path, model, project_dir, errors)),
+             lambda: _run_review_beliefs(db_path, model, project_dir, errors,
+                                         report=report)),
             (f"{prefix}-repair", f"Round {round_num} Repair beliefs",
-             lambda: _run_repair(db_path, model, project_dir, errors)),
+             lambda: _run_repair(db_path, model, project_dir, errors,
+                                 report=report)),
             (f"{prefix}-deduplicate", f"Round {round_num} Deduplicate",
              lambda: _run_deduplicate(db_path, errors,
                                       verify=getattr(args, "verify_dedup", True),
-                                      model=model)),
+                                      model=model, report=report)),
             (f"{prefix}-contradictions", f"Round {round_num} Detect contradictions",
-             lambda: _run_contradictions(db_path, model, errors)),
+             lambda: _run_contradictions(db_path, model, errors,
+                                         report=report)),
         ]
 
         for step_key, step_name, step_fn in round_steps:
@@ -574,6 +691,7 @@ def cmd_analyze(args):
     print(f"Analyze checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
     _clear_step_checkpoint(project_dir, "analyze")
+    report.complete()
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
@@ -615,6 +733,10 @@ def cmd_refine(args):
     except Exception:
         pre_run_ids = set()
 
+    report = Report("code-refine", [
+        "derive", "review-beliefs", "repair", "deduplicate", "contradictions",
+    ])
+
     logs_dir = getattr(args, "logs_dir", "logs/")
     pipeline_t0 = time.monotonic()
     for round_num in range(1, rounds + 1):
@@ -622,24 +744,28 @@ def cmd_refine(args):
         print(f"  Refine round {round_num}/{rounds}", file=sys.stderr)
         print(f"{'=' * 60}", file=sys.stderr)
 
+        step_prefix = f"r{round_num}-" if rounds > 1 else ""
         t0 = time.monotonic()
         with step_log(logs_dir, "refine", "derive", round_number=round_num):
             _run_step(f"Round {round_num}: Derive (exhaust)", cmd_derive,
                       SimpleNamespace(**vars(args), exhaust=True, auto=True,
                                       max_derive_rounds=max_derive_rounds),
-                      errors)
+                      errors, report=report,
+                      step_key=f"{step_prefix}derive")
         _write_step_cost_report(args, "refine", "derive", round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
         t0 = time.monotonic()
         with step_log(logs_dir, "refine", "review-beliefs", round_number=round_num):
-            _run_review_beliefs(db_path, model, project_dir, errors)
+            _run_review_beliefs(db_path, model, project_dir, errors,
+                                report=report)
         _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
         t0 = time.monotonic()
         with step_log(logs_dir, "refine", "repair", round_number=round_num):
-            _run_repair(db_path, model, project_dir, errors)
+            _run_repair(db_path, model, project_dir, errors,
+                        report=report)
         _write_step_cost_report(args, "refine", "repair", round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
@@ -647,13 +773,13 @@ def cmd_refine(args):
     with step_log(logs_dir, "refine", "deduplicate"):
         _run_deduplicate(db_path, errors,
                          verify=getattr(args, "verify_dedup", True),
-                         model=model)
+                         model=model, report=report)
     _write_step_cost_report(args, "refine", "deduplicate",
                             wall_clock_seconds=time.monotonic() - t0)
 
     t0 = time.monotonic()
     with step_log(logs_dir, "refine", "contradictions"):
-        _run_contradictions(db_path, model, errors)
+        _run_contradictions(db_path, model, errors, report=report)
     _write_step_cost_report(args, "refine", "contradictions",
                             wall_clock_seconds=time.monotonic() - t0)
 
@@ -663,6 +789,8 @@ def cmd_refine(args):
         post_run_ids = set(network.get("nodes", {}).keys())
     except Exception:
         post_run_ids = pre_run_ids
+
+    report.complete()
 
     print(f"\n=== Refinement complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
