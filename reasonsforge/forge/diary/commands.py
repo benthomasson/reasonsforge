@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from .. import REASONS_DB
+from ..report import Report
 
 
 def cmd_update(args):
@@ -19,13 +20,19 @@ def cmd_update(args):
     no_auto_accept = getattr(args, "no_auto_accept", False)
     output_file = getattr(args, "proposals_output", "proposed-beliefs.md")
 
+    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"])
+
     if not Path(input_dir).exists():
         print(f"No {input_dir}/ directory found. Write some entries first.")
+        report.fail(f"no {input_dir}/ directory")
         sys.exit(1)
 
     entries = sorted(Path(input_dir).rglob("*.md"))
     if not entries:
         print(f"No .md files found in {input_dir}/.")
+        report.start_step("propose-beliefs")
+        report.complete_step("no entries found")
+        report.complete()
         return
 
     mode = getattr(args, "mode", None)
@@ -43,20 +50,40 @@ def cmd_update(args):
     )
     setattr(prop_args, "all", process_all)
 
-    cmd_propose_beliefs(prop_args)
+    report.start_step("propose-beliefs")
+    try:
+        cmd_propose_beliefs(prop_args)
+        report.complete_step(f"proposed from {len(entries)} entries")
+    except Exception as e:
+        report.fail(str(e))
+        raise
 
     proposals_path = Path(output_file)
     if not proposals_path.exists() or proposals_path.stat().st_size == 0:
+        report.start_step("accept-beliefs")
+        report.complete_step("no proposals to accept")
+        report.complete()
         return
 
     if no_auto_accept:
         print("\nReview proposed-beliefs.md, then run:", file=sys.stderr)
         print("  reasonsforge forge diary accept", file=sys.stderr)
+        report.start_step("accept-beliefs")
+        report.complete_step("paused — manual review")
+        report.complete()
         return
 
-    auto_accept_proposals(str(proposals_path))
-    accept_args = SimpleNamespace(file=str(proposals_path))
-    cmd_accept_beliefs(accept_args)
+    report.start_step("accept-beliefs")
+    try:
+        auto_accept_proposals(str(proposals_path))
+        accept_args = SimpleNamespace(file=str(proposals_path))
+        cmd_accept_beliefs(accept_args)
+        report.complete_step("accepted proposals")
+    except Exception as e:
+        report.fail(str(e))
+        raise
+
+    report.complete()
 
 
 def cmd_accept(args):
