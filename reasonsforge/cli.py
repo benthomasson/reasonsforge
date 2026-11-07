@@ -1911,6 +1911,7 @@ def cmd_list(args):
         return
 
     show_review = args.never_reviewed or args.not_reviewed_since is not None
+    show_timestamp = sort in ("created", "updated")
     for node in result["nodes"]:
         marker = "+" if node["truth_value"] == "IN" else "-"
         jinfo = f"  ({node['justification_count']} justification{'s' if node['justification_count'] != 1 else ''})" if node["justification_count"] else "  (premise)"
@@ -1922,7 +1923,12 @@ def cmd_list(args):
                 review_info = f"  (reviewed: {node['last_reviewed']}, {node.get('review_result', '?')})"
             elif node.get("justification_count", 0) > 0:
                 review_info = "  (never reviewed)"
-        print(f"  [{marker}] {node['id']}{jinfo}{deps}{stype}{review_info}")
+        ts = ""
+        if show_timestamp:
+            raw = node.get("created_at" if sort == "created" else "updated_at", "")
+            if raw:
+                ts = f"  {raw[:19]}"
+        print(f"  [{marker}] {node['id']}{jinfo}{deps}{stype}{review_info}{ts}")
 
     print(f"\n{result['count']} node{'s' if result['count'] != 1 else ''}")
 
