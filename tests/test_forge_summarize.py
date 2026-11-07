@@ -205,7 +205,8 @@ def test_no_truncation_warning_for_small_file(source_dir, work_dir, capsys):
 
 def test_skips_already_summarized(source_dir, work_dir):
     (source_dir / "doc.md").write_text("# Hello\nContent")
-    manifest = work_dir / ".summarized"
+    manifest = work_dir / ".forge/code/summarized"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(f"{source_dir / 'doc.md'}\n")
     args = make_args(source_dir)
 
@@ -224,7 +225,7 @@ def test_manifest_records_processed_file(source_dir, work_dir):
          patch("reasonsforge.forge.summarize.invoke", new_callable=AsyncMock, return_value="## Title\nSummary"):
         cmd_summarize(args)
 
-    manifest = work_dir / ".summarized"
+    manifest = work_dir / ".forge/code/summarized"
     assert manifest.exists()
     assert str(source_dir / "doc.md") in manifest.read_text()
 
