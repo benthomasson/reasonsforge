@@ -820,6 +820,7 @@ def cmd_derive_review_repair(args):
 def cmd_pipeline(args):
     """Run end-to-end EEM construction pipeline."""
     from .caffeinate import hold as _caffeinate
+    from .report import Report
     _caffeinate()
 
     if not check_model_available(args.model):
@@ -843,6 +844,9 @@ def cmd_pipeline(args):
     else:
         state = _init_state(args)
 
+    step_names = [STAGE_NAMES[i] for i in range(1, 10)]
+    report = Report("document", step_names)
+
     total_stages = 9
     has_sources = args.pdf
     pipeline_t0 = time.monotonic()
@@ -853,20 +857,25 @@ def cmd_pipeline(args):
             if has_sources:
                 _banner(1, total_stages, "INGEST")
                 _mark_stage(state, 1, "running")
+                report.start_step("ingest")
                 t0 = time.monotonic()
                 try:
                     _stage_ingest(args)
                     elapsed = time.monotonic() - t0
                     _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
+                    report.complete_step(f"ingested PDFs in {_fmt_duration(elapsed)}")
                     print(f"  INGEST took {_fmt_duration(elapsed)}", file=sys.stderr)
                 except KeyboardInterrupt:
                     elapsed = time.monotonic() - t0
                     print(f"\n  Ending INGEST early — partial results saved ({_fmt_duration(elapsed)})",
                           file=sys.stderr)
                     _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
+                    report.complete_step(f"partial ingest in {_fmt_duration(elapsed)}")
             else:
                 print("No --pdf provided, skipping ingest", file=sys.stderr)
                 _mark_stage(state, 1, "completed", skipped=True)
+                report.start_step("ingest")
+                report.complete_step("skipped — no PDFs")
         else:
             print("Stage 1 (INGEST) already completed, skipping", file=sys.stderr)
 
@@ -874,17 +883,20 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 2):
             _banner(2, total_stages, "SUMMARIZE")
             _mark_stage(state, 2, "running")
+            report.start_step("summarize")
             t0 = time.monotonic()
             try:
                 _stage_summarize(args)
                 elapsed = time.monotonic() - t0
                 _mark_stage(state, 2, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"summarized in {_fmt_duration(elapsed)}")
                 print(f"  SUMMARIZE took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
                 print(f"\n  Ending SUMMARIZE early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
                 _mark_stage(state, 2, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"partial summarize in {_fmt_duration(elapsed)}")
         else:
             print("Stage 2 (SUMMARIZE) already completed, skipping", file=sys.stderr)
 
@@ -892,11 +904,13 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 3):
             _banner(3, total_stages, "EXTRACT")
             _mark_stage(state, 3, "running")
+            report.start_step("extract")
             t0 = time.monotonic()
             try:
                 should_continue = _stage_extract(args)
                 elapsed = time.monotonic() - t0
                 _mark_stage(state, 3, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"extracted in {_fmt_duration(elapsed)}")
                 print(f"  EXTRACT took {_fmt_duration(elapsed)}", file=sys.stderr)
                 if not should_continue:
                     state["status"] = "paused"
@@ -907,6 +921,7 @@ def cmd_pipeline(args):
                 print(f"\n  Ending EXTRACT early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
                 _mark_stage(state, 3, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"partial extract in {_fmt_duration(elapsed)}")
         else:
             print("Stage 3 (EXTRACT) already completed, skipping", file=sys.stderr)
 
@@ -916,6 +931,7 @@ def cmd_pipeline(args):
             remaining_rounds = args.rounds - start_cycle + 1
 
             def _pipeline_on_stage(cycle, stage_num, event, **kwargs):
+                step_name = f"c{cycle}-{STAGE_NAMES[stage_num]}"
                 if event == "start":
                     label = f"cycle {cycle}/{args.rounds}"
                     if stage_num == 4:
@@ -924,9 +940,21 @@ def cmd_pipeline(args):
                     _banner(stage_num, total_stages,
                             f"{STAGE_NAMES[stage_num].upper()} ({label})")
                     _mark_stage(state, stage_num, "running", cycle=cycle)
+                    report.start_step(step_name)
                 else:
                     _mark_stage(state, stage_num, "completed",
                                 cycle=cycle, **kwargs)
+                    detail_parts = []
+                    if "added" in kwargs:
+                        detail_parts.append(f"added {kwargs['added']}")
+                    if "reviewed" in kwargs:
+                        detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+                    if kwargs.get("skipped"):
+                        detail_parts.append("skipped")
+                    dur = kwargs.get("duration_seconds")
+                    if dur:
+                        detail_parts.append(_fmt_duration(dur))
+                    report.complete_step(", ".join(detail_parts) if detail_parts else None)
 
             t0 = time.monotonic()
             try:
@@ -952,17 +980,20 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 8):
             _banner(8, total_stages, "EXPORT")
             _mark_stage(state, 8, "running")
+            report.start_step("export")
             t0 = time.monotonic()
             try:
                 _stage_export(args)
                 elapsed = time.monotonic() - t0
                 _mark_stage(state, 8, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"exported in {_fmt_duration(elapsed)}")
                 print(f"  EXPORT took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
                 print(f"\n  Ending EXPORT early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
                 _mark_stage(state, 8, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"partial export in {_fmt_duration(elapsed)}")
         else:
             print("Stage 8 (EXPORT) already completed, skipping", file=sys.stderr)
 
@@ -970,17 +1001,20 @@ def cmd_pipeline(args):
         if not _stage_completed(state, 9):
             _banner(9, total_stages, "INDEX")
             _mark_stage(state, 9, "running")
+            report.start_step("index")
             t0 = time.monotonic()
             try:
                 _stage_index(args)
                 elapsed = time.monotonic() - t0
                 _mark_stage(state, 9, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"indexed in {_fmt_duration(elapsed)}")
                 print(f"  INDEX took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
                 print(f"\n  Ending INDEX early — partial results saved ({_fmt_duration(elapsed)})",
                       file=sys.stderr)
                 _mark_stage(state, 9, "completed", duration_seconds=round(elapsed, 2))
+                report.complete_step(f"partial index in {_fmt_duration(elapsed)}")
         else:
             print("Stage 9 (INDEX) already completed, skipping", file=sys.stderr)
 
@@ -988,6 +1022,7 @@ def cmd_pipeline(args):
         state["status"] = "completed"
         state["total_duration_seconds"] = round(total_elapsed, 2)
         _save_state(state)
+        report.complete()
         print(f"\nPipeline complete in {_fmt_duration(total_elapsed)}.", file=sys.stderr)
 
     except Exception as e:
@@ -995,4 +1030,5 @@ def cmd_pipeline(args):
         state["error"] = str(e)
         state["error_traceback"] = traceback.format_exc()
         _save_state(state)
+        report.fail(str(e))
         raise
