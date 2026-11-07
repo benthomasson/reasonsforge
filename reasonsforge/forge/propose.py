@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import date
@@ -60,10 +61,7 @@ def _load_existing_beliefs(db_path: str = REASONS_DB) -> list[dict]:
 
 def _rel_key(entry_path: Path) -> str:
     """Normalize entry path to a relative key for portable tracking."""
-    try:
-        return str(entry_path.resolve().relative_to(Path.cwd().resolve()))
-    except ValueError:
-        return str(entry_path)
+    return os.path.relpath(entry_path, Path.cwd())
 
 
 def _load_processed(path: Path) -> dict[str, str]:
