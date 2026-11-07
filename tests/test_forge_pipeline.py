@@ -151,7 +151,7 @@ class TestStageDerive:
         stats = {"total_in": 1, "total_derived": 0, "max_depth": 0, "agents": 0}
         with patch("reasonsforge.api.export_network", return_value={"nodes": nodes}), \
              patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)), \
-             patch("reasonsforge.forge.llm.invoke_sync", return_value="No proposals"), \
+             patch("reasonsforge.forge.pipeline.invoke_sync", return_value="No proposals"), \
              patch("reasonsforge.derive.parse_proposals", return_value=[]):
             added, _ = _stage_derive(args)
         assert added == 0
@@ -167,7 +167,7 @@ class TestStageDerive:
         }
         with patch("reasonsforge.api.export_network", return_value={"nodes": nodes}), \
              patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)), \
-             patch("reasonsforge.forge.llm.invoke_sync", return_value="proposal text"), \
+             patch("reasonsforge.forge.pipeline.invoke_sync", return_value="proposal text"), \
              patch("reasonsforge.derive.parse_proposals", return_value=[proposal]), \
              patch("reasonsforge.derive.validate_proposals", return_value=([proposal], [])), \
              patch("reasonsforge.derive.apply_proposals", return_value=[(proposal, {"truth_value": "IN"})]):

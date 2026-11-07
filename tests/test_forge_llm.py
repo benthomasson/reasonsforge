@@ -202,6 +202,7 @@ def test_invoke_ollama_connection_error():
 
 def test_invoke_ollama_respects_ollama_host():
     import asyncio
+    import reasonsforge.forge.llm as llm_mod
     from reasonsforge.forge.llm import _invoke_ollama
 
     api_response = json.dumps({"response": "ok", "prompt_eval_count": 0, "eval_count": 0}).encode()
@@ -210,9 +211,14 @@ def test_invoke_ollama_respects_ollama_host():
     mock_resp.__enter__ = lambda s: s
     mock_resp.__exit__ = MagicMock(return_value=False)
 
-    with patch("reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp) as mock_open, \
-         patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}):
-        asyncio.run(_invoke_ollama("test", "ollama:model", 300))
+    saved_hosts = llm_mod._ollama_hosts
+    llm_mod._ollama_hosts = []
+    try:
+        with patch("reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp) as mock_open, \
+             patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}):
+            asyncio.run(_invoke_ollama("test", "ollama:model", 300))
+    finally:
+        llm_mod._ollama_hosts = saved_hosts
 
     req = mock_open.call_args[0][0]
     assert req.full_url == "http://remote:11434/api/generate"

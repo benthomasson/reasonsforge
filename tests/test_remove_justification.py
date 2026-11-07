@@ -176,7 +176,7 @@ class TestCliRemoveJustification:
         api.add_justification("c", sl="b", label="keep-this", db_path=db)
 
         result = subprocess.run(
-            ["uv", "run", "reasons", "--db", db, "remove-justification", "c", "0"],
+            ["uv", "run", "reasonsforge", "--db", db, "remove-justification", "c", "0"],
             capture_output=True, text=True,
         )
         assert result.returncode == 0
