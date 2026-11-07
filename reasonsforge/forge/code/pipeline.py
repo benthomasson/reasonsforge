@@ -76,10 +76,12 @@ def _run_step(name, func, args, errors, report=None, step_key=None):
         report.start_step(step_key)
     t0 = time.monotonic()
     failed = False
+    interrupted = False
     try:
         func(args)
     except KeyboardInterrupt:
         print(f"\n  Ending {name} early — partial results saved", file=sys.stderr)
+        interrupted = True
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"{name} exited with code {e.code}")
@@ -94,6 +96,8 @@ def _run_step(name, func, args, errors, report=None, step_key=None):
     if report and step_key:
         if failed:
             report.fail_step(errors[-1])
+        elif interrupted:
+            report.complete_step(f"ended early ({detail})")
         else:
             report.complete_step(detail)
     print(f"  {name} took {detail}", file=sys.stderr)
@@ -144,13 +148,14 @@ def _review_file_path(project_dir):
     return os.path.join(project_dir, "last-review-beliefs.json")
 
 
-def _run_review_beliefs(db_path, model, project_dir, errors, report=None):
+def _run_review_beliefs(db_path, model, project_dir, errors, report=None,
+                        step_key="review-beliefs"):
     """Review derived beliefs for validity; persist results for repair."""
     from reasonsforge.api import review_beliefs
 
     print("\n=== Review beliefs ===\n", file=sys.stderr)
     if report:
-        report.start_step("review-beliefs")
+        report.start_step(step_key)
     review_path = _review_file_path(project_dir)
     if os.path.isfile(review_path):
         os.remove(review_path)
@@ -180,7 +185,8 @@ def _run_review_beliefs(db_path, model, project_dir, errors, report=None):
             report.fail_step(str(e))
 
 
-def _run_repair(db_path, model, project_dir, errors, report=None):
+def _run_repair(db_path, model, project_dir, errors, report=None,
+                step_key="repair"):
     """Repair invalid beliefs using the persisted review-beliefs report."""
     from reasonsforge.api import repair
 
@@ -189,7 +195,7 @@ def _run_repair(db_path, model, project_dir, errors, report=None):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  No review-beliefs report found, skipping", file=sys.stderr)
         if report:
-            report.start_step("repair")
+            report.start_step(step_key)
             report.complete_step("skipped — no review report")
         return
 
@@ -206,7 +212,7 @@ def _run_repair(db_path, model, project_dir, errors, report=None):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  Could not read review-beliefs report, skipping", file=sys.stderr)
         if report:
-            report.start_step("repair")
+            report.start_step(step_key)
             report.complete_step("skipped — corrupt review report")
         return
 
@@ -214,12 +220,12 @@ def _run_repair(db_path, model, project_dir, errors, report=None):
         print("\n=== Repair beliefs ===\n", file=sys.stderr)
         print("  No invalid beliefs to repair", file=sys.stderr)
         if report:
-            report.start_step("repair")
+            report.start_step(step_key)
             report.complete_step("nothing to repair")
         return
 
     if report:
-        report.start_step("repair")
+        report.start_step(step_key)
     print(f"\n=== Repair beliefs ({len(invalid_ids)} invalid) ===\n", file=sys.stderr)
     try:
         result = repair(
@@ -246,12 +252,13 @@ def _run_repair(db_path, model, project_dir, errors, report=None):
             report.fail_step(str(e))
 
 
-def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None):
+def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None,
+                     step_key="deduplicate"):
     """Run deduplication on the belief network with optional LLM verification."""
     from reasonsforge.api import deduplicate, verify_dedup_clusters, apply_dedup_plan, add_nogood
 
     if report:
-        report.start_step("deduplicate")
+        report.start_step(step_key)
     print(f"\n=== Deduplicate{' (with LLM verify)' if verify else ''} ===\n",
           file=sys.stderr)
     try:
@@ -322,12 +329,13 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None):
             report.fail_step(str(e))
 
 
-def _run_contradictions(db_path, model, errors, report=None):
+def _run_contradictions(db_path, model, errors, report=None,
+                       step_key="contradictions"):
     """Detect and auto-apply contradictions."""
     from reasonsforge.api import detect_contradictions
 
     if report:
-        report.start_step("contradictions")
+        report.start_step(step_key)
     print("\n=== Detect contradictions ===\n", file=sys.stderr)
     try:
         result = detect_contradictions(
@@ -579,17 +587,19 @@ def cmd_analyze(args):
                            report=report, step_key="derive")),
         ("r1-review-beliefs", "Step 8: Review beliefs",
          lambda: _run_review_beliefs(db_path, model, project_dir, errors,
-                                     report=report)),
+                                     report=report, step_key="r1-review-beliefs")),
         ("r1-repair", "Step 9: Repair beliefs",
          lambda: _run_repair(db_path, model, project_dir, errors,
-                             report=report)),
+                             report=report, step_key="r1-repair")),
         ("r1-deduplicate", "Step 10: Deduplicate",
          lambda: _run_deduplicate(db_path, errors,
                                   verify=getattr(args, "verify_dedup", True),
-                                  model=model, report=report)),
+                                  model=model, report=report,
+                                  step_key="r1-deduplicate")),
         ("r1-contradictions", "Step 11: Detect contradictions",
          lambda: _run_contradictions(db_path, model, errors,
-                                     report=report)),
+                                     report=report,
+                                     step_key="r1-contradictions")),
     ]
 
     logs_dir = getattr(args, "logs_dir", "logs/")
@@ -641,18 +651,19 @@ def cmd_analyze(args):
                                             errors,
                                             report=report, step_key=f"r{rn}-derive")),
             (f"{prefix}-review-beliefs", f"Round {round_num} Review beliefs",
-             lambda: _run_review_beliefs(db_path, model, project_dir, errors,
-                                         report=report)),
+             lambda rn=round_num: _run_review_beliefs(db_path, model, project_dir, errors,
+                                         report=report, step_key=f"r{rn}-review-beliefs")),
             (f"{prefix}-repair", f"Round {round_num} Repair beliefs",
-             lambda: _run_repair(db_path, model, project_dir, errors,
-                                 report=report)),
+             lambda rn=round_num: _run_repair(db_path, model, project_dir, errors,
+                                 report=report, step_key=f"r{rn}-repair")),
             (f"{prefix}-deduplicate", f"Round {round_num} Deduplicate",
-             lambda: _run_deduplicate(db_path, errors,
+             lambda rn=round_num: _run_deduplicate(db_path, errors,
                                       verify=getattr(args, "verify_dedup", True),
-                                      model=model, report=report)),
+                                      model=model, report=report,
+                                      step_key=f"r{rn}-deduplicate")),
             (f"{prefix}-contradictions", f"Round {round_num} Detect contradictions",
-             lambda: _run_contradictions(db_path, model, errors,
-                                         report=report)),
+             lambda rn=round_num: _run_contradictions(db_path, model, errors,
+                                         report=report, step_key=f"r{rn}-contradictions")),
         ]
 
         for step_key, step_name, step_fn in round_steps:
@@ -758,14 +769,16 @@ def cmd_refine(args):
         t0 = time.monotonic()
         with step_log(logs_dir, "refine", "review-beliefs", round_number=round_num):
             _run_review_beliefs(db_path, model, project_dir, errors,
-                                report=report)
+                                report=report,
+                                step_key=f"{step_prefix}review-beliefs")
         _write_step_cost_report(args, "refine", "review-beliefs", round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
         t0 = time.monotonic()
         with step_log(logs_dir, "refine", "repair", round_number=round_num):
             _run_repair(db_path, model, project_dir, errors,
-                        report=report)
+                        report=report,
+                        step_key=f"{step_prefix}repair")
         _write_step_cost_report(args, "refine", "repair", round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
