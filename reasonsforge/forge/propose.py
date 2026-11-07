@@ -58,6 +58,14 @@ def _load_existing_beliefs(db_path: str = REASONS_DB) -> list[dict]:
         return []
 
 
+def _rel_key(entry_path: Path) -> str:
+    """Normalize entry path to a relative key for portable tracking."""
+    try:
+        return str(entry_path.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(entry_path)
+
+
 def _load_processed(path: Path) -> dict[str, str]:
     """Load processed entries tracking {path: content_hash}."""
     if path.exists():
@@ -73,7 +81,7 @@ def _save_processed(path: Path, new_entries: list[Path], existing: dict[str, str
     for entry_path in new_entries:
         content = entry_path.read_text()
         content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
-        existing[str(entry_path)] = content_hash
+        existing[_rel_key(entry_path)] = content_hash
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(existing, indent=2) + "\n")
 
@@ -82,7 +90,7 @@ def _filter_unprocessed(entries: list[Path], processed: dict[str, str]) -> list[
     """Return entries that are new or modified since last propose."""
     unprocessed = []
     for entry_path in entries:
-        key = str(entry_path)
+        key = _rel_key(entry_path)
         if key not in processed:
             unprocessed.append(entry_path)
             continue

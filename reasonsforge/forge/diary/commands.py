@@ -85,7 +85,8 @@ def cmd_status(args):
     processed_path = Path(PROJECT_DIR) / "proposed-entries.json"
     processed = _load_processed(processed_path)
 
-    processed_count = sum(1 for e in entries if str(e) in processed)
+    from ..propose import _rel_key
+    processed_count = sum(1 for e in entries if _rel_key(e) in processed)
     unprocessed = len(entries) - processed_count
 
     db_path = getattr(args, "output", REASONS_DB)
