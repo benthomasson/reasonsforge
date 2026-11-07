@@ -58,6 +58,7 @@ from .topics import (
     pending_count,
     pop_batch,
     pop_next,
+    requeue_topics,
 )
 
 REASONS_DB = "reasons.db"
@@ -657,12 +658,18 @@ def _explore_loop(args, project_dir, max_topics):
                 results = asyncio.run(
                     _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode)
                 )
-                for r in results:
+                failed = []
+                for i, r in enumerate(results):
                     if isinstance(r, Exception):
                         print(f"  Error: {r}", file=sys.stderr)
+                        failed.append(batch[i])
                     elif r is not None:
                         _, result, entry_name, entry_title, source = r
                         _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                if failed:
+                    requeue_topics(failed, project_dir)
+                    print(f"  Requeued {len(failed)} failed topic(s) for retry",
+                          file=sys.stderr)
             else:
                 topic = batch[0]
                 if topic.kind == "general":
@@ -673,6 +680,7 @@ def _explore_loop(args, project_dir, max_topics):
                         )
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
+                        requeue_topics([topic], project_dir)
                         explored += len(batch)
                         continue
                     _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
@@ -692,6 +700,7 @@ def _explore_loop(args, project_dir, max_topics):
                         result = asyncio.run(invoke(prompt, model, timeout=timeout))
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
+                        requeue_topics([topic], project_dir)
                         explored += len(batch)
                         continue
                     _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)

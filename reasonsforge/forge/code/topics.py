@@ -161,6 +161,20 @@ def pop_batch(n: int, project_dir: str | None = None) -> list[Topic]:
     return popped
 
 
+def requeue_topics(topics: list[Topic], project_dir: str | None = None) -> int:
+    """Set topics back to pending so they can be retried."""
+    queue = load_queue(project_dir)
+    targets = {(t.kind, t.target) for t in topics}
+    count = 0
+    for topic in queue:
+        if topic.status == "done" and (topic.kind, topic.target) in targets:
+            topic.status = "pending"
+            count += 1
+    if count:
+        save_queue(queue, project_dir)
+    return count
+
+
 def skip_topic(index: int, project_dir: str | None = None) -> bool:
     """Mark a topic as skipped by its index in the queue."""
     queue = load_queue(project_dir)
