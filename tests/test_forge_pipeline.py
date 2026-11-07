@@ -252,7 +252,7 @@ class TestStageDeduplicate:
 class TestCmdPipeline:
     def test_model_not_available_exits(self, work_dir):
         args = make_pipeline_args(model="nonexistent")
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=False), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=False), \
              pytest.raises(SystemExit):
             cmd_pipeline(args)
 
@@ -260,7 +260,7 @@ class TestCmdPipeline:
         args = make_pipeline_args(rounds=3, url=None, pdf=None)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
@@ -279,7 +279,7 @@ class TestCmdPipeline:
             {"belief_id": "b1", "valid": False},
         ]}
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
@@ -297,7 +297,7 @@ class TestCmdPipeline:
     def test_no_auto_accept_stops_early(self, work_dir, capsys):
         args = make_pipeline_args(no_auto_accept=True, url=None, pdf=None)
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=False), \
              patch("reasonsforge.forge.pipeline._stage_derive") as mock_derive, \
@@ -316,7 +316,7 @@ class TestPipelineState:
         args = make_pipeline_args(rounds=1, url=None, pdf=None)
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
@@ -334,7 +334,7 @@ class TestPipelineState:
     def test_state_records_failure(self, work_dir):
         args = make_pipeline_args(url=None, pdf=None)
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize",
                    side_effect=RuntimeError("LLM exploded")), \
              patch("reasonsforge.forge.caffeinate.hold"), \
@@ -351,7 +351,7 @@ class TestPipelineState:
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
         # First run: complete through summarize, then fail at extract
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract",
                    side_effect=RuntimeError("crash")), \
@@ -367,7 +367,7 @@ class TestPipelineState:
         # Resume: should skip ingest and summarize
         resume_args = make_pipeline_args(rounds=1, url=None, pdf=None, resume=True)
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize") as mock_summarize, \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
@@ -387,7 +387,7 @@ class TestPipelineState:
     def test_resume_without_state_exits(self, work_dir):
         args = make_pipeline_args(resume=True)
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.caffeinate.hold"), \
              pytest.raises(SystemExit):
             cmd_pipeline(args)
@@ -395,7 +395,7 @@ class TestPipelineState:
     def test_no_auto_accept_sets_paused(self, work_dir):
         args = make_pipeline_args(no_auto_accept=True, url=None, pdf=None)
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=False), \
              patch("reasonsforge.forge.caffeinate.hold"):
@@ -410,7 +410,7 @@ class TestPipelineState:
         args = make_pipeline_args(rounds=1, url=None, pdf=None)
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_summarize"), \
              patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
@@ -425,7 +425,7 @@ class TestPipelineState:
 
         # Now resume — should return early
         resume_args = make_pipeline_args(resume=True)
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_export") as mock_export, \
              patch("reasonsforge.forge.caffeinate.hold"):
             cmd_pipeline(resume_args)
@@ -440,7 +440,7 @@ class TestPipelineState:
         STATE_FILE.write_text("{truncated")
 
         args = make_pipeline_args(resume=True)
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.caffeinate.hold"), \
              pytest.raises(SystemExit):
             cmd_pipeline(args)
@@ -535,14 +535,14 @@ class TestConvergenceLoop:
 class TestCmdDeriveReviewRepair:
     def test_model_not_available_exits(self, work_dir):
         args = make_drr_args(model="nonexistent")
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=False), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=False), \
              pytest.raises(SystemExit):
             cmd_derive_review_repair(args)
 
     def test_missing_db_exits(self, work_dir):
         (work_dir / "reasons.db").unlink()
         args = make_drr_args()
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.caffeinate.hold"), \
              pytest.raises(SystemExit):
             cmd_derive_review_repair(args)
@@ -551,7 +551,7 @@ class TestCmdDeriveReviewRepair:
         args = make_drr_args(rounds=1)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.llm.check_model_available", return_value=True), \
+        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
              patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
              patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
              patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
