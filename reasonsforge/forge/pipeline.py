@@ -931,7 +931,7 @@ def cmd_pipeline(args):
             remaining_rounds = args.rounds - start_cycle + 1
 
             def _pipeline_on_stage(cycle, stage_num, event, **kwargs):
-                step_name = STAGE_NAMES[stage_num]
+                step_name = f"c{cycle}-{STAGE_NAMES[stage_num]}"
                 if event == "start":
                     label = f"cycle {cycle}/{args.rounds}"
                     if stage_num == 4:
@@ -1030,5 +1030,5 @@ def cmd_pipeline(args):
         state["error"] = str(e)
         state["error_traceback"] = traceback.format_exc()
         _save_state(state)
-        report.fail_step(str(e))
+        report.fail(str(e))
         raise

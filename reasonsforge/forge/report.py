@@ -87,6 +87,15 @@ class Report:
         self._data["completed_at"] = _now()
         self._save()
 
+    def fail(self, error: str) -> None:
+        """Mark the entire pipeline as failed."""
+        if self._current:
+            self.fail_step(error)
+        self._data["status"] = "failed"
+        self._data["error"] = error
+        self._data["completed_at"] = _now()
+        self._save()
+
     def item_done(self, name: str, detail: str | None = None) -> None:
         """Record a completed item in the current step. (Future use.)"""
         pass
