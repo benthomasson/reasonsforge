@@ -776,6 +776,7 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
 def cmd_derive_review_repair(args):
     """Run derive/review/repair loop on existing belief network."""
     from .caffeinate import hold as _caffeinate
+    from .report import Report
     _caffeinate()
 
     if not check_model_available(args.model):
@@ -800,8 +801,28 @@ def cmd_derive_review_repair(args):
         print(f"Namespace filter: {label}", file=sys.stderr)
     print(file=sys.stderr)
 
+    step_names = [STAGE_NAMES[i] for i in range(4, 8)]
+    report = Report("document-derive-review-repair", step_names)
+
+    def _on_stage(cycle, stage_num, event, **kwargs):
+        step_name = f"c{cycle}-{STAGE_NAMES[stage_num]}"
+        if event == "start":
+            report.start_step(step_name)
+        else:
+            detail_parts = []
+            if "added" in kwargs:
+                detail_parts.append(f"added {kwargs['added']}")
+            if "reviewed" in kwargs:
+                detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+            if kwargs.get("skipped"):
+                detail_parts.append("skipped")
+            dur = kwargs.get("duration_seconds")
+            if dur:
+                detail_parts.append(_fmt_duration(dur))
+            report.complete_step(", ".join(detail_parts) if detail_parts else None)
+
     t0 = time.monotonic()
-    summary = _run_convergence_loop(args, rounds)
+    summary = _run_convergence_loop(args, rounds, on_stage=_on_stage)
     total_elapsed = time.monotonic() - t0
 
     print(f"\n=== Summary ===", file=sys.stderr)
@@ -815,6 +836,7 @@ def cmd_derive_review_repair(args):
     print(f"  Abandoned: {summary['total_abandoned']}", file=sys.stderr)
     print(f"Re-derived: {summary.get('total_rederived', 0)}", file=sys.stderr)
     print(f"Converged: {'yes' if summary['converged'] else 'no'}", file=sys.stderr)
+    report.complete()
 
 
 def cmd_pipeline(args):
