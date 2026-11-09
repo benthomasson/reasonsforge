@@ -1,11 +1,33 @@
 """Diary forge commands — extract beliefs from diary entries."""
 
+import re
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 from .. import REASONS_DB
 from ..report import Report
+
+
+def _count_beliefs():
+    """Count active beliefs in the database."""
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=REASONS_DB)
+        return sum(1 for n in network.get("nodes", {}).values()
+                   if n.get("truth_value") == "IN")
+    except Exception:
+        return 0
+
+
+def _count_proposals(filepath):
+    """Count [ACCEPT] markers in a proposals file."""
+    try:
+        text = Path(filepath).read_text()
+        return len(re.findall(r'### \[?ACCEPT\]?', text))
+    except Exception:
+        return 0
 
 
 def cmd_update(args):
@@ -51,9 +73,16 @@ def cmd_update(args):
     setattr(prop_args, "all", process_all)
 
     report.start_step("propose-beliefs")
+    t0 = time.monotonic()
     try:
         cmd_propose_beliefs(prop_args)
-        report.complete_step(f"proposed from {len(entries)} entries")
+        elapsed = time.monotonic() - t0
+        proposed = _count_proposals(output_file)
+        report.complete_step(
+            f"proposed {proposed} from {len(entries)} entries",
+            counts={"entries": len(entries), "proposed": proposed},
+            duration_seconds=round(elapsed, 2),
+        )
     except Exception as e:
         report.fail(str(e))
         raise
@@ -61,7 +90,7 @@ def cmd_update(args):
     proposals_path = Path(output_file)
     if not proposals_path.exists() or proposals_path.stat().st_size == 0:
         report.start_step("accept-beliefs")
-        report.complete_step("no proposals to accept")
+        report.complete_step("no proposals to accept", counts={"accepted": 0})
         report.complete()
         return
 
@@ -73,17 +102,31 @@ def cmd_update(args):
         report.complete()
         return
 
+    before_count = _count_beliefs()
     report.start_step("accept-beliefs")
+    t0 = time.monotonic()
     try:
         auto_accept_proposals(str(proposals_path))
         accept_args = SimpleNamespace(file=str(proposals_path))
         cmd_accept_beliefs(accept_args)
-        report.complete_step("accepted proposals")
+        elapsed = time.monotonic() - t0
+        after_count = _count_beliefs()
+        accepted = after_count - before_count
+        report.complete_step(
+            f"accepted {accepted} beliefs",
+            counts={"accepted": accepted, "total_beliefs": after_count},
+            duration_seconds=round(elapsed, 2),
+        )
     except Exception as e:
         report.fail(str(e))
         raise
 
-    report.complete()
+    report.complete(summary={
+        "entries": len(entries),
+        "proposed": _count_proposals(output_file),
+        "accepted": _count_beliefs() - before_count,
+        "total_beliefs": _count_beliefs(),
+    })
 
 
 def cmd_accept(args):
