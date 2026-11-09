@@ -56,7 +56,9 @@ class Report:
         self._current = name
         self._save()
 
-    def complete_step(self, detail: str | None = None) -> None:
+    def complete_step(self, detail: str | None = None,
+                      counts: dict | None = None,
+                      duration_seconds: float | None = None) -> None:
         """Mark the current step as completed."""
         if self._current is None:
             return
@@ -66,6 +68,10 @@ class Report:
             step["completed_at"] = _now()
             if detail:
                 step["detail"] = detail
+            if counts:
+                step["counts"] = counts
+            if duration_seconds is not None:
+                step["duration_seconds"] = duration_seconds
         self._current = None
         self._save()
 
@@ -81,10 +87,12 @@ class Report:
         self._current = None
         self._save()
 
-    def complete(self) -> None:
+    def complete(self, summary: dict | None = None) -> None:
         """Mark the entire pipeline as completed."""
         self._data["status"] = "completed"
         self._data["completed_at"] = _now()
+        if summary:
+            self._data["summary"] = summary
         self._save()
 
     def fail(self, error: str) -> None:

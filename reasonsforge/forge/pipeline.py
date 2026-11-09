@@ -736,12 +736,16 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
             t0 = time.monotonic()
             repair_result = _stage_repair(args, review_result, round_label=label)
             elapsed = time.monotonic() - t0
-            summary["total_linked"] += repair_result.get("linked", 0)
-            summary["total_softened"] += repair_result.get("softened", 0)
-            summary["total_abandoned"] += repair_result.get("abandoned", 0)
+            linked = repair_result.get("linked", 0) if isinstance(repair_result, dict) else 0
+            softened = repair_result.get("softened", 0) if isinstance(repair_result, dict) else 0
+            abandoned = repair_result.get("abandoned", 0) if isinstance(repair_result, dict) else 0
+            summary["total_linked"] += linked
+            summary["total_softened"] += softened
+            summary["total_abandoned"] += abandoned
             print(f"  REPAIR took {_fmt_duration(elapsed)}", file=sys.stderr)
             if on_stage:
                 on_stage(cycle, 6, "end",
+                         linked=linked, softened=softened, abandoned=abandoned,
                          duration_seconds=round(elapsed, 2))
         elif on_stage:
             on_stage(cycle, 6, "end", skipped=True)
@@ -810,16 +814,28 @@ def cmd_derive_review_repair(args):
             report.start_step(step_name)
         else:
             detail_parts = []
+            counts = {}
             if "added" in kwargs:
+                counts["added"] = kwargs["added"]
                 detail_parts.append(f"added {kwargs['added']}")
             if "reviewed" in kwargs:
+                counts["reviewed"] = kwargs["reviewed"]
+                counts["invalid"] = kwargs.get("invalid", 0)
                 detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+            if "linked" in kwargs:
+                counts["linked"] = kwargs["linked"]
+                counts["softened"] = kwargs["softened"]
+                counts["abandoned"] = kwargs["abandoned"]
             if kwargs.get("skipped"):
                 detail_parts.append("skipped")
             dur = kwargs.get("duration_seconds")
             if dur:
                 detail_parts.append(_fmt_duration(dur))
-            report.complete_step(", ".join(detail_parts) if detail_parts else None)
+            report.complete_step(
+                ", ".join(detail_parts) if detail_parts else None,
+                counts=counts or None,
+                duration_seconds=dur,
+            )
 
     t0 = time.monotonic()
     summary = _run_convergence_loop(args, rounds, on_stage=_on_stage)
@@ -836,7 +852,8 @@ def cmd_derive_review_repair(args):
     print(f"  Abandoned: {summary['total_abandoned']}", file=sys.stderr)
     print(f"Re-derived: {summary.get('total_rederived', 0)}", file=sys.stderr)
     print(f"Converged: {'yes' if summary['converged'] else 'no'}", file=sys.stderr)
-    report.complete()
+    summary["duration_seconds"] = round(total_elapsed, 2)
+    report.complete(summary=summary)
 
 
 def cmd_pipeline(args):
@@ -967,16 +984,28 @@ def cmd_pipeline(args):
                     _mark_stage(state, stage_num, "completed",
                                 cycle=cycle, **kwargs)
                     detail_parts = []
+                    counts = {}
                     if "added" in kwargs:
+                        counts["added"] = kwargs["added"]
                         detail_parts.append(f"added {kwargs['added']}")
                     if "reviewed" in kwargs:
+                        counts["reviewed"] = kwargs["reviewed"]
+                        counts["invalid"] = kwargs.get("invalid", 0)
                         detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+                    if "linked" in kwargs:
+                        counts["linked"] = kwargs["linked"]
+                        counts["softened"] = kwargs["softened"]
+                        counts["abandoned"] = kwargs["abandoned"]
                     if kwargs.get("skipped"):
                         detail_parts.append("skipped")
                     dur = kwargs.get("duration_seconds")
                     if dur:
                         detail_parts.append(_fmt_duration(dur))
-                    report.complete_step(", ".join(detail_parts) if detail_parts else None)
+                    report.complete_step(
+                        ", ".join(detail_parts) if detail_parts else None,
+                        counts=counts or None,
+                        duration_seconds=dur,
+                    )
 
             t0 = time.monotonic()
             try:
@@ -1044,7 +1073,7 @@ def cmd_pipeline(args):
         state["status"] = "completed"
         state["total_duration_seconds"] = round(total_elapsed, 2)
         _save_state(state)
-        report.complete()
+        report.complete(summary={"duration_seconds": round(total_elapsed, 2)})
         print(f"\nPipeline complete in {_fmt_duration(total_elapsed)}.", file=sys.stderr)
 
     except Exception as e:

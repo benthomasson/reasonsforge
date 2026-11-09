@@ -110,3 +110,42 @@ def test_complete_step_without_detail(tmp_path):
         data = json.load(f)
     assert data["steps"][0]["status"] == "completed"
     assert "detail" not in data["steps"][0]
+
+
+def test_complete_step_with_counts(tmp_path):
+    path = str(tmp_path / "report.json")
+    report = Report("test", ["a"], path=path)
+    report.start_step("a")
+    report.complete_step("added 5", counts={"added": 5}, duration_seconds=12.34)
+
+    with open(path) as f:
+        data = json.load(f)
+    assert data["steps"][0]["counts"] == {"added": 5}
+    assert data["steps"][0]["duration_seconds"] == 12.34
+    assert data["steps"][0]["detail"] == "added 5"
+
+
+def test_complete_step_without_counts(tmp_path):
+    path = str(tmp_path / "report.json")
+    report = Report("test", ["a"], path=path)
+    report.start_step("a")
+    report.complete_step("done")
+
+    with open(path) as f:
+        data = json.load(f)
+    assert "counts" not in data["steps"][0]
+    assert "duration_seconds" not in data["steps"][0]
+
+
+def test_complete_with_summary(tmp_path):
+    path = str(tmp_path / "report.json")
+    report = Report("test", ["a"], path=path)
+    report.start_step("a")
+    report.complete_step()
+    report.complete(summary={"total_derived": 10, "converged": True})
+
+    with open(path) as f:
+        data = json.load(f)
+    assert data["status"] == "completed"
+    assert data["summary"]["total_derived"] == 10
+    assert data["summary"]["converged"] is True
