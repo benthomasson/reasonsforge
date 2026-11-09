@@ -83,7 +83,12 @@ def _save_config(config: dict) -> None:
 
 
 def _get_repo(args) -> str:
-    return os.path.abspath(getattr(args, "repo", None) or os.getcwd())
+    repo = getattr(args, "repo", None)
+    if not repo:
+        config = _load_config()
+        if config:
+            repo = config.get("repo_path")
+    return os.path.abspath(repo or os.getcwd())
 
 
 def _get_project_dir(args) -> str:
