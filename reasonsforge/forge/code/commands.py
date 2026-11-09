@@ -997,8 +997,11 @@ def cmd_walk_commits(args):
     if since_last:
         checkpoint = load_diff_checkpoint(project_dir)
         if not checkpoint:
-            print("No previous diff checkpoint found. Use --since DATE first.", file=sys.stderr)
-            sys.exit(1)
+            print("No previous diff checkpoint found — running full analysis instead.",
+                  file=sys.stderr)
+            from .pipeline import cmd_analyze
+            cmd_analyze(args)
+            return
         since_commit = checkpoint["head"]
         print(f"Walking from checkpoint {since_commit[:8]}", file=sys.stderr)
     elif not since and not since_commit:

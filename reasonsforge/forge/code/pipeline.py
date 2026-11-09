@@ -702,6 +702,11 @@ def cmd_analyze(args):
     print(f"Analyze checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
     _clear_step_checkpoint(project_dir, "analyze")
+
+    from .git_utils import save_diff_checkpoint
+    repo_path = os.path.abspath(getattr(args, "repo", "."))
+    save_diff_checkpoint(project_dir, cwd=repo_path)
+
     report.complete()
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
