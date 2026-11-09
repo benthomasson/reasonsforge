@@ -113,6 +113,61 @@ class TestPropagate:
         assert api.show_node("b", db_path=db_path)["truth_value"] == "IN"
 
 
+class TestGetStats:
+
+    def test_empty(self, db_path):
+        result = api.get_stats(db_path=db_path)
+        assert result["total"] == 0
+        assert result["in_count"] == 0
+        assert result["out_count"] == 0
+        assert result["premise_count"] == 0
+        assert result["derived_count"] == 0
+        assert result["nogood_count"] == 0
+        assert result["blocked_count"] == 0
+        assert result["blocker_count"] == 0
+
+    def test_premises(self, db_path):
+        api.add_node("a", "Premise A", db_path=db_path)
+        api.add_node("b", "Premise B", db_path=db_path)
+        result = api.get_stats(db_path=db_path)
+        assert result["total"] == 2
+        assert result["in_count"] == 2
+        assert result["out_count"] == 0
+        assert result["premise_count"] == 2
+        assert result["derived_count"] == 0
+
+    def test_derived(self, db_path):
+        api.add_node("a", "Premise A", db_path=db_path)
+        api.add_node("b", "Derived B", db_path=db_path)
+        api.add_justification("b", sl="a", db_path=db_path)
+        result = api.get_stats(db_path=db_path)
+        assert result["premise_count"] == 1
+        assert result["derived_count"] == 1
+
+    def test_retracted(self, db_path):
+        api.add_node("a", "Premise A", db_path=db_path)
+        api.add_node("b", "Premise B", db_path=db_path)
+        api.retract_node("b", db_path=db_path)
+        result = api.get_stats(db_path=db_path)
+        assert result["in_count"] == 1
+        assert result["out_count"] == 1
+
+    def test_blocked(self, db_path):
+        api.add_node("a", "Premise A", db_path=db_path)
+        api.add_node("b", "Blocked B", db_path=db_path)
+        api.add_justification("b", unless="a", db_path=db_path)
+        result = api.get_stats(db_path=db_path)
+        assert result["blocked_count"] == 1
+        assert result["blocker_count"] == 1
+
+    def test_nogoods(self, db_path):
+        api.add_node("a", "Premise A", db_path=db_path)
+        api.add_node("b", "Premise B", db_path=db_path)
+        api.add_nogood(["a", "b"], db_path=db_path)
+        result = api.get_stats(db_path=db_path)
+        assert result["nogood_count"] == 1
+
+
 class TestGetStatus:
 
     def test_empty(self, db_path):

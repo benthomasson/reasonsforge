@@ -488,6 +488,20 @@ def cmd_status(args):
             print(f"  [{marker}] {node['id']}: {node['text']}{jinfo}")
 
 
+def cmd_stats(args):
+    import json as _json
+    result = api.get_stats(**_backend_kwargs(args))
+    if getattr(args, "json", False):
+        print(_json.dumps(result, indent=2))
+        return
+    print(f"Beliefs:        {result['in_count']} IN, {result['out_count']} OUT ({result['total']} total)")
+    print(f"  Premises:     {result['premise_count']}")
+    print(f"  Derived:      {result['derived_count']}")
+    print(f"  Blocked:      {result['blocked_count']}")
+    print(f"  Blockers:     {result['blocker_count']}")
+    print(f"Nogoods:        {result['nogood_count']}")
+
+
 def cmd_show(args):
     visible_to = _parse_visible_to(args)
     try:
@@ -3947,8 +3961,12 @@ def main():
     p.add_argument("action", choices=["retract", "assert"], help="Action to simulate")
     p.add_argument("node_id", help="Node to simulate")
 
-    # status
-    p = sub.add_parser("status", help="Show network summary (use --all for full listing)")
+    # stats
+    p = sub.add_parser("stats", help="Show network statistics (fast, no full load)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # status (deprecated — use stats or list)
+    p = sub.add_parser("status", help="(Deprecated: use 'stats' or 'list') Show network summary")
     p.add_argument("--all", action="store_true", help="Show all nodes (default: summary only)")
     p.add_argument("-n", "--namespace", help="Filter to a namespace")
     p.add_argument("--status", choices=["IN", "OUT"], default=None, help="Filter by truth value")
@@ -4786,6 +4804,7 @@ def main():
         "migrate-defeaters": cmd_migrate_defeaters,
         "classify-defeaters": cmd_classify_defeaters,
         "what-if": cmd_what_if,
+        "stats": cmd_stats,
         "status": cmd_status,
         "show": cmd_show,
         "explain": cmd_explain,
