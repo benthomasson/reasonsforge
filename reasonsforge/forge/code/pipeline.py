@@ -92,14 +92,16 @@ def _run_step(name, func, args, errors, report=None, step_key=None):
         print(f"WARN: {name} failed: {e}, continuing...", file=sys.stderr)
         failed = True
     elapsed = time.monotonic() - t0
+    dur = round(elapsed, 2)
     detail = f"{_fmt_duration(elapsed)}"
     if report and step_key:
         if failed:
             report.fail_step(errors[-1])
         elif interrupted:
-            report.complete_step(f"ended early ({detail})")
+            report.complete_step(f"ended early ({detail})",
+                                 duration_seconds=dur)
         else:
-            report.complete_step(detail)
+            report.complete_step(detail, duration_seconds=dur)
     print(f"  {name} took {detail}", file=sys.stderr)
     return elapsed
 
@@ -159,6 +161,7 @@ def _run_review_beliefs(db_path, model, project_dir, errors, report=None,
     review_path = _review_file_path(project_dir)
     if os.path.isfile(review_path):
         os.remove(review_path)
+    t0 = time.monotonic()
     try:
         result = review_beliefs(
             model=model,
@@ -173,11 +176,13 @@ def _run_review_beliefs(db_path, model, project_dir, errors, report=None,
         with open(review_path, "w") as f:
             json.dump(result, f, indent=2)
         if report:
-            report.complete_step(detail)
+            report.complete_step(detail,
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except KeyboardInterrupt:
         print(f"\n  Ending review early", file=sys.stderr)
         if report:
-            report.complete_step("ended early")
+            report.complete_step("ended early",
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
         print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
@@ -227,6 +232,7 @@ def _run_repair(db_path, model, project_dir, errors, report=None,
     if report:
         report.start_step(step_key)
     print(f"\n=== Repair beliefs ({len(invalid_ids)} invalid) ===\n", file=sys.stderr)
+    t0 = time.monotonic()
     try:
         result = repair(
             review_file=review_path,
@@ -240,11 +246,13 @@ def _run_repair(db_path, model, project_dir, errors, report=None,
               f"Softened: {result.get('softened', 0)}, "
               f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
         if report:
-            report.complete_step(detail)
+            report.complete_step(detail,
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except KeyboardInterrupt:
         print(f"\n  Ending repair early", file=sys.stderr)
         if report:
-            report.complete_step("ended early")
+            report.complete_step("ended early",
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
@@ -261,6 +269,7 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None,
         report.start_step(step_key)
     print(f"\n=== Deduplicate{' (with LLM verify)' if verify else ''} ===\n",
           file=sys.stderr)
+    t0 = time.monotonic()
     try:
         result = deduplicate(auto=not verify, db_path=db_path)
         clusters = result.get("clusters", [])
@@ -268,7 +277,8 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None,
         if not clusters:
             print("  No duplicates found", file=sys.stderr)
             if report:
-                report.complete_step("no duplicates found")
+                report.complete_step("no duplicates found",
+                                     duration_seconds=round(time.monotonic() - t0, 2))
             return
 
         if not verify:
@@ -277,7 +287,8 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None,
                 print(f"  {len(clusters)} cluster(s), retracted {len(retracted)} duplicate(s)",
                       file=sys.stderr)
             if report:
-                report.complete_step(f"{len(clusters)} cluster(s), {len(retracted)} retracted")
+                report.complete_step(f"{len(clusters)} cluster(s), {len(retracted)} retracted",
+                                     duration_seconds=round(time.monotonic() - t0, 2))
             return
 
         print(f"  {len(clusters)} candidate cluster(s), verifying...",
@@ -315,13 +326,15 @@ def _run_deduplicate(db_path, errors, verify=True, model="claude", report=None,
                 parts.append(f"{len(vresult['rejected'])} rejected")
             if vresult.get("contradictions"):
                 parts.append(f"{len(vresult['contradictions'])} contradictions")
-            report.complete_step(", ".join(parts) if parts else "no action needed")
+            report.complete_step(", ".join(parts) if parts else "no action needed",
+                                 duration_seconds=round(time.monotonic() - t0, 2))
 
     except KeyboardInterrupt:
         print(f"\n  Ending deduplicate early — partial results saved",
               file=sys.stderr)
         if report:
-            report.complete_step("ended early")
+            report.complete_step("ended early",
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except Exception as e:
         errors.append(f"deduplicate: {e}")
         print(f"WARN: deduplicate failed: {e}, continuing...", file=sys.stderr)
@@ -337,6 +350,7 @@ def _run_contradictions(db_path, model, errors, report=None,
     if report:
         report.start_step(step_key)
     print("\n=== Detect contradictions ===\n", file=sys.stderr)
+    t0 = time.monotonic()
     try:
         result = detect_contradictions(
             auto_apply=True,
@@ -354,11 +368,13 @@ def _run_contradictions(db_path, model, errors, report=None,
             detail = f"checked {checked}, none found"
             print(f"  Checked {checked} beliefs, no contradictions found", file=sys.stderr)
         if report:
-            report.complete_step(detail)
+            report.complete_step(detail,
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except KeyboardInterrupt:
         print(f"\n  Ending contradiction detection early", file=sys.stderr)
         if report:
-            report.complete_step("ended early")
+            report.complete_step("ended early",
+                                 duration_seconds=round(time.monotonic() - t0, 2))
     except Exception as e:
         errors.append(f"contradictions: {e}")
         print(f"WARN: contradictions failed: {e}, continuing...", file=sys.stderr)
@@ -480,7 +496,9 @@ def cmd_update(args):
     print(f"Update checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
     _clear_step_checkpoint(project_dir, "update")
-    report.complete()
+    report.complete(summary={
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
 
     print("\n=== Update complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
@@ -547,10 +565,12 @@ def cmd_analyze(args):
             errors.append(f"explore: {e}")
             print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
             failed = True
+        elapsed = time.monotonic() - t0
         if failed:
             report.fail_step(errors[-1])
         else:
-            report.complete_step(f"{_fmt_duration(time.monotonic() - t0)}")
+            report.complete_step(f"{_fmt_duration(elapsed)}",
+                                 duration_seconds=round(elapsed, 2))
 
     model = getattr(args, "model", None) or "claude"
 
@@ -707,7 +727,9 @@ def cmd_analyze(args):
     repo_path = os.path.abspath(getattr(args, "repo", "."))
     save_diff_checkpoint(project_dir, cwd=repo_path)
 
-    report.complete()
+    report.complete(summary={
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
@@ -808,7 +830,9 @@ def cmd_refine(args):
     except Exception:
         post_run_ids = pre_run_ids
 
-    report.complete()
+    report.complete(summary={
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
 
     print(f"\n=== Refinement complete ===\n", file=sys.stderr)
     print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
