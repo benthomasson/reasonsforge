@@ -844,3 +844,112 @@ def cmd_refine(args):
             print(f"  - {err}", file=sys.stderr)
     else:
         print("All rounds completed successfully.", file=sys.stderr)
+
+
+def cmd_explore_propose_accept(args):
+    """Knowledge acquisition loop: explore -> propose-beliefs -> accept-beliefs.
+
+    Drains the topic queue in rounds. Each round explores a batch of topics,
+    proposes beliefs from the new summaries, and auto-accepts them. Stops
+    when the queue is empty or the round limit is reached.
+    """
+    from ..caffeinate import hold as _caffeinate
+    _caffeinate()
+
+    db_path = getattr(args, "output", REASONS_DB)
+    model = getattr(args, "model", None) or "claude"
+    rounds = getattr(args, "rounds", 1)
+    explore_limit = getattr(args, "limit", 0)
+    project_dir = _get_project_dir(args)
+    errors = []
+
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=db_path)
+        pre_run_ids = set(network.get("nodes", {}).keys())
+    except Exception:
+        pre_run_ids = set()
+
+    report = Report("code-explore-propose-accept", [
+        "explore", "propose-beliefs", "accept-beliefs",
+    ])
+
+    logs_dir = getattr(args, "logs_dir", "logs/")
+    pipeline_t0 = time.monotonic()
+
+    for round_num in range(1, rounds + 1):
+        remaining = pending_count(project_dir)
+        if remaining == 0 and round_num > 1:
+            print(f"\nTopic queue empty after round {round_num - 1}.",
+                  file=sys.stderr)
+            break
+
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(f"  Explore-Propose-Accept round {round_num}/{rounds}"
+              f" ({remaining} topics pending)", file=sys.stderr)
+        print(f"{'=' * 60}", file=sys.stderr)
+
+        step_prefix = f"r{round_num}-" if rounds > 1 else ""
+
+        # Step 1: Explore
+        eff_limit = explore_limit
+        if eff_limit <= 0:
+            eff_limit = remaining or 500
+        explore_args = SimpleNamespace(**vars(args))
+        explore_args.loop = eff_limit
+
+        t0 = time.monotonic()
+        with step_log(logs_dir, "explore-propose-accept", "explore",
+                      round_number=round_num):
+            _run_step(f"Round {round_num}: Explore (up to {eff_limit} topics)",
+                      cmd_explore, explore_args, errors,
+                      report=report, step_key=f"{step_prefix}explore")
+        _write_step_cost_report(args, "explore-propose-accept", "explore",
+                                round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
+
+        # Step 2: Propose beliefs
+        propose_args = SimpleNamespace(**vars(args), auto=False)
+
+        t0 = time.monotonic()
+        with step_log(logs_dir, "explore-propose-accept", "propose-beliefs",
+                      round_number=round_num):
+            _run_step(f"Round {round_num}: Propose beliefs",
+                      cmd_propose_beliefs, propose_args, errors,
+                      report=report, step_key=f"{step_prefix}propose-beliefs")
+        _write_step_cost_report(args, "explore-propose-accept", "propose-beliefs",
+                                round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
+
+        # Step 3: Accept beliefs
+        t0 = time.monotonic()
+        with step_log(logs_dir, "explore-propose-accept", "accept-beliefs",
+                      round_number=round_num):
+            _run_step(f"Round {round_num}: Accept beliefs",
+                      cmd_accept_beliefs, args, errors,
+                      report=report, step_key=f"{step_prefix}accept-beliefs")
+        _write_step_cost_report(args, "explore-propose-accept", "accept-beliefs",
+                                round_number=round_num,
+                                wall_clock_seconds=time.monotonic() - t0)
+
+    try:
+        from reasonsforge.api import export_network
+        network = export_network(db_path=db_path)
+        post_run_ids = set(network.get("nodes", {}).keys())
+    except Exception:
+        post_run_ids = pre_run_ids
+
+    report.complete(summary={
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
+
+    print(f"\n=== Explore-Propose-Accept complete ===\n", file=sys.stderr)
+    print(f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr)
+    print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
+          f"(+{len(post_run_ids - pre_run_ids)})", file=sys.stderr)
+    if errors:
+        print(f"Completed with {len(errors)} warning(s):", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
+    else:
+        print("All rounds completed successfully.", file=sys.stderr)

@@ -276,6 +276,26 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
+    # code explore-propose-accept
+    cs = code_sub.add_parser("explore-propose-accept",
+                             help="Knowledge acquisition: explore + propose + accept loop")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--rounds", type=int, default=1,
+                    help="Number of explore/propose/accept rounds")
+    cs.add_argument("--limit", type=int, default=0,
+                    help="Max topics to explore per round (0=all pending)")
+    cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--batch-size", type=int, default=5, dest="batch_size")
+    cs.add_argument("--kind", default=None,
+                    choices=["file", "function", "repo", "diff", "general"],
+                    help="Only explore topics of this kind")
+    cs.add_argument("--mode", default=None,
+                    choices=["discover", "security", "performance"],
+                    help="Analysis mode (default: discover)")
+
     # code refine
     cs = code_sub.add_parser("refine",
                              help="Iterative refinement: derive + review-beliefs + repair loop")
@@ -963,7 +983,9 @@ def _cmd_code(args):
         cmd_verify as _code_verify,
         cmd_walk_commits as _code_walk,
     )
-    from .code.pipeline import cmd_analyze, cmd_refine, cmd_update
+    from .code.pipeline import (
+        cmd_analyze, cmd_explore_propose_accept, cmd_refine, cmd_update,
+    )
 
     code_command = getattr(args, "code_command", None)
 
@@ -984,6 +1006,7 @@ def _cmd_code(args):
         "update": cmd_update,
         "analyze": cmd_analyze,
         "refine": cmd_refine,
+        "explore-propose-accept": cmd_explore_propose_accept,
     }
 
     try:
