@@ -373,13 +373,13 @@ def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
 
 
 def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
-    file_part = topic.target.rsplit(":", 1)[0] if ":" in topic.target else topic.target
+    file_part = topic.target.split(":", 1)[0] if ":" in topic.target else topic.target
     lang = language_for_file(file_part, fallback=lang or PYTHON)
     if ":" not in topic.target:
         print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
         return None
 
-    file_path, symbol_name = topic.target.rsplit(":", 1)
+    file_path, symbol_name = topic.target.split(":", 1)
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
 
     if not os.path.isfile(abs_path):
