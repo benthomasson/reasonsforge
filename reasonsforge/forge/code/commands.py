@@ -54,6 +54,7 @@ from .topics import (
     Topic,
     add_topics,
     load_queue,
+    mark_failed,
     parse_topics_from_response,
     pending_count,
     pop_batch,
@@ -525,7 +526,7 @@ async def _run_general_topic_async(topic, model, repo_path, timeout, mode="disco
     return result, f"topic-{safe_label}", f"Topic: {topic.title}", f"general:{topic.target}"
 
 
-async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None, mode="discover"):
+async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None, mode="discover", project_dir=None):
     from ..llm import invoke
     lang = lang or detect_language(repo_path)
     sem = asyncio.Semaphore(max_concurrent)
@@ -545,6 +546,7 @@ async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_conc
 
             prepared = prepare_fn(topic, repo_path, lang=lang, mode=mode)
             if prepared is None:
+                mark_failed(topic, project_dir)
                 return None
 
             prompt, entry_name, entry_title, source = prepared
@@ -610,6 +612,7 @@ def cmd_explore(args):
 
         prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
         if prepared is None:
+            mark_failed(topic, project_dir)
             return
 
         prompt, entry_name, entry_title, source = prepared
@@ -669,7 +672,7 @@ def _explore_loop(args, project_dir, max_topics):
 
             if parallel > 1 and len(batch) > 1:
                 results = asyncio.run(
-                    _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode)
+                    _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode, project_dir=project_dir)
                 )
                 failed = []
                 for i, r in enumerate(results):
@@ -705,6 +708,7 @@ def _explore_loop(args, project_dir, max_topics):
                         continue
                     prepared = prepare_fn(topic, abs_repo, lang=lang, mode=mode)
                     if prepared is None:
+                        mark_failed(topic, project_dir)
                         explored += len(batch)
                         continue
                     prompt, entry_name, entry_title, source = prepared
@@ -1087,7 +1091,7 @@ def cmd_walk_commits(args):
 
         if parallel > 1 and len(batch) > 1:
             results = asyncio.run(
-                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang)
+                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, project_dir=project_dir)
             )
             for r in results:
                 if isinstance(r, Exception):
@@ -1099,6 +1103,7 @@ def cmd_walk_commits(args):
             for topic in batch:
                 prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
                 if prepared is None:
+                    mark_failed(topic, project_dir)
                     continue
                 prompt, entry_name, entry_title, source = prepared
                 print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
@@ -2400,7 +2405,7 @@ def cmd_research(args):
     print(f"\nExploring {len(topics)} file(s)...", file=sys.stderr)
     if parallel > 1 and len(topics) > 1:
         batch_results = asyncio.run(
-            _explore_topics_concurrent(topics, model, abs_repo, timeout, parallel, lang=lang)
+            _explore_topics_concurrent(topics, model, abs_repo, timeout, parallel, lang=lang, project_dir=project_dir)
         )
         for r in batch_results:
             if isinstance(r, Exception):
@@ -2412,6 +2417,7 @@ def cmd_research(args):
         for topic in topics:
             prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
             if prepared is None:
+                mark_failed(topic, project_dir)
                 continue
             prompt, entry_name, entry_title, source = prepared
             print(f"Explaining {topic.target} with {model}...", file=sys.stderr)

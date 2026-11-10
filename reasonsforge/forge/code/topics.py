@@ -27,7 +27,7 @@ class Topic:
     target: str
     # Why this was surfaced (which explanation generated it)
     source: str = ""
-    # Status: pending, done, skipped
+    # Status: pending, done, skipped, failed
     status: str = "pending"
     # When it was added
     added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
@@ -194,6 +194,17 @@ def skip_topic(index: int, project_dir: str | None = None) -> bool:
     queue[pending[index]].status = "skipped"
     save_queue(queue, project_dir)
     return True
+
+
+def mark_failed(topic: Topic, project_dir: str | None = None) -> bool:
+    """Mark a topic as failed (e.g. file not found)."""
+    queue = load_queue(project_dir)
+    for t in queue:
+        if t.target == topic.target and t.kind == topic.kind:
+            t.status = "failed"
+            save_queue(queue, project_dir)
+            return True
+    return False
 
 
 def pending_count(project_dir: str | None = None) -> int:
