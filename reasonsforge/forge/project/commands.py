@@ -15,7 +15,10 @@ from collections import defaultdict, deque
 from datetime import date, datetime
 from pathlib import Path
 
+import time
+
 from . import PROJECT_DIR
+from ..report import Report
 from .prompts import (
     DERIVE_BELIEFS_PROMPT,
     PROPOSE_BELIEFS_PROJECT,
@@ -2600,6 +2603,18 @@ def cmd_analyze_issue(args):
     source = _get_source(config)
     platform = config["platform"]
 
+    steps = ["fetch", "analyze"]
+    if walk:
+        steps.append("walk-children")
+    report = Report("project-analyze-issue", steps)
+    pipeline_t0 = time.monotonic()
+    analyzed = 0
+    skipped = 0
+    errors = 0
+
+    report.start_step("fetch")
+    t0 = time.monotonic()
+    fetched_issues = []
     for i, issue_key in enumerate(issue_keys):
         if len(issue_keys) > 1:
             print(f"\n=== Issue {i + 1}/{len(issue_keys)}: {issue_key} ===",
@@ -2608,20 +2623,50 @@ def cmd_analyze_issue(args):
         print(f"Fetching {issue_key}...", file=sys.stderr)
         try:
             issue = _fetch_issue(source, platform, issue_key)
+            fetched_issues.append(issue)
         except Exception as e:
             print(f"Error fetching issue {issue_key}: {e}", file=sys.stderr)
-            continue
+            errors += 1
+    report.complete_step(
+        f"fetched {len(fetched_issues)}, {errors} errors",
+        counts={"fetched": len(fetched_issues), "errors": errors},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
+    report.start_step("analyze")
+    t0 = time.monotonic()
+    for issue in fetched_issues:
         if _issue_needs_analysis(issue.id, issue.updated, force):
             _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
                                proposals_output)
+            analyzed += 1
         else:
             print(f"  Skipping {issue.id} (unchanged since last analysis)",
                   file=sys.stderr)
+            skipped += 1
+    report.complete_step(
+        f"analyzed {analyzed}, skipped {skipped}",
+        counts={"analyzed": analyzed, "skipped": skipped},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
-        if walk:
+    if walk:
+        report.start_step("walk-children")
+        t0 = time.monotonic()
+        for issue in fetched_issues:
             _walk_children(issue, source, platform, model, timeout, db_path,
                            auto_accept, proposals_output, force)
+        report.complete_step(
+            duration_seconds=round(time.monotonic() - t0, 2),
+        )
+
+    report.complete(summary={
+        "issues": len(fetched_issues),
+        "analyzed": analyzed,
+        "skipped": skipped,
+        "errors": errors,
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -3009,28 +3054,56 @@ def cmd_track(args):
     source = _get_source(config)
     platform = config["platform"]
 
+    report = Report("project-track", [
+        "fetch", "analyze", "reconcile", "accept", "derive",
+    ])
+    pipeline_t0 = time.monotonic()
+
     # Phase 1: Fetch
+    report.start_step("fetch")
+    t0 = time.monotonic()
     print("Phase 1/5: Fetch — pulling tracked issues...", file=sys.stderr)
     changed, skipped, fetch_errors = _phase_fetch(
         issues, source, platform, force,
     )
     print(f"  {len(changed)} changed, {len(skipped)} unchanged, "
           f"{len(fetch_errors)} errors", file=sys.stderr)
+    report.complete_step(
+        f"{len(changed)} changed, {len(skipped)} unchanged, {len(fetch_errors)} errors",
+        counts={"changed": len(changed), "unchanged": len(skipped),
+                "errors": len(fetch_errors)},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
     if not changed:
         print("\nNo issues need analysis.", file=sys.stderr)
+        report.complete(summary={
+            "changed": 0, "unchanged": len(skipped),
+            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+        })
         return
 
     # Phase 2: Analyze
+    report.start_step("analyze")
+    t0 = time.monotonic()
     print("\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
           file=sys.stderr)
     all_proposals = _phase_analyze(changed, model, timeout, db_path)
     total_proposals = sum(len(p) for p in all_proposals.values())
     print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)",
           file=sys.stderr)
+    report.complete_step(
+        f"{total_proposals} proposals from {len(all_proposals)} issues",
+        counts={"proposals": total_proposals, "issues": len(all_proposals)},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
     if not total_proposals:
         print("\nNo proposals extracted.", file=sys.stderr)
+        report.complete(summary={
+            "changed": len(changed), "proposals": 0,
+            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+        })
         return
 
     # Split proposals by per-entry auto flag
@@ -3068,35 +3141,72 @@ def cmd_track(args):
     if not auto_proposals:
         print("\nNo auto-accept proposals. Skipping phases 3-5.",
               file=sys.stderr)
+        report.complete(summary={
+            "changed": len(changed), "proposals": total_proposals,
+            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+        })
         return
 
     # Phase 3: Reconcile
+    report.start_step("reconcile")
+    t0 = time.monotonic()
     print("\nPhase 3/5: Reconcile — retracting stale beliefs...",
           file=sys.stderr)
     retracted, kept = _phase_reconcile(auto_proposals, db_path)
     print(f"  {retracted} retracted, {kept} kept", file=sys.stderr)
+    report.complete_step(
+        f"{retracted} retracted, {kept} kept",
+        counts={"retracted": retracted, "kept": kept},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
     # Phase 4: Accept
+    report.start_step("accept")
+    t0 = time.monotonic()
     print("\nPhase 4/5: Accept — writing new beliefs to database...",
           file=sys.stderr)
     added, existed, failed = _phase_accept(auto_proposals, db_path, model=model)
     print(f"  {added} added, {existed} existing, {failed} failed",
           file=sys.stderr)
+    report.complete_step(
+        f"{added} added, {existed} existing, {failed} failed",
+        counts={"added": added, "existed": existed, "failed": failed},
+        duration_seconds=round(time.monotonic() - t0, 2),
+    )
 
     # Phase 5: Derive
+    report.start_step("derive")
+    t0 = time.monotonic()
     no_derive = getattr(args, "no_derive", False)
     if no_derive:
         print("\nPhase 5/5: Derive — skipped (--no-derive)", file=sys.stderr)
         derived = 0
+        report.complete_step("skipped", counts={"derived": 0},
+                             duration_seconds=round(time.monotonic() - t0, 2))
     else:
         print("\nPhase 5/5: Derive — cross-issue reasoning...",
               file=sys.stderr)
         derived = _phase_derive(args, db_path)
         print(f"  {derived} derivation(s) added", file=sys.stderr)
+        report.complete_step(
+            f"{derived} derived",
+            counts={"derived": derived},
+            duration_seconds=round(time.monotonic() - t0, 2),
+        )
 
     print(f"\nTrack complete: {len(changed)} analyzed, {len(skipped)} unchanged, "
           f"{len(fetch_errors)} fetch errors, {retracted} retracted, "
           f"{added} accepted, {derived} derived", file=sys.stderr)
+
+    report.complete(summary={
+        "changed": len(changed),
+        "unchanged": len(skipped),
+        "proposals": total_proposals,
+        "retracted": retracted,
+        "added": added,
+        "derived": derived,
+        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+    })
 
 
 # ---------------------------------------------------------------------------
