@@ -2779,6 +2779,8 @@ def _phase_analyze(changed, model, timeout, db_path):
               file=sys.stderr)
         try:
             proposals = _extract_proposals(issue, model, timeout, db_path)
+            for p in proposals:
+                p["url"] = issue.url
             all_proposals[issue.id] = proposals
             print(f"    {len(proposals)} proposal(s)", file=sys.stderr)
             _save_analyzed_issue(issue.id, issue.updated)
@@ -2847,10 +2849,12 @@ def _phase_accept(all_proposals, db_path, model=""):
 
     for issue_id, proposals in all_proposals.items():
         for p in proposals:
+            issue_url = p.get("url", "")
             try:
                 add_node(
                     p["belief_id"], p["text"],
-                    source=p["source"], model=model, db_path=db_path,
+                    source=p["source"], source_url=issue_url,
+                    model=model, db_path=db_path,
                 )
                 now = datetime.now().isoformat(timespec="seconds")
                 try:
@@ -2858,6 +2862,9 @@ def _phase_accept(all_proposals, db_path, model=""):
                                  db_path=db_path)
                     set_metadata(p["belief_id"], "issue_id", issue_id,
                                  db_path=db_path)
+                    if issue_url:
+                        set_metadata(p["belief_id"], "source_url",
+                                     issue_url, db_path=db_path)
                 except Exception as meta_err:
                     print(f"    Warning: metadata failed for "
                           f"{p['belief_id']}: {meta_err}",
