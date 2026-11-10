@@ -78,6 +78,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--kind", default=None,
+                    choices=["file", "function", "repo", "diff", "general"],
+                    help="Only explore topics of this kind")
 
     # code explain
     cs = code_sub.add_parser("explain", help="Explain a file, function, or diff")

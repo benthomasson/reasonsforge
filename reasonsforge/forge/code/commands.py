@@ -576,14 +576,18 @@ def cmd_explore(args):
         sys.exit(1)
 
     mode = getattr(args, "mode", None) or "discover"
+    kind_filter = getattr(args, "kind", None)
 
     if loop_max is not None:
         _explore_loop(args, project_dir, loop_max)
         return
 
-    topic = pop_next(project_dir)
+    topic = pop_next(project_dir, kind=kind_filter)
     if topic is None:
-        print("No pending topics. Run `reasonsforge code scan` to discover topics.")
+        if kind_filter:
+            print(f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics.")
+        else:
+            print("No pending topics. Run `reasonsforge code scan` to discover topics.")
         return
 
     lang = _get_lang(args, abs_repo)
@@ -633,6 +637,7 @@ def _explore_loop(args, project_dir, max_topics):
     timeout = getattr(args, "timeout", 300)
     parallel = getattr(args, "parallel", 1)
     mode = getattr(args, "mode", None) or "discover"
+    kind_filter = getattr(args, "kind", None)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -643,10 +648,13 @@ def _explore_loop(args, project_dir, max_topics):
     try:
         while explored < max_topics:
             batch_size = min(parallel, max_topics - explored)
-            batch = pop_batch(batch_size, project_dir)
+            batch = pop_batch(batch_size, project_dir, kind=kind_filter)
             if not batch:
                 if explored == 0:
-                    print("No pending topics. Run `reasonsforge code scan` to discover topics.")
+                    if kind_filter:
+                        print(f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics.")
+                    else:
+                        print("No pending topics. Run `reasonsforge code scan` to discover topics.")
                 else:
                     print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
                 return

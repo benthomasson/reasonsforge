@@ -90,15 +90,19 @@ def add_topics(topics: list[Topic], project_dir: str | None = None) -> int:
     return added
 
 
-def pop_next(project_dir: str | None = None) -> Topic | None:
+def pop_next(project_dir: str | None = None,
+             kind: str | None = None) -> Topic | None:
     """
     Get the next pending topic and mark it as done.
 
+    If kind is given, only return topics matching that kind.
     Returns None if queue is empty or all done.
     """
     queue = load_queue(project_dir)
     for topic in queue:
         if topic.status == "pending":
+            if kind and topic.kind != kind:
+                continue
             topic.status = "done"
             save_queue(queue, project_dir)
             return topic
@@ -148,12 +152,18 @@ def pop_multiple(indices: list[int], project_dir: str | None = None) -> list[Top
     return results
 
 
-def pop_batch(n: int, project_dir: str | None = None) -> list[Topic]:
-    """Pop up to n pending topics and mark them as done."""
+def pop_batch(n: int, project_dir: str | None = None,
+              kind: str | None = None) -> list[Topic]:
+    """Pop up to n pending topics and mark them as done.
+
+    If kind is given, only pop topics matching that kind.
+    """
     queue = load_queue(project_dir)
     popped = []
     for topic in queue:
         if topic.status == "pending" and len(popped) < n:
+            if kind and topic.kind != kind:
+                continue
             topic.status = "done"
             popped.append(topic)
     if popped:
