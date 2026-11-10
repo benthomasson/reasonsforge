@@ -62,6 +62,11 @@ def register_forge_type_commands(parent_subparsers):
 
     code_sub = p.add_subparsers(dest="code_command")
 
+    # code init
+    cs = code_sub.add_parser("init", help="Initialize code forge for a codebase")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--domain", help="Domain description")
+
     # code scan
     cs = code_sub.add_parser("scan", help="Scan repo structure and populate topic queue")
     cs.add_argument("--repo", default=".", help="Path to git repository")
@@ -963,6 +968,7 @@ def _cmd_code(args):
     code_command = getattr(args, "code_command", None)
 
     _code_dispatch = {
+        "init": _code_init,
         "scan": _code_scan,
         "explore": _code_explore,
         "walk-commits": _code_walk,
