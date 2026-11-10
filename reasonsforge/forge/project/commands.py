@@ -375,7 +375,7 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
 
 
 def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
-                           model: str = "") -> None:
+                           model: str = "", source_url: str = "") -> None:
     """Parse LLM proposals and accept all beliefs directly via reasonsforge.api."""
     from reasonsforge.api import add_node, set_metadata
 
@@ -401,13 +401,15 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
     for belief_id, claim_text, source in matches:
         try:
             add_node(belief_id, claim_text.strip(), source=source.strip(),
-                     model=model, db_path=db_path)
+                     source_url=source_url, model=model, db_path=db_path)
             print(f"  Added: {belief_id}", file=sys.stderr)
             added += 1
             now = datetime.now().isoformat(timespec="seconds")
             try:
                 set_metadata(belief_id, "accepted_at", now, db_path=db_path)
                 set_metadata(belief_id, "issue_id", source.strip(), db_path=db_path)
+                if source_url:
+                    set_metadata(belief_id, "source_url", source_url, db_path=db_path)
             except Exception:
                 pass
         except Exception as e:
@@ -2497,7 +2499,8 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
         print(f"  Filtered {dup_skipped} already-accepted beliefs", file=sys.stderr)
 
     if auto_accept:
-        _auto_accept_proposals([filtered], db_path, model=model)
+        _auto_accept_proposals([filtered], db_path, model=model,
+                               source_url=issue.url)
         _save_analyzed_issue(issue.id, issue.updated)
         return 1
 
@@ -2507,6 +2510,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
             f.write(f"\n---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
             f.write(f"**Source:** {issue.id}\n")
+            f.write(f"**URL:** {issue.url}\n")
             f.write(f"**Model:** {model}\n\n")
             f.write(filtered)
             f.write("\n\n")
@@ -2518,6 +2522,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
             f.write("---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
             f.write(f"**Source:** {issue.id}\n")
+            f.write(f"**URL:** {issue.url}\n")
             f.write(f"**Model:** {model}\n\n")
             f.write(filtered)
             f.write("\n\n")
