@@ -547,8 +547,9 @@ def cmd_analyze(args):
             eff_limit = pending_count(project_dir) or 500
         explore_args = SimpleNamespace(**vars(args))
         explore_args.loop = eff_limit
+        parallel = getattr(args, "parallel", 1)
         report.start_step(step_key)
-        print(f"\n=== {label}: Explore (up to {eff_limit} topics) ===\n", file=sys.stderr)
+        print(f"\n=== {label}: Explore (up to {eff_limit} topics, {parallel} worker(s)) ===\n", file=sys.stderr)
         t0 = time.monotonic()
         failed = False
         try:
