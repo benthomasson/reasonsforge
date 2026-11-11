@@ -912,7 +912,7 @@ def cmd_explain_diff(args):
 
     try:
         if since_last:
-            checkpoint = load_diff_checkpoint(project_dir)
+            checkpoint = load_diff_checkpoint(project_dir, repo_path=abs_repo)
             if not checkpoint:
                 print("No previous diff checkpoint found. Use --since DATE first.", file=sys.stderr)
                 sys.exit(1)
@@ -1048,7 +1048,7 @@ def cmd_walk_commits(args):
     dry_run = getattr(args, "dry_run", False)
 
     if since_last:
-        checkpoint = load_diff_checkpoint(project_dir)
+        checkpoint = load_diff_checkpoint(project_dir, repo_path=abs_repo)
         if not checkpoint:
             print("No previous diff checkpoint found — running full analysis instead.",
                   file=sys.stderr)
@@ -2939,9 +2939,9 @@ def cmd_status(args):
     print(f"Topics:   {pending} pending, {done_count} done, {skipped} skipped")
 
     repo_path = _get_repo(args)
-    unexplored = commits_since_checkpoint(project_dir, cwd=repo_path)
+    unexplored = commits_since_checkpoint(project_dir, cwd=repo_path, repo_path=os.path.abspath(repo_path))
     if unexplored is not None:
-        checkpoint = load_diff_checkpoint(project_dir)
+        checkpoint = load_diff_checkpoint(project_dir, repo_path=os.path.abspath(repo_path))
         ts = checkpoint["timestamp"] if checkpoint else "?"
         if unexplored == 0:
             print(f"Diff:     up to date (last: {ts})")

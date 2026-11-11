@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -123,8 +124,13 @@ def save_diff_checkpoint(project_dir: str, cwd: str | None = None) -> None:
     if result.returncode != 0:
         return
     head_sha = result.stdout.strip()
+    repo_root = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, cwd=cwd,
+    )
     checkpoint = {
         "head": head_sha,
+        "repo": repo_root.stdout.strip() if repo_root.returncode == 0 else os.path.abspath(cwd or os.getcwd()),
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
     os.makedirs(project_dir, exist_ok=True)
@@ -133,16 +139,29 @@ def save_diff_checkpoint(project_dir: str, cwd: str | None = None) -> None:
         json.dump(checkpoint, f, indent=2)
 
 
-def load_diff_checkpoint(project_dir: str) -> dict | None:
-    """Load the last diff checkpoint. Returns {head, timestamp} or None."""
+def load_diff_checkpoint(project_dir: str, repo_path: str | None = None) -> dict | None:
+    """Load the last diff checkpoint. Returns {head, timestamp, repo} or None.
+
+    If repo_path is given, validates that the checkpoint was saved from the
+    same repo. Returns None with a warning if repos don't match.
+    """
     path = os.path.join(project_dir, "last-diff.json")
     if not os.path.isfile(path):
         return None
     try:
         with open(path) as f:
-            return json.load(f)
+            checkpoint = json.load(f)
     except (json.JSONDecodeError, ValueError):
         return None
+    if repo_path and "repo" in checkpoint:
+        saved_repo = os.path.realpath(checkpoint["repo"])
+        target_repo = os.path.realpath(repo_path)
+        if saved_repo != target_repo:
+            print(f"Warning: checkpoint was saved from {saved_repo} "
+                  f"but --repo points to {target_repo}. "
+                  f"Ignoring stale checkpoint.", file=sys.stderr)
+            return None
+    return checkpoint
 
 
 def get_diff_since_commit(base_sha: str, cwd: str | None = None, context_lines: int = 10) -> tuple[str, str]:
@@ -168,9 +187,9 @@ def get_diff_since_commit(base_sha: str, cwd: str | None = None, context_lines: 
     return diff_result.stdout, log
 
 
-def commits_since_checkpoint(project_dir: str, cwd: str | None = None) -> int | None:
+def commits_since_checkpoint(project_dir: str, cwd: str | None = None, repo_path: str | None = None) -> int | None:
     """Count commits since last diff checkpoint. Returns None if no checkpoint."""
-    checkpoint = load_diff_checkpoint(project_dir)
+    checkpoint = load_diff_checkpoint(project_dir, repo_path=repo_path or cwd)
     if not checkpoint:
         return None
     result = subprocess.run(
