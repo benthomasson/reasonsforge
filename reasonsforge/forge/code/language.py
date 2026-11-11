@@ -151,6 +151,32 @@ WGSL = LanguageProfile(
     decorator_prefix="@",
 )
 
+JAVA = LanguageProfile(
+    name="java",
+    source_globs=["*.java"],
+    source_extensions=[".java"],
+    fence_language="java",
+    definition_patterns=[
+        r"^(public|protected|private|static|abstract|final|\s)*class\s+{symbol}\b",
+        r"^(public|protected|private|static|abstract|final|\s)*interface\s+{symbol}\b",
+        r"^(public|protected|private|static|abstract|final|\s)*enum\s+{symbol}\b",
+        r"^(public|protected|private|static|abstract|final|\s)*record\s+{symbol}\b",
+        r"^(public|protected|private|static|abstract|final|synchronized|native|\s)*[\w<>\[\], ]+\s+{symbol}\s*\(",
+    ],
+    import_line_prefixes=["import ", "package "],
+    scope_style="brace",
+    test_globs=["*Test.java", "Test*.java", "*Tests.java", "*IT.java"],
+    entry_point_candidates=[
+        "src/main/java/Main.java",
+        "src/main/java/App.java",
+        "src/main/java/Application.java",
+    ],
+    config_files=["pom.xml", "build.gradle", "build.gradle.kts"],
+    primary_extension=".java",
+    config_entry_point_marker=None,
+    decorator_prefix="@",
+)
+
 TERRAFORM = LanguageProfile(
     name="terraform",
     source_globs=["*.tf", "*.tfvars"],
@@ -178,6 +204,7 @@ LANGUAGE_REGISTRY: dict[str, LanguageProfile] = {
     "cpp": CPP,
     "rust": RUST,
     "go": GO,
+    "java": JAVA,
     "wgsl": WGSL,
     "terraform": TERRAFORM,
 }
@@ -193,6 +220,7 @@ _CONFIG_TO_LANGUAGE: dict[str, str] = {
     "go.mod": "go",
     "pom.xml": "java",
     "build.gradle": "java",
+    "build.gradle.kts": "java",
     "main.tf": "terraform",
 }
 

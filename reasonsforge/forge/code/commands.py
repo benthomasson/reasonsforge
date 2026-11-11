@@ -320,14 +320,16 @@ def cmd_scan(args):
 
     project_dir = _get_project_dir(args)
 
-    source_files = list_source_files(repo_path)
+    all_files = list_source_files(repo_path)
+    source_exts = set(lang.source_extensions)
+    source_files = [f for f in all_files if os.path.splitext(f)[1].lower() in source_exts]
     if source_files:
         file_topics = [
             Topic(title=f, kind="file", target=f, source=f"scan:{repo_name}")
             for f in source_files
         ]
         added = add_topics(file_topics, project_dir)
-        print(f"Queued {added} file(s) for exploration", file=sys.stderr)
+        print(f"Queued {added} source file(s) for exploration ({len(all_files) - len(source_files)} non-source skipped)", file=sys.stderr)
 
     _enqueue_topics(result, source=f"scan:{repo_name}", project_dir=project_dir)
     print(result)
