@@ -375,6 +375,15 @@ def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
     return prompt, entry_name, f"File: {rel_path}", f"file:{rel_path}"
 
 
+def _extract_line_context(file_content, line_number, context=30):
+    """Extract lines around a target line number (1-indexed)."""
+    lines = file_content.split("\n")
+    start = max(0, line_number - 1 - context)
+    end = min(len(lines), line_number + context)
+    numbered = [f"{i + 1:4d}  {lines[i]}" for i in range(start, end)]
+    return "\n".join(numbered)
+
+
 def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
     file_part = topic.target.split(":", 1)[0] if ":" in topic.target else topic.target
     lang = language_for_file(file_part, fallback=lang or PYTHON)
@@ -388,6 +397,27 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
     if not os.path.isfile(abs_path):
         print(f"File not found: {file_path} (skipping)", file=sys.stderr)
         return None
+
+    # Line number reference (e.g. src/Main.java:42)
+    if symbol_name.isdigit():
+        line_number = int(symbol_name)
+        full_content = get_file_content(abs_path)
+        if full_content is None:
+            print(f"Cannot read file: {file_path}", file=sys.stderr)
+            return None
+        rel_path = os.path.relpath(abs_path, repo_path)
+        line_context = _extract_line_context(full_content, line_number)
+        label = f"line {line_number}"
+        prompt = build_function_prompt(
+            file_path=rel_path,
+            symbol_name=label,
+            symbol_source=line_context,
+            full_file_content=full_content,
+            language=lang.fence_language,
+            mode=mode,
+        )
+        entry_name = _sanitize_path_for_filename(rel_path) + f"-L{line_number}"
+        return prompt, entry_name, f"Line {line_number} in {rel_path}", f"function:{rel_path}:{symbol_name}"
 
     symbol_source = extract_symbol(abs_path, symbol_name, lang=lang)
     if symbol_source is None:
