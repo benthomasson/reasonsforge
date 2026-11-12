@@ -2883,13 +2883,45 @@ def _phase_analyze_parallel(changed, model, timeout, db_path, parallel):
     return all_proposals
 
 
-def _phase_reconcile(all_proposals, db_path):
-    """Phase 3 — Reconcile: compare new proposals against existing beliefs
-    by issue_id metadata. Retract stale beliefs no longer present.
+RECONCILE_PROMPT = """\
+You are reviewing existing beliefs that were previously extracted from a \
+project tracker issue. The issue may have been updated since these beliefs \
+were extracted. Determine which beliefs still accurately reflect the \
+current state of the issue.
+
+## Current Issue State
+
+{issue_text}
+
+## Existing Beliefs for This Issue
+
+{beliefs_text}
+
+## Instructions
+
+For each belief, respond with exactly one line:
+- `KEEP <belief_id>` — the belief still accurately reflects the issue
+- `RETRACT <belief_id>` — the belief is outdated, incorrect, or no longer \
+supported by the issue
+
+Respond with one line per belief, nothing else.
+"""
+
+
+def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
+                     timeout=300, batch_size=20):
+    """Phase 3 — Reconcile: ask the LLM which existing beliefs still apply.
+
+    For each issue that was re-analyzed, gather its existing beliefs from the
+    database and ask the LLM whether each still reflects the current issue
+    state. Beliefs the LLM marks RETRACT are retracted.
 
     Returns (retracted_count, kept_count).
     """
     from reasonsforge.api import export_network, retract_node
+    from ..llm import invoke
+
+    issues = issues or {}
 
     try:
         network = export_network(db_path=db_path)
@@ -2897,33 +2929,70 @@ def _phase_reconcile(all_proposals, db_path):
     except Exception:
         return 0, 0
 
-    existing_by_issue: dict[str, list[str]] = defaultdict(list)
+    existing_by_issue: dict[str, list[tuple[str, str]]] = defaultdict(list)
     for nid, node in nodes.items():
         issue_id = node.get("metadata", {}).get("issue_id")
         if issue_id and node.get("truth_value") == "IN":
-            existing_by_issue[issue_id].append(nid)
+            text = node.get("text", node.get("label", nid))
+            existing_by_issue[issue_id].append((nid, text))
 
     retracted = 0
     kept = 0
 
-    for issue_id, proposals in all_proposals.items():
-        new_ids = {p["belief_id"] for p in proposals}
-        existing_ids = existing_by_issue.get(issue_id, [])
+    for issue_id in all_proposals:
+        existing = existing_by_issue.get(issue_id, [])
+        if not existing:
+            continue
 
-        for nid in existing_ids:
-            if nid not in new_ids:
-                try:
-                    retract_node(
-                        nid,
-                        reason=f"No longer present in updated issue {issue_id}",
-                        db_path=db_path,
-                    )
-                    print(f"    Retracted stale: {nid}", file=sys.stderr)
-                    retracted += 1
-                except Exception as e:
-                    print(f"    Error retracting {nid}: {e}", file=sys.stderr)
-            else:
-                kept += 1
+        issue = issues.get(issue_id)
+        if not issue:
+            kept += len(existing)
+            continue
+
+        issue_text = issue.to_prompt_text()
+
+        for batch_start in range(0, len(existing), batch_size):
+            batch = existing[batch_start:batch_start + batch_size]
+            beliefs_lines = []
+            for nid, text in batch:
+                beliefs_lines.append(f"- `{nid}`: {text}")
+            beliefs_text = "\n".join(beliefs_lines)
+
+            prompt = RECONCILE_PROMPT.format(
+                issue_text=issue_text,
+                beliefs_text=beliefs_text,
+            )
+
+            try:
+                result = asyncio.run(invoke(prompt, model, timeout=timeout))
+            except Exception as e:
+                print(f"    Reconcile LLM error for {issue_id}: {e}",
+                      file=sys.stderr)
+                kept += len(batch)
+                continue
+
+            retract_ids = set()
+            for line in result.strip().splitlines():
+                line = line.strip()
+                if line.upper().startswith("RETRACT "):
+                    bid = line.split(None, 1)[1].strip().strip("`")
+                    retract_ids.add(bid)
+
+            for nid, _text in batch:
+                if nid in retract_ids:
+                    try:
+                        retract_node(
+                            nid,
+                            reason=f"No longer reflects current state of {issue_id}",
+                            db_path=db_path,
+                        )
+                        print(f"    Retracted stale: {nid}", file=sys.stderr)
+                        retracted += 1
+                    except Exception as e:
+                        print(f"    Error retracting {nid}: {e}",
+                              file=sys.stderr)
+                else:
+                    kept += 1
 
     return retracted, kept
 
@@ -3198,9 +3267,12 @@ def cmd_track(args):
     # Phase 3: Reconcile
     report.start_step("reconcile")
     t0 = time.monotonic()
-    print("\nPhase 3/5: Reconcile — retracting stale beliefs...",
+    print("\nPhase 3/5: Reconcile — reviewing existing beliefs against current issue state...",
           file=sys.stderr)
-    retracted, kept = _phase_reconcile(auto_proposals, db_path)
+    issue_map = {issue.id: issue for issue, _entry in changed}
+    retracted, kept = _phase_reconcile(
+        auto_proposals, db_path, issues=issue_map, model=model, timeout=timeout,
+    )
     print(f"  {retracted} retracted, {kept} kept", file=sys.stderr)
     report.complete_step(
         f"{retracted} retracted, {kept} kept",
