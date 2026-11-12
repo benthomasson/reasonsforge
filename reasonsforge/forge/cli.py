@@ -655,6 +655,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Skip the derive phase (faster)")
     ps.add_argument("--parallel", type=int, default=1,
                     help="Number of issues to analyze concurrently")
+    ps.add_argument("--walk", action="store_true",
+                    help="Walk children/subtasks of all tracked issues and add to watchlist")
 
     track_sub = ps.add_subparsers(dest="track_command")
 

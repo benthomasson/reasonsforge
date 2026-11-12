@@ -2755,6 +2755,39 @@ def _extract_proposals(issue, model, timeout, db_path):
     return proposals
 
 
+def _walk_watchlist(entries, source, platform):
+    """Walk children of all tracked issues and add new ones to the watchlist.
+
+    Returns (updated_entries, added_count).
+    """
+    existing_keys = {e["key"] for e in entries}
+    added = 0
+    to_walk = list(entries)
+    i = 0
+
+    while i < len(to_walk):
+        entry = to_walk[i]
+        i += 1
+        issue_key = entry["key"]
+        try:
+            issue = _fetch_issue(source, platform, issue_key)
+        except Exception as e:
+            print(f"  Walk: error fetching {issue_key}: {e}", file=sys.stderr)
+            continue
+
+        for child_key in issue.children:
+            if child_key not in existing_keys:
+                existing_keys.add(child_key)
+                new_entry = {"key": child_key}
+                entries.append(new_entry)
+                to_walk.append(new_entry)
+                added += 1
+                print(f"  Walk: added child {child_key} (from {issue_key})",
+                      file=sys.stderr)
+
+    return entries, added
+
+
 def _phase_fetch(entries, source, platform, force):
     """Phase 1 — Fetch: pull tracked issues, filter unchanged ones.
 
@@ -3161,6 +3194,7 @@ def cmd_track(args):
     db_path = getattr(args, "output", REASONS_DB)
     force = getattr(args, "force", False)
     parallel = getattr(args, "parallel", 1)
+    walk = getattr(args, "walk", False)
     cli_auto = getattr(args, "auto", True)
     proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
@@ -3170,6 +3204,14 @@ def cmd_track(args):
 
     source = _get_source(config)
     platform = config["platform"]
+
+    if walk:
+        issues, walk_added = _walk_watchlist(issues, source, platform)
+        if walk_added:
+            watchlist["issues"] = issues
+            _save_watchlist(watchlist)
+            print(f"Walk added {walk_added} child issue(s) to watchlist",
+                  file=sys.stderr)
 
     report = Report("project-track", [
         "fetch", "analyze", "reconcile", "accept", "derive",
