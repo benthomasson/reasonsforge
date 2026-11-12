@@ -653,6 +653,8 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
     ps.add_argument("--no-derive", action="store_true",
                     help="Skip the derive phase (faster)")
+    ps.add_argument("--parallel", type=int, default=1,
+                    help="Number of issues to analyze concurrently")
 
     track_sub = ps.add_subparsers(dest="track_command")
 

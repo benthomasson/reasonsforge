@@ -2810,13 +2810,16 @@ def _phase_fetch(entries, source, platform, force):
     return changed, skipped, errors
 
 
-def _phase_analyze(changed, model, timeout, db_path):
+def _phase_analyze(changed, model, timeout, db_path, parallel=1):
     """Phase 2 — Analyze: run LLM on changed issues, return proposals.
 
     Returns dict mapping issue_id -> list of proposal dicts.
     Issues that fail analysis are excluded (not mapped to []) so that
     reconciliation doesn't retract their existing beliefs.
     """
+    if parallel > 1 and len(changed) > 1:
+        return _phase_analyze_parallel(changed, model, timeout, db_path, parallel)
+
     all_proposals: dict[str, list[dict]] = {}
 
     for i, (issue, _entry) in enumerate(changed):
@@ -2832,6 +2835,50 @@ def _phase_analyze(changed, model, timeout, db_path):
         except Exception as e:
             print(f"    Error (skipping reconcile for this issue): {e}",
                   file=sys.stderr)
+
+    return all_proposals
+
+
+def _phase_analyze_parallel(changed, model, timeout, db_path, parallel):
+    """Analyze issues concurrently in batches."""
+    all_proposals: dict[str, list[dict]] = {}
+    analyzed = 0
+
+    while analyzed < len(changed):
+        batch = changed[analyzed:analyzed + parallel]
+        print(f"\n  Analyzing {len(batch)} issue(s) in parallel "
+              f"[{analyzed + 1}-{analyzed + len(batch)}/{len(changed)}]...",
+              file=sys.stderr)
+
+        async def _invoke_batch():
+            sem = asyncio.Semaphore(parallel)
+
+            async def _analyze_one(issue, entry):
+                async with sem:
+                    loop = asyncio.get_event_loop()
+                    return issue, entry, await loop.run_in_executor(
+                        None, _extract_proposals, issue, model, timeout, db_path,
+                    )
+
+            return await asyncio.gather(
+                *[_analyze_one(issue, entry) for issue, entry in batch],
+                return_exceptions=True,
+            )
+
+        results = asyncio.run(_invoke_batch())
+
+        for r in results:
+            if isinstance(r, Exception):
+                print(f"    Error: {r}", file=sys.stderr)
+                continue
+            issue, _entry, proposals = r
+            for p in proposals:
+                p["url"] = issue.url
+            all_proposals[issue.id] = proposals
+            print(f"    {issue.id}: {len(proposals)} proposal(s)", file=sys.stderr)
+            _save_analyzed_issue(issue.id, issue.updated)
+
+        analyzed += len(batch)
 
     return all_proposals
 
@@ -3044,6 +3091,7 @@ def cmd_track(args):
     timeout = getattr(args, "timeout", 300)
     db_path = getattr(args, "output", REASONS_DB)
     force = getattr(args, "force", False)
+    parallel = getattr(args, "parallel", 1)
     cli_auto = getattr(args, "auto", True)
     proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
@@ -3088,7 +3136,7 @@ def cmd_track(args):
     t0 = time.monotonic()
     print("\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
           file=sys.stderr)
-    all_proposals = _phase_analyze(changed, model, timeout, db_path)
+    all_proposals = _phase_analyze(changed, model, timeout, db_path, parallel=parallel)
     total_proposals = sum(len(p) for p in all_proposals.values())
     print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)",
           file=sys.stderr)
