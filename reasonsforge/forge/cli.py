@@ -657,6 +657,10 @@ def register_forge_type_commands(parent_subparsers):
                     help="Number of issues to analyze concurrently")
     ps.add_argument("--walk", action="store_true",
                     help="Walk children/subtasks of all tracked issues and add to watchlist")
+    ps.add_argument("--walk-depth", type=int, default=0,
+                    help="Max depth for --walk (0=unlimited)")
+    ps.add_argument("--allowed-projects", nargs="+", default=None,
+                    help="Only walk children whose key starts with these project prefixes (e.g. PROJ AAP)")
 
     track_sub = ps.add_subparsers(dest="track_command")
 

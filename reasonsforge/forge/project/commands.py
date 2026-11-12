@@ -2755,19 +2755,26 @@ def _extract_proposals(issue, model, timeout, db_path):
     return proposals
 
 
-def _walk_watchlist(entries, source, platform):
+def _walk_watchlist(entries, source, platform, max_depth=0, allowed_projects=None):
     """Walk children of all tracked issues and add new ones to the watchlist.
+
+    Args:
+        max_depth: Max levels to walk (0=unlimited). Root issues are depth 0.
+        allowed_projects: Only add children whose key starts with one of these
+                          prefixes (e.g. ["PROJ", "AAP"]). None=allow all.
 
     Returns (updated_entries, added_count).
     """
+    prefixes = tuple(p.upper() for p in allowed_projects) if allowed_projects else None
     existing_keys = {e["key"] for e in entries}
     added = 0
-    to_walk = list(entries)
-    i = 0
+    # (entry, depth) pairs
+    queue = deque((e, 0) for e in entries)
 
-    while i < len(to_walk):
-        entry = to_walk[i]
-        i += 1
+    while queue:
+        entry, depth = queue.popleft()
+        if max_depth and depth >= max_depth:
+            continue
         issue_key = entry["key"]
         try:
             issue = _fetch_issue(source, platform, issue_key)
@@ -2776,14 +2783,19 @@ def _walk_watchlist(entries, source, platform):
             continue
 
         for child_key in issue.children:
-            if child_key not in existing_keys:
-                existing_keys.add(child_key)
-                new_entry = {"key": child_key}
-                entries.append(new_entry)
-                to_walk.append(new_entry)
-                added += 1
-                print(f"  Walk: added child {child_key} (from {issue_key})",
+            if child_key in existing_keys:
+                continue
+            if prefixes and not child_key.upper().startswith(prefixes):
+                print(f"  Walk: skipped {child_key} (project not in allowed list)",
                       file=sys.stderr)
+                continue
+            existing_keys.add(child_key)
+            new_entry = {"key": child_key}
+            entries.append(new_entry)
+            queue.append((new_entry, depth + 1))
+            added += 1
+            print(f"  Walk: added child {child_key} (from {issue_key}, depth {depth + 1})",
+                  file=sys.stderr)
 
     return entries, added
 
@@ -3195,6 +3207,8 @@ def cmd_track(args):
     force = getattr(args, "force", False)
     parallel = getattr(args, "parallel", 1)
     walk = getattr(args, "walk", False)
+    walk_depth = getattr(args, "walk_depth", 0)
+    allowed_projects = getattr(args, "allowed_projects", None)
     cli_auto = getattr(args, "auto", True)
     proposals_output = getattr(args, "proposals_output", "proposed-beliefs.md")
 
@@ -3206,7 +3220,10 @@ def cmd_track(args):
     platform = config["platform"]
 
     if walk:
-        issues, walk_added = _walk_watchlist(issues, source, platform)
+        issues, walk_added = _walk_watchlist(
+            issues, source, platform,
+            max_depth=walk_depth, allowed_projects=allowed_projects,
+        )
         if walk_added:
             watchlist["issues"] = issues
             _save_watchlist(watchlist)
