@@ -2855,7 +2855,18 @@ def _phase_fetch(entries, source, platform, force):
     return changed, skipped, errors
 
 
-def _phase_analyze(changed, model, timeout, db_path, parallel=1):
+def _write_proposals_to_file(proposals_file, issue_id, proposals):
+    """Append proposals for one issue to the proposals file."""
+    with open(proposals_file, "a") as f:
+        f.write(f"## {issue_id}\n\n")
+        for p in proposals:
+            f.write(f"### [ACCEPT/REJECT] {p['belief_id']}\n")
+            f.write(f"{p['text']}\n")
+            f.write(f"- Source: {p['source']}\n\n")
+
+
+def _phase_analyze(changed, model, timeout, db_path, parallel=1,
+                   proposals_file=None):
     """Phase 2 — Analyze: run LLM on changed issues, return proposals.
 
     Returns dict mapping issue_id -> list of proposal dicts.
@@ -2863,7 +2874,8 @@ def _phase_analyze(changed, model, timeout, db_path, parallel=1):
     reconciliation doesn't retract their existing beliefs.
     """
     if parallel > 1 and len(changed) > 1:
-        return _phase_analyze_parallel(changed, model, timeout, db_path, parallel)
+        return _phase_analyze_parallel(changed, model, timeout, db_path,
+                                       parallel, proposals_file=proposals_file)
 
     all_proposals: dict[str, list[dict]] = {}
 
@@ -2875,6 +2887,8 @@ def _phase_analyze(changed, model, timeout, db_path, parallel=1):
             for p in proposals:
                 p["url"] = issue.url
             all_proposals[issue.id] = proposals
+            if proposals_file and proposals:
+                _write_proposals_to_file(proposals_file, issue.id, proposals)
             print(f"    {len(proposals)} proposal(s)", file=sys.stderr)
             _save_analyzed_issue(issue.id, issue.updated)
         except Exception as e:
@@ -2884,7 +2898,8 @@ def _phase_analyze(changed, model, timeout, db_path, parallel=1):
     return all_proposals
 
 
-def _phase_analyze_parallel(changed, model, timeout, db_path, parallel):
+def _phase_analyze_parallel(changed, model, timeout, db_path, parallel,
+                            proposals_file=None):
     """Analyze issues concurrently in batches."""
     all_proposals: dict[str, list[dict]] = {}
     analyzed = 0
@@ -2920,6 +2935,8 @@ def _phase_analyze_parallel(changed, model, timeout, db_path, parallel):
             for p in proposals:
                 p["url"] = issue.url
             all_proposals[issue.id] = proposals
+            if proposals_file and proposals:
+                _write_proposals_to_file(proposals_file, issue.id, proposals)
             print(f"    {issue.id}: {len(proposals)} proposal(s)", file=sys.stderr)
             _save_analyzed_issue(issue.id, issue.updated)
 
@@ -3270,10 +3287,18 @@ def cmd_track(args):
     t0 = time.monotonic()
     print("\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
           file=sys.stderr)
-    all_proposals = _phase_analyze(changed, model, timeout, db_path, parallel=parallel)
+    proposals_path = Path(proposals_output)
+    with proposals_path.open("w") as f:
+        f.write("# Proposed Beliefs\n\n")
+        f.write(f"**Generated:** {date.today().isoformat()}\n")
+        f.write(f"**Model:** {model}\n")
+        f.write(f"**Issues:** {len(changed)}\n\n---\n\n")
+    all_proposals = _phase_analyze(changed, model, timeout, db_path,
+                                   parallel=parallel,
+                                   proposals_file=str(proposals_path))
     total_proposals = sum(len(p) for p in all_proposals.values())
-    print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)",
-          file=sys.stderr)
+    print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)"
+          f" → {proposals_path}", file=sys.stderr)
     report.complete_step(
         f"{total_proposals} proposals from {len(all_proposals)} issues",
         counts={"proposals": total_proposals, "issues": len(all_proposals)},
@@ -3302,23 +3327,10 @@ def cmd_track(args):
             manual_proposals[issue_id] = proposals
 
     if manual_proposals:
-        output_path = Path(proposals_output)
-        with output_path.open("w") as f:
-            f.write("# Proposed Beliefs\n\n")
-            f.write("Edit each entry: change `[ACCEPT/REJECT]` to "
-                    "`[ACCEPT]` or `[REJECT]`.\n")
-            f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
-            f.write(f"**Generated:** {date.today().isoformat()}\n")
-            f.write(f"**Model:** {model}\n\n---\n\n")
-            for issue_id, proposals in manual_proposals.items():
-                f.write(f"## {issue_id}\n\n")
-                for p in proposals:
-                    f.write(f"### [ACCEPT/REJECT] {p['belief_id']}\n")
-                    f.write(f"{p['text']}\n")
-                    f.write(f"- Source: {p['source']}\n\n")
         n_manual = sum(len(p) for p in manual_proposals.values())
-        print(f"  Wrote {n_manual} proposal(s) to {output_path} "
-              f"(manual review)", file=sys.stderr)
+        print(f"  {n_manual} proposal(s) in {proposals_path} need manual review",
+              file=sys.stderr)
+        print(f"  Run: reasonsforge project accept-beliefs", file=sys.stderr)
 
     if not auto_proposals:
         print("\nNo auto-accept proposals. Skipping phases 3-5.",
