@@ -2961,28 +2961,27 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
     database and ask the LLM whether each still reflects the current issue
     state. Beliefs the LLM marks RETRACT are retracted.
 
+    Opens the network once, collects all retract decisions, applies them
+    in memory, saves once.
+
     Returns (retracted_count, kept_count).
     """
-    from reasonsforge.api import export_network, retract_node
+    from reasonsforge.api import _with_network
     from ..llm import invoke
 
     issues = issues or {}
-
-    try:
-        network = export_network(db_path=db_path)
-        nodes = network.get("nodes", {})
-    except Exception:
-        return 0, 0
-
-    existing_by_issue: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for nid, node in nodes.items():
-        issue_id = node.get("metadata", {}).get("issue_id")
-        if issue_id and node.get("truth_value") == "IN":
-            text = node.get("text", node.get("label", nid))
-            existing_by_issue[issue_id].append((nid, text))
-
     retracted = 0
     kept = 0
+
+    # Phase 1: gather LLM decisions (read-only, no db writes yet)
+    retract_decisions: list[tuple[str, str]] = []  # (node_id, reason)
+
+    with _with_network(db_path, write=False) as net:
+        existing_by_issue: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        for nid, node in net.nodes.items():
+            issue_id = (node.metadata or {}).get("issue_id")
+            if issue_id and node.truth_value == "IN":
+                existing_by_issue[issue_id].append((nid, node.text))
 
     for issue_id in all_proposals:
         existing = existing_by_issue.get(issue_id, [])
@@ -3025,19 +3024,22 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
 
             for nid, _text in batch:
                 if nid in retract_ids:
-                    try:
-                        retract_node(
-                            nid,
-                            reason=f"No longer reflects current state of {issue_id}",
-                            db_path=db_path,
-                        )
-                        print(f"    Retracted stale: {nid}", file=sys.stderr)
-                        retracted += 1
-                    except Exception as e:
-                        print(f"    Error retracting {nid}: {e}",
-                              file=sys.stderr)
+                    retract_decisions.append(
+                        (nid, f"No longer reflects current state of {issue_id}"))
                 else:
                     kept += 1
+
+    # Phase 2: apply all retractions in a single network open/save
+    if retract_decisions:
+        with _with_network(db_path, write=True) as net:
+            for nid, reason in retract_decisions:
+                try:
+                    net.retract(nid, reason=reason)
+                    print(f"    Retracted stale: {nid}", file=sys.stderr)
+                    retracted += 1
+                except Exception as e:
+                    print(f"    Error retracting {nid}: {e}",
+                          file=sys.stderr)
 
     return retracted, kept
 
@@ -3045,41 +3047,45 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
 def _phase_accept(all_proposals, db_path, model=""):
     """Phase 4 — Accept: write new beliefs to the database.
 
+    Opens the network once, adds all beliefs in memory, saves once.
     Returns (added, existed, failed) counts.
     """
-    from reasonsforge.api import add_node, set_metadata
+    from reasonsforge.api import _with_network
 
     added = 0
     failed = 0
     existed = 0
 
-    for issue_id, proposals in all_proposals.items():
-        for p in proposals:
-            issue_url = p.get("url", "")
-            try:
-                add_node(
-                    p["belief_id"], p["text"],
-                    source=p["source"], source_url=issue_url,
-                    model=model, db_path=db_path,
-                )
-                now = datetime.now().isoformat(timespec="seconds")
+    with _with_network(db_path, write=True) as net:
+        for issue_id, proposals in all_proposals.items():
+            for p in proposals:
+                issue_url = p.get("url", "")
                 try:
-                    set_metadata(p["belief_id"], "accepted_at", now,
-                                 db_path=db_path)
-                    set_metadata(p["belief_id"], "issue_id", issue_id,
-                                 db_path=db_path)
+                    meta = {}
+                    if model:
+                        meta["model"] = model
+                    now = datetime.now().isoformat(timespec="seconds")
+                    meta["accepted_at"] = now
+                    meta["issue_id"] = issue_id
                     if issue_url:
-                        set_metadata(p["belief_id"], "source_url",
-                                     issue_url, db_path=db_path)
-                except Exception as meta_err:
-                    print(f"    Warning: metadata failed for "
-                          f"{p['belief_id']}: {meta_err}",
-                          file=sys.stderr)
-                added += 1
-            except Exception as e:
-                if "already exists" in str(e):
-                    existed += 1
-                else:
+                        meta["source_url"] = issue_url
+
+                    net.add_node(
+                        id=p["belief_id"],
+                        text=p["text"],
+                        source=p["source"],
+                        source_url=issue_url,
+                        metadata=meta,
+                    )
+                    added += 1
+                except ValueError as e:
+                    if "already exists" in str(e):
+                        existed += 1
+                    else:
+                        print(f"    FAIL: {p['belief_id']}: {e}",
+                              file=sys.stderr)
+                        failed += 1
+                except Exception as e:
                     print(f"    FAIL: {p['belief_id']}: {e}", file=sys.stderr)
                     failed += 1
 
