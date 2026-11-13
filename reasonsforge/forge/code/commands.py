@@ -51,6 +51,7 @@ from .prompts import (
     build_scan_prompt,
 )
 from .topics import (
+    TOPIC_KINDS,
     Topic,
     add_topics,
     load_queue,
@@ -60,6 +61,8 @@ from .topics import (
     pop_batch,
     pop_next,
     requeue_topics,
+    save_queue,
+    skip_topic,
 )
 
 REASONS_DB = "reasons.db"
@@ -233,16 +236,20 @@ def cmd_init(args):
     repo_path = _get_repo(args)
     repo_name = os.path.basename(repo_path)
     domain = getattr(args, "domain", None) or repo_name
+    description = getattr(args, "description", None) or ""
     db_path = getattr(args, "output", REASONS_DB)
 
     project_dir = Path.cwd() / PROJECT_DIR
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    _save_config({
+    config = {
         "repo_path": repo_path,
         "domain": domain,
         "created": date.today().isoformat(),
-    })
+    }
+    if description:
+        config["description"] = description
+    _save_config(config)
 
     Path("summaries").mkdir(exist_ok=True)
 
@@ -271,6 +278,8 @@ def cmd_init(args):
     print(f"\nCode forge initialized: {repo_name}")
     print(f"  Repo: {repo_path}")
     print(f"  Domain: {domain}")
+    if description:
+        print(f"  Description: {description}")
     print(f"\nNext: reasonsforge code scan")
 
 
@@ -2595,42 +2604,154 @@ def cmd_derive(args):
 
 
 def cmd_topics(args):
-    """Show the exploration queue."""
+    """Manage the exploration queue."""
+    action = getattr(args, "action", "list") or "list"
     project_dir = _get_project_dir(args)
-    queue = load_queue(project_dir)
 
+    if action == "list":
+        _topics_list(args, project_dir)
+    elif action == "add":
+        _topics_add(args, project_dir)
+    elif action == "remove":
+        _topics_remove(args, project_dir)
+    elif action == "requeue":
+        _topics_requeue(args, project_dir)
+    else:
+        print(f"Unknown action: {action}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _topics_list(args, project_dir):
+    queue = load_queue(project_dir)
     if not queue:
         print("No topics queued. Run `reasonsforge code scan` to discover topics.")
         return
 
-    pending = [t for t in queue if t.status == "pending"]
-    done = [t for t in queue if t.status == "done"]
-    skipped = [t for t in queue if t.status == "skipped"]
-
+    kind_filter = getattr(args, "kind", None)
+    status_filter = getattr(args, "status", None)
     show_all = getattr(args, "all", False)
 
-    if pending:
-        print(f"Pending ({len(pending)}):\n")
-        for i, topic in enumerate(pending):
-            print(f"  {i}. [{topic.kind}] {topic.target}")
+    if status_filter:
+        filtered = [t for t in queue if t.status == status_filter]
+    elif show_all:
+        filtered = queue
+    else:
+        filtered = [t for t in queue if t.status == "pending"]
+
+    if kind_filter:
+        filtered = [t for t in filtered if t.kind == kind_filter]
+
+    by_status = {}
+    for t in queue:
+        by_status[t.status] = by_status.get(t.status, 0) + 1
+
+    if not filtered:
+        label = status_filter or ("all" if show_all else "pending")
+        if kind_filter:
+            label = f"{kind_filter} {label}"
+        print(f"No {label} topics.")
+    else:
+        label = status_filter or ("all" if show_all else "pending")
+        print(f"{label.title()} topics ({len(filtered)}):\n")
+        for i, topic in enumerate(filtered):
+            print(f"  {i}. [{topic.kind}] {topic.target}  ({topic.status})")
             print(f"     {topic.title}")
             if topic.source:
                 print(f"     (from {topic.source})")
             print()
+
+    summary = ", ".join(f"{count} {status}" for status, count in sorted(by_status.items()))
+    print(f"\nTotal: {len(queue)} — {summary}")
+
+
+def _topics_add(args, project_dir):
+    target = args.target
+    kind = getattr(args, "kind", None) or "file"
+    title = getattr(args, "title", None) or target
+    source = getattr(args, "source", None) or "manual"
+
+    topic = Topic(title=title, kind=kind, target=target, source=source)
+    added = add_topics([topic], project_dir)
+    if added:
+        print(f"Added [{kind}] {target}")
     else:
-        print("No pending topics.")
+        print(f"Already queued: {target}")
 
-    if show_all:
-        if done:
-            print(f"Done ({len(done)}):\n")
-            for topic in done:
-                print(f"  [{topic.kind}] {topic.target} - {topic.title}")
-        if skipped:
-            print(f"\nSkipped ({len(skipped)}):\n")
-            for topic in skipped:
-                print(f"  [{topic.kind}] {topic.target} - {topic.title}")
 
-    print(f"\n{len(pending)} pending, {len(done)} done, {len(skipped)} skipped")
+def _topics_remove(args, project_dir):
+    queue = load_queue(project_dir)
+    if not queue:
+        print("No topics in queue.")
+        return
+
+    target = getattr(args, "target", None)
+    index = getattr(args, "index", None)
+    status_filter = getattr(args, "status", None)
+    kind_filter = getattr(args, "kind", None)
+
+    if target:
+        before = len(queue)
+        queue = [t for t in queue if t.target != target]
+        removed = before - len(queue)
+        if removed:
+            save_queue(queue, project_dir)
+            print(f"Removed {removed} topic(s) matching target '{target}'")
+        else:
+            print(f"No topic found with target '{target}'")
+    elif index is not None:
+        pending = [i for i, t in enumerate(queue) if t.status == "pending"]
+        if index < 0 or index >= len(pending):
+            print(f"Index {index} out of range (0-{len(pending) - 1})")
+            return
+        removed = queue.pop(pending[index])
+        save_queue(queue, project_dir)
+        print(f"Removed [{removed.kind}] {removed.target}")
+    elif status_filter or kind_filter:
+        before = len(queue)
+        queue = [t for t in queue if not (
+            (not status_filter or t.status == status_filter) and
+            (not kind_filter or t.kind == kind_filter)
+        )]
+        removed = before - len(queue)
+        if removed:
+            save_queue(queue, project_dir)
+            label = " ".join(filter(None, [kind_filter, status_filter]))
+            print(f"Removed {removed} {label} topic(s)")
+        else:
+            print("No matching topics to remove.")
+    else:
+        print("Specify --target, --index, or --status/--kind to filter.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _topics_requeue(args, project_dir):
+    queue = load_queue(project_dir)
+    if not queue:
+        print("No topics in queue.")
+        return
+
+    target = getattr(args, "target", None)
+    status_filter = getattr(args, "status", None) or "failed"
+    kind_filter = getattr(args, "kind", None)
+
+    count = 0
+    for t in queue:
+        if t.status == "pending":
+            continue
+        if target and t.target != target:
+            continue
+        if not target and t.status != status_filter:
+            continue
+        if kind_filter and t.kind != kind_filter:
+            continue
+        t.status = "pending"
+        count += 1
+
+    if count:
+        save_queue(queue, project_dir)
+        print(f"Requeued {count} topic(s)")
+    else:
+        print("No matching topics to requeue.")
 
 
 # ---------------------------------------------------------------------------
@@ -2647,6 +2768,8 @@ def cmd_status(args):
     if config:
         print(f"Repo:     {config.get('repo_path', 'unknown')}")
         print(f"Domain:   {config.get('domain', 'unknown')}")
+        if config.get("description"):
+            print(f"Desc:     {config['description']}")
         print(f"Created:  {config.get('created', 'unknown')}")
     else:
         print("Not initialized. Run: reasonsforge code --repo <path>")

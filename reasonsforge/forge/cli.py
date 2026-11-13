@@ -65,7 +65,8 @@ def register_forge_type_commands(parent_subparsers):
     # code init
     cs = code_sub.add_parser("init", help="Initialize code forge for a codebase")
     cs.add_argument("--repo", default=".", help="Path to git repository")
-    cs.add_argument("--domain", help="Domain description")
+    cs.add_argument("--domain", help="Domain name")
+    cs.add_argument("--description", help="What this domain covers")
 
     # code scan
     cs = code_sub.add_parser("scan", help="Scan repo structure and populate topic queue")
@@ -197,9 +198,42 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
 
     # code topics
-    cs = code_sub.add_parser("topics", help="Show exploration queue")
+    cs = code_sub.add_parser("topics", help="Manage exploration queue")
     cs.add_argument("--repo", default=".", help="Path to git repository")
-    cs.add_argument("--all", action="store_true")
+    topics_sub = cs.add_subparsers(dest="action")
+
+    # topics list (default)
+    ts = topics_sub.add_parser("list", help="List topics (default)")
+    ts.add_argument("--all", action="store_true", help="Show all statuses")
+    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed"],
+                    help="Filter by status")
+    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
+                    help="Filter by kind")
+
+    # topics add
+    ts = topics_sub.add_parser("add", help="Add a topic to the queue")
+    ts.add_argument("target", help="Topic target (file path, file:symbol, etc.)")
+    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
+                    default="file", help="Topic kind (default: file)")
+    ts.add_argument("--title", help="Topic title (default: target)")
+    ts.add_argument("--source", default="manual", help="Source label")
+
+    # topics remove
+    ts = topics_sub.add_parser("remove", help="Remove topics from the queue")
+    ts.add_argument("--target", help="Remove by target string")
+    ts.add_argument("--index", type=int, help="Remove pending topic by index")
+    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed"],
+                    help="Remove all with this status")
+    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
+                    help="Remove all with this kind")
+
+    # topics requeue
+    ts = topics_sub.add_parser("requeue", help="Set topics back to pending")
+    ts.add_argument("--target", help="Requeue a specific target")
+    ts.add_argument("--status", choices=["done", "skipped", "failed"],
+                    default="failed", help="Requeue all with this status (default: failed)")
+    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
+                    help="Filter by kind")
 
     # code status
     cs = code_sub.add_parser("status", help="Show code forge dashboard")
