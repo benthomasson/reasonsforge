@@ -358,10 +358,10 @@ def cmd_scan(args):
 
 def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
     file_path = topic.target
-    # Strip line number suffix (e.g. src/app.rs:1755 → src/app.rs)
+    # Strip line reference suffix (e.g. :1755 or :1658-1700)
     if ":" in file_path:
         base, suffix = file_path.rsplit(":", 1)
-        if suffix.isdigit():
+        if re.match(r"^\d+(-\d+)?$", suffix):
             file_path = base
     lang = language_for_file(file_path, fallback=lang or PYTHON)
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
@@ -371,6 +371,10 @@ def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
         return _prepare_repo_topic(topic, repo_path, lang=lang, mode=mode)
 
     if not os.path.isfile(abs_path):
+        # file:Symbol — reclassify as function topic
+        if ":" in topic.target:
+            topic.kind = "function"
+            return _prepare_function_topic(topic, repo_path, lang=lang, mode=mode)
         print(f"File not found: {file_path} (skipping)", file=sys.stderr)
         return None
 
@@ -419,16 +423,28 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
         print(f"File not found: {file_path} (skipping)", file=sys.stderr)
         return None
 
-    # Line number reference (e.g. src/Main.java:42)
-    if symbol_name.isdigit():
-        line_number = int(symbol_name)
+    # Line number or range reference (e.g. src/Main.java:42 or src/game.rs:1658-1700)
+    line_match = re.match(r"^(\d+)(?:-(\d+))?$", symbol_name)
+    if line_match:
+        line_number = int(line_match.group(1))
+        end_line = int(line_match.group(2)) if line_match.group(2) else None
         full_content = get_file_content(abs_path)
         if full_content is None:
             print(f"Cannot read file: {file_path}", file=sys.stderr)
             return None
         rel_path = os.path.relpath(abs_path, repo_path)
-        line_context = _extract_line_context(full_content, line_number)
-        label = f"line {line_number}"
+        if end_line:
+            lines = full_content.split("\n")
+            start = max(0, line_number - 1)
+            end = min(len(lines), end_line)
+            numbered = [f"{i + 1:4d}  {lines[i]}" for i in range(start, end)]
+            line_context = "\n".join(numbered)
+            label = f"lines {line_number}-{end_line}"
+            entry_suffix = f"-L{line_number}-{end_line}"
+        else:
+            line_context = _extract_line_context(full_content, line_number)
+            label = f"line {line_number}"
+            entry_suffix = f"-L{line_number}"
         prompt = build_function_prompt(
             file_path=rel_path,
             symbol_name=label,
@@ -437,8 +453,8 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
             language=lang.fence_language,
             mode=mode,
         )
-        entry_name = _sanitize_path_for_filename(rel_path) + f"-L{line_number}"
-        return prompt, entry_name, f"Line {line_number} in {rel_path}", f"function:{rel_path}:{symbol_name}"
+        entry_name = _sanitize_path_for_filename(rel_path) + entry_suffix
+        return prompt, entry_name, f"{label.title()} in {rel_path}", f"function:{rel_path}:{symbol_name}"
 
     symbol_source = extract_symbol(abs_path, symbol_name, lang=lang)
     if symbol_source is None:
