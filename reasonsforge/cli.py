@@ -1043,21 +1043,8 @@ def cmd_push(args):
               + (f" ({t['note']})" if t.get("note") else ""))
 
 
-def cmd_sync_status(args):
-    """Compare reasons.db against network.json and report differences."""
-    network_file = Path(args.network_file)
-    if not network_file.exists():
-        print(f"No {network_file} found — nothing to compare against.")
-        print("Run `reasonsforge export` to create it.")
-        return
-
-    with open(network_file, encoding="utf-8") as f:
-        disk_data = json.load(f)
-    disk_nodes = disk_data.get("nodes", {})
-
-    db_data = api.export_network(**_backend_kwargs(args))
-    db_nodes = db_data.get("nodes", {})
-
+def _compute_sync_diff(db_nodes, disk_nodes):
+    """Compare db nodes against disk nodes, return structured diff."""
     all_ids = set(disk_nodes.keys()) | set(db_nodes.keys())
     only_in_db = []
     only_in_file = []
@@ -1081,6 +1068,46 @@ def cmd_sync_status(args):
                 changed.append((nid, "metadata"))
             elif json.dumps(db_node, sort_keys=True) != json.dumps(file_node, sort_keys=True):
                 changed.append((nid, "other"))
+
+    return only_in_db, only_in_file, changed
+
+
+def cmd_sync_status(args):
+    """Compare reasons.db against network.json and report differences."""
+    network_file = Path(args.network_file)
+    output_json = getattr(args, "json", False)
+
+    if not network_file.exists():
+        if output_json:
+            print(json.dumps({"in_sync": False, "error": f"{network_file} not found"}))
+        else:
+            print(f"No {network_file} found — nothing to compare against.")
+            print("Run `reasonsforge export` to create it.")
+        return
+
+    with open(network_file, encoding="utf-8") as f:
+        disk_data = json.load(f)
+    disk_nodes = disk_data.get("nodes", {})
+
+    db_data = api.export_network(**_backend_kwargs(args))
+    db_nodes = db_data.get("nodes", {})
+
+    only_in_db, only_in_file, changed = _compute_sync_diff(db_nodes, disk_nodes)
+
+    if output_json:
+        result = {
+            "in_sync": not only_in_db and not only_in_file and not changed,
+            "new_in_db": [{"id": nid, "text": db_nodes[nid].get("text", "")} for nid in only_in_db],
+            "only_in_file": [{"id": nid, "text": disk_nodes[nid].get("text", "")} for nid in only_in_file],
+            "changed": [{"id": nid, "field": field} for nid, field in changed],
+            "counts": {
+                "new": len(only_in_db),
+                "removed": len(only_in_file),
+                "changed": len(changed),
+            },
+        }
+        print(json.dumps(result, indent=2))
+        return
 
     if not only_in_db and not only_in_file and not changed:
         print("In sync — reasons.db matches network.json")
@@ -4276,6 +4303,7 @@ def main():
     p = sub.add_parser("sync-status", help="Compare reasons.db against network.json")
     p.add_argument("network_file", nargs="?", default="network.json",
                    help="Path to network.json (default: network.json)")
+    p.add_argument("--json", action="store_true", help="Output as JSON for programmatic use")
 
     p = sub.add_parser("export", help="Export network as JSON")
     p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
