@@ -409,14 +409,52 @@ def _extract_line_context(file_content, line_number, context=30):
     return "\n".join(numbered)
 
 
-def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
-    file_part = topic.target.split(":", 1)[0] if ":" in topic.target else topic.target
-    lang = language_for_file(file_part, fallback=lang or PYTHON)
-    if ":" not in topic.target:
-        print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
+def _resolve_rust_module(target, repo_path):
+    """Resolve Rust module::symbol syntax to (file_path, symbol_name).
+
+    Examples:
+        render3d::compute_fn → (src/render3d.rs, compute_fn)
+        render3d::GltfModel::method → (src/render3d.rs, GltfModel::method)
+        app::App::run → (src/app.rs, App::run)
+    """
+    parts = target.split("::")
+    if len(parts) < 2:
         return None
 
-    file_path, symbol_name = topic.target.split(":", 1)
+    # Try progressively longer module paths
+    for i in range(1, len(parts)):
+        module_path = "/".join(parts[:i])
+        symbol = "::".join(parts[i:])
+        for candidate in [
+            os.path.join(repo_path, "src", f"{module_path}.rs"),
+            os.path.join(repo_path, "src", module_path, "mod.rs"),
+            os.path.join(repo_path, f"{module_path}.rs"),
+        ]:
+            if os.path.isfile(candidate):
+                rel = os.path.relpath(candidate, repo_path)
+                return rel, symbol
+    return None
+
+
+def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
+    # Detect Rust module::symbol syntax (no file extension, uses ::)
+    if "::" in topic.target and "/" not in topic.target and not any(
+        topic.target.endswith(ext) for ext in (".rs", ".py", ".java", ".go", ".cpp", ".c", ".h")
+    ):
+        resolved = _resolve_rust_module(topic.target, repo_path)
+        if resolved:
+            file_path, symbol_name = resolved
+        else:
+            print(f"Cannot resolve module path: {topic.target} (skipping)", file=sys.stderr)
+            return None
+    elif ":" not in topic.target:
+        print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
+        return None
+    else:
+        file_path, symbol_name = topic.target.split(":", 1)
+
+    file_part = file_path
+    lang = language_for_file(file_part, fallback=lang or PYTHON)
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
 
     if not os.path.isfile(abs_path):
@@ -456,7 +494,61 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
         entry_name = _sanitize_path_for_filename(rel_path) + entry_suffix
         return prompt, entry_name, f"{label.title()} in {rel_path}", f"function:{rel_path}:{symbol_name}"
 
+    # Wildcard symbol (e.g. draw_*) — find and extract all matching definitions
+    if "*" in symbol_name:
+        full_content = get_file_content(abs_path)
+        if full_content is None:
+            print(f"Cannot read file: {file_path}", file=sys.stderr)
+            return None
+        pattern = re.compile(
+            symbol_name.replace("*", r"\w*").replace("?", r"\w"),
+        )
+        matched = []
+        for p in lang.definition_patterns:
+            # Extract the symbol-matching part of the pattern
+            try:
+                finder = re.compile(p.format(symbol=r"(\w+)"))
+            except (re.error, KeyError):
+                continue
+            for line in full_content.split("\n"):
+                m = finder.match(line.lstrip())
+                if m and pattern.match(m.group(m.lastindex)):
+                    matched.append(m.group(m.lastindex))
+        matched = list(dict.fromkeys(matched))  # dedupe, preserve order
+        if not matched:
+            print(f"No symbols matching '{symbol_name}' in {file_path} (skipping)", file=sys.stderr)
+            return None
+        parts = []
+        for sym in matched:
+            src = extract_symbol(abs_path, sym, lang=lang)
+            if src:
+                parts.append(f"// --- {sym} ---\n{src}")
+        if not parts:
+            print(f"No symbols matching '{symbol_name}' in {file_path} (skipping)", file=sys.stderr)
+            return None
+        symbol_source = "\n\n".join(parts)
+        label = f"{symbol_name} ({len(parts)} matches)"
+        rel_path = os.path.relpath(abs_path, repo_path)
+        prompt = build_function_prompt(
+            file_path=rel_path,
+            symbol_name=label,
+            symbol_source=symbol_source,
+            full_file_content=full_content,
+            language=lang.fence_language,
+            mode=mode,
+        )
+        safe_name = symbol_name.replace("*", "STAR").replace("?", "Q")
+        entry_name = _sanitize_path_for_filename(rel_path) + f"-{safe_name}"
+        return prompt, entry_name, f"Pattern: {symbol_name} in {rel_path}", f"function:{rel_path}:{symbol_name}"
+
     symbol_source = extract_symbol(abs_path, symbol_name, lang=lang)
+    # For Rust Type::method, try each component if the full name fails
+    if symbol_source is None and "::" in symbol_name:
+        for part in reversed(symbol_name.split("::")):
+            symbol_source = extract_symbol(abs_path, part, lang=lang)
+            if symbol_source is not None:
+                symbol_name = part
+                break
     if symbol_source is None:
         print(f"Symbol '{symbol_name}' not found in {file_path} (skipping)", file=sys.stderr)
         return None
