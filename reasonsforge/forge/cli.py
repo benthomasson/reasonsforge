@@ -332,9 +332,9 @@ def register_forge_type_commands(parent_subparsers):
                     help="Max topics to explore per round (0=all pending)")
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--batch-size", type=int, default=5, dest="batch_size")
-    cs.add_argument("--kind", default=None,
+    cs.add_argument("--kind", default=None, action="append",
                     choices=["file", "function", "repo", "diff", "general"],
-                    help="Only explore topics of this kind")
+                    help="Topic kind(s) to explore, in order (repeatable)")
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")

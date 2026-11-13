@@ -892,22 +892,28 @@ def cmd_explore_propose_accept(args):
 
         step_prefix = f"r{round_num}-" if rounds > 1 else ""
 
-        # Step 1: Explore
-        eff_limit = explore_limit
-        if eff_limit <= 0:
-            eff_limit = remaining or 500
-        explore_args = SimpleNamespace(**vars(args))
-        explore_args.loop = eff_limit
+        # Step 1: Explore (iterate over kinds if specified)
+        kind_list = getattr(args, "kind", None) or [None]
+        for kind in kind_list:
+            eff_limit = explore_limit
+            if eff_limit <= 0:
+                eff_limit = remaining or 500
+            explore_args = SimpleNamespace(**vars(args))
+            explore_args.loop = eff_limit
+            explore_args.kind = kind
 
-        t0 = time.monotonic()
-        with step_log(logs_dir, "explore-propose-accept", "explore",
-                      round_number=round_num):
-            _run_step(f"Round {round_num}: Explore (up to {eff_limit} topics)",
-                      cmd_explore, explore_args, errors,
-                      report=report, step_key=f"{step_prefix}explore")
-        _write_step_cost_report(args, "explore-propose-accept", "explore",
-                                round_number=round_num,
-                                wall_clock_seconds=time.monotonic() - t0)
+            kind_label = f" [{kind}]" if kind else ""
+            step_kind = f"-{kind}" if kind else ""
+
+            t0 = time.monotonic()
+            with step_log(logs_dir, "explore-propose-accept", f"explore{step_kind}",
+                          round_number=round_num):
+                _run_step(f"Round {round_num}: Explore{kind_label} (up to {eff_limit} topics)",
+                          cmd_explore, explore_args, errors,
+                          report=report, step_key=f"{step_prefix}explore{step_kind}")
+            _write_step_cost_report(args, "explore-propose-accept", f"explore{step_kind}",
+                                    round_number=round_num,
+                                    wall_clock_seconds=time.monotonic() - t0)
 
         # Step 2: Propose beliefs
         propose_args = SimpleNamespace(**vars(args), auto=False)
