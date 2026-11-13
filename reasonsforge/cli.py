@@ -1043,6 +1043,76 @@ def cmd_push(args):
               + (f" ({t['note']})" if t.get("note") else ""))
 
 
+def cmd_sync_status(args):
+    """Compare reasons.db against network.json and report differences."""
+    network_file = Path(args.network_file)
+    if not network_file.exists():
+        print(f"No {network_file} found — nothing to compare against.")
+        print("Run `reasonsforge export` to create it.")
+        return
+
+    with open(network_file, encoding="utf-8") as f:
+        disk_data = json.load(f)
+    disk_nodes = disk_data.get("nodes", {})
+
+    db_data = api.export_network(**_backend_kwargs(args))
+    db_nodes = db_data.get("nodes", {})
+
+    all_ids = set(disk_nodes.keys()) | set(db_nodes.keys())
+    only_in_db = []
+    only_in_file = []
+    changed = []
+
+    for nid in sorted(all_ids):
+        in_db = nid in db_nodes
+        in_file = nid in disk_nodes
+        if in_db and not in_file:
+            only_in_db.append(nid)
+        elif in_file and not in_db:
+            only_in_file.append(nid)
+        elif in_db and in_file:
+            db_node = db_nodes[nid]
+            file_node = disk_nodes[nid]
+            if db_node.get("text") != file_node.get("text"):
+                changed.append((nid, "text"))
+            elif db_node.get("truth_value") != file_node.get("truth_value"):
+                changed.append((nid, "truth_value"))
+            elif db_node.get("metadata") != file_node.get("metadata"):
+                changed.append((nid, "metadata"))
+            elif json.dumps(db_node, sort_keys=True) != json.dumps(file_node, sort_keys=True):
+                changed.append((nid, "other"))
+
+    if not only_in_db and not only_in_file and not changed:
+        print("In sync — reasons.db matches network.json")
+        return
+
+    if only_in_db:
+        print(f"New in reasons.db ({len(only_in_db)}):")
+        for nid in only_in_db:
+            text = db_nodes[nid].get("text", "")[:60]
+            print(f"  + {nid}: {text}")
+        print()
+
+    if only_in_file:
+        print(f"Only in {network_file} ({len(only_in_file)}):")
+        for nid in only_in_file:
+            text = disk_nodes[nid].get("text", "")[:60]
+            print(f"  - {nid}: {text}")
+        print()
+
+    if changed:
+        print(f"Changed ({len(changed)}):")
+        for nid, field in changed:
+            print(f"  ~ {nid} ({field})")
+        print()
+
+    print(f"Summary: +{len(only_in_db)} new, -{len(only_in_file)} removed, ~{len(changed)} changed")
+    if only_in_db or changed:
+        print("Run `reasonsforge export` to update network.json")
+    if only_in_file:
+        print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
+
+
 def cmd_export(args):
     data = api.export_network(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
     output = json.dumps(data, indent=2)
@@ -4203,6 +4273,10 @@ def main():
     p.add_argument("--progress", action="store_true", help="Show tqdm progress bar for chunked uploads")
 
     # export
+    p = sub.add_parser("sync-status", help="Compare reasons.db against network.json")
+    p.add_argument("network_file", nargs="?", default="network.json",
+                   help="Path to network.json (default: network.json)")
+
     p = sub.add_parser("export", help="Export network as JSON")
     p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
                    help="Output file (default: network.json). Use --output=- for stdout")
@@ -4826,6 +4900,7 @@ def main():
         "import-api": cmd_import_api,
         "export-api": cmd_export_api,
         "push": cmd_push,
+        "sync-status": cmd_sync_status,
         "export": cmd_export,
         "export-markdown": cmd_export_markdown,
         "export-card": cmd_export_card,
