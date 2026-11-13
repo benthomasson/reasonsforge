@@ -913,7 +913,7 @@ def cmd_import_beliefs(args):
 
 def cmd_import_json(args):
     try:
-        result = api.import_json(args.json_file, **_backend_kwargs(args))
+        result = api.import_json(args.json_file, only_new=getattr(args, 'only_new', False), **_backend_kwargs(args))
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -921,6 +921,8 @@ def cmd_import_json(args):
     print(f"Imported {result['nodes_imported']} nodes")
     if result.get('nodes_updated'):
         print(f"Updated {result['nodes_updated']} existing nodes")
+    if result.get('nodes_skipped'):
+        print(f"Skipped {result['nodes_skipped']} existing nodes")
     if result['nogoods_imported']:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
@@ -4244,6 +4246,8 @@ def main():
     # import-json
     p = sub.add_parser("import-json", help="Import network from JSON (produced by export)")
     p.add_argument("json_file", help="Path to JSON file")
+    p.add_argument("--only-new", action="store_true",
+                   help="Only import nodes not already in the database (skip updates to existing nodes)")
 
     # import-hf
     p = sub.add_parser("import-hf", help="Import network from HuggingFace repo")

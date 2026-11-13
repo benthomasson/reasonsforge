@@ -1900,7 +1900,8 @@ def sync_agent(
 
 
 def import_json(json_file: str, db_path: str = DEFAULT_DB,
-                pg_conninfo=None, project_id=None) -> dict:
+                pg_conninfo=None, project_id=None,
+                only_new: bool = False) -> dict:
     """Import a network from a JSON file (produced by export).
 
     Reconstructs the full network: nodes with justifications, truth values,
@@ -1917,7 +1918,7 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
     data = json_mod.loads(json_path.read_text())
 
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "import_json", data=data)
+        return _pg_dispatch(pg_conninfo, project_id, "import_json", data=data, only_new=only_new)
 
     with _with_network(db_path, write=True) as net:
         imported_meta = data.get("meta")
@@ -1941,6 +1942,9 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
             next_remaining = {}
             for nid, ndata in remaining.items():
                 if nid in added:
+                    if only_new:
+                        skipped += 1
+                        continue
                     # Merge: update existing node with non-empty fields from import
                     if nid in net.nodes:
                         existing = net.nodes[nid]
@@ -2096,7 +2100,7 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
         for name, path in data.get("repos", {}).items():
             net.repos[name] = path
 
-        return {"nodes_imported": nodes_imported, "nodes_updated": nodes_updated, "nogoods_imported": nogoods_imported}
+        return {"nodes_imported": nodes_imported, "nodes_updated": nodes_updated, "nodes_skipped": skipped, "nogoods_imported": nogoods_imported}
 
 
 def import_hf(repo_id: str, init: bool = False, token: str | None = None,

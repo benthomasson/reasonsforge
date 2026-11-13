@@ -228,7 +228,7 @@ class TestImportJsonDispatch:
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
             result = import_json(str(json_file),
                                  pg_conninfo="postgresql://...", project_id="test")
-        mock_pg.import_json.assert_called_once_with(data=data)
+        mock_pg.import_json.assert_called_once_with(data=data, only_new=False)
         assert result["nodes_imported"] == 1
 
     def test_file_not_found(self):
