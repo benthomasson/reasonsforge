@@ -205,7 +205,7 @@ def register_forge_type_commands(parent_subparsers):
     # topics list (default)
     ts = topics_sub.add_parser("list", help="List topics (default)")
     ts.add_argument("--all", action="store_true", help="Show all statuses")
-    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed"],
+    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed", "pruned"],
                     help="Filter by status")
     ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
                     help="Filter by kind")
@@ -222,7 +222,7 @@ def register_forge_type_commands(parent_subparsers):
     ts = topics_sub.add_parser("remove", help="Remove topics from the queue")
     ts.add_argument("--target", help="Remove by target string")
     ts.add_argument("--index", type=int, help="Remove pending topic by index")
-    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed"],
+    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed", "pruned"],
                     help="Remove all with this status")
     ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
                     help="Remove all with this kind")
@@ -230,10 +230,19 @@ def register_forge_type_commands(parent_subparsers):
     # topics requeue
     ts = topics_sub.add_parser("requeue", help="Set topics back to pending")
     ts.add_argument("--target", help="Requeue a specific target")
-    ts.add_argument("--status", choices=["done", "skipped", "failed"],
+    ts.add_argument("--status", choices=["done", "skipped", "failed", "pruned"],
                     default="failed", help="Requeue all with this status (default: failed)")
     ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
                     help="Filter by kind")
+
+    # topics prune
+    ts = topics_sub.add_parser("prune", help="Prune irrelevant topics using LLM evaluation")
+    ts.add_argument("--model", default="claude", help="Model to use for evaluation")
+    ts.add_argument("--timeout", type=int, default=300)
+    ts.add_argument("--batch-size", type=int, default=30, help="Topics per LLM batch")
+    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
+                    help="Only prune topics of this kind")
+    ts.add_argument("--dry-run", action="store_true", help="Show what would be pruned without changing anything")
 
     # code status
     cs = code_sub.add_parser("status", help="Show code forge dashboard")

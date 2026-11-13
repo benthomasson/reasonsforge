@@ -27,7 +27,7 @@ class Topic:
     target: str
     # Why this was surfaced (which explanation generated it)
     source: str = ""
-    # Status: pending, done, skipped, failed
+    # Status: pending, done, skipped, failed, pruned
     status: str = "pending"
     # When it was added
     added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))

@@ -2616,6 +2616,8 @@ def cmd_topics(args):
         _topics_remove(args, project_dir)
     elif action == "requeue":
         _topics_requeue(args, project_dir)
+    elif action == "prune":
+        _topics_prune(args, project_dir)
     else:
         print(f"Unknown action: {action}", file=sys.stderr)
         sys.exit(1)
@@ -2752,6 +2754,139 @@ def _topics_requeue(args, project_dir):
         print(f"Requeued {count} topic(s)")
     else:
         print("No matching topics to requeue.")
+
+
+_PRUNE_PROMPT = """\
+You are evaluating exploration topics for relevance to a knowledge domain.
+
+## Domain
+- **Name:** {domain}
+- **Description:** {description}
+
+## Task
+For each topic below, decide whether it is **relevant** to this domain or should be **pruned**.
+
+A topic is relevant if exploring it would produce useful knowledge about the domain.
+A topic should be pruned if it is:
+- Outside the domain scope (e.g. build configs, CI, unrelated modules)
+- Too generic to produce actionable knowledge
+- Redundant with other topics (e.g. test files when the domain is about architecture)
+- Auto-generated or boilerplate files
+
+## Topics
+{topics_section}
+
+## Response format
+For each topic, respond with exactly one line:
+```
+<index>: KEEP | PRUNE — <brief reason>
+```
+
+Example:
+```
+0: KEEP — Core module implementing the main algorithm
+1: PRUNE — CI configuration, not relevant to domain
+2: KEEP — Key data model for the system
+```
+"""
+
+
+def _parse_prune_response(response: str) -> dict[int, tuple[str, str]]:
+    """Parse prune decisions from LLM response.
+
+    Returns dict mapping topic index to (decision, reason).
+    """
+    decisions = {}
+    for line in response.splitlines():
+        line = line.strip().strip("`")
+        m = re.match(r"(\d+):\s*(KEEP|PRUNE)\s*(?:—|-|:)\s*(.*)", line)
+        if m:
+            idx = int(m.group(1))
+            decision = m.group(2)
+            reason = m.group(3).strip()
+            decisions[idx] = (decision, reason)
+    return decisions
+
+
+def _topics_prune(args, project_dir):
+    from ..llm import check_model_available, invoke_sync
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 300)
+    batch_size = getattr(args, "batch_size", 30)
+    kind_filter = getattr(args, "kind", None)
+    dry_run = getattr(args, "dry_run", False)
+
+    config = _load_config()
+    if not config:
+        print("Not initialized. Run: reasonsforge code init --repo <path>", file=sys.stderr)
+        sys.exit(1)
+
+    domain = config.get("domain", "unknown")
+    description = config.get("description", "")
+    if not description:
+        print("No domain description set. Use: reasonsforge code init --description '...'",
+              file=sys.stderr)
+        print("A description is needed to evaluate topic relevance.", file=sys.stderr)
+        sys.exit(1)
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    queue = load_queue(project_dir)
+    pending = [(i, t) for i, t in enumerate(queue) if t.status == "pending"]
+    if kind_filter:
+        pending = [(i, t) for i, t in pending if t.kind == kind_filter]
+
+    if not pending:
+        print("No pending topics to prune.")
+        return
+
+    print(f"Evaluating {len(pending)} pending topic(s) against domain '{domain}'...",
+          file=sys.stderr)
+
+    batches = [pending[i:i + batch_size] for i in range(0, len(pending), batch_size)]
+    total_pruned = 0
+    total_kept = 0
+
+    for batch_num, batch in enumerate(batches):
+        topics_section = "\n".join(
+            f"{j}. [{t.kind}] `{t.target}` — {t.title}"
+            for j, (_, t) in enumerate(batch)
+        )
+        prompt = _PRUNE_PROMPT.format(
+            domain=domain,
+            description=description,
+            topics_section=topics_section,
+        )
+
+        print(f"  Batch {batch_num + 1}/{len(batches)} ({len(batch)} topics)...",
+              file=sys.stderr)
+        try:
+            result = invoke_sync(prompt, model=model, timeout=timeout)
+        except Exception as e:
+            print(f"  ERROR in batch {batch_num + 1}: {e}", file=sys.stderr)
+            continue
+
+        decisions = _parse_prune_response(result)
+
+        for j, (queue_idx, topic) in enumerate(batch):
+            decision, reason = decisions.get(j, ("KEEP", "no decision"))
+            if decision == "PRUNE":
+                if dry_run:
+                    print(f"  PRUNE [{topic.kind}] {topic.target} — {reason}")
+                else:
+                    queue[queue_idx].status = "pruned"
+                total_pruned += 1
+            else:
+                total_kept += 1
+
+    if not dry_run and total_pruned:
+        save_queue(queue, project_dir)
+
+    action = "Would prune" if dry_run else "Pruned"
+    print(f"\n{action} {total_pruned} topic(s), kept {total_kept}.")
 
 
 # ---------------------------------------------------------------------------
