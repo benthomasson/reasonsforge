@@ -357,8 +357,13 @@ def cmd_scan(args):
 
 
 def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
-    lang = language_for_file(topic.target, fallback=lang or PYTHON)
     file_path = topic.target
+    # Strip line number suffix (e.g. src/app.rs:1755 → src/app.rs)
+    if ":" in file_path:
+        base, suffix = file_path.rsplit(":", 1)
+        if suffix.isdigit():
+            file_path = base
+    lang = language_for_file(file_path, fallback=lang or PYTHON)
     abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
 
     if os.path.isdir(abs_path):
