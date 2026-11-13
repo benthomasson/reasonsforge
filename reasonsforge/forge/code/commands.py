@@ -242,13 +242,20 @@ def cmd_init(args):
     project_dir = Path.cwd() / PROJECT_DIR
     project_dir.mkdir(parents=True, exist_ok=True)
 
+    existing = _load_config() or {}
     config = {
-        "repo_path": repo_path,
-        "domain": domain,
-        "created": date.today().isoformat(),
+        "repo_path": existing.get("repo_path", repo_path),
+        "domain": existing.get("domain", domain),
+        "created": existing.get("created", date.today().isoformat()),
     }
+    if getattr(args, "repo", None) and args.repo != ".":
+        config["repo_path"] = repo_path
+    if getattr(args, "domain", None):
+        config["domain"] = domain
     if description:
         config["description"] = description
+    elif existing.get("description"):
+        config["description"] = existing["description"]
     _save_config(config)
 
     Path("summaries").mkdir(exist_ok=True)
