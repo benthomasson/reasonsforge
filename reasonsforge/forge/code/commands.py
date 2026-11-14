@@ -1966,8 +1966,11 @@ def cmd_review_proposals(args):
           file=sys.stderr)
 
     existing_beliefs = _build_existing_beliefs_section(existing_nodes)
-    all_decisions: dict[str, tuple[bool, str | None]] = {}
     review_batches = [to_review[i:i + batch_size] for i in range(0, len(to_review), batch_size)]
+
+    kept = 0
+    rejected = 0
+    categories: dict[str, int] = {}
 
     for i, batch in enumerate(review_batches):
         proposals_section = _build_proposals_section(batch)
@@ -1979,52 +1982,44 @@ def cmd_review_proposals(args):
         try:
             result = invoke_sync(prompt, model=model, timeout=timeout)
             decisions = _parse_review_response(result)
-            all_decisions.update(decisions)
         except Exception as e:
             print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
-
-    kept = 0
-    rejected = 0
-    categories: dict[str, int] = {}
-    replacements: list[tuple[str, str]] = []
-
-    for proposal in to_review:
-        belief_id = proposal["id"]
-        match = proposal["match"]
-        header = proposal["header"]
-
-        decision = all_decisions.get(belief_id)
-        if decision is None:
-            kept += 1
             continue
 
-        reject, reason = decision
-        if reject:
-            rejected += 1
-            category = reason.split(":")[0].strip() if reason else "unknown"
-            categories[category] = categories.get(category, 0) + 1
+        batch_replacements = []
+        for proposal in batch:
+            belief_id = proposal["id"]
+            header = proposal["header"]
+            decision = decisions.get(belief_id)
+            if decision is None:
+                kept += 1
+                continue
+            reject, reason = decision
+            if reject:
+                rejected += 1
+                category = reason.split(":")[0].strip() if reason else "unknown"
+                categories[category] = categories.get(category, 0) + 1
+                old_block = proposal["match"].group(0)
+                new_header = f"### [REJECT] {belief_id}"
+                new_block = old_block.replace(f"{header} {belief_id}", new_header, 1)
+                source_line = proposal["match"].group(4).strip()
+                new_block = new_block.replace(source_line, f"{source_line}\n- Rejected: {reason}", 1)
+                batch_replacements.append((old_block, new_block))
+                print(f"  REJECT {belief_id}: {reason}", file=sys.stderr)
+            else:
+                kept += 1
 
-            old_block = match.group(0)
-            new_header = f"### [REJECT] {belief_id}"
-            new_block = old_block.replace(f"{header} {belief_id}", new_header, 1)
-            source_line = match.group(4).strip()
-            new_block = new_block.replace(source_line, f"{source_line}\n- Rejected: {reason}", 1)
-            replacements.append((old_block, new_block))
-            print(f"  REJECT {belief_id}: {reason}", file=sys.stderr)
-        else:
-            kept += 1
+        if batch_replacements:
+            text = proposals_path.read_text()
+            for old_block, new_block in batch_replacements:
+                text = text.replace(old_block, new_block, 1)
+            proposals_path.write_text(text)
 
     print(f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected", file=sys.stderr)
     if categories:
         print("Rejections by category:", file=sys.stderr)
         for cat, count in sorted(categories.items(), key=lambda x: -x[1]):
             print(f"  {cat}: {count}", file=sys.stderr)
-
-    if replacements:
-        for old_block, new_block in replacements:
-            text = text.replace(old_block, new_block, 1)
-        proposals_path.write_text(text)
-        print(f"Updated {proposals_file}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
