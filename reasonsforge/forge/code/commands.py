@@ -1283,6 +1283,50 @@ def cmd_walk_commits(args):
     print("Diff checkpoint saved.", file=sys.stderr)
 
 
+_BELIEF_LINE_RE = re.compile(
+    r'^-\s+`([a-z][a-z0-9]*(?:[-_][a-z0-9]+)+)`\s+—\s+(.+)$'
+)
+
+
+def _parse_beliefs_from_entries(
+    entries: list[Path],
+    existing_ids: set[str],
+) -> list[tuple[str, str, str]]:
+    """Extract beliefs from ## Beliefs sections in summary files.
+
+    Returns list of (belief_id, claim_text, source_path) tuples,
+    skipping any IDs already in existing_ids.
+    """
+    results = []
+    seen = set()
+    for entry_path in entries:
+        try:
+            content = entry_path.read_text()
+        except OSError:
+            continue
+        in_beliefs = False
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped == "## Beliefs":
+                in_beliefs = True
+                continue
+            if in_beliefs and stripped.startswith("## "):
+                in_beliefs = False
+                continue
+            if not in_beliefs:
+                continue
+            m = _BELIEF_LINE_RE.match(stripped)
+            if not m:
+                continue
+            belief_id = m.group(1)
+            claim_text = m.group(2).strip()
+            if belief_id in existing_ids or belief_id in seen:
+                continue
+            seen.add(belief_id)
+            results.append((belief_id, claim_text, str(entry_path)))
+    return results
+
+
 # ---------------------------------------------------------------------------
 # propose-beliefs
 # ---------------------------------------------------------------------------
@@ -1419,6 +1463,28 @@ def cmd_propose_beliefs(args):
     if not auto_accept:
         _ensure_proposals_header(output_path)
 
+    # --- Phase 1: Extract beliefs from ## Beliefs sections (no LLM needed) ---
+    parsed_beliefs = _parse_beliefs_from_entries(entries, existing_ids)
+    parsed_count = 0
+    if parsed_beliefs:
+        print(f"Parsed {len(parsed_beliefs)} beliefs from ## Beliefs sections", file=sys.stderr)
+        if auto_accept:
+            _accept_proposals(parsed_beliefs, db_path)
+            print(f"  Auto-accepted {len(parsed_beliefs)} parsed belief(s)", file=sys.stderr)
+        else:
+            with output_path.open("a") as f:
+                f.write(f"\n---\n\n")
+                f.write(f"**Generated:** {date.today().isoformat()} (parsed from ## Beliefs sections)\n")
+                f.write(f"**Source:** {len(entries)} summary files\n\n")
+                for belief_id, claim_text, source in parsed_beliefs:
+                    f.write(f"### [ACCEPT] {belief_id}\n")
+                    f.write(f"{claim_text}\n")
+                    f.write(f"- Source: {source}\n\n")
+        parsed_count = len(parsed_beliefs)
+        # Add parsed IDs to existing_ids so LLM doesn't re-extract them
+        existing_ids.update(b[0] for b in parsed_beliefs)
+
+    # --- Phase 2: LLM extraction for additional beliefs ---
     all_proposals = []
     total_dup_skipped = 0
     try:
@@ -1472,14 +1538,18 @@ def cmd_propose_beliefs(args):
     if total_dup_skipped:
         print(f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr)
 
-    if not all_proposals:
-        print("No beliefs extracted from proposals.")
+    if not all_proposals and not parsed_count:
+        print("No beliefs extracted.")
         return
 
     if auto_accept:
         print(f"\nAll batches processed.", file=sys.stderr)
     else:
         print(f"\nWrote {output_path}")
+        if parsed_count:
+            print(f"  {parsed_count} from ## Beliefs sections (parsed)")
+        if all_proposals:
+            print(f"  {len(all_proposals)} LLM batches processed")
         print("Review the file, mark entries as [ACCEPT] or [REJECT], then run:")
         print("  reasonsforge code accept-beliefs")
 
