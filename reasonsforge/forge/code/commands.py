@@ -1347,10 +1347,12 @@ def cmd_propose_beliefs(args):
     since = getattr(args, "since", None)
     parallel = getattr(args, "parallel", 1)
     db_path = getattr(args, "output", REASONS_DB)
+    parse_only = getattr(args, "parse_only", False)
 
-    if not check_model_available(model):
-        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
-        sys.exit(1)
+    if not parse_only:
+        if not check_model_available(model):
+            print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+            sys.exit(1)
 
     input_dir = Path("summaries")
     if not input_dir.exists():
@@ -1390,39 +1392,40 @@ def cmd_propose_beliefs(args):
         print(f"Found {len(existing_ids)} existing beliefs (will skip duplicates)", file=sys.stderr)
 
     belief_vectors = None
-    if existing_beliefs and _has_embeddings():
-        try:
-            print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
-            cache_path = Path(PROJECT_DIR) / "belief-vectors.json"
-            belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
-            print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
-        except Exception as e:
-            print(f"  Embedding init failed ({e}), falling back to keyword dedup", file=sys.stderr)
-            belief_vectors = None
-    elif existing_beliefs:
-        print("(install fastembed for semantic dedup: pip install 'reasonsforge[forge-embeddings]')",
-              file=sys.stderr)
-
-    print(f"Reading {len(entries)} entries...", file=sys.stderr)
-
     batches = []
     batch_paths = []
-    current_batch = []
-    current_paths = []
-    for entry_path in entries:
-        content = entry_path.read_text()
-        if len(content) > 10000:
-            content = content[:10000] + "\n[Truncated]"
-        current_batch.append(f"--- FILE: {entry_path} ---\n{content}")
-        current_paths.append(str(entry_path))
-        if len(current_batch) >= batch_size:
+    if not parse_only:
+        if existing_beliefs and _has_embeddings():
+            try:
+                print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
+                cache_path = Path(PROJECT_DIR) / "belief-vectors.json"
+                belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
+                print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
+            except Exception as e:
+                print(f"  Embedding init failed ({e}), falling back to keyword dedup", file=sys.stderr)
+                belief_vectors = None
+        elif existing_beliefs:
+            print("(install fastembed for semantic dedup: pip install 'reasonsforge[forge-embeddings]')",
+                  file=sys.stderr)
+
+        print(f"Reading {len(entries)} entries...", file=sys.stderr)
+
+        current_batch = []
+        current_paths = []
+        for entry_path in entries:
+            content = entry_path.read_text()
+            if len(content) > 10000:
+                content = content[:10000] + "\n[Truncated]"
+            current_batch.append(f"--- FILE: {entry_path} ---\n{content}")
+            current_paths.append(str(entry_path))
+            if len(current_batch) >= batch_size:
+                batches.append("\n\n".join(current_batch))
+                batch_paths.append(current_paths)
+                current_batch = []
+                current_paths = []
+        if current_batch:
             batches.append("\n\n".join(current_batch))
             batch_paths.append(current_paths)
-            current_batch = []
-            current_paths = []
-    if current_batch:
-        batches.append("\n\n".join(current_batch))
-        batch_paths.append(current_paths)
 
     print(f"Processing {len(batches)} batches (batch size: {batch_size})...", file=sys.stderr)
 
@@ -1487,53 +1490,54 @@ def cmd_propose_beliefs(args):
     # --- Phase 2: LLM extraction for additional beliefs ---
     all_proposals = []
     total_dup_skipped = 0
-    try:
-        for i, batch_text in enumerate(batches):
-            existing_context = _build_dedup_context(
-                existing_beliefs, batch_paths[i], batch_text,
-                belief_vectors=belief_vectors,
-            )
-            from .prompts.propose import build_propose_prompt
-            propose_mode = getattr(args, "mode", None) or "discover"
-            prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
-
-            print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
-            try:
-                result = asyncio.run(invoke(prompt, model, timeout=timeout))
-                print(f"  Batch {i + 1}/{len(batches)} done", file=sys.stderr)
-            except Exception as e:
-                print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
-                continue
-
-            filtered, dups = _filter_proposal(result)
-            total_dup_skipped += dups
-            all_proposals.append(filtered)
-
-            if auto_accept:
-                accept_pattern = re.compile(
-                    r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
-                    re.MULTILINE,
+    if not parse_only:
+        try:
+            for i, batch_text in enumerate(batches):
+                existing_context = _build_dedup_context(
+                    existing_beliefs, batch_paths[i], batch_text,
+                    belief_vectors=belief_vectors,
                 )
-                matches = accept_pattern.findall(filtered)
-                if matches:
-                    _accept_proposals(matches, db_path)
-                    print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
-            else:
-                with output_path.open("a") as f:
-                    f.write(f"\n---\n\n")
-                    f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
-                    f.write(f"**Model:** {model}\n\n")
-                    f.write(filtered)
-                    f.write("\n\n")
+                from .prompts.propose import build_propose_prompt
+                propose_mode = getattr(args, "mode", None) or "discover"
+                prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
 
-            # Mark this batch's entries as processed after each batch
-            batch_entry_paths = [Path(p) for p in batch_paths[i]]
-            _save_processed(processed_path, batch_entry_paths, processed)
-            # Update processed dict so subsequent _save_processed calls include all prior batches
-            processed = _load_processed(processed_path)
-    except KeyboardInterrupt:
-        print(f"\n  Ending extraction early — partial results saved",
-              file=sys.stderr)
+                print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
+                try:
+                    result = asyncio.run(invoke(prompt, model, timeout=timeout))
+                    print(f"  Batch {i + 1}/{len(batches)} done", file=sys.stderr)
+                except Exception as e:
+                    print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
+                    continue
+
+                filtered, dups = _filter_proposal(result)
+                total_dup_skipped += dups
+                all_proposals.append(filtered)
+
+                if auto_accept:
+                    accept_pattern = re.compile(
+                        r"^### \[?(?:ACCEPT(?:/REJECT)?|REJECT)\]? (\S+)\n(.+?)\n- Source: (.+?)(?:\n|$)",
+                        re.MULTILINE,
+                    )
+                    matches = accept_pattern.findall(filtered)
+                    if matches:
+                        _accept_proposals(matches, db_path)
+                        print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
+                else:
+                    with output_path.open("a") as f:
+                        f.write(f"\n---\n\n")
+                        f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
+                        f.write(f"**Model:** {model}\n\n")
+                        f.write(filtered)
+                        f.write("\n\n")
+
+                # Mark this batch's entries as processed after each batch
+                batch_entry_paths = [Path(p) for p in batch_paths[i]]
+                _save_processed(processed_path, batch_entry_paths, processed)
+                # Update processed dict so subsequent _save_processed calls include all prior batches
+                processed = _load_processed(processed_path)
+        except KeyboardInterrupt:
+            print(f"\n  Ending extraction early — partial results saved",
+                  file=sys.stderr)
 
     if total_dup_skipped:
         print(f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr)

@@ -131,6 +131,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--parse-only", action="store_true",
+                    help="Only extract beliefs from ## Beliefs sections (no LLM)")
 
     # code accept-beliefs
     cs = code_sub.add_parser("accept-beliefs",
