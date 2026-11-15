@@ -340,6 +340,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--mode", default=None,
                     choices=["discover", "security", "performance"],
                     help="Analysis mode (default: discover)")
+    cs.add_argument("--no-review", action="store_true",
+                    help="Skip review-proposals step (accept all proposals directly)")
 
     # code refine
     cs = code_sub.add_parser("refine",

@@ -871,9 +871,12 @@ def cmd_explore_propose_accept(args):
     except Exception:
         pre_run_ids = set()
 
-    report = Report("code-explore-propose-accept", [
-        "explore", "propose-beliefs", "accept-beliefs",
-    ])
+    skip_review = getattr(args, "no_review", False)
+    report_steps = ["explore", "propose-beliefs"]
+    if not skip_review:
+        report_steps.append("review-proposals")
+    report_steps.append("accept-beliefs")
+    report = Report("code-explore-propose-accept", report_steps)
 
     logs_dir = getattr(args, "logs_dir", "logs/")
     pipeline_t0 = time.monotonic()
@@ -928,7 +931,22 @@ def cmd_explore_propose_accept(args):
                                 round_number=round_num,
                                 wall_clock_seconds=time.monotonic() - t0)
 
-        # Step 3: Accept beliefs
+        # Step 3: Review proposals (optional)
+        if not skip_review:
+            review_args = SimpleNamespace(**vars(args))
+            review_args.proposals_file = getattr(args, "proposals_output", "proposed-beliefs.md")
+
+            t0 = time.monotonic()
+            with step_log(logs_dir, "explore-propose-accept", "review-proposals",
+                          round_number=round_num):
+                _run_step(f"Round {round_num}: Review proposals",
+                          cmd_review_proposals, review_args, errors,
+                          report=report, step_key=f"{step_prefix}review-proposals")
+            _write_step_cost_report(args, "explore-propose-accept", "review-proposals",
+                                    round_number=round_num,
+                                    wall_clock_seconds=time.monotonic() - t0)
+
+        # Step 4: Accept beliefs
         t0 = time.monotonic()
         with step_log(logs_dir, "explore-propose-accept", "accept-beliefs",
                       round_number=round_num):
