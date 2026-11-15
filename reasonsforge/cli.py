@@ -1078,6 +1078,7 @@ def cmd_sync_status(args):
     """Compare reasons.db against network.json and report differences."""
     network_file = Path(args.network_file)
     output_json = getattr(args, "json", False)
+    short = getattr(args, "short", False)
 
     if not network_file.exists():
         if output_json:
@@ -1115,31 +1116,33 @@ def cmd_sync_status(args):
         print("In sync — reasons.db matches network.json")
         return
 
-    if only_in_db:
-        print(f"New in reasons.db ({len(only_in_db)}):")
-        for nid in only_in_db:
-            text = db_nodes[nid].get("text", "")[:60]
-            print(f"  + {nid}: {text}")
-        print()
+    if not short:
+        if only_in_db:
+            print(f"New in reasons.db ({len(only_in_db)}):")
+            for nid in only_in_db:
+                text = db_nodes[nid].get("text", "")[:60]
+                print(f"  + {nid}: {text}")
+            print()
 
-    if only_in_file:
-        print(f"Only in {network_file} ({len(only_in_file)}):")
-        for nid in only_in_file:
-            text = disk_nodes[nid].get("text", "")[:60]
-            print(f"  - {nid}: {text}")
-        print()
+        if only_in_file:
+            print(f"Only in {network_file} ({len(only_in_file)}):")
+            for nid in only_in_file:
+                text = disk_nodes[nid].get("text", "")[:60]
+                print(f"  - {nid}: {text}")
+            print()
 
-    if changed:
-        print(f"Changed ({len(changed)}):")
-        for nid, field in changed:
-            print(f"  ~ {nid} ({field})")
-        print()
+        if changed:
+            print(f"Changed ({len(changed)}):")
+            for nid, field in changed:
+                print(f"  ~ {nid} ({field})")
+            print()
 
     print(f"Summary: +{len(only_in_db)} new, -{len(only_in_file)} removed, ~{len(changed)} changed")
-    if only_in_db or changed:
-        print("Run `reasonsforge export` to update network.json")
-    if only_in_file:
-        print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
+    if not short:
+        if only_in_db or changed:
+            print("Run `reasonsforge export` to update network.json")
+        if only_in_file:
+            print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
 
 
 def cmd_export(args):
@@ -4308,6 +4311,7 @@ def main():
     p.add_argument("network_file", nargs="?", default="network.json",
                    help="Path to network.json (default: network.json)")
     p.add_argument("--json", action="store_true", help="Output as JSON for programmatic use")
+    p.add_argument("--short", action="store_true", help="Show only the summary line")
 
     p = sub.add_parser("export", help="Export network as JSON")
     p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
