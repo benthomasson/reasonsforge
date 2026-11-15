@@ -1100,15 +1100,16 @@ def cmd_sync_status(args):
     if output_json:
         result = {
             "in_sync": not only_in_db and not only_in_file and not changed,
-            "new_in_db": [{"id": nid, "text": db_nodes[nid].get("text", "")} for nid in only_in_db],
-            "only_in_file": [{"id": nid, "text": disk_nodes[nid].get("text", "")} for nid in only_in_file],
-            "changed": [{"id": nid, "field": field} for nid, field in changed],
             "counts": {
                 "new": len(only_in_db),
                 "removed": len(only_in_file),
                 "changed": len(changed),
             },
         }
+        if not short:
+            result["new_in_db"] = [{"id": nid, "text": db_nodes[nid].get("text", "")} for nid in only_in_db]
+            result["only_in_file"] = [{"id": nid, "text": disk_nodes[nid].get("text", "")} for nid in only_in_file]
+            result["changed"] = [{"id": nid, "field": field} for nid, field in changed]
         print(json.dumps(result, indent=2))
         return
 
