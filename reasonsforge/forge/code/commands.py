@@ -3152,6 +3152,53 @@ def cmd_status(args):
 # file-issues
 # ---------------------------------------------------------------------------
 
+ISSUES_FILE = os.path.join(PROJECT_DIR, "issues.json")
+
+
+def _load_issues_registry(project_dir: str | None = None) -> list[dict]:
+    path = os.path.join(project_dir, "issues.json") if project_dir else ISSUES_FILE
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            return []
+    return []
+
+
+def _save_issues_registry(issues: list[dict], project_dir: str | None = None):
+    path = os.path.join(project_dir, "issues.json") if project_dir else ISSUES_FILE
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(issues, f, indent=2)
+
+
+def _record_issue(issues: list[dict], belief_id: str, url: str,
+                  issue_type: str, title: str, description: str,
+                  gated: list[dict] | None = None,
+                  project_dir: str | None = None):
+    """Record a filed issue in the registry and save."""
+    for existing in issues:
+        if existing["belief_id"] == belief_id:
+            existing["url"] = url
+            existing["state"] = "open"
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            _save_issues_registry(issues, project_dir)
+            return
+    entry = {
+        "belief_id": belief_id,
+        "url": url,
+        "type": issue_type,
+        "state": "open",
+        "title": title,
+        "description": description,
+        "filed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    if gated:
+        entry["gated_beliefs"] = [g["id"] for g in gated]
+    issues.append(entry)
+    _save_issues_registry(issues, project_dir)
+
 
 def _detect_platform(repo_path: str):
     """Detect GitHub/GitLab from git remote. Returns (platform, owner/repo)."""
@@ -3532,12 +3579,17 @@ def cmd_file_issues(args):
 
     print(f"Platform: {platform}, Repo: {repo_slug}", file=sys.stderr)
 
+    # Load issues registry
+    issues_registry = _load_issues_registry(project_dir)
+    registry_ids = {e["belief_id"] for e in issues_registry if e.get("state") == "open"}
+
     # Dedup against existing issues
     all_ids = [c["id"] for c in candidates]
     all_texts = {c["id"]: c["text"] for c in candidates}
     if not dry_run:
         print("Checking for existing issues...", file=sys.stderr)
         existing = _find_existing_issues(platform, repo_slug, all_ids, all_texts)
+        existing |= registry_ids
         if existing:
             print(f"  {len(existing)} already have issues: {', '.join(sorted(existing))}",
                   file=sys.stderr)
@@ -3593,6 +3645,13 @@ def cmd_file_issues(args):
         url = _create_issue(platform, repo_slug, title, body, issue_labels)
         if url:
             filed.append((candidate["id"], url))
+            _record_issue(
+                issues_registry, candidate["id"], url,
+                issue_type=ctype, title=title,
+                description=candidate["text"],
+                gated=candidate.get("gated"),
+                project_dir=project_dir,
+            )
             print(f"  OK {candidate['id']}: {url}")
         else:
             print(f"  FAIL {candidate['id']}")
