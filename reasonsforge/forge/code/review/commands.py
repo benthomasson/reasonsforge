@@ -313,20 +313,27 @@ def cmd_review(args) -> None:
                     all_observations[obs_key] = ref_result
 
     abs_repo = os.path.abspath(repo)
-    resolved_db = None
-    if reasons_db:
-        resolved_db = os.path.abspath(reasons_db)
-    elif (Path(abs_repo) / "reasons.db").exists():
-        resolved_db = os.path.join(abs_repo, "reasons.db")
+    from .reasons import find_reasons_db, query_beliefs_for_files, query_gated_beliefs, format_beliefs_for_prompt
+    resolved_db = find_reasons_db(abs_repo, reasons_db)
     if resolved_db:
-        from .observations import gather_reasons_beliefs
-        print(f"Auto-gathering beliefs from {resolved_db}...", file=sys.stderr)
-        reasons_obs = asyncio.run(gather_reasons_beliefs(changed_files, abs_repo, db_path=resolved_db))
-        if reasons_obs:
-            all_observations.update(reasons_obs)
-            print(f"Found beliefs for {len(reasons_obs)} file(s)", file=sys.stderr)
-            with open(os.path.join(output_dir, "00-auto-beliefs.json"), "w") as f:
-                json.dump(reasons_obs, f, indent=2, default=str)
+        print(f"Querying beliefs from {resolved_db}...", file=sys.stderr)
+        belief_result = query_beliefs_for_files(changed_files, resolved_db)
+        gated_result = query_gated_beliefs(changed_files, resolved_db)
+        matched_beliefs = belief_result["beliefs"]
+        gated_beliefs = gated_result["gated"]
+        if matched_beliefs or gated_beliefs:
+            reasons_beliefs_content = format_beliefs_for_prompt(matched_beliefs, gated_beliefs)
+            if beliefs_content:
+                beliefs_content = beliefs_content + "\n\n" + reasons_beliefs_content
+            else:
+                beliefs_content = reasons_beliefs_content
+            in_count = sum(1 for b in matched_beliefs if b["truth_value"] == "IN")
+            out_count = sum(1 for b in matched_beliefs if b["truth_value"] == "OUT")
+            print(f"Found {len(matched_beliefs)} beliefs ({in_count} IN, {out_count} OUT) from {belief_result['total_in_db']} total", file=sys.stderr)
+            if gated_beliefs:
+                print(f"Found {len(gated_beliefs)} gated belief(s) relevant to changed files", file=sys.stderr)
+            with open(os.path.join(output_dir, "00-reasons-beliefs.json"), "w") as f:
+                json.dump({"beliefs": matched_beliefs, "gated": gated_beliefs}, f, indent=2, default=str)
         else:
             print("No relevant beliefs found in reasons.db.", file=sys.stderr)
 
