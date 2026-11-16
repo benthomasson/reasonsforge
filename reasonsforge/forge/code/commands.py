@@ -1348,6 +1348,7 @@ def cmd_propose_beliefs(args):
     parallel = getattr(args, "parallel", 1)
     db_path = getattr(args, "output", REASONS_DB)
     parse_only = getattr(args, "parse_only", False)
+    no_embeddings = getattr(args, "no_embeddings", False)
 
     if not parse_only:
         if not check_model_available(model):
@@ -1395,7 +1396,7 @@ def cmd_propose_beliefs(args):
     batches = []
     batch_paths = []
     if not parse_only:
-        if existing_beliefs and _has_embeddings():
+        if existing_beliefs and not no_embeddings and _has_embeddings():
             try:
                 print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
                 cache_path = Path(PROJECT_DIR) / "belief-vectors.json"

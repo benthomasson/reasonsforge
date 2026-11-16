@@ -133,6 +133,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Analysis mode (default: discover)")
     cs.add_argument("--parse-only", action="store_true",
                     help="Only extract beliefs from ## Beliefs sections (no LLM)")
+    cs.add_argument("--no-embeddings", action="store_true",
+                    help="Disable semantic dedup (use keyword dedup instead)")
 
     # code accept-beliefs
     cs = code_sub.add_parser("accept-beliefs",
@@ -276,6 +278,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Analysis mode (default: discover)")
     cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
                     help="Skip LLM verification of dedup candidates (faster, less accurate)")
+    cs.add_argument("--no-embeddings", action="store_true",
+                    help="Disable semantic dedup (use keyword dedup instead)")
 
     # code update
     cs = code_sub.add_parser("update",
@@ -301,6 +305,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Analysis mode (default: discover)")
     cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
                     help="Skip LLM verification of dedup candidates (faster, less accurate)")
+    cs.add_argument("--no-embeddings", action="store_true",
+                    help="Disable semantic dedup (use keyword dedup instead)")
 
     # code file-issues
     cs = code_sub.add_parser("file-issues",
@@ -342,6 +348,8 @@ def register_forge_type_commands(parent_subparsers):
                     help="Analysis mode (default: discover)")
     cs.add_argument("--no-review", action="store_true",
                     help="Skip review-proposals step (accept all proposals directly)")
+    cs.add_argument("--no-embeddings", action="store_true",
+                    help="Disable semantic dedup (use keyword dedup instead)")
 
     # code refine
     cs = code_sub.add_parser("refine",
