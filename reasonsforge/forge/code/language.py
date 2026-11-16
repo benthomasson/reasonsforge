@@ -27,6 +27,29 @@ class LanguageProfile:
         stripped = line.strip()
         return any(stripped.startswith(p) for p in self.import_line_prefixes)
 
+    def matches_extension(self, file_path: str) -> bool:
+        return any(file_path.endswith(ext) for ext in self.source_extensions)
+
+    def is_test_file(self, file_path: str) -> bool:
+        from pathlib import PurePosixPath
+        path = PurePosixPath(file_path)
+        basename = path.name
+        for glob in self.test_globs:
+            if glob.startswith("*") and basename.endswith(glob[1:]):
+                return True
+            if glob.endswith("*") and basename.startswith(glob[:-1]):
+                return True
+            if basename == glob:
+                return True
+        test_dirs = {"tests", "test", "testing", "__tests__", "__test__"}
+        for part in path.parts:
+            if part in test_dirs:
+                return True
+        return False
+
+    def grep_include_args(self) -> list[str]:
+        return [f"--include={g}" for g in self.source_globs]
+
     def module_name_from_path(self, rel_path: str) -> str:
         if rel_path.endswith(self.primary_extension):
             name = rel_path[:-len(self.primary_extension)]

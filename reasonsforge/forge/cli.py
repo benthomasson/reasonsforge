@@ -375,6 +375,43 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
                     help="Skip LLM verification of dedup candidates (faster, less accurate)")
 
+    # code review
+    cs = code_sub.add_parser("review",
+                             help="Multi-model code review with observation tools")
+    cs.add_argument("-b", "--branch", default=None,
+                    help="Branch to review (default: staged changes)")
+    cs.add_argument("--base", default="main",
+                    help="Base branch to diff against")
+    cs.add_argument("--pr", default=None,
+                    help="PR URL or number to review")
+    cs.add_argument("--repo", default=".",
+                    help="Repository directory")
+    cs.add_argument("-m", "--model", action="append", default=None,
+                    help="Model(s) to use (repeatable, default: claude)")
+    cs.add_argument("-s", "--spec", default=None,
+                    help="Spec file for compliance checking")
+    cs.add_argument("-o", "--output", default="full",
+                    choices=["full", "summary"],
+                    help="Output format")
+    cs.add_argument("-d", "--output-dir", default=None,
+                    help="Directory to save review artifacts")
+    cs.add_argument("--max-iterations", type=int, default=2,
+                    help="Max observe/review iterations")
+    cs.add_argument("--beliefs", default=None,
+                    help="Beliefs file for compliance checking")
+    cs.add_argument("--issue", default=None,
+                    help="Issue file to check changes against")
+    cs.add_argument("--github-issue", default=None,
+                    help="GitHub issue URL or number")
+    cs.add_argument("--comment", action="store_true",
+                    help="Post review as PR comment (requires --pr)")
+    cs.add_argument("--run-tests", action="store_true",
+                    help="Run related tests before review")
+    cs.add_argument("--coverage-map", action="store_true",
+                    help="Use coverage-map for test discovery")
+    cs.add_argument("--reasons-db", default=None,
+                    help="Path to reasons.db for belief lookup")
+
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
         "product",
@@ -1049,6 +1086,7 @@ def _cmd_code(args):
     from .code.pipeline import (
         cmd_analyze, cmd_explore_propose_accept, cmd_refine, cmd_update,
     )
+    from .code.review.commands import cmd_review as _code_review_code
 
     code_command = getattr(args, "code_command", None)
 
@@ -1066,6 +1104,7 @@ def _cmd_code(args):
         "topics": _code_topics,
         "status": _code_status,
         "file-issues": _code_file_issues,
+        "review": _code_review_code,
         "update": cmd_update,
         "analyze": cmd_analyze,
         "refine": cmd_refine,

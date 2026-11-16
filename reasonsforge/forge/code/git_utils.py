@@ -210,6 +210,41 @@ def get_file_content(path: str) -> str | None:
         return None
 
 
+def extract_changed_files(diff_content: str) -> list[str]:
+    """Extract file paths from a git diff."""
+    files = []
+    for line in diff_content.split("\n"):
+        if line.startswith("+++ b/"):
+            path = line[6:]
+            if path != "/dev/null":
+                files.append(path)
+    return files
+
+
+def extract_modified_line_ranges(diff_content: str) -> dict[str, list[tuple[int, int]]]:
+    """Parse a unified diff to extract modified line ranges in the new version of each file."""
+    import re
+
+    result: dict[str, list[tuple[int, int]]] = {}
+    current_file: str | None = None
+
+    for line in diff_content.split("\n"):
+        if line.startswith("+++ b/"):
+            path = line[6:]
+            current_file = path if path != "/dev/null" else None
+            continue
+        if current_file and line.startswith("@@"):
+            m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
+            if m:
+                start = int(m.group(1))
+                count = int(m.group(2)) if m.group(2) else 1
+                if count > 0:
+                    end = start + count - 1
+                    result.setdefault(current_file, []).append((start, end))
+
+    return result
+
+
 BINARY_EXTENSIONS = frozenset({
     ".pyc", ".pyo", ".so", ".o", ".a", ".dylib",
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
