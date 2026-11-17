@@ -161,7 +161,6 @@ def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
 
     if parallel > 1 and total_batches > 1:
         import asyncio
-        from .llm import invoke
 
         batches_data = []
         for i in range(0, len(belief_ids), batch_size):
@@ -180,7 +179,7 @@ def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
             async def _run_one(idx, prompt):
                 nonlocal done_count, header_written
                 async with sem:
-                    response = await invoke(prompt, model, timeout=timeout)
+                    response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
                 results = parse_contradiction_response(response,
                                                        valid_ids=valid_ids)
                 async with lock:
@@ -295,7 +294,6 @@ def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
 
     if parallel > 1 and total_work > 1:
         import asyncio
-        from .llm import invoke
 
         done_count = 0
 
@@ -307,7 +305,7 @@ def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
             async def _run_one(idx, ci, prompt):
                 nonlocal done_count, header_written
                 async with sem:
-                    response = await invoke(prompt, model, timeout=timeout)
+                    response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
                 results = parse_contradiction_response(response,
                                                        valid_ids=valid_ids)
                 async with lock:

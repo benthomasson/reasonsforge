@@ -4940,7 +4940,6 @@ def verify_dedup_clusters(
 
     if parallel > 1 and len(clusters) > 1:
         import asyncio
-        from .llm import invoke
 
         done_count = 0
 
@@ -4954,7 +4953,7 @@ def verify_dedup_clusters(
                 prompt = _build_dedup_verify_prompt(cluster)
                 try:
                     async with sem:
-                        response = await invoke(prompt, model, timeout=timeout)
+                        response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
                 except Exception as e:
                     logger.warning("LLM verification failed for cluster: %s", e)
                     async with results_lock:
