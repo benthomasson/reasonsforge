@@ -490,6 +490,40 @@ def list_commits_with_files(
     return commits
 
 
+def get_commit_file_diff(
+    sha: str, file_path: str, cwd: str | None = None, context_lines: int = 10,
+) -> str:
+    """Get the diff for a specific file from a commit.
+
+    Args:
+        sha: Commit SHA
+        file_path: Path to the file (relative to repo root)
+        cwd: Working directory
+        context_lines: Number of context lines
+
+    Returns:
+        Unified diff output for the file
+    """
+    result = subprocess.run(
+        ["git", "show", f"-U{context_lines}", "--format=", sha, "--", file_path],
+        capture_output=True, text=True, cwd=cwd,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Git show failed: {result.stderr}")
+    return result.stdout
+
+
+def get_commit_message(sha: str, cwd: str | None = None) -> str:
+    """Get the full commit message (subject + body) for a commit."""
+    result = subprocess.run(
+        ["git", "log", sha, "-1", "--format=%B"],
+        capture_output=True, text=True, cwd=cwd,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Git log failed: {result.stderr}")
+    return result.stdout.strip()
+
+
 def find_related_tests(
     file_path: str, repo_path: str, symbol: str | None = None, lang: LanguageProfile | None = None,
 ) -> list[str]:

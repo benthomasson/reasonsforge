@@ -2,6 +2,7 @@
 
 from .common import BELIEFS_INSTRUCTIONS, TOPICS_INSTRUCTIONS
 from .diff import build_diff_prompt, build_diff_summary_prompt
+from .diff_beliefs import build_diff_extract_prompt, build_diff_observe_prompt
 from .file import build_file_prompt
 from .function import build_function_prompt
 from .observe import build_observe_prompt
@@ -25,6 +26,8 @@ __all__ = [
     "VERIFY_OBSERVE_PROMPT",
     "VERIFY_PROMPT",
     "TOPICS_INSTRUCTIONS",
+    "build_diff_extract_prompt",
+    "build_diff_observe_prompt",
     "build_diff_prompt",
     "build_diff_summary_prompt",
     "build_file_prompt",

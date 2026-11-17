@@ -113,6 +113,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
+    cs.add_argument("--no-diffs", action="store_true", dest="no_diffs",
+                    help="Skip per-file diff processing (only explore full files)")
     cs.add_argument("--output", default="reasons.db")
 
     # code propose-beliefs

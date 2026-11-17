@@ -21,7 +21,9 @@ from .git_utils import (
     commits_since_checkpoint,
     extract_symbol,
     find_related_tests,
+    get_commit_file_diff,
     get_commit_log,
+    get_commit_message,
     get_diff,
     get_diff_since,
     get_diff_since_commit,
@@ -42,6 +44,8 @@ from .prompts import (
     VERIFY_INFER_FILE_PROMPT,
     VERIFY_OBSERVE_PROMPT,
     VERIFY_PROMPT,
+    build_diff_extract_prompt,
+    build_diff_observe_prompt,
     build_diff_prompt,
     build_diff_summary_prompt,
     build_file_prompt,
@@ -687,6 +691,64 @@ async def _run_general_topic_async(topic, model, repo_path, timeout, mode="disco
     return result, f"topic-{safe_label}", f"Topic: {topic.title}", f"general:{topic.target}"
 
 
+def _parse_commit_diff_target(target: str) -> tuple[str, str] | None:
+    """Parse a commit-diff target encoded as 'sha:file_path'.
+
+    Returns (sha, file_path) or None if the target is not a commit-diff.
+    """
+    idx = target.find(":")
+    if idx < 7:
+        return None
+    sha = target[:idx]
+    if not all(c in "0123456789abcdef" for c in sha):
+        return None
+    return sha, target[idx + 1:]
+
+
+async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iterations=2):
+    """Run agentic observe→extract loop on a per-file commit diff."""
+    from ..llm import invoke
+    from .review.observations import run_observations as run_review_observations
+
+    parsed = _parse_commit_diff_target(topic.target)
+    if parsed is None:
+        raise ValueError(f"Invalid commit-diff target: {topic.target}")
+    sha, file_path = parsed
+
+    commit_message = get_commit_message(sha, cwd=repo_path)
+    diff_content = get_commit_file_diff(sha, file_path, cwd=repo_path)
+
+    if not diff_content.strip():
+        return None
+
+    all_observations: dict = {}
+
+    for iteration in range(1, max_iterations + 1):
+        observe_prompt = build_diff_observe_prompt(diff_content, commit_message, file_path)
+        observe_response = await invoke(observe_prompt, model, timeout=timeout)
+
+        requested_obs = parse_observation_requests(observe_response)
+        if requested_obs:
+            new_obs = await run_review_observations(requested_obs, repo_path)
+            all_observations.update(new_obs)
+        else:
+            break
+
+    extract_prompt = build_diff_extract_prompt(
+        diff_content, commit_message, file_path,
+        observations=all_observations if all_observations else None,
+    )
+    result = await invoke(extract_prompt, model, timeout=timeout)
+
+    safe_label = _sanitize_path_for_filename(file_path)
+    short_sha = sha[:8]
+    entry_name = f"diff-{short_sha}-{safe_label}"
+    entry_title = f"Diff: {file_path} ({short_sha})"
+    source = f"diff:{sha}:{file_path}"
+
+    return result, entry_name, entry_title, source
+
+
 async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None, mode="discover", project_dir=None):
     from ..llm import invoke
     lang = lang or detect_language(repo_path)
@@ -699,6 +761,14 @@ async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_conc
                 result, entry_name, entry_title, source = await _run_general_topic_async(
                     topic, model, repo_path, timeout, mode=mode,
                 )
+                return topic, result, entry_name, entry_title, source
+
+            if topic.kind == "diff" and _parse_commit_diff_target(topic.target):
+                out = await _run_diff_beliefs_async(topic, model, repo_path, timeout)
+                if out is None:
+                    mark_failed(topic, project_dir)
+                    return None
+                result, entry_name, entry_title, source = out
                 return topic, result, entry_name, entry_title, source
 
             prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
@@ -764,6 +834,20 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+    elif topic.kind == "diff" and _parse_commit_diff_target(topic.target):
+        print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
+        try:
+            out = asyncio.run(
+                _run_diff_beliefs_async(topic, model, abs_repo, timeout)
+            )
+        except Exception as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        if out is None:
+            mark_failed(topic, project_dir)
+            return
+        result, entry_name, entry_title, source = out
         _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
     else:
         prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
@@ -860,6 +944,23 @@ def _explore_loop(args, project_dir, max_topics):
                         requeue_topics([topic], project_dir)
                         explored += len(batch)
                         continue
+                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                elif topic.kind == "diff" and _parse_commit_diff_target(topic.target):
+                    print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
+                    try:
+                        out = asyncio.run(
+                            _run_diff_beliefs_async(topic, model, abs_repo, timeout)
+                        )
+                    except Exception as e:
+                        print(f"Error: {e}", file=sys.stderr)
+                        requeue_topics([topic], project_dir)
+                        explored += len(batch)
+                        continue
+                    if out is None:
+                        mark_failed(topic, project_dir)
+                        explored += len(batch)
+                        continue
+                    result, entry_name, entry_title, source = out
                     _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
                 else:
                     prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
@@ -1208,15 +1309,24 @@ def cmd_walk_commits(args):
     if deleted_files:
         print(f"  {len(deleted_files)} file(s) deleted", file=sys.stderr)
 
+    no_diffs = getattr(args, "no_diffs", False)
+
     if dry_run:
+        diff_count = 0
         for commit in commits:
             print(f"\n  {commit['sha'][:8]} {commit['subject']}")
             for f in commit["files"]:
                 marker = " " if file_to_commit[f] is commit else " (earlier version, skip)"
                 if f in deleted_files:
                     marker = " [DELETED]"
+                else:
+                    diff_count += 1
                 print(f"    {marker} {f}")
-        print(f"\nWould explore {total_files} file(s)")
+        print(f"\nWould explore {total_files} file(s)", end="")
+        if not no_diffs:
+            print(f", process {diff_count} diff(s)")
+        else:
+            print(" (diffs disabled)")
         return
 
     if deleted_files:
@@ -1226,6 +1336,8 @@ def cmd_walk_commits(args):
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
         sys.exit(1)
+
+    process_diffs = not getattr(args, "no_diffs", False)
 
     lang = _get_lang(args, abs_repo)
     all_topics = []
@@ -1243,11 +1355,31 @@ def cmd_walk_commits(args):
             source=f"walk-commits:{commit['sha'][:8]}",
         ))
 
+    diff_topics = []
+    if process_diffs:
+        for commit in commits:
+            sha = commit["sha"]
+            for f in commit["files"]:
+                if f in deleted_files:
+                    continue
+                diff_topics.append(Topic(
+                    title=f"{commit['subject']} — {f}",
+                    kind="diff",
+                    target=f"{sha}:{f}",
+                    source=f"walk-commits:{sha[:8]}",
+                ))
+
+    total_file = len(all_topics)
+    total_diff = len(diff_topics)
+    print(f"  {total_file} file topic(s), {total_diff} diff topic(s)", file=sys.stderr)
+
+    combined_topics = all_topics + diff_topics
+
     explored = 0
-    while explored < len(all_topics):
-        batch = all_topics[explored:explored + parallel]
+    while explored < len(combined_topics):
+        batch = combined_topics[explored:explored + parallel]
         print(f"\n{'=' * 40}", file=sys.stderr)
-        print(f"[{explored + 1}-{explored + len(batch)}/{len(all_topics)}]", file=sys.stderr)
+        print(f"[{explored + 1}-{explored + len(batch)}/{len(combined_topics)}]", file=sys.stderr)
         print(f"{'=' * 40}", file=sys.stderr)
 
         if parallel > 1 and len(batch) > 1:
@@ -1262,23 +1394,38 @@ def cmd_walk_commits(args):
                     _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
         else:
             for topic in batch:
-                prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
-                if prepared is None:
-                    mark_failed(topic, project_dir)
-                    continue
-                prompt, entry_name, entry_title, source = prepared
-                print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
-                try:
-                    result = asyncio.run(invoke(prompt, model, timeout=timeout))
-                except Exception as e:
-                    print(f"Error: {e}", file=sys.stderr)
-                    continue
+                if topic.kind == "diff" and _parse_commit_diff_target(topic.target):
+                    print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
+                    try:
+                        out = asyncio.run(
+                            _run_diff_beliefs_async(topic, model, abs_repo, timeout)
+                        )
+                    except Exception as e:
+                        print(f"Error: {e}", file=sys.stderr)
+                        continue
+                    if out is None:
+                        mark_failed(topic, project_dir)
+                        continue
+                    result, entry_name, entry_title, source = out
+                else:
+                    prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
+                    if prepared is None:
+                        mark_failed(topic, project_dir)
+                        continue
+                    prompt, entry_name, entry_title, source = prepared
+                    print(f"Explaining {topic.target} with {model}...", file=sys.stderr)
+                    try:
+                        result = asyncio.run(invoke(prompt, model, timeout=timeout))
+                    except Exception as e:
+                        print(f"Error: {e}", file=sys.stderr)
+                        continue
                 _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
 
         explored += len(batch)
 
     save_diff_checkpoint(project_dir, cwd=abs_repo)
-    print(f"\nWalked {len(commits)} commit(s), explored {len(all_topics)} file(s) ({skipped} skipped)",
+    print(f"\nWalked {len(commits)} commit(s), explored {total_file} file(s), "
+          f"processed {total_diff} diff(s) ({skipped} skipped)",
           file=sys.stderr)
     print("Diff checkpoint saved.", file=sys.stderr)
 
