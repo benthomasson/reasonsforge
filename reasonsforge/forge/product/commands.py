@@ -1458,6 +1458,7 @@ def cmd_review_proposals(args):
     db_path = getattr(args, "output", REASONS_DB)
     proposals_file = getattr(args, "proposals_file", "proposed-beliefs.md")
     batch_size = getattr(args, "batch_size", 20)
+    parallel = getattr(args, "parallel", 1)
 
     proposals_path = Path(proposals_file)
     if not proposals_path.exists():
@@ -1482,35 +1483,76 @@ def cmd_review_proposals(args):
     classifications = {}
     batches = [proposals[i:i + batch_size] for i in range(0, len(proposals), batch_size)]
 
-    for i, batch in enumerate(batches):
-        print(f"  Batch {i + 1}/{len(batches)} ({len(batch)} proposals)...", file=sys.stderr)
+    if parallel > 1 and len(batches) > 1:
+        from ..llm import invoke
+        done_count = 0
 
-        proposals_text = "\n\n".join(
-            f"### [ACCEPT/REJECT] {p['id']}\n{p['text']}\n- Source: {p['source']}"
-            for p in batch
-        )
+        async def _invoke_all():
+            nonlocal done_count
+            sem = asyncio.Semaphore(parallel)
+            lock = asyncio.Lock()
 
-        prompt = REVIEW_PROPOSALS_PROMPT.format(
-            existing_beliefs=existing_beliefs,
-            proposals=proposals_text,
-        )
+            async def _invoke_one(idx, batch):
+                nonlocal done_count
+                proposals_text = "\n\n".join(
+                    f"### [ACCEPT/REJECT] {p['id']}\n{p['text']}\n- Source: {p['source']}"
+                    for p in batch
+                )
+                prompt = REVIEW_PROPOSALS_PROMPT.format(
+                    existing_beliefs=existing_beliefs,
+                    proposals=proposals_text,
+                )
+                async with sem:
+                    result = await invoke(prompt, model, timeout=timeout)
+                async with lock:
+                    batch_classifications = _parse_review_response(result)
+                    classifications.update(batch_classifications)
+                    for p in batch:
+                        if p["id"] not in classifications:
+                            classifications[p["id"]] = "ok"
+                    done_count += 1
+                    print(f"  Batch {idx + 1}/{len(batches)} done "
+                          f"({done_count} completed)", file=sys.stderr)
 
-        try:
-            result = invoke_sync(prompt, model=model, timeout=timeout)
-        except Exception as e:
-            print(f"  ERROR: {e}", file=sys.stderr)
+            tasks = [_invoke_one(i, b) for i, b in enumerate(batches)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    print(f"  ERROR in batch {i + 1}: {r}", file=sys.stderr)
+                    for p in batches[i]:
+                        classifications.setdefault(p["id"], "ok")
+
+        asyncio.run(_invoke_all())
+    else:
+        for i, batch in enumerate(batches):
+            print(f"  Batch {i + 1}/{len(batches)} ({len(batch)} proposals)...", file=sys.stderr)
+
+            proposals_text = "\n\n".join(
+                f"### [ACCEPT/REJECT] {p['id']}\n{p['text']}\n- Source: {p['source']}"
+                for p in batch
+            )
+
+            prompt = REVIEW_PROPOSALS_PROMPT.format(
+                existing_beliefs=existing_beliefs,
+                proposals=proposals_text,
+            )
+
+            try:
+                result = invoke_sync(prompt, model=model, timeout=timeout)
+            except Exception as e:
+                print(f"  ERROR: {e}", file=sys.stderr)
+                for p in batch:
+                    classifications[p["id"]] = "ok"
+                continue
+
+            # Parse classifications from response
+            batch_classifications = _parse_review_response(result)
+            classifications.update(batch_classifications)
+
+            # Any proposals not classified default to ok
             for p in batch:
-                classifications[p["id"]] = "ok"
-            continue
-
-        # Parse classifications from response
-        batch_classifications = _parse_review_response(result)
-        classifications.update(batch_classifications)
-
-        # Any proposals not classified default to ok
-        for p in batch:
-            if p["id"] not in classifications:
-                classifications[p["id"]] = "ok"
+                if p["id"] not in classifications:
+                    classifications[p["id"]] = "ok"
 
     # Count by category
     from collections import Counter

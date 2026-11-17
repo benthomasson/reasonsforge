@@ -4541,6 +4541,7 @@ def detect_contradictions(
     embedding_model: str | None = None,
     output_path: str | None = None,
     db_path: str = DEFAULT_DB,
+    parallel: int = 1,
 ) -> dict:
     """Detect contradictions between IN beliefs via LLM analysis.
 
@@ -4580,11 +4581,13 @@ def detect_contradictions(
         contradictions = _detect_semantic(nodes, belief_ids=check_ids,
                                           model=model, timeout=timeout,
                                           embedding_model=embedding_model,
-                                          output_path=output_path)
+                                          output_path=output_path,
+                                          parallel=parallel)
     else:
         contradictions = _detect(nodes, belief_ids=check_ids, model=model,
                                 timeout=timeout,
-                                output_path=output_path)
+                                output_path=output_path,
+                                parallel=parallel)
 
     applied = 0
     applied_details = []
@@ -4860,10 +4863,52 @@ def deduplicate(
         return {"clusters": clusters, "retracted": retracted}
 
 
+def _build_dedup_verify_prompt(cluster: dict) -> str:
+    beliefs_text = "\n".join(
+        f"  - ID: {b['id']}\n    Text: {b['text']}"
+        for b in cluster["beliefs"]
+    )
+    return (
+        "You are classifying a group of beliefs from a knowledge base that "
+        "were flagged as potential duplicates based on word similarity.\n\n"
+        "Beliefs in this cluster:\n"
+        f"{beliefs_text}\n\n"
+        "Classify this cluster as ONE of:\n"
+        "- SAME_CLAIM: These beliefs make the same factual claim in "
+        "different words. They are genuine duplicates.\n"
+        "- DIFFERENT_CLAIMS: These beliefs share vocabulary but make "
+        "distinct, non-redundant claims. They should NOT be deduplicated.\n"
+        "- CONTRADICTION: These beliefs contradict each other. They "
+        "should be recorded as a conflict, not deduplicated.\n\n"
+        "Respond with EXACTLY one line in this format:\n"
+        "VERDICT: <SAME_CLAIM|DIFFERENT_CLAIMS|CONTRADICTION>\n"
+        "REASON: <one sentence explanation>"
+    )
+
+
+def _parse_dedup_verify_response(response: str) -> tuple[str, str]:
+    verdict = "DIFFERENT_CLAIMS"
+    reason = ""
+    for line in response.strip().splitlines():
+        line = line.strip()
+        if line.upper().startswith("VERDICT:"):
+            v = line.split(":", 1)[1].strip().upper()
+            if "SAME" in v:
+                verdict = "SAME_CLAIM"
+            elif "CONTRA" in v:
+                verdict = "CONTRADICTION"
+            else:
+                verdict = "DIFFERENT_CLAIMS"
+        elif line.upper().startswith("REASON:"):
+            reason = line.split(":", 1)[1].strip()
+    return verdict, reason
+
+
 def verify_dedup_clusters(
     clusters: list[dict],
     model: str = "claude",
     timeout: int = 300,
+    parallel: int = 1,
 ) -> dict:
     """LLM-verify candidate duplicate clusters.
 
@@ -4884,80 +4929,95 @@ def verify_dedup_clusters(
     contradictions = []
 
     total = len(clusters)
-    total_tokens = 0
 
-    if tqdm is not None:
-        pbar = tqdm(clusters, desc="  Verifying clusters", unit="cluster",
-                    file=sys.stderr)
-    else:
-        pbar = None
-
-    for i, cluster in enumerate(clusters, 1):
-        beliefs_text = "\n".join(
-            f"  - ID: {b['id']}\n    Text: {b['text']}"
-            for b in cluster["beliefs"]
-        )
-        prompt = (
-            "You are classifying a group of beliefs from a knowledge base that "
-            "were flagged as potential duplicates based on word similarity.\n\n"
-            "Beliefs in this cluster:\n"
-            f"{beliefs_text}\n\n"
-            "Classify this cluster as ONE of:\n"
-            "- SAME_CLAIM: These beliefs make the same factual claim in "
-            "different words. They are genuine duplicates.\n"
-            "- DIFFERENT_CLAIMS: These beliefs share vocabulary but make "
-            "distinct, non-redundant claims. They should NOT be deduplicated.\n"
-            "- CONTRADICTION: These beliefs contradict each other. They "
-            "should be recorded as a conflict, not deduplicated.\n\n"
-            "Respond with EXACTLY one line in this format:\n"
-            "VERDICT: <SAME_CLAIM|DIFFERENT_CLAIMS|CONTRADICTION>\n"
-            "REASON: <one sentence explanation>"
-        )
-
-        est = max(1, len(prompt) // 4)
-        total_tokens += est
-        if pbar is not None:
-            pbar.set_postfix(tokens=f"~{total_tokens:,}")
-            pbar.update(1)
-        else:
-            print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
-                  f"~{total_tokens:,} cumulative)...",
-                  end="\r", file=sys.stderr, flush=True)
-
-        try:
-            response = invoke_model(prompt, model=model, timeout=timeout)
-        except Exception as e:
-            logger.warning("LLM verification failed for cluster: %s", e)
-            rejected.append({**cluster, "verify_error": str(e)})
-            continue
-
-        verdict = "DIFFERENT_CLAIMS"
-        reason = ""
-        for line in response.strip().splitlines():
-            line = line.strip()
-            if line.upper().startswith("VERDICT:"):
-                v = line.split(":", 1)[1].strip().upper()
-                if "SAME" in v:
-                    verdict = "SAME_CLAIM"
-                elif "CONTRA" in v:
-                    verdict = "CONTRADICTION"
-                else:
-                    verdict = "DIFFERENT_CLAIMS"
-            elif line.upper().startswith("REASON:"):
-                reason = line.split(":", 1)[1].strip()
-
-        annotated = {**cluster, "verdict": verdict, "reason": reason}
-
-        if verdict == "SAME_CLAIM":
+    def _classify(annotated):
+        if annotated["verdict"] == "SAME_CLAIM":
             verified.append(annotated)
-        elif verdict == "CONTRADICTION":
+        elif annotated["verdict"] == "CONTRADICTION":
             contradictions.append(annotated)
         else:
             rejected.append(annotated)
 
-    if pbar is not None:
-        pbar.close()
-    print(f"  Verified {total} cluster(s) (~{total_tokens:,} tokens): "
+    if parallel > 1 and len(clusters) > 1:
+        import asyncio
+        from .llm import invoke
+
+        done_count = 0
+
+        async def _verify_all():
+            nonlocal done_count
+            sem = asyncio.Semaphore(parallel)
+            results_lock = asyncio.Lock()
+
+            async def _verify_one(idx, cluster):
+                nonlocal done_count
+                prompt = _build_dedup_verify_prompt(cluster)
+                try:
+                    async with sem:
+                        response = await invoke(prompt, model, timeout=timeout)
+                except Exception as e:
+                    logger.warning("LLM verification failed for cluster: %s", e)
+                    async with results_lock:
+                        rejected.append({**cluster, "verify_error": str(e)})
+                        done_count += 1
+                        print(f"  Cluster {done_count}/{total} done (error)",
+                              file=sys.stderr)
+                    return
+
+                verdict, reason = _parse_dedup_verify_response(response)
+                annotated = {**cluster, "verdict": verdict, "reason": reason}
+                async with results_lock:
+                    _classify(annotated)
+                    done_count += 1
+                    print(f"  Cluster {done_count}/{total} done",
+                          file=sys.stderr)
+
+            tasks = [_verify_one(i, c) for i, c in enumerate(clusters)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    print(f"  Cluster {i + 1} ERROR: {r}", file=sys.stderr)
+
+        print(f"  Verifying {total} clusters (parallel={parallel})...",
+              file=sys.stderr)
+        asyncio.run(_verify_all())
+    else:
+        total_tokens = 0
+
+        if tqdm is not None:
+            pbar = tqdm(clusters, desc="  Verifying clusters", unit="cluster",
+                        file=sys.stderr)
+        else:
+            pbar = None
+
+        for i, cluster in enumerate(clusters, 1):
+            prompt = _build_dedup_verify_prompt(cluster)
+
+            est = max(1, len(prompt) // 4)
+            total_tokens += est
+            if pbar is not None:
+                pbar.set_postfix(tokens=f"~{total_tokens:,}")
+                pbar.update(1)
+            else:
+                print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
+                      f"~{total_tokens:,} cumulative)...",
+                      end="\r", file=sys.stderr, flush=True)
+
+            try:
+                response = invoke_model(prompt, model=model, timeout=timeout)
+            except Exception as e:
+                logger.warning("LLM verification failed for cluster: %s", e)
+                rejected.append({**cluster, "verify_error": str(e)})
+                continue
+
+            verdict, reason = _parse_dedup_verify_response(response)
+            annotated = {**cluster, "verdict": verdict, "reason": reason}
+            _classify(annotated)
+
+        if pbar is not None:
+            pbar.close()
+
+    print(f"  Verified {total} cluster(s): "
           f"{len(verified)} same, {len(rejected)} different, "
           f"{len(contradictions)} contradictions",
           file=sys.stderr)

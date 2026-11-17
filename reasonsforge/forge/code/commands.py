@@ -1913,6 +1913,7 @@ def cmd_review_proposals(args):
     db_path = getattr(args, "output", REASONS_DB)
     proposals_file = getattr(args, "proposals_file", "proposed-beliefs.md")
     batch_size = getattr(args, "batch_size", 20)
+    parallel = getattr(args, "parallel", 1)
 
     proposals_path = Path(proposals_file)
     if not proposals_path.exists():
@@ -1973,21 +1974,10 @@ def cmd_review_proposals(args):
     rejected = 0
     categories: dict[str, int] = {}
 
-    for i, batch in enumerate(review_batches):
-        proposals_section = _build_proposals_section(batch)
-        prompt = REVIEW_PROMPT.format(
-            existing_beliefs=existing_beliefs,
-            proposals=proposals_section,
-        )
-        print(f"  Batch {i + 1}/{len(review_batches)}...", file=sys.stderr)
-        try:
-            result = invoke_sync(prompt, model=model, timeout=timeout)
-            decisions = _parse_review_response(result)
-        except Exception as e:
-            print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
-            continue
-
-        batch_replacements = []
+    def _process_batch_result(batch, result_text, batch_idx):
+        nonlocal kept, rejected
+        decisions = _parse_review_response(result_text)
+        replacements = []
         for proposal in batch:
             belief_id = proposal["id"]
             header = proposal["header"]
@@ -2005,16 +1995,71 @@ def cmd_review_proposals(args):
                 new_block = old_block.replace(f"{header} {belief_id}", new_header, 1)
                 source_line = proposal["match"].group(4).strip()
                 new_block = new_block.replace(source_line, f"{source_line}\n- Rejected: {reason}", 1)
-                batch_replacements.append((old_block, new_block))
+                replacements.append((old_block, new_block))
                 print(f"  REJECT {belief_id}: {reason}", file=sys.stderr)
             else:
                 kept += 1
+        return replacements
 
-        if batch_replacements:
+    if parallel > 1 and len(review_batches) > 1:
+        from ..llm import invoke
+        done_count = 0
+        all_replacements = []
+
+        async def _invoke_all():
+            nonlocal done_count
+            sem = asyncio.Semaphore(parallel)
+            lock = asyncio.Lock()
+
+            async def _invoke_one(idx, batch):
+                nonlocal done_count
+                proposals_section = _build_proposals_section(batch)
+                prompt = REVIEW_PROMPT.format(
+                    existing_beliefs=existing_beliefs,
+                    proposals=proposals_section,
+                )
+                async with sem:
+                    result_text = await invoke(prompt, model, timeout=timeout)
+                async with lock:
+                    replacements = _process_batch_result(batch, result_text, idx)
+                    all_replacements.extend(replacements)
+                    done_count += 1
+                    print(f"  Batch {idx + 1}/{len(review_batches)} done "
+                          f"({done_count} completed)", file=sys.stderr)
+
+            tasks = [_invoke_one(i, b) for i, b in enumerate(review_batches)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    print(f"  ERROR in batch {i + 1}: {r}", file=sys.stderr)
+
+        asyncio.run(_invoke_all())
+
+        if all_replacements:
             text = proposals_path.read_text()
-            for old_block, new_block in batch_replacements:
+            for old_block, new_block in all_replacements:
                 text = text.replace(old_block, new_block, 1)
             proposals_path.write_text(text)
+    else:
+        for i, batch in enumerate(review_batches):
+            proposals_section = _build_proposals_section(batch)
+            prompt = REVIEW_PROMPT.format(
+                existing_beliefs=existing_beliefs,
+                proposals=proposals_section,
+            )
+            print(f"  Batch {i + 1}/{len(review_batches)}...", file=sys.stderr)
+            try:
+                result_text = invoke_sync(prompt, model=model, timeout=timeout)
+            except Exception as e:
+                print(f"  ERROR in batch {i + 1}: {e}", file=sys.stderr)
+                continue
+
+            batch_replacements = _process_batch_result(batch, result_text, i)
+            if batch_replacements:
+                text = proposals_path.read_text()
+                for old_block, new_block in batch_replacements:
+                    text = text.replace(old_block, new_block, 1)
+                proposals_path.write_text(text)
 
     print(f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected", file=sys.stderr)
     if categories:

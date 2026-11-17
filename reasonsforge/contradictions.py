@@ -121,7 +121,7 @@ def _flush_results(results, output_path, header_written):
 
 def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
                           batch_size=CONTRADICTION_BATCH_SIZE,
-                          output_path=None):
+                          output_path=None, parallel=1):
     """Detect contradictions between IN beliefs via LLM.
 
     Args:
@@ -132,6 +132,7 @@ def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
         timeout: LLM timeout in seconds.
         batch_size: Number of beliefs per LLM call.
         output_path: If set, write results incrementally to this file.
+        parallel: Max concurrent LLM calls (default 1 = sequential).
 
     Returns: list of contradiction dicts.
     """
@@ -158,31 +159,75 @@ def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
     total_batches = (len(belief_ids) + batch_size - 1) // batch_size
     header_written = False
 
-    for i in range(0, len(belief_ids), batch_size):
-        batch = belief_ids[i:i + batch_size]
-        batch_num = i // batch_size + 1
-        print(f"  Checking batch {batch_num}/{total_batches} "
-              f"({len(batch)} beliefs)...", file=sys.stderr)
+    if parallel > 1 and total_batches > 1:
+        import asyncio
+        from .llm import invoke
 
-        beliefs_text = format_beliefs_for_contradiction_check(batch, nodes)
-        prompt = CONTRADICTION_PROMPT.format(beliefs=beliefs_text)
+        batches_data = []
+        for i in range(0, len(belief_ids), batch_size):
+            batch = belief_ids[i:i + batch_size]
+            beliefs_text = format_beliefs_for_contradiction_check(batch, nodes)
+            prompt = CONTRADICTION_PROMPT.format(beliefs=beliefs_text)
+            batches_data.append(prompt)
 
-        try:
-            response = invoke_model(prompt, model=model, timeout=timeout)
-            results = parse_contradiction_response(response,
-                                                   valid_ids=valid_ids)
-            all_results.extend(results)
-            header_written = _flush_results(results, output_path,
-                                            header_written)
-        except Exception as e:
-            print(f"  WARN: batch {batch_num} failed: {e}", file=sys.stderr)
+        done_count = 0
+
+        async def _run_all():
+            nonlocal done_count, header_written
+            sem = asyncio.Semaphore(parallel)
+            lock = asyncio.Lock()
+
+            async def _run_one(idx, prompt):
+                nonlocal done_count, header_written
+                async with sem:
+                    response = await invoke(prompt, model, timeout=timeout)
+                results = parse_contradiction_response(response,
+                                                       valid_ids=valid_ids)
+                async with lock:
+                    all_results.extend(results)
+                    header_written = _flush_results(results, output_path,
+                                                    header_written)
+                    done_count += 1
+                    print(f"  Batch {done_count}/{total_batches} done",
+                          file=sys.stderr)
+
+            tasks = [_run_one(i, p) for i, p in enumerate(batches_data)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    print(f"  WARN: batch {i + 1} failed: {r}",
+                          file=sys.stderr)
+
+        print(f"  Checking {total_batches} batches with parallel={parallel}...",
+              file=sys.stderr)
+        asyncio.run(_run_all())
+    else:
+        for i in range(0, len(belief_ids), batch_size):
+            batch = belief_ids[i:i + batch_size]
+            batch_num = i // batch_size + 1
+            print(f"  Checking batch {batch_num}/{total_batches} "
+                  f"({len(batch)} beliefs)...", file=sys.stderr)
+
+            beliefs_text = format_beliefs_for_contradiction_check(batch, nodes)
+            prompt = CONTRADICTION_PROMPT.format(beliefs=beliefs_text)
+
+            try:
+                response = invoke_model(prompt, model=model, timeout=timeout)
+                results = parse_contradiction_response(response,
+                                                       valid_ids=valid_ids)
+                all_results.extend(results)
+                header_written = _flush_results(results, output_path,
+                                                header_written)
+            except Exception as e:
+                print(f"  WARN: batch {batch_num} failed: {e}",
+                      file=sys.stderr)
 
     return all_results
 
 
 def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
                                    timeout=300, embedding_model=None,
-                                   output_path=None):
+                                   output_path=None, parallel=1):
     """Detect contradictions by clustering beliefs semantically before LLM analysis.
 
     Groups beliefs by semantic similarity so topically related beliefs
@@ -195,6 +240,7 @@ def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
         timeout: LLM timeout in seconds.
         embedding_model: Sentence-transformers model name.
         output_path: If set, write results incrementally to this file.
+        parallel: Max concurrent LLM calls (default 1 = sequential).
 
     Returns: list of contradiction dicts.
     """
@@ -230,19 +276,63 @@ def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
     clusters = result["clusters"]
     header_written = False
 
+    # Flatten clusters into a list of (cluster_index, batch) pairs for LLM calls
+    work_items = []
     for ci, cluster in enumerate(clusters, 1):
         cluster_ids = [b["id"] for b in cluster["beliefs"]]
         if len(cluster_ids) < 2:
             continue
-
-        print(f"  Checking cluster {ci}/{len(clusters)} "
-              f"({len(cluster_ids)} beliefs)...", file=sys.stderr)
-
         for i in range(0, len(cluster_ids), CONTRADICTION_BATCH_SIZE):
             batch = cluster_ids[i:i + CONTRADICTION_BATCH_SIZE]
             beliefs_text = format_beliefs_for_contradiction_check(batch, nodes)
             prompt = CONTRADICTION_PROMPT.format(beliefs=beliefs_text)
+            work_items.append((ci, prompt))
 
+    if not work_items:
+        return []
+
+    total_work = len(work_items)
+
+    if parallel > 1 and total_work > 1:
+        import asyncio
+        from .llm import invoke
+
+        done_count = 0
+
+        async def _run_all():
+            nonlocal done_count, header_written
+            sem = asyncio.Semaphore(parallel)
+            lock = asyncio.Lock()
+
+            async def _run_one(idx, ci, prompt):
+                nonlocal done_count, header_written
+                async with sem:
+                    response = await invoke(prompt, model, timeout=timeout)
+                results = parse_contradiction_response(response,
+                                                       valid_ids=valid_ids)
+                async with lock:
+                    all_results.extend(results)
+                    header_written = _flush_results(results, output_path,
+                                                    header_written)
+                    done_count += 1
+                    print(f"  Cluster batch {done_count}/{total_work} done",
+                          file=sys.stderr)
+
+            tasks = [_run_one(i, ci, p) for i, (ci, p) in enumerate(work_items)]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    ci = work_items[i][0]
+                    print(f"  WARN: cluster {ci} batch failed: {r}",
+                          file=sys.stderr)
+
+        print(f"  Checking {total_work} cluster batches with parallel={parallel}...",
+              file=sys.stderr)
+        asyncio.run(_run_all())
+    else:
+        for idx, (ci, prompt) in enumerate(work_items):
+            print(f"  Checking cluster {ci}/{len(clusters)} "
+                  f"(batch {idx + 1}/{total_work})...", file=sys.stderr)
             try:
                 response = invoke_model(prompt, model=model, timeout=timeout)
                 results = parse_contradiction_response(response,

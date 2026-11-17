@@ -1575,6 +1575,7 @@ def cmd_deduplicate(args):
         vresult = api.verify_dedup_clusters(
             result["clusters"],
             model=args.model or "claude",
+            parallel=getattr(args, "parallel", 1),
         )
 
         if vresult["verified"]:
@@ -2988,6 +2989,7 @@ def cmd_contradictions(args):
         embedding_model=args.embedding_model,
         output_path=output if not args.auto_apply else None,
         db_path=args.db,
+        parallel=getattr(args, "parallel", 1),
     )
 
     contradictions = result["contradictions"]
@@ -4450,6 +4452,8 @@ def main():
                    help="LLM-verify candidate clusters (same-claim / different-claims / contradiction)")
     p.add_argument("--model", default=None,
                    help="LLM model for --verify (default: claude)")
+    p.add_argument("--parallel", type=int, default=1,
+                   help="Number of concurrent LLM calls for --verify (default: 1)")
     p.add_argument("-o", "--output", default="proposed-dedup.md",
                    help="Output file for dedup plan (default: proposed-dedup.md)")
     p.add_argument("--accept", metavar="FILE",
@@ -4707,6 +4711,8 @@ def main():
                    help="Sentence-transformers model (default: all-MiniLM-L6-v2)")
     p.add_argument("-o", "--output", default="proposed-contradictions.md",
                    help="Output file for contradiction plan (default: proposed-contradictions.md)")
+    p.add_argument("--parallel", type=int, default=1,
+                   help="Max concurrent LLM calls (default: 1)")
     p.add_argument("--accept", metavar="FILE",
                    help="Apply a reviewed contradiction plan file")
 
