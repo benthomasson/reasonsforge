@@ -178,24 +178,26 @@ def detect_contradictions(nodes, belief_ids=None, model="claude", timeout=300,
 
             async def _run_one(idx, prompt):
                 nonlocal done_count, header_written
-                async with sem:
-                    response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
-                results = parse_contradiction_response(response,
-                                                       valid_ids=valid_ids)
-                async with lock:
-                    all_results.extend(results)
-                    header_written = _flush_results(results, output_path,
-                                                    header_written)
-                    done_count += 1
-                    print(f"  Batch {done_count}/{total_batches} done",
-                          file=sys.stderr)
+                try:
+                    async with sem:
+                        response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
+                    results = parse_contradiction_response(response,
+                                                           valid_ids=valid_ids)
+                    async with lock:
+                        all_results.extend(results)
+                        header_written = _flush_results(results, output_path,
+                                                        header_written)
+                        done_count += 1
+                        print(f"  Batch {done_count}/{total_batches} done",
+                              file=sys.stderr)
+                except Exception as e:
+                    async with lock:
+                        done_count += 1
+                        print(f"  WARN: batch {done_count}/{total_batches} failed: {e}",
+                              file=sys.stderr)
 
             tasks = [_run_one(i, p) for i, p in enumerate(batches_data)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, r in enumerate(results):
-                if isinstance(r, Exception):
-                    print(f"  WARN: batch {i + 1} failed: {r}",
-                          file=sys.stderr)
+            await asyncio.gather(*tasks)
 
         print(f"  Checking {total_batches} batches with parallel={parallel}...",
               file=sys.stderr)
@@ -304,25 +306,26 @@ def detect_contradictions_semantic(nodes, belief_ids=None, model="claude",
 
             async def _run_one(idx, ci, prompt):
                 nonlocal done_count, header_written
-                async with sem:
-                    response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
-                results = parse_contradiction_response(response,
-                                                       valid_ids=valid_ids)
-                async with lock:
-                    all_results.extend(results)
-                    header_written = _flush_results(results, output_path,
-                                                    header_written)
-                    done_count += 1
-                    print(f"  Cluster batch {done_count}/{total_work} done",
-                          file=sys.stderr)
+                try:
+                    async with sem:
+                        response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
+                    results = parse_contradiction_response(response,
+                                                           valid_ids=valid_ids)
+                    async with lock:
+                        all_results.extend(results)
+                        header_written = _flush_results(results, output_path,
+                                                        header_written)
+                        done_count += 1
+                        print(f"  Cluster batch {done_count}/{total_work} done",
+                              file=sys.stderr)
+                except Exception as e:
+                    async with lock:
+                        done_count += 1
+                        print(f"  WARN: cluster {ci} batch {done_count}/{total_work} failed: {e}",
+                              file=sys.stderr)
 
             tasks = [_run_one(i, ci, p) for i, (ci, p) in enumerate(work_items)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, r in enumerate(results):
-                if isinstance(r, Exception):
-                    ci = work_items[i][0]
-                    print(f"  WARN: cluster {ci} batch failed: {r}",
-                          file=sys.stderr)
+            await asyncio.gather(*tasks)
 
         print(f"  Checking {total_work} cluster batches with parallel={parallel}...",
               file=sys.stderr)

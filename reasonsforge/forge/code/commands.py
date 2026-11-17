@@ -2013,25 +2013,27 @@ def cmd_review_proposals(args):
 
             async def _invoke_one(idx, batch):
                 nonlocal done_count
-                proposals_section = _build_proposals_section(batch)
-                prompt = REVIEW_PROMPT.format(
-                    existing_beliefs=existing_beliefs,
-                    proposals=proposals_section,
-                )
-                async with sem:
-                    result_text = await invoke(prompt, model, timeout=timeout)
-                async with lock:
-                    replacements = _process_batch_result(batch, result_text, idx)
-                    all_replacements.extend(replacements)
-                    done_count += 1
-                    print(f"  Batch {idx + 1}/{len(review_batches)} done "
-                          f"({done_count} completed)", file=sys.stderr)
+                try:
+                    proposals_section = _build_proposals_section(batch)
+                    prompt = REVIEW_PROMPT.format(
+                        existing_beliefs=existing_beliefs,
+                        proposals=proposals_section,
+                    )
+                    async with sem:
+                        result_text = await invoke(prompt, model, timeout=timeout)
+                    async with lock:
+                        replacements = _process_batch_result(batch, result_text, idx)
+                        all_replacements.extend(replacements)
+                        done_count += 1
+                        print(f"  Batch {idx + 1}/{len(review_batches)} done "
+                              f"({done_count} completed)", file=sys.stderr)
+                except Exception as e:
+                    async with lock:
+                        done_count += 1
+                        print(f"  ERROR in batch {idx + 1}: {e}", file=sys.stderr)
 
             tasks = [_invoke_one(i, b) for i, b in enumerate(review_batches)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, r in enumerate(results):
-                if isinstance(r, Exception):
-                    print(f"  ERROR in batch {i + 1}: {r}", file=sys.stderr)
+            await asyncio.gather(*tasks)
 
         asyncio.run(_invoke_all())
 

@@ -1494,33 +1494,35 @@ def cmd_review_proposals(args):
 
             async def _invoke_one(idx, batch):
                 nonlocal done_count
-                proposals_text = "\n\n".join(
-                    f"### [ACCEPT/REJECT] {p['id']}\n{p['text']}\n- Source: {p['source']}"
-                    for p in batch
-                )
-                prompt = REVIEW_PROPOSALS_PROMPT.format(
-                    existing_beliefs=existing_beliefs,
-                    proposals=proposals_text,
-                )
-                async with sem:
-                    result = await invoke(prompt, model, timeout=timeout)
-                async with lock:
-                    batch_classifications = _parse_review_response(result)
-                    classifications.update(batch_classifications)
-                    for p in batch:
-                        if p["id"] not in classifications:
-                            classifications[p["id"]] = "ok"
-                    done_count += 1
-                    print(f"  Batch {idx + 1}/{len(batches)} done "
-                          f"({done_count} completed)", file=sys.stderr)
+                try:
+                    proposals_text = "\n\n".join(
+                        f"### [ACCEPT/REJECT] {p['id']}\n{p['text']}\n- Source: {p['source']}"
+                        for p in batch
+                    )
+                    prompt = REVIEW_PROPOSALS_PROMPT.format(
+                        existing_beliefs=existing_beliefs,
+                        proposals=proposals_text,
+                    )
+                    async with sem:
+                        result = await invoke(prompt, model, timeout=timeout)
+                    async with lock:
+                        batch_classifications = _parse_review_response(result)
+                        classifications.update(batch_classifications)
+                        for p in batch:
+                            if p["id"] not in classifications:
+                                classifications[p["id"]] = "ok"
+                        done_count += 1
+                        print(f"  Batch {idx + 1}/{len(batches)} done "
+                              f"({done_count} completed)", file=sys.stderr)
+                except Exception as e:
+                    async with lock:
+                        done_count += 1
+                        print(f"  ERROR in batch {idx + 1}: {e}", file=sys.stderr)
+                        for p in batch:
+                            classifications.setdefault(p["id"], "ok")
 
             tasks = [_invoke_one(i, b) for i, b in enumerate(batches)]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, r in enumerate(results):
-                if isinstance(r, Exception):
-                    print(f"  ERROR in batch {i + 1}: {r}", file=sys.stderr)
-                    for p in batches[i]:
-                        classifications.setdefault(p["id"], "ok")
+            await asyncio.gather(*tasks)
 
         asyncio.run(_invoke_all())
     else:
