@@ -724,7 +724,10 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
     all_observations: dict = {}
 
     for iteration in range(1, max_iterations + 1):
-        observe_prompt = build_diff_observe_prompt(diff_content, commit_message, file_path)
+        observe_prompt = build_diff_observe_prompt(
+            diff_content, commit_message, file_path,
+            existing_observations=all_observations if all_observations else None,
+        )
         observe_response = await invoke(observe_prompt, model, timeout=timeout)
 
         requested_obs = parse_observation_requests(observe_response)

@@ -127,12 +127,27 @@ def build_diff_observe_prompt(
     diff_content: str,
     commit_message: str,
     file_path: str,
+    existing_observations: dict | None = None,
 ) -> str:
-    return DIFF_OBSERVE_PROMPT.format(
+    prompt = DIFF_OBSERVE_PROMPT.format(
         diff_content=diff_content,
         commit_message=commit_message,
         file_path=file_path,
     )
+    if existing_observations:
+        import json
+        prompt = prompt.rstrip()
+        prompt += (
+            "\n\n## Observations Already Gathered\n\n"
+            "You have already received these observations. Review them and "
+            "request any *additional* context you still need, or output `[]` "
+            "if you have enough.\n\n"
+            "```json\n"
+            f"{json.dumps(existing_observations, indent=2, default=str)}\n"
+            "```\n\n"
+            "Output your additional observation requests as JSON:\n"
+        )
+    return prompt
 
 
 def build_diff_extract_prompt(
