@@ -82,8 +82,28 @@ You are analyzing a code change to extract knowledge about the codebase.
 ```diff
 {diff_content}
 ```
-{observations_section}
-## Your Task
+{current_file_section}{observations_section}
+## Step 1: Relevance Check
+
+Before extracting beliefs, assess whether this diff is still relevant to the \
+current state of the code. A diff may be stale if:
+
+- The file has been deleted or renamed since this commit
+- The changed code has been substantially rewritten or removed in later commits
+- The changes in this diff have been superseded by subsequent refactoring
+
+If the current file content is shown above, compare the diff against it. \
+If the lines changed in the diff no longer exist or have been completely \
+rewritten, this diff is not relevant.
+
+**If the diff is NOT relevant**, respond with exactly:
+
+NOT_RELEVANT — <brief reason why the diff is stale>
+
+**If the diff IS still relevant** (the changes or their effects are still \
+visible in the current code), proceed to Step 2.
+
+## Step 2: Extract Beliefs
 
 Extract two types of output from this change:
 
@@ -155,6 +175,7 @@ def build_diff_extract_prompt(
     commit_message: str,
     file_path: str,
     observations: dict | None = None,
+    current_file_content: str | None = None,
 ) -> str:
     if observations:
         import json
@@ -168,10 +189,31 @@ def build_diff_extract_prompt(
     else:
         obs_section = "\n"
 
+    if current_file_content is None:
+        file_section = (
+            "\n## Current File Status\n\n"
+            "**This file no longer exists on disk.** The diff is likely stale.\n\n"
+        )
+    elif len(current_file_content) > 12000:
+        file_section = (
+            "\n## Current File (truncated)\n\n"
+            "```\n"
+            f"{current_file_content[:12000]}\n...(truncated)\n"
+            "```\n\n"
+        )
+    else:
+        file_section = (
+            "\n## Current File Content\n\n"
+            "```\n"
+            f"{current_file_content}\n"
+            "```\n\n"
+        )
+
     return DIFF_EXTRACT_PROMPT.format(
         diff_content=diff_content,
         commit_message=commit_message,
         file_path=file_path,
+        current_file_section=file_section,
         observations_section=obs_section,
         beliefs_instructions=BELIEFS_INSTRUCTIONS,
     )

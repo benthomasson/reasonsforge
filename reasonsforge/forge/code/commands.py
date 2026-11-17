@@ -737,11 +737,20 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
         else:
             break
 
+    abs_file = os.path.join(repo_path, file_path)
+    current_content = get_file_content(abs_file)
+
     extract_prompt = build_diff_extract_prompt(
         diff_content, commit_message, file_path,
         observations=all_observations if all_observations else None,
+        current_file_content=current_content,
     )
     result = await invoke(extract_prompt, model, timeout=timeout)
+
+    if result.strip().startswith("NOT_RELEVANT"):
+        print(f"  Diff {file_path} ({sha[:8]}) no longer relevant, skipping",
+              file=sys.stderr)
+        return None
 
     safe_label = _sanitize_path_for_filename(file_path)
     short_sha = sha[:8]
@@ -1364,6 +1373,8 @@ def cmd_walk_commits(args):
             sha = commit["sha"]
             for f in commit["files"]:
                 if f in deleted_files:
+                    continue
+                if not os.path.isfile(os.path.join(abs_repo, f)):
                     continue
                 diff_topics.append(Topic(
                     title=f"{commit['subject']} — {f}",
