@@ -50,6 +50,9 @@ class LanguageProfile:
     def grep_include_args(self) -> list[str]:
         return [f"--include={g}" for g in self.source_globs]
 
+    def test_file_search_patterns(self, module_name: str) -> list[str]:
+        return [g.replace("*", module_name) for g in self.test_globs]
+
     def module_name_from_path(self, rel_path: str) -> str:
         if rel_path.endswith(self.primary_extension):
             name = rel_path[:-len(self.primary_extension)]

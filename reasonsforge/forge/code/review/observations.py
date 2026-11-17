@@ -28,35 +28,18 @@ from pathlib import Path
 from typing import Any
 
 from reasonsforge.forge.code.language import LanguageProfile, PYTHON, detect_language
+from reasonsforge.forge.code.git_utils import extract_changed_files, extract_modified_line_ranges
 
-
-def _extract_changed_files(diff_content: str) -> list[str]:
-    files = []
-    for line in diff_content.split("\n"):
-        if line.startswith("+++ b/"):
-            path = line[6:]
-            if path != "/dev/null":
-                files.append(path)
-    return files
-
-
-def _extract_modified_line_ranges(diff_content: str) -> dict[str, list[tuple[int, int]]]:
-    result: dict[str, list[tuple[int, int]]] = {}
-    current_file: str | None = None
-    for line in diff_content.split("\n"):
-        if line.startswith("+++ b/"):
-            path = line[6:]
-            current_file = path if path != "/dev/null" else None
-            continue
-        if current_file and line.startswith("@@"):
-            m = re.match(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
-            if m:
-                start = int(m.group(1))
-                count = int(m.group(2)) if m.group(2) else 1
-                if count > 0:
-                    end = start + count - 1
-                    result.setdefault(current_file, []).append((start, end))
-    return result
+_EXCLUDE_DIRS = [
+    "--exclude-dir=.venv",
+    "--exclude-dir=node_modules",
+    "--exclude-dir=.git",
+    "--exclude-dir=build",
+    "--exclude-dir=dist",
+    "--exclude-dir=__pycache__",
+    "--exclude-dir=.tox",
+    "--exclude-dir=.mypy_cache",
+]
 
 def is_test_file(file_path: str, lang: LanguageProfile | None = None) -> bool:
     """Classify whether a file path belongs to test code.
@@ -388,7 +371,7 @@ async def find_usages(symbol: str, repo_path: str, lang: LanguageProfile | None 
     """
     try:
         lang = lang or detect_language(repo_path)
-        grep_cmd = ["grep", "-Frn"] + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = ["grep", "-Frn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -512,7 +495,7 @@ async def find_callers(
     """
     try:
         lang = lang or detect_language(repo_path)
-        grep_cmd = ["grep", "-Frn"] + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = ["grep", "-Frn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -1024,7 +1007,7 @@ async def gather_function_context(
     """
 
     lang = lang or detect_language(repo_path)
-    ranges = _extract_modified_line_ranges(diff_content)
+    ranges = extract_modified_line_ranges(diff_content)
     results: dict[str, Any] = {}
     tasks: list[tuple[str, asyncio.Task]] = []
 
@@ -1098,7 +1081,7 @@ def _extract_modified_symbols(
     """
 
     lang = lang or detect_language(repo_path)
-    ranges = _extract_modified_line_ranges(diff_content)
+    ranges = extract_modified_line_ranges(diff_content)
     result: dict[str, set[str]] = {}
 
     for file_path, line_ranges in ranges.items():
@@ -1224,7 +1207,7 @@ async def _find_test_files_by_imports(
 
     grep_pattern = "|".join(patterns)
     try:
-        grep_cmd = ["grep", "-rl"] + lang.grep_include_args() + ["-E", grep_pattern, repo_path]
+        grep_cmd = ["grep", "-rl"] + _EXCLUDE_DIRS + lang.grep_include_args() + ["-E", grep_pattern, repo_path]
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -1289,7 +1272,7 @@ async def gather_related_test_files(
     """
 
     lang = lang or detect_language(repo_path)
-    changed_files = _extract_changed_files(diff_content)
+    changed_files = extract_changed_files(diff_content)
     source_files = [
         f for f in changed_files
         if lang.matches_extension(f)
@@ -2080,7 +2063,7 @@ async def symbol_migration(
     lang = lang or detect_language(repo_path)
 
     async def _grep_symbol(symbol: str) -> list[dict[str, Any]]:
-        grep_cmd = ["grep", "-wrn"] + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = ["grep", "-wrn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
