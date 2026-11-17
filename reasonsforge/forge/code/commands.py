@@ -719,7 +719,7 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
     diff_content = get_commit_file_diff(sha, file_path, cwd=repo_path)
 
     if not diff_content.strip():
-        return None
+        return "SKIP"
 
     all_observations: dict = {}
 
@@ -750,7 +750,7 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
     if result.strip().startswith("NOT_RELEVANT"):
         print(f"  Diff {file_path} ({sha[:8]}) no longer relevant, skipping",
               file=sys.stderr)
-        return None
+        return "SKIP"
 
     safe_label = _sanitize_path_for_filename(file_path)
     short_sha = sha[:8]
@@ -777,6 +777,9 @@ async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_conc
 
             if topic.kind == "diff" and _parse_commit_diff_target(topic.target):
                 out = await _run_diff_beliefs_async(topic, model, repo_path, timeout)
+                if out == "SKIP":
+                    skip_topic(topic, project_dir)
+                    return None
                 if out is None:
                     mark_failed(topic, project_dir)
                     return None
@@ -856,6 +859,9 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+        if out == "SKIP":
+            skip_topic(topic, project_dir)
+            return
         if out is None:
             mark_failed(topic, project_dir)
             return
@@ -966,6 +972,10 @@ def _explore_loop(args, project_dir, max_topics):
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
                         requeue_topics([topic], project_dir)
+                        explored += len(batch)
+                        continue
+                    if out == "SKIP":
+                        skip_topic(topic, project_dir)
                         explored += len(batch)
                         continue
                     if out is None:
@@ -1331,6 +1341,8 @@ def cmd_walk_commits(args):
                 marker = " " if file_to_commit[f] is commit else " (earlier version, skip)"
                 if f in deleted_files:
                     marker = " [DELETED]"
+                elif not os.path.isfile(os.path.join(abs_repo, f)):
+                    marker = " [MISSING]"
                 else:
                     diff_count += 1
                 print(f"    {marker} {f}")
@@ -1416,6 +1428,9 @@ def cmd_walk_commits(args):
                         )
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
+                        continue
+                    if out == "SKIP":
+                        skip_topic(topic, project_dir)
                         continue
                     if out is None:
                         mark_failed(topic, project_dir)
