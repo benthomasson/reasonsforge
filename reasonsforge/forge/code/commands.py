@@ -2808,9 +2808,8 @@ def cmd_verify_fix(args):
 
     response = asyncio.run(_gather_and_verify())
 
-    m = re.search(r"\{.*\}", response, re.DOTALL)
     verdict_data = None
-    if m:
+    for m in re.finditer(r"\{[^{}]*\}", response):
         try:
             data = json.loads(m.group(0))
             if isinstance(data.get("verdict"), str):
@@ -2818,8 +2817,9 @@ def cmd_verify_fix(args):
                     "verdict": data["verdict"].upper(),
                     "reason": data.get("reason", ""),
                 }
+                break
         except (json.JSONDecodeError, TypeError):
-            pass
+            continue
 
     if not verdict_data:
         print("INCONCLUSIVE — no verdict returned by model", file=sys.stderr)
