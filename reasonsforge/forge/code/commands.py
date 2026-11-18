@@ -101,6 +101,14 @@ def _get_repo(args) -> str:
     return os.path.abspath(repo or os.getcwd())
 
 
+def _get_db_path(args) -> str:
+    """Resolve the reasons DB path: top-level --db > subcommand --output > default."""
+    db = getattr(args, "db", None)
+    if db:
+        return db
+    return getattr(args, "output", REASONS_DB)
+
+
 def _get_project_dir(args) -> str:
     return os.path.join(os.getcwd(), PROJECT_DIR)
 
@@ -243,7 +251,7 @@ def cmd_init(args):
     repo_name = os.path.basename(repo_path)
     domain = getattr(args, "domain", None) or repo_name
     description = getattr(args, "description", None) or ""
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
 
     project_dir = Path.cwd() / PROJECT_DIR
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -1285,7 +1293,7 @@ def cmd_walk_commits(args):
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     parallel = getattr(args, "parallel", 1)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
 
     since = getattr(args, "since", None)
     since_commit = getattr(args, "since_commit", None)
@@ -1524,7 +1532,7 @@ def cmd_propose_beliefs(args):
     auto_accept = getattr(args, "auto", False)
     since = getattr(args, "since", None)
     parallel = getattr(args, "parallel", 1)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     parse_only = getattr(args, "parse_only", False)
     no_embeddings = getattr(args, "no_embeddings", False)
 
@@ -2011,7 +2019,7 @@ def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tupl
 def cmd_accept_beliefs(args):
     """Import accepted beliefs from proposals file."""
     proposals_file = getattr(args, "proposals_file", "proposed-beliefs.md")
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
 
     proposals_path = Path(proposals_file)
     if not proposals_path.exists():
@@ -2097,7 +2105,7 @@ def cmd_review_proposals(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     proposals_file = getattr(args, "proposals_file", "proposed-beliefs.md")
     batch_size = getattr(args, "batch_size", 20)
     parallel = getattr(args, "parallel", 1)
@@ -2520,7 +2528,7 @@ def cmd_verify(args):
     repo_path = _get_repo(args)
     abs_repo = os.path.abspath(repo_path)
     project_dir = _get_project_dir(args)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     retract = getattr(args, "retract", False)
     verify_all = getattr(args, "all", False)
     category = getattr(args, "category", None)
@@ -2709,7 +2717,7 @@ def cmd_verify_fix(args):
     repo_path = _get_repo(args)
     abs_repo = os.path.abspath(repo_path)
     project_dir = _get_project_dir(args)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     dry_run = getattr(args, "dry_run", False)
 
     belief_id = args.belief_id
@@ -2980,7 +2988,7 @@ def cmd_research(args):
     repo_path = _get_repo(args)
     abs_repo = os.path.abspath(repo_path)
     project_dir = _get_project_dir(args)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     review_file = getattr(args, "review_file", None)
     limit = getattr(args, "limit", None)
     dry_run = getattr(args, "dry_run", False)
@@ -3154,7 +3162,7 @@ def cmd_derive(args):
 
     model = getattr(args, "model", "claude")
     timeout = max(getattr(args, "timeout", 300), 600)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     auto_add = getattr(args, "auto", False)
     exhaust = getattr(args, "exhaust", False)
     max_rounds = getattr(args, "max_derive_rounds", 10)
@@ -3563,7 +3571,7 @@ def cmd_status(args):
     summary_count = len(list(summaries_dir.rglob("*.md"))) if summaries_dir.exists() else 0
     print(f"Summaries: {summary_count}")
 
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network, get_status
@@ -3951,7 +3959,7 @@ def cmd_file_issues(args):
 
     model = getattr(args, "model", "claude")
     timeout = max(getattr(args, "timeout", 300), 600)
-    db_path = getattr(args, "output", REASONS_DB)
+    db_path = _get_db_path(args)
     repo_slug = getattr(args, "repo_slug", None)
     platform_override = getattr(args, "platform", None)
     labels = list(getattr(args, "labels", []))
