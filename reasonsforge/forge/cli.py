@@ -174,8 +174,9 @@ def register_forge_type_commands(parent_subparsers):
     cs = code_sub.add_parser("verify-fix",
                              help="Verify a fix addresses a blocker belief and retract it")
     cs.add_argument("belief_id", help="Belief ID to verify was fixed")
-    cs.add_argument("--pr", default=None, help="PR number or URL (requires gh CLI)")
-    cs.add_argument("--commit", default=None, help="Commit SHA or range (e.g. abc1234 or abc..def)")
+    fix_source = cs.add_mutually_exclusive_group(required=True)
+    fix_source.add_argument("--pr", default=None, help="PR number or URL (requires gh CLI)")
+    fix_source.add_argument("--commit", default=None, help="Commit SHA or range (e.g. abc1234 or abc..def)")
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--model", default="claude")

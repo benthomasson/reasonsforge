@@ -2744,11 +2744,8 @@ def cmd_verify_fix(args):
 
     if pr_ref:
         fix_diff, fix_description = _get_pr_diff(pr_ref, abs_repo)
-    elif commit_ref:
-        fix_diff, fix_description = _get_commit_fix_context(commit_ref, abs_repo)
     else:
-        print("Error: provide --pr or --commit to specify the fix", file=sys.stderr)
-        sys.exit(1)
+        fix_diff, fix_description = _get_commit_fix_context(commit_ref, abs_repo)
 
     if not fix_diff:
         print("No diff found for the specified fix.", file=sys.stderr)
@@ -2809,10 +2806,14 @@ def cmd_verify_fix(args):
     response = asyncio.run(_gather_and_verify())
 
     verdict_data = None
-    for m in re.finditer(r"\{[^{}]*\}", response):
+    candidates = []
+    for fence in re.finditer(r"```(?:json)?\s*\n(.*?)\n\s*```", response, re.DOTALL):
+        candidates.append(fence.group(1).strip())
+    candidates.extend(m.group(0) for m in re.finditer(r"\{[^{}]*\}", response))
+    for text in candidates:
         try:
-            data = json.loads(m.group(0))
-            if isinstance(data.get("verdict"), str):
+            data = json.loads(text)
+            if isinstance(data, dict) and isinstance(data.get("verdict"), str):
                 verdict_data = {
                     "verdict": data["verdict"].upper(),
                     "reason": data.get("reason", ""),
