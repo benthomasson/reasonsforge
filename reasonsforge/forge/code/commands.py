@@ -2852,8 +2852,8 @@ def cmd_verify_fix(args):
         try:
             set_metadata(belief_id, "fixed_at", now, db_path=db_path)
             set_metadata(belief_id, "fixed_by", fix_source, db_path=db_path)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  Warning: failed to set metadata: {e}", file=sys.stderr)
 
         issues = _load_issues_registry(project_dir)
         for issue in issues:
@@ -2900,6 +2900,8 @@ def _get_pr_diff(pr_ref: str, repo_path: str) -> tuple[str, str]:
 
 def _get_commit_fix_context(commit_ref: str, repo_path: str) -> tuple[str, str]:
     """Get diff and message from a commit or range."""
+    if commit_ref.startswith("-"):
+        return "", ""
     if ".." in commit_ref:
         diff_cmd = ["git", "diff", commit_ref]
         log_cmd = ["git", "log", "--format=%B", commit_ref]
