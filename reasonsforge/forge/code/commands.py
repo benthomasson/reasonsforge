@@ -2034,6 +2034,15 @@ def cmd_accept_beliefs(args):
     print(f"Found {len(matches)} accepted beliefs")
     _accept_proposals(matches, db_path)
 
+    updated = re.sub(
+        r"### \[ACCEPT\]",
+        "### [ACCEPTED]",
+        text,
+    )
+    if updated != text:
+        proposals_path.write_text(updated)
+        print(f"Marked {len(matches)} entries as [ACCEPTED] in {proposals_file}")
+
 
 # ---------------------------------------------------------------------------
 # review-proposals
@@ -2219,6 +2228,7 @@ def cmd_review_proposals(args):
                 text = text.replace(old_block, new_block, 1)
             proposals_path.write_text(text)
     else:
+        all_replacements = []
         for i, batch in enumerate(review_batches):
             proposals_section = _build_proposals_section(batch)
             prompt = REVIEW_PROMPT.format(
@@ -2233,11 +2243,13 @@ def cmd_review_proposals(args):
                 continue
 
             batch_replacements = _process_batch_result(batch, result_text, i)
-            if batch_replacements:
-                text = proposals_path.read_text()
-                for old_block, new_block in batch_replacements:
-                    text = text.replace(old_block, new_block, 1)
-                proposals_path.write_text(text)
+            all_replacements.extend(batch_replacements)
+
+        if all_replacements:
+            text = proposals_path.read_text()
+            for old_block, new_block in all_replacements:
+                text = text.replace(old_block, new_block, 1)
+            proposals_path.write_text(text)
 
     print(f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected", file=sys.stderr)
     if categories:
@@ -3366,10 +3378,14 @@ def cmd_status(args):
     proposals_path = Path("proposed-beliefs.md")
     if proposals_path.exists():
         text = proposals_path.read_text()
-        total = len(re.findall(r"^### \[(?:ACCEPT|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE))
-        accepted = len(re.findall(r"^### \[ACCEPT\]", text, re.MULTILINE))
+        total = len(re.findall(r"^### \[(?:ACCEPT(?:ED)?|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE))
+        accepted = len(re.findall(r"^### \[ACCEPT(?:ED)?\]", text, re.MULTILINE))
+        imported = len(re.findall(r"^### \[ACCEPTED\]", text, re.MULTILINE))
         if total:
-            print(f"Proposed: {total} candidates ({accepted} accepted)")
+            if imported:
+                print(f"Proposed: {total} candidates ({accepted} accepted, {imported} imported)")
+            else:
+                print(f"Proposed: {total} candidates ({accepted} accepted)")
 
 
 # ---------------------------------------------------------------------------
