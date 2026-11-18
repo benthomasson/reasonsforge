@@ -806,7 +806,7 @@ def cmd_derive_review_repair(args):
     print(file=sys.stderr)
 
     step_names = [STAGE_NAMES[i] for i in range(4, 8)]
-    report = Report("document-derive-review-repair", step_names)
+    report = Report("document-derive-review-repair", step_names, project_dir=PROJECT_DIR)
 
     def _on_stage(cycle, stage_num, event, **kwargs):
         step_name = f"c{cycle}-{STAGE_NAMES[stage_num]}"
@@ -884,7 +884,7 @@ def cmd_pipeline(args):
         state = _init_state(args)
 
     step_names = [STAGE_NAMES[i] for i in range(1, 10)]
-    report = Report("document", step_names)
+    report = Report("document", step_names, project_dir=PROJECT_DIR)
 
     total_stages = 9
     has_sources = args.pdf

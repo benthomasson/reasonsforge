@@ -424,7 +424,7 @@ def cmd_update(args):
         "walk-commits", "propose-beliefs", "review-proposals",
         "accept-beliefs", "derive", "review-beliefs", "repair",
         "deduplicate", "contradictions",
-    ])
+    ], project_dir=project_dir)
 
     steps = [
         ("walk-commits", "Step 1: Walk commits",
@@ -539,7 +539,7 @@ def cmd_analyze(args):
         "init", "scan", "explore", "propose-beliefs", "review-proposals",
         "accept-beliefs", "derive", "review-beliefs", "repair",
         "deduplicate", "contradictions",
-    ])
+    ], project_dir=project_dir)
 
     def _run_explore(label: str, step_key: str = "explore"):
         eff_limit = explore_limit
@@ -774,7 +774,7 @@ def cmd_refine(args):
 
     report = Report("code-refine", [
         "derive", "review-beliefs", "repair", "deduplicate", "contradictions",
-    ])
+    ], project_dir=project_dir)
 
     logs_dir = getattr(args, "logs_dir", "logs/")
     pipeline_t0 = time.monotonic()
@@ -876,7 +876,7 @@ def cmd_explore_propose_accept(args):
     if not skip_review:
         report_steps.append("review-proposals")
     report_steps.append("accept-beliefs")
-    report = Report("code-explore-propose-accept", report_steps)
+    report = Report("code-explore-propose-accept", report_steps, project_dir=project_dir)
 
     logs_dir = getattr(args, "logs_dir", "logs/")
     pipeline_t0 = time.monotonic()

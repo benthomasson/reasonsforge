@@ -2606,7 +2606,7 @@ def cmd_analyze_issue(args):
     steps = ["fetch", "analyze"]
     if walk:
         steps.append("walk-children")
-    report = Report("project-analyze-issue", steps)
+    report = Report("project-analyze-issue", steps, project_dir=_get_project_dir())
     pipeline_t0 = time.monotonic()
     analyzed = 0
     skipped = 0
@@ -3255,7 +3255,7 @@ def cmd_track(args):
 
     report = Report("project-track", [
         "fetch", "analyze", "reconcile", "accept", "derive",
-    ])
+    ], project_dir=_get_project_dir())
     pipeline_t0 = time.monotonic()
 
     # Phase 1: Fetch

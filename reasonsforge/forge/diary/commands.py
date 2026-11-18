@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from .. import REASONS_DB
+from .. import PROJECT_DIR, REASONS_DB
 from ..report import Report
 
 
@@ -42,7 +42,7 @@ def cmd_update(args):
     no_auto_accept = getattr(args, "no_auto_accept", False)
     output_file = getattr(args, "proposals_output", "proposed-beliefs.md")
 
-    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"])
+    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=PROJECT_DIR)
 
     if not Path(input_dir).exists():
         print(f"No {input_dir}/ directory found. Write some entries first.")

@@ -21,8 +21,9 @@ class Report:
     """Track pipeline progress and write to a JSON report file."""
 
     def __init__(self, pipeline: str, steps: list[str],
-                 path: str = ".forge/report.json"):
-        self._path = path
+                 path: str = ".forge/report.json",
+                 project_dir: str | None = None):
+        self._path = os.path.join(project_dir, "report.json") if project_dir else path
         self._current: str | None = None
         self._data = {
             "pipeline": pipeline,
