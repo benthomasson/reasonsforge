@@ -170,6 +170,18 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
+    # code verify-fix
+    cs = code_sub.add_parser("verify-fix",
+                             help="Verify a fix addresses a blocker belief and retract it")
+    cs.add_argument("belief_id", help="Belief ID to verify was fixed")
+    cs.add_argument("--pr", default=None, help="PR number or URL (requires gh CLI)")
+    cs.add_argument("--commit", default=None, help="Commit SHA or range (e.g. abc1234 or abc..def)")
+    cs.add_argument("--repo", default=".", help="Path to git repository")
+    cs.add_argument("--dry-run", action="store_true", dest="dry_run")
+    cs.add_argument("--model", default="claude")
+    cs.add_argument("--timeout", type=int, default=600)
+    cs.add_argument("--output", default="reasons.db")
+
     # code research
     cs = code_sub.add_parser("research",
                              help="Evidence-driven exploration from belief review gaps")
@@ -1085,6 +1097,7 @@ def _cmd_code(args):
         cmd_status as _code_status,
         cmd_topics as _code_topics,
         cmd_verify as _code_verify,
+        cmd_verify_fix as _code_verify_fix,
         cmd_walk_commits as _code_walk,
     )
     from .code.pipeline import (
@@ -1103,6 +1116,7 @@ def _cmd_code(args):
         "accept-beliefs": _code_accept,
         "review-proposals": _code_review,
         "verify": _code_verify,
+        "verify-fix": _code_verify_fix,
         "research": _code_research,
         "derive": _code_derive,
         "topics": _code_topics,

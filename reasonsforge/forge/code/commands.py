@@ -53,6 +53,8 @@ from .prompts import (
     build_observe_prompt,
     build_repo_prompt,
     build_scan_prompt,
+    build_verify_fix_observe_prompt,
+    build_verify_fix_prompt,
 )
 from .topics import (
     TOPIC_KINDS,
@@ -2694,6 +2696,223 @@ def cmd_verify(args):
             except Exception as e:
                 print(f"  Failed to retract {bid}: {e}", file=sys.stderr)
         print("Network updated.", file=sys.stderr)
+
+
+def cmd_verify_fix(args):
+    """Verify that a fix addresses a blocker belief, then retract it."""
+    from ..caffeinate import hold as _caffeinate
+    from ..llm import check_model_available, invoke
+    _caffeinate()
+
+    model = getattr(args, "model", "claude")
+    timeout = getattr(args, "timeout", 600)
+    repo_path = _get_repo(args)
+    abs_repo = os.path.abspath(repo_path)
+    project_dir = _get_project_dir(args)
+    db_path = getattr(args, "output", REASONS_DB)
+    dry_run = getattr(args, "dry_run", False)
+
+    belief_id = args.belief_id
+    pr_ref = getattr(args, "pr", None)
+    commit_ref = getattr(args, "commit", None)
+
+    if not check_model_available(model):
+        print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        from reasonsforge.api import export_network, retract_node, set_metadata
+        network = export_network(db_path=db_path)
+        nodes = network.get("nodes", {})
+    except Exception as e:
+        print(f"Error loading belief network: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    node = nodes.get(belief_id)
+    if not node:
+        print(f"Belief not found: {belief_id}", file=sys.stderr)
+        sys.exit(1)
+
+    belief_text = node.get("text", "")
+    truth_value = node.get("truth_value", "?")
+    print(f"Belief: {belief_id} [{truth_value}]", file=sys.stderr)
+    print(f"  {belief_text}", file=sys.stderr)
+
+    # --- Gather fix context ---
+    fix_diff = ""
+    fix_description = ""
+
+    if pr_ref:
+        fix_diff, fix_description = _get_pr_diff(pr_ref, abs_repo)
+    elif commit_ref:
+        fix_diff, fix_description = _get_commit_fix_context(commit_ref, abs_repo)
+    else:
+        print("Error: provide --pr or --commit to specify the fix", file=sys.stderr)
+        sys.exit(1)
+
+    if not fix_diff:
+        print("No diff found for the specified fix.", file=sys.stderr)
+        sys.exit(1)
+
+    fix_context_parts = []
+    if fix_description:
+        fix_context_parts.append(f"### Fix Description\n\n{fix_description}")
+    fix_context_parts.append(f"### Fix Diff\n\n```diff\n{fix_diff}\n```")
+    fix_context = "\n\n".join(fix_context_parts)
+
+    if dry_run:
+        print(f"\nWould verify fix for: {belief_id}", file=sys.stderr)
+        print(f"Fix source: {'PR ' + pr_ref if pr_ref else 'commit ' + commit_ref}",
+              file=sys.stderr)
+        print(f"Diff lines: {len(fix_diff.splitlines())}", file=sys.stderr)
+        return
+
+    # --- Gather code context via observations ---
+    lang = detect_language(abs_repo)
+    tree = get_repo_structure(abs_repo, max_depth=3)
+
+    print("Gathering code context...", file=sys.stderr)
+
+    async def _gather_and_verify():
+        observe_prompt = build_verify_fix_observe_prompt(
+            belief_id=belief_id,
+            belief_text=belief_text,
+            fix_diff=fix_diff,
+            tree=tree,
+            default_glob=lang.source_globs[0],
+        )
+        observe_response = await invoke(observe_prompt, model, timeout=timeout)
+        requested_obs = parse_observation_requests(observe_response)
+
+        obs_results = {}
+        if requested_obs:
+            obs_results = await run_observations(requested_obs, abs_repo)
+            print(f"  Gathered {len(obs_results)} observation(s)", file=sys.stderr)
+
+        code_context_parts = []
+        if obs_results:
+            code_context_parts.append(
+                f"## Observations\n\n```json\n"
+                f"{json.dumps(obs_results, indent=2, default=str)}\n```"
+            )
+
+        code_context = "\n\n".join(code_context_parts) if code_context_parts else "(no additional context)"
+
+        verify_prompt = build_verify_fix_prompt(
+            belief_id=belief_id,
+            belief_text=belief_text,
+            fix_context=fix_context,
+            code_context=code_context,
+        )
+        return await invoke(verify_prompt, model, timeout=timeout)
+
+    response = asyncio.run(_gather_and_verify())
+
+    m = re.search(r"\{.*\}", response, re.DOTALL)
+    verdict_data = None
+    if m:
+        try:
+            data = json.loads(m.group(0))
+            if isinstance(data.get("verdict"), str):
+                verdict_data = {
+                    "verdict": data["verdict"].upper(),
+                    "reason": data.get("reason", ""),
+                }
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not verdict_data:
+        print("INCONCLUSIVE — no verdict returned by model", file=sys.stderr)
+        return
+
+    verdict = verdict_data["verdict"]
+    reason = verdict_data.get("reason", "")
+
+    print(f"\n  {verdict} — {reason}", file=sys.stderr)
+
+    if verdict == "FIXED":
+        fix_source = f"PR {pr_ref}" if pr_ref else f"commit {commit_ref}"
+        retract_reason = f"Fixed by {fix_source}: {reason}"
+        try:
+            result = retract_node(belief_id, reason=retract_reason, db_path=db_path)
+            print(f"\n  Retracted: {belief_id}", file=sys.stderr)
+            went_out = result.get("went_out", [])
+            went_in = result.get("went_in", [])
+            if went_out:
+                print(f"  Cascade: {len(went_out)} belief(s) went OUT", file=sys.stderr)
+                for nid in went_out[:5]:
+                    print(f"    {nid}", file=sys.stderr)
+            if went_in:
+                print(f"  Restored: {len(went_in)} belief(s) went IN", file=sys.stderr)
+        except Exception as e:
+            print(f"  Failed to retract: {e}", file=sys.stderr)
+
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        try:
+            set_metadata(belief_id, "fixed_at", now, db_path=db_path)
+            set_metadata(belief_id, "fixed_by", fix_source, db_path=db_path)
+        except Exception:
+            pass
+
+        issues = _load_issues_registry(project_dir)
+        for issue in issues:
+            if issue.get("belief_id") == belief_id:
+                issue["state"] = "fixed"
+                issue["fixed_at"] = now
+                _save_issues_registry(issues, project_dir)
+                print(f"  Updated issue registry: {issue.get('url', belief_id)}", file=sys.stderr)
+                break
+
+    elif verdict == "PARTIAL":
+        print(f"\n  Fix is partial — belief not retracted.", file=sys.stderr)
+        print(f"  Consider updating the belief or filing a follow-up.", file=sys.stderr)
+    else:
+        print(f"\n  Belief not retracted.", file=sys.stderr)
+
+
+def _get_pr_diff(pr_ref: str, repo_path: str) -> tuple[str, str]:
+    """Get diff and description from a PR reference."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "diff", pr_ref],
+            capture_output=True, text=True, cwd=repo_path,
+        )
+        diff = result.stdout if result.returncode == 0 else ""
+    except FileNotFoundError:
+        print("  'gh' CLI not found — install GitHub CLI for PR support", file=sys.stderr)
+        diff = ""
+
+    description = ""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", pr_ref, "--json", "title,body",
+             "--template", "{{.title}}\n\n{{.body}}"],
+            capture_output=True, text=True, cwd=repo_path,
+        )
+        if result.returncode == 0:
+            description = result.stdout.strip()
+    except FileNotFoundError:
+        pass
+
+    return diff, description
+
+
+def _get_commit_fix_context(commit_ref: str, repo_path: str) -> tuple[str, str]:
+    """Get diff and message from a commit or range."""
+    if ".." in commit_ref:
+        diff_cmd = ["git", "diff", commit_ref]
+        log_cmd = ["git", "log", "--format=%B", commit_ref]
+    else:
+        diff_cmd = ["git", "show", "--format=", commit_ref]
+        log_cmd = ["git", "log", "-1", "--format=%B", commit_ref]
+
+    result = subprocess.run(diff_cmd, capture_output=True, text=True, cwd=repo_path)
+    diff = result.stdout if result.returncode == 0 else ""
+
+    result = subprocess.run(log_cmd, capture_output=True, text=True, cwd=repo_path)
+    message = result.stdout.strip() if result.returncode == 0 else ""
+
+    return diff, message
 
 
 # ---------------------------------------------------------------------------

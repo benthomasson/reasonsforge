@@ -11,6 +11,7 @@ from .propose import PROPOSE_BELIEFS_CODE
 from .research import RESEARCH_INFER_FILES_PROMPT
 from .review import REVIEW_PROMPT
 from .verify import VERIFY_INFER_FILE_PROMPT, VERIFY_OBSERVE_PROMPT, VERIFY_PROMPT
+from .verify_fix import build_verify_fix_observe_prompt, build_verify_fix_prompt
 from .repo import build_repo_prompt
 from .scan import build_scan_prompt
 from .spec import GENERATE_SPEC_PROMPT
@@ -26,6 +27,8 @@ __all__ = [
     "VERIFY_OBSERVE_PROMPT",
     "VERIFY_PROMPT",
     "TOPICS_INSTRUCTIONS",
+    "build_verify_fix_observe_prompt",
+    "build_verify_fix_prompt",
     "build_diff_extract_prompt",
     "build_diff_observe_prompt",
     "build_diff_prompt",
