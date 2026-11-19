@@ -306,7 +306,7 @@ def _run_topic(args, topic: Topic) -> None:
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
     config = _load_config()
 
     if not check_model_available(model):
@@ -882,7 +882,7 @@ def cmd_scan(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -1048,7 +1048,7 @@ def cmd_ingest(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -1120,7 +1120,7 @@ def cmd_explore(args):
     from ..llm import check_model_available
     _caffeinate()
 
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     do_skip = getattr(args, "skip", False)
@@ -1271,7 +1271,7 @@ def cmd_propose_beliefs(args):
             return
 
     # Filter already-processed
-    processed_path = Path(_get_product_dir()) / "proposed-entries.json"
+    processed_path = Path(_get_product_dir(args)) / "proposed-entries.json"
     processed = _load_processed(processed_path)
     if not process_all:
         total = len(entries)
@@ -1871,7 +1871,7 @@ def cmd_summary(args):
 
 def cmd_topics(args):
     """Show the exploration queue."""
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
     queue = load_queue(product_dir)
 
     if not queue:
@@ -1951,7 +1951,7 @@ def cmd_status(args):
         print("Beliefs:  (no database)")
 
     # Topics
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
     queue = load_queue(product_dir)
     pending = sum(1 for t in queue if t.status == "pending")
     done_count = sum(1 for t in queue if t.status == "done")
@@ -2002,7 +2002,7 @@ def cmd_update(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    product_dir = _get_product_dir()
+    product_dir = _get_product_dir(args)
     db_path = getattr(args, "output", REASONS_DB)
 
     if not check_model_available(model):

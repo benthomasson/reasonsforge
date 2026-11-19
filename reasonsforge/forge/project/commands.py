@@ -261,7 +261,7 @@ def _run_topic(args, topic: Topic) -> None:
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     config = _load_config()
 
     if not check_model_available(model):
@@ -1359,23 +1359,23 @@ def cmd_init(args):
 # ---------------------------------------------------------------------------
 
 
-def _scan_progress_path() -> Path:
-    return Path(_get_project_dir()) / "scan-progress.json"
+def _scan_progress_path(args=None) -> Path:
+    return Path(_get_project_dir(args)) / "scan-progress.json"
 
 
-def _save_scan_progress(page: int, total_scanned: int, params: dict) -> None:
+def _save_scan_progress(page: int, total_scanned: int, params: dict, args=None) -> None:
     progress = {
         "last_completed_page": page,
         "total_scanned": total_scanned,
         "params": params,
     }
-    path = _scan_progress_path()
+    path = _scan_progress_path(args)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(progress, indent=2) + "\n")
 
 
-def _load_scan_progress() -> dict | None:
-    path = _scan_progress_path()
+def _load_scan_progress(args=None) -> dict | None:
+    path = _scan_progress_path(args)
     if not path.exists():
         return None
     try:
@@ -1384,8 +1384,8 @@ def _load_scan_progress() -> dict | None:
         return None
 
 
-def _clear_scan_progress() -> None:
-    path = _scan_progress_path()
+def _clear_scan_progress(args=None) -> None:
+    path = _scan_progress_path(args)
     if path.exists():
         path.unlink()
 
@@ -1403,7 +1403,7 @@ def cmd_scan(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -1443,7 +1443,7 @@ def cmd_scan(args):
         total_scanned = 0
 
         if resume:
-            progress = _load_scan_progress()
+            progress = _load_scan_progress(args)
             if progress:
                 saved_params = progress.get("params", {})
                 if saved_params != scan_params:
@@ -1483,7 +1483,7 @@ def cmd_scan(args):
                 else:
                     print(f"\nDone. Scanned {total_scanned} issues across {current_page - 1} pages.",
                           file=sys.stderr)
-                _clear_scan_progress()
+                _clear_scan_progress(args)
                 break
 
             print(f"Fetched {len(issues)} issues", file=sys.stderr)
@@ -1502,7 +1502,7 @@ def cmd_scan(args):
                 _cache_issues(issues, project_dir)
                 print(f"Queued {added} topic(s) from {len(issues)} issues", file=sys.stderr)
                 total_scanned += len(issues)
-                _save_scan_progress(current_page, total_scanned, scan_params)
+                _save_scan_progress(current_page, total_scanned, scan_params, args)
             else:
                 # Fetch PRs for platforms that support them
                 prs = []
@@ -1547,14 +1547,14 @@ def cmd_scan(args):
                 _report_beliefs(result)
                 _cache_issues(issues, project_dir)
                 total_scanned += len(issues)
-                _save_scan_progress(current_page, total_scanned, scan_params)
+                _save_scan_progress(current_page, total_scanned, scan_params, args)
 
                 print(result)
 
             if len(issues) < limit:
                 print(f"\nDone. Scanned {total_scanned} issues across {current_page} pages.",
                       file=sys.stderr)
-                _clear_scan_progress()
+                _clear_scan_progress(args)
                 break
             current_page += 1
     else:
@@ -1651,7 +1651,7 @@ def cmd_explore(args):
     from ..llm import check_model_available
     _caffeinate()
 
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     do_skip = getattr(args, "skip", False)
@@ -1803,7 +1803,7 @@ def cmd_propose_beliefs(args):
             return
 
     # Filter already-processed
-    processed_path = Path(_get_project_dir()) / "proposed-entries.json"
+    processed_path = Path(_get_project_dir(args)) / "proposed-entries.json"
     processed = _load_processed(processed_path)
     if not process_all:
         total = len(entries)
@@ -2040,7 +2040,7 @@ def cmd_review_proposals(args):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
         sys.exit(1)
 
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     text = proposals_path.read_text()
 
     # Load context
@@ -2620,7 +2620,7 @@ def cmd_analyze_issue(args):
     steps = ["fetch", "analyze"]
     if walk:
         steps.append("walk-children")
-    report = Report("project-analyze-issue", steps, project_dir=_get_project_dir())
+    report = Report("project-analyze-issue", steps, project_dir=_get_project_dir(args))
     pipeline_t0 = time.monotonic()
     analyzed = 0
     skipped = 0
@@ -3269,7 +3269,7 @@ def cmd_track(args):
 
     report = Report("project-track", [
         "fetch", "analyze", "reconcile", "accept", "derive",
-    ], project_dir=_get_project_dir())
+    ], project_dir=_get_project_dir(args))
     pipeline_t0 = time.monotonic()
 
     # Phase 1: Fetch
@@ -3799,7 +3799,7 @@ def cmd_sprint_plan(args):
         print("WARN: No belief network available for gating analysis", file=sys.stderr)
 
     # Load cached issues and compute team signals
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     cached_issues = _load_cached_issues(project_dir)
     team_signals = _compute_team_signals(cached_issues) if cached_issues else {
         "team_members": [], "inferred_team_size": 0,
@@ -3906,7 +3906,7 @@ def cmd_sprint_plan(args):
 
 def cmd_topics(args):
     """Show the exploration queue."""
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     queue = load_queue(project_dir)
 
     if not queue:
@@ -3989,7 +3989,7 @@ def cmd_status(args):
         print("Beliefs:  (no database)")
 
     # Topics
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     queue = load_queue(project_dir)
     pending = sum(1 for t in queue if t.status == "pending")
     done_count = sum(1 for t in queue if t.status == "done")
@@ -4034,7 +4034,7 @@ def cmd_update(args):
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
