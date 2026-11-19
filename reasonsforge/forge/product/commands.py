@@ -111,7 +111,17 @@ def _save_config(config: dict) -> None:
     (config_dir / "config.json").write_text(json.dumps(config, indent=2))
 
 
-def _get_product_dir() -> str:
+def _get_db_path(args) -> str:
+    db = getattr(args, "db", None)
+    if db:
+        return db
+    return getattr(args, "output", REASONS_DB)
+
+
+def _get_product_dir(args=None) -> str:
+    if args is not None:
+        db_path = os.path.abspath(_get_db_path(args))
+        return os.path.join(os.path.dirname(db_path), PRODUCT_DIR)
     return str(Path.cwd() / PRODUCT_DIR)
 
 

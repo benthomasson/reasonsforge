@@ -110,7 +110,8 @@ def _get_db_path(args) -> str:
 
 
 def _get_project_dir(args) -> str:
-    return os.path.join(os.getcwd(), PROJECT_DIR)
+    db_path = os.path.abspath(_get_db_path(args))
+    return os.path.join(os.path.dirname(db_path), PROJECT_DIR)
 
 
 def _get_lang(args, repo_path=None):
