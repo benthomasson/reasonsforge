@@ -19,7 +19,10 @@ def _now() -> str:
 
 
 def _report_filename(pipeline: str) -> str:
+    job_id = os.environ.get("FORGE_JOB_ID")
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    if job_id:
+        return f"{pipeline}-{ts}-{job_id}.json"
     return f"{pipeline}-{ts}.json"
 
 
@@ -35,8 +38,10 @@ class Report:
             reports_dir = os.path.join(project_dir, "reports") if project_dir else ".forge/reports"
             self._path = os.path.join(reports_dir, _report_filename(pipeline))
         self._current: str | None = None
+        job_id = os.environ.get("FORGE_JOB_ID")
         self._data = {
             "pipeline": pipeline,
+            "job_id": job_id,
             "started_at": _now(),
             "updated_at": _now(),
             "status": "running",
