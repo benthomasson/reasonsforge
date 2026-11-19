@@ -1,5 +1,6 @@
 """Diary forge commands — extract beliefs from diary entries."""
 
+import os
 import re
 import sys
 import time
@@ -20,7 +21,6 @@ def _get_db_path(args) -> str:
 
 def _get_project_dir(args=None) -> str:
     if args is not None:
-        import os
         db_path = os.path.abspath(_get_db_path(args))
         return os.path.join(os.path.dirname(db_path), PROJECT_DIR)
     return str(Path.cwd() / PROJECT_DIR)
@@ -58,7 +58,7 @@ def cmd_update(args):
     no_auto_accept = getattr(args, "no_auto_accept", False)
     output_file = getattr(args, "proposals_output", "proposed-beliefs.md")
 
-    project_dir = _get_project_dir()
+    project_dir = _get_project_dir(args)
     report = Report("diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=project_dir)
 
     if not Path(input_dir).exists():
@@ -167,7 +167,7 @@ def cmd_status(args):
         return
 
     entries = sorted(input_path.rglob("*.md"))
-    processed_path = Path(_get_project_dir()) / "proposed-entries.json"
+    processed_path = Path(_get_project_dir(args)) / "proposed-entries.json"
     processed = _load_processed(processed_path)
 
     from ..propose import _rel_key
