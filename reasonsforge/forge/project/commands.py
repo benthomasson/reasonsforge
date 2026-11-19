@@ -2389,7 +2389,8 @@ Issue API-55 reports a 2x latency regression in the v3 endpoint since the March 
 
 
 def _analyzed_issues_path() -> Path:
-    return Path(_get_project_dir()) / "analyzed-issues.json"
+    from .. import PROJECT_DIR as FORGE_DIR
+    return Path(FORGE_DIR) / "analyzed-issues.json"
 
 
 def _load_analyzed_issues() -> dict:

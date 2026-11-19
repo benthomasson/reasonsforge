@@ -16,7 +16,7 @@ from reasonsforge.forge.pipeline import (
     _stage_repair,
     _stage_deduplicate,
     _load_state,
-    STATE_FILE,
+    _state_file,
 )
 from reasonsforge.forge.propose import auto_accept_proposals
 
@@ -436,8 +436,9 @@ class TestPipelineState:
 
     def test_corrupt_state_file_handled(self, work_dir):
         """Corrupt state file is treated as missing."""
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text("{truncated")
+        sf = _state_file()
+        sf.parent.mkdir(parents=True, exist_ok=True)
+        sf.write_text("{truncated")
 
         args = make_pipeline_args(resume=True)
         with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
