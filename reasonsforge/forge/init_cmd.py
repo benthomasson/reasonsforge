@@ -44,6 +44,7 @@ def cmd_init(args):
             "reasons.db\n"
             "rag_fts.db\n"
             "logs/\n"
+            ".DS_Store\n"
         )
         print("Created .gitignore")
 

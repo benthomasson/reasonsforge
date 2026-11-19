@@ -1344,7 +1344,7 @@ def cmd_init(args):
     # Create .gitignore
     gitignore = Path.cwd() / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n")
+        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
         print("Created .gitignore")
 
     print(f"\nProject forge initialized")
