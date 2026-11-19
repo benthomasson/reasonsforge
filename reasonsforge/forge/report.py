@@ -1,6 +1,7 @@
 """Pipeline progress report.
 
-Writes a structured JSON report to .forge/report.json as a pipeline runs.
+Writes a structured JSON report to .forge/reports/ as a pipeline runs.
+Each run gets a unique file: {pipeline}-{timestamp}.json.
 The report is the contract between pipeline code (reasonsforge) and the
 management layer (reasons-manager). Pipelines own their logic; manager
 owns the display.
@@ -17,13 +18,22 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _report_filename(pipeline: str) -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    return f"{pipeline}-{ts}.json"
+
+
 class Report:
     """Track pipeline progress and write to a JSON report file."""
 
     def __init__(self, pipeline: str, steps: list[str],
-                 path: str = ".forge/report.json",
+                 path: str | None = None,
                  project_dir: str | None = None):
-        self._path = os.path.join(project_dir, "report.json") if project_dir else path
+        if path:
+            self._path = path
+        else:
+            reports_dir = os.path.join(project_dir, "reports") if project_dir else ".forge/reports"
+            self._path = os.path.join(reports_dir, _report_filename(pipeline))
         self._current: str | None = None
         self._data = {
             "pipeline": pipeline,

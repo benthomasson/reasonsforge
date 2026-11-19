@@ -1,8 +1,26 @@
 """Tests for the pipeline report helper."""
 
 import json
+import os
 
 from reasonsforge.forge.report import Report
+
+
+def test_report_writes_to_reports_dir(tmp_path):
+    project_dir = str(tmp_path / ".forge")
+    report = Report("my-pipeline", ["a"], project_dir=project_dir)
+
+    reports_dir = os.path.join(project_dir, "reports")
+    assert os.path.isdir(reports_dir)
+    files = os.listdir(reports_dir)
+    assert len(files) == 1
+    assert files[0].startswith("my-pipeline-")
+    assert files[0].endswith(".json")
+
+    with open(os.path.join(reports_dir, files[0])) as f:
+        data = json.load(f)
+    assert data["pipeline"] == "my-pipeline"
+    assert data["status"] == "running"
 
 
 def test_report_creates_file(tmp_path):
