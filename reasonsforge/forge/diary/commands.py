@@ -6,8 +6,13 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from .. import PROJECT_DIR, REASONS_DB
+from .. import REASONS_DB
+from . import PROJECT_DIR
 from ..report import Report
+
+
+def _get_project_dir() -> str:
+    return str(Path.cwd() / PROJECT_DIR)
 
 
 def _count_beliefs():
@@ -42,7 +47,8 @@ def cmd_update(args):
     no_auto_accept = getattr(args, "no_auto_accept", False)
     output_file = getattr(args, "proposals_output", "proposed-beliefs.md")
 
-    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=PROJECT_DIR)
+    project_dir = _get_project_dir()
+    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=project_dir)
 
     if not Path(input_dir).exists():
         print(f"No {input_dir}/ directory found. Write some entries first.")
@@ -150,7 +156,7 @@ def cmd_status(args):
         return
 
     entries = sorted(input_path.rglob("*.md"))
-    processed_path = Path(PROJECT_DIR) / "proposed-entries.json"
+    processed_path = Path(_get_project_dir()) / "proposed-entries.json"
     processed = _load_processed(processed_path)
 
     from ..propose import _rel_key
