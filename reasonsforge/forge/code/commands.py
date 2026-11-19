@@ -1535,6 +1535,7 @@ def cmd_propose_beliefs(args):
     db_path = _get_db_path(args)
     parse_only = getattr(args, "parse_only", False)
     no_embeddings = getattr(args, "no_embeddings", False)
+    project_dir = _get_project_dir(args)
 
     if not parse_only:
         if not check_model_available(model):
@@ -1560,7 +1561,7 @@ def cmd_propose_beliefs(args):
             return
 
     # Filter already-processed
-    processed_path = Path(PROJECT_DIR) / "proposed-entries.json"
+    processed_path = Path(project_dir) / "proposed-entries.json"
     processed = _load_processed(processed_path)
     if not process_all:
         total = len(entries)
@@ -1585,7 +1586,7 @@ def cmd_propose_beliefs(args):
         if existing_beliefs and not no_embeddings and _has_embeddings():
             try:
                 print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
-                cache_path = Path(PROJECT_DIR) / "belief-vectors.json"
+                cache_path = Path(project_dir) / "belief-vectors.json"
                 belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
                 print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
             except Exception as e:

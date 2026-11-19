@@ -142,8 +142,6 @@ def cmd_accept(args):
 def cmd_status(args):
     """Show diary forge status."""
     from ..propose import _load_processed
-    from .. import PROJECT_DIR
-
     input_dir = getattr(args, "input_dir", "entries")
     input_path = Path(input_dir)
 

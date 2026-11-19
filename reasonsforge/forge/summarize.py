@@ -6,6 +6,7 @@ import time
 from datetime import date
 from pathlib import Path
 
+from . import PROJECT_DIR
 from .llm import check_model_available, invoke
 from .prompts import SUMMARIZE, SUMMARIZE_CODE
 
@@ -135,7 +136,7 @@ def cmd_summarize(args):
     if args.limit:
         sources = sources[:args.limit]
 
-    manifest = Path(".forge/code/summarized")
+    manifest = Path(PROJECT_DIR) / "code" / "summarized"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     done = set()
     # migrate legacy manifest

@@ -1793,7 +1793,7 @@ def cmd_propose_beliefs(args):
             return
 
     # Filter already-processed
-    processed_path = Path(PROJECT_DIR) / "proposed-entries.json"
+    processed_path = Path(_get_project_dir()) / "proposed-entries.json"
     processed = _load_processed(processed_path)
     if not process_all:
         total = len(entries)
@@ -2388,12 +2388,14 @@ Issue API-55 reports a 2x latency regression in the v3 endpoint since the March 
 """
 
 
-ANALYZED_ISSUES_PATH = Path(".forge/analyzed-issues.json")
+def _analyzed_issues_path() -> Path:
+    return Path(_get_project_dir()) / "analyzed-issues.json"
 
 
 def _load_analyzed_issues() -> dict:
-    if ANALYZED_ISSUES_PATH.exists():
-        with ANALYZED_ISSUES_PATH.open() as f:
+    p = _analyzed_issues_path()
+    if p.exists():
+        with p.open() as f:
             return json.load(f)
     return {}
 
@@ -2404,8 +2406,9 @@ def _save_analyzed_issue(issue_key: str, issue_updated: str):
         "updated": issue_updated,
         "analyzed_at": datetime.now().isoformat(timespec="seconds"),
     }
-    ANALYZED_ISSUES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with ANALYZED_ISSUES_PATH.open("w") as f:
+    p = _analyzed_issues_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("w") as f:
         json.dump(record, f, indent=2)
 
 

@@ -1261,7 +1261,7 @@ def cmd_propose_beliefs(args):
             return
 
     # Filter already-processed
-    processed_path = Path(PRODUCT_DIR) / "proposed-entries.json"
+    processed_path = Path(_get_product_dir()) / "proposed-entries.json"
     processed = _load_processed(processed_path)
     if not process_all:
         total = len(entries)

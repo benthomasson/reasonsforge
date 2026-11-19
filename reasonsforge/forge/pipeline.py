@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from .llm import check_model_available, invoke_sync
 from . import PROJECT_DIR, REASONS_DB
 
-STATE_FILE = Path(PROJECT_DIR) / "pipeline-state.json"
 
 STAGE_NAMES = {
     1: "ingest",
@@ -42,7 +41,11 @@ def _fmt_duration(seconds):
     return f"{hours}h {minutes}m {secs:.0f}s"
 
 
-def _init_state(args):
+def _state_file(project_dir: str = PROJECT_DIR) -> Path:
+    return Path(project_dir) / "pipeline-state.json"
+
+
+def _init_state(args, project_dir: str = PROJECT_DIR):
     state = {
         "started_at": _now(),
         "updated_at": _now(),
@@ -59,28 +62,30 @@ def _init_state(args):
             for n, name in STAGE_NAMES.items()
         },
     }
-    _save_state(state)
+    _save_state(state, project_dir)
     return state
 
 
-def _load_state():
-    if not STATE_FILE.exists():
+def _load_state(project_dir: str = PROJECT_DIR):
+    sf = _state_file(project_dir)
+    if not sf.exists():
         return None
     try:
-        return json.loads(STATE_FILE.read_text())
+        return json.loads(sf.read_text())
     except (json.JSONDecodeError, ValueError):
-        print(f"WARNING: corrupt state file {STATE_FILE}, ignoring",
+        print(f"WARNING: corrupt state file {sf}, ignoring",
               file=sys.stderr)
         return None
 
 
-def _save_state(state):
+def _save_state(state, project_dir: str = PROJECT_DIR):
     state["updated_at"] = _now()
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2) + "\n")
+    sf = _state_file(project_dir)
+    sf.parent.mkdir(parents=True, exist_ok=True)
+    sf.write_text(json.dumps(state, indent=2) + "\n")
 
 
-def _mark_stage(state, stage_num, status, **meta):
+def _mark_stage(state, stage_num, status, project_dir: str = PROJECT_DIR, **meta):
     key = f"{stage_num}_{STAGE_NAMES[stage_num]}"
     state["stages"][key]["status"] = status
     if status == "running":
@@ -88,7 +93,7 @@ def _mark_stage(state, stage_num, status, **meta):
     elif status == "completed":
         state["stages"][key]["completed_at"] = _now()
     state["stages"][key].update(meta)
-    _save_state(state)
+    _save_state(state, project_dir)
 
 
 def _stage_completed(state, stage_num):
