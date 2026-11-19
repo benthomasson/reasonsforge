@@ -1148,11 +1148,21 @@ def cmd_sync_status(args):
 
 def cmd_export(args):
     data = api.export_network(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
-    output = json.dumps(data, indent=2)
     if args.output == "-":
-        print(output)
+        print(json.dumps(data, indent=2))
     else:
-        Path(args.output).write_text(output)
+        out_path = Path(args.output)
+        if out_path.exists():
+            try:
+                existing = json.loads(out_path.read_text())
+                only_in_db, only_in_file, changed = _compute_sync_diff(
+                    data.get("nodes", {}), existing.get("nodes", {}))
+                if not only_in_db and not only_in_file and not changed:
+                    print(f"No changes — {args.output} not updated")
+                    return
+            except (json.JSONDecodeError, OSError):
+                pass
+        out_path.write_text(json.dumps(data, indent=2))
         print(f"Written to {args.output}")
 
 
