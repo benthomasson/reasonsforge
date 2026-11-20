@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import date
 from pathlib import Path
 
@@ -502,15 +503,20 @@ def cmd_accept_beliefs(args):
         print("Edit the file and change [REJECT] to [ACCEPT] for beliefs to keep.")
         return
 
-    print(f"Found {len(matches)} accepted beliefs")
+    total = len(matches)
+    print(f"Found {total} accepted beliefs")
 
+    t_load = time.monotonic()
     store = Storage(REASONS_DB)
     net = store.load()
+    print(f"  Load: {time.monotonic() - t_load:.1f}s ({len(net.nodes)} nodes)",
+          file=sys.stderr)
 
     added = 0
     skipped = 0
     failed = 0
-    for match in matches:
+    t_loop = time.monotonic()
+    for i, match in enumerate(matches):
         belief_id, claim_text, source = match[0], match[1], match[2]
         source_url = match[3] if len(match) > 3 else ""
         model = match[4] if len(match) > 4 else ""
@@ -537,8 +543,21 @@ def cmd_accept_beliefs(args):
             print(f"  FAIL: {belief_id}: {e}")
             failed += 1
 
+        if (i + 1) % 1000 == 0:
+            elapsed = time.monotonic() - t_loop
+            rate = (i + 1) / elapsed
+            print(f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
+                  f"{elapsed:.0f}s elapsed)", file=sys.stderr)
+
+    print(f"  Add loop: {time.monotonic() - t_loop:.1f}s for {added} added, "
+          f"{skipped} skipped", file=sys.stderr)
+
     if added > 0:
+        t_save = time.monotonic()
+        print(f"Saving {added} new beliefs...", file=sys.stderr)
         store.save(net)
+        print(f"  Save: {time.monotonic() - t_save:.1f}s ({len(net.nodes)} nodes)",
+              file=sys.stderr)
     store.close()
 
     print(f"\nAccepted {added} beliefs ({skipped} existing, {failed} failed)")

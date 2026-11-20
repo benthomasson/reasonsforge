@@ -1982,15 +1982,20 @@ def _score_by_keywords(
 def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tuple[int, int, int]:
     from reasonsforge.storage import Storage
 
-    print("Batch-loading network...")
+    print("Batch-loading network...", file=sys.stderr)
+    t_load = time.monotonic()
     store = Storage(db_path)
     net = store.load()
+    load_elapsed = time.monotonic() - t_load
+    print(f"  Load: {load_elapsed:.1f}s ({len(net.nodes)} nodes)", file=sys.stderr)
 
     added = 0
     failed = 0
     skipped = 0
+    total = len(matches)
     now = datetime.now().isoformat(timespec="seconds")
-    for belief_id, claim_text, source in matches:
+    t_loop = time.monotonic()
+    for i, (belief_id, claim_text, source) in enumerate(matches):
         if belief_id in net.nodes:
             print(f"  EXISTS: {belief_id}")
             skipped += 1
@@ -2011,8 +2016,21 @@ def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tupl
             print(f"  FAIL: {belief_id}: {e}")
             failed += 1
 
-    print(f"Saving {added} new beliefs...")
+        if (i + 1) % 1000 == 0:
+            elapsed = time.monotonic() - t_loop
+            rate = (i + 1) / elapsed
+            print(f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
+                  f"{elapsed:.0f}s elapsed)", file=sys.stderr)
+
+    loop_elapsed = time.monotonic() - t_loop
+    print(f"  Add loop: {loop_elapsed:.1f}s for {added} added, "
+          f"{skipped} skipped", file=sys.stderr)
+
+    print(f"Saving {added} new beliefs...", file=sys.stderr)
+    t_save = time.monotonic()
     store.save(net)
+    save_elapsed = time.monotonic() - t_save
+    print(f"  Save: {save_elapsed:.1f}s ({len(net.nodes)} nodes)", file=sys.stderr)
     store.close()
     print(f"\nAccepted {added} beliefs ({skipped} existing, {failed} failed)")
     return added, skipped, failed
