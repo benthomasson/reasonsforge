@@ -857,6 +857,10 @@ def cmd_init(args):
         gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
         print("Created .gitignore")
 
+    from ..claude_md import write_claude_md_if_missing
+    if write_claude_md_if_missing(domain):
+        print("Created CLAUDE.md")
+
     print(f"\nProduct forge initialized")
     print(f"  Platform: {platform}")
     print(f"  Target:   {target}")

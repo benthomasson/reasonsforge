@@ -58,6 +58,10 @@ def cmd_init(args):
         config_path.write_text(json.dumps(config, indent=2) + "\n")
         print(f"Created {config_path}")
 
+    from .claude_md import write_claude_md_if_missing
+    if write_claude_md_if_missing(domain, expert_dir=str(cwd)):
+        print("Created CLAUDE.md")
+
     print(f"\nForge project initialized: {name}")
     print(f"Next: add documents to sources/ and run reasonsforge forge summarize")
 

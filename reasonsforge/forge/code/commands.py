@@ -297,6 +297,10 @@ def cmd_init(args):
         gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
         print("Created .gitignore")
 
+    from ..claude_md import write_claude_md_if_missing
+    if write_claude_md_if_missing(domain, repo_path=repo_path):
+        print("Created CLAUDE.md")
+
     print(f"\nCode forge initialized: {repo_name}")
     print(f"  Repo: {repo_path}")
     print(f"  Domain: {domain}")
@@ -2845,6 +2849,8 @@ def cmd_verify_fix(args):
                 verdict_data = {
                     "verdict": data["verdict"].upper(),
                     "reason": data.get("reason", ""),
+                    "gap_description": data.get("gap_description", ""),
+                    "affected_files": data.get("affected_files", []),
                 }
                 break
         except (json.JSONDecodeError, TypeError):
@@ -2854,6 +2860,7 @@ def cmd_verify_fix(args):
         print("INCONCLUSIVE — no verdict returned by model", file=sys.stderr)
         return
 
+    verdict_data["belief_id"] = belief_id
     verdict = verdict_data["verdict"]
     reason = verdict_data.get("reason", "")
 
@@ -2894,9 +2901,22 @@ def cmd_verify_fix(args):
 
     elif verdict == "PARTIAL":
         print(f"\n  Fix is partial — belief not retracted.", file=sys.stderr)
+        gap = verdict_data.get("gap_description", "")
+        affected = verdict_data.get("affected_files", [])
+        if gap:
+            print(f"  Gap: {gap}", file=sys.stderr)
+        if affected:
+            print(f"  Affected files: {', '.join(affected)}", file=sys.stderr)
         print(f"  Consider updating the belief or filing a follow-up.", file=sys.stderr)
     else:
         print(f"\n  Belief not retracted.", file=sys.stderr)
+
+    output_json = getattr(args, "output_json", None)
+    if output_json:
+        os.makedirs(os.path.dirname(os.path.abspath(output_json)), exist_ok=True)
+        with open(output_json, "w") as f:
+            json.dump(verdict_data, f, indent=2)
+        print(f"  Result written to {output_json}", file=sys.stderr)
 
 
 def _get_pr_diff(pr_ref: str, repo_path: str) -> tuple[str, str]:

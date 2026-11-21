@@ -31,11 +31,27 @@ the problem persists despite the change.
 - **INCONCLUSIVE** — There is insufficient context to determine whether the fix \
 addresses the belief.
 
-Return ONLY a JSON object with "verdict" and "reason":
+Return ONLY a JSON object with the following fields:
+
+- **verdict**: one of FIXED, PARTIAL, NOT_FIXED, INCONCLUSIVE
+- **reason**: a short explanation of the verdict
+- **gap_description**: (PARTIAL only) what specifically remains unfixed — be concrete \
+about which code paths, functions, or behaviors still exhibit the problem
+- **affected_files**: (PARTIAL only) list of file paths that need changes to fully fix \
+the belief
 
 ```json
 {{"verdict": "FIXED", "reason": "The rate limiting logic was added to the endpoint, \
 addressing the missing rate limit described in the belief"}}
+```
+
+For PARTIAL verdicts, include the gap:
+
+```json
+{{"verdict": "PARTIAL", "reason": "Write path is fixed but read path still vulnerable", \
+"gap_description": "_read_file and _edit_file still use open(path, 'r') after \
+validation, allowing a symlink swap between check and use", \
+"affected_files": ["worker_bee/tools.py"]}}
 ```
 
 Be rigorous: a fix must actually resolve the specific claim in the belief, not just \

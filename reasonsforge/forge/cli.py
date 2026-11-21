@@ -182,6 +182,8 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
+    cs.add_argument("--output-json", default=None, dest="output_json",
+                    help="Write structured JSON result (verdict, reason, gap_description, affected_files) to this file")
 
     # code research
     cs = code_sub.add_parser("research",
