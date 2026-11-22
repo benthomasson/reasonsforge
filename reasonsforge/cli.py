@@ -1146,6 +1146,61 @@ def cmd_sync_status(args):
             print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
 
 
+def cmd_merge(args):
+    """Merge a remote network.json into the local reasons.db."""
+    strategy = getattr(args, "strategy", "interactive")
+    dry_run = getattr(args, "dry_run", False)
+
+    try:
+        result = api.merge_networks(
+            args.theirs_file,
+            strategy=strategy,
+            dry_run=dry_run,
+            **_backend_kwargs(args),
+        )
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if dry_run:
+        print("Dry run — no changes applied\n")
+
+    if result["added"]:
+        print(f"Added {result['added']} beliefs from remote")
+    if result["only_ours"]:
+        print(f"Kept {result['only_ours']} beliefs only in local")
+
+    if result["conflicts"]:
+        if result["resolved"]:
+            print(f"\nConflicts: {result['conflicts']} total, {result['resolved']} resolved")
+            if result["kept_ours"]:
+                print(f"  Kept ours: {result['kept_ours']}")
+            if result["kept_theirs"]:
+                print(f"  Kept theirs: {result['kept_theirs']}")
+        else:
+            print(f"\nConflicts: {result['conflicts']} unresolved")
+
+        if strategy == "interactive" or not result["resolved"]:
+            print()
+            for c in result["conflict_details"]:
+                print(f"  ~ {c['id']}")
+                for field in c["fields"]:
+                    if field == "text":
+                        print(f"    text ours:   {c['ours_text']}")
+                        print(f"    text theirs: {c['theirs_text']}")
+                    elif field == "truth_value":
+                        print(f"    truth ours: {c['ours_truth']}  theirs: {c['theirs_truth']}")
+                    else:
+                        print(f"    {field} differs")
+            if not dry_run:
+                print(f"\nRe-run with --strategy ours|theirs|newest to resolve")
+    elif not result["added"] and not result["only_ours"]:
+        print("Already in sync — nothing to merge")
+
+    if not dry_run and (result["added"] or result["resolved"]):
+        print(f"\nDone. Run `reasonsforge export` to update network.json")
+
+
 def cmd_export(args):
     data = api.export_network(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
     if args.output == "-":
@@ -4326,6 +4381,15 @@ def main():
     p.add_argument("--json", action="store_true", help="Output as JSON for programmatic use")
     p.add_argument("--short", action="store_true", help="Show only the summary line")
 
+    # merge
+    p = sub.add_parser("merge", help="Merge a remote network.json into local reasons.db")
+    p.add_argument("theirs_file", help="Path to remote network.json to merge in")
+    p.add_argument("--strategy", choices=["ours", "theirs", "newest", "interactive"],
+                   default="interactive",
+                   help="Conflict resolution strategy (default: interactive)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show what would change without applying")
+
     p = sub.add_parser("export", help="Export network as JSON")
     p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
                    help="Output file (default: network.json). Use --output=- for stdout")
@@ -4954,6 +5018,7 @@ def main():
         "export-api": cmd_export_api,
         "push": cmd_push,
         "sync-status": cmd_sync_status,
+        "merge": cmd_merge,
         "export": cmd_export,
         "export-markdown": cmd_export_markdown,
         "export-card": cmd_export_card,
