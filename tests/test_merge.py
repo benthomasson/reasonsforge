@@ -217,6 +217,43 @@ class TestMerge:
         node_a = api.show_node("a", db_path=db)
         assert node_a["text"] == "Changed A"
 
+    def test_topological_order_theirs_only(self, tmp_path):
+        """Remote nodes that depend on each other are added in correct order."""
+        db = self._setup_dbs(tmp_path)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("premise", "A premise", db_path=remote_db)
+        api.add_node("derived", "Derived from premise", sl="premise", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        self._export_to(remote_db, theirs)
+
+        result = api.merge_networks(theirs, strategy="ours", db_path=db)
+
+        assert result["added"] == 2
+        node = api.show_node("derived", db_path=db)
+        assert node["truth_value"] == "IN"
+        assert node["justifications"][0]["antecedents"] == ["premise"]
+
+    def test_justification_conflict_updates_dependents(self, tmp_path):
+        """When resolving a justification conflict with theirs, dependent graph is updated."""
+        db = self._setup_dbs(tmp_path)
+        api.add_node("old-dep", "Old dependency", db_path=db)
+        api.add_node("a", "Belief A", sl="old-dep", db_path=db)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("new-dep", "New dependency", db_path=remote_db)
+        api.add_node("a", "Belief A", sl="new-dep", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        self._export_to(remote_db, theirs)
+
+        result = api.merge_networks(theirs, strategy="theirs", db_path=db)
+
+        assert result["conflicts"] == 1
+        node = api.show_node("a", db_path=db)
+        assert node["justifications"][0]["antecedents"] == ["new-dep"]
+
     def test_no_conflicts_identical(self, tmp_path):
         db = self._setup_dbs(tmp_path)
         api.add_node("a", "Same text", db_path=db)

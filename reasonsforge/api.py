@@ -2204,49 +2204,110 @@ def merge_networks(
         kept_theirs = 0
 
         if not dry_run:
-            # Phase 1: add beliefs only in theirs
-            for nid in only_theirs:
-                ndata = theirs_nodes[nid]
-                justifications = None
-                jlist = ndata.get("justifications", [])
-                if jlist:
-                    justifications = [
-                        Justification(
-                            type=j["type"],
-                            antecedents=j.get("antecedents", []),
-                            outlist=j.get("outlist", []),
-                            label=j.get("label", ""),
-                            content_hash=j.get("content_hash", ""),
+            # Phase 1: add beliefs only in theirs (topological sort)
+            remaining = {nid: theirs_nodes[nid] for nid in only_theirs}
+            existing_ids = set(net.nodes.keys())
+            max_passes = len(remaining) + 1
+            for _ in range(max_passes):
+                if not remaining:
+                    break
+                next_remaining = {}
+                for nid, ndata in remaining.items():
+                    all_deps = set()
+                    for j in ndata.get("justifications", []):
+                        all_deps.update(j.get("antecedents", []))
+                        all_deps.update(j.get("outlist", []))
+                    deps_in_theirs = {d for d in all_deps if d in theirs_nodes}
+                    if all(d in existing_ids for d in deps_in_theirs):
+                        justifications = None
+                        jlist = ndata.get("justifications", [])
+                        if jlist:
+                            justifications = [
+                                Justification(
+                                    type=j["type"],
+                                    antecedents=j.get("antecedents", []),
+                                    outlist=j.get("outlist", []),
+                                    label=j.get("label", ""),
+                                    content_hash=j.get("content_hash", ""),
+                                )
+                                for j in jlist
+                            ]
+                        node = net.add_node(
+                            id=nid,
+                            text=ndata.get("text", ""),
+                            justifications=justifications,
+                            source=ndata.get("source", ""),
+                            source_url=ndata.get("source_url", ""),
+                            source_hash=ndata.get("source_hash", ""),
+                            text_hash=ndata.get("text_hash", ""),
+                            date=ndata.get("date", ""),
+                            metadata=ndata.get("metadata", {}),
+                            created_at=ndata.get("created_at", ""),
+                            updated_at=ndata.get("updated_at", ""),
                         )
-                        for j in jlist
-                    ]
-                node = net.add_node(
-                    id=nid,
-                    text=ndata.get("text", ""),
-                    justifications=justifications,
-                    source=ndata.get("source", ""),
-                    source_url=ndata.get("source_url", ""),
-                    source_hash=ndata.get("source_hash", ""),
-                    text_hash=ndata.get("text_hash", ""),
-                    date=ndata.get("date", ""),
-                    metadata=ndata.get("metadata", {}),
-                    created_at=ndata.get("created_at", ""),
-                    updated_at=ndata.get("updated_at", ""),
-                )
-                target_tv = ndata.get("truth_value", "IN")
-                if node.truth_value != target_tv:
-                    if target_tv == "OUT":
-                        net.retract(nid)
+                        target_tv = ndata.get("truth_value", "IN")
+                        if node.truth_value != target_tv:
+                            if target_tv == "OUT":
+                                net.retract(nid)
+                            else:
+                                net.assert_node(nid)
+                        node.reviewed_at = ndata.get("reviewed_at", "")
+                        node.verified_at = ndata.get("verified_at", "")
+                        node.retracted_at = ndata.get("retracted_at", "")
+                        node.updated_at = ndata.get("updated_at", "")
+                        import_si = ndata.get("supporting_justification")
+                        if import_si is not None:
+                            node.supporting_justification = import_si
+                        existing_ids.add(nid)
+                        added += 1
                     else:
-                        net.assert_node(nid)
-                node.reviewed_at = ndata.get("reviewed_at", "")
-                node.verified_at = ndata.get("verified_at", "")
-                node.retracted_at = ndata.get("retracted_at", "")
-                node.updated_at = ndata.get("updated_at", "")
-                import_si = ndata.get("supporting_justification")
-                if import_si is not None:
-                    node.supporting_justification = import_si
-                added += 1
+                        next_remaining[nid] = ndata
+                if len(next_remaining) == len(remaining):
+                    # No progress — add remaining anyway (broken deps)
+                    for nid, ndata in next_remaining.items():
+                        justifications = None
+                        jlist = ndata.get("justifications", [])
+                        if jlist:
+                            justifications = [
+                                Justification(
+                                    type=j["type"],
+                                    antecedents=j.get("antecedents", []),
+                                    outlist=j.get("outlist", []),
+                                    label=j.get("label", ""),
+                                    content_hash=j.get("content_hash", ""),
+                                )
+                                for j in jlist
+                            ]
+                        node = net.add_node(
+                            id=nid,
+                            text=ndata.get("text", ""),
+                            justifications=justifications,
+                            source=ndata.get("source", ""),
+                            source_url=ndata.get("source_url", ""),
+                            source_hash=ndata.get("source_hash", ""),
+                            text_hash=ndata.get("text_hash", ""),
+                            date=ndata.get("date", ""),
+                            metadata=ndata.get("metadata", {}),
+                            created_at=ndata.get("created_at", ""),
+                            updated_at=ndata.get("updated_at", ""),
+                        )
+                        target_tv = ndata.get("truth_value", "IN")
+                        if node.truth_value != target_tv:
+                            if target_tv == "OUT":
+                                net.retract(nid)
+                            else:
+                                net.assert_node(nid)
+                        node.reviewed_at = ndata.get("reviewed_at", "")
+                        node.verified_at = ndata.get("verified_at", "")
+                        node.retracted_at = ndata.get("retracted_at", "")
+                        node.updated_at = ndata.get("updated_at", "")
+                        import_si = ndata.get("supporting_justification")
+                        if import_si is not None:
+                            node.supporting_justification = import_si
+                        existing_ids.add(nid)
+                        added += 1
+                    break
+                remaining = next_remaining
 
             # Phase 3: resolve conflicts
             for conflict in conflicts:
@@ -2278,6 +2339,14 @@ def merge_networks(
                     existing.text = ndata.get("text", existing.text)
                     jlist = ndata.get("justifications", [])
                     if jlist:
+                        # Remove old dependent registrations
+                        for j in existing.justifications:
+                            for ant_id in j.antecedents:
+                                if ant_id in net.nodes:
+                                    net.nodes[ant_id].dependents.discard(nid)
+                            for out_id in j.outlist:
+                                if out_id in net.nodes:
+                                    net.nodes[out_id].dependents.discard(nid)
                         existing.justifications = [
                             Justification(
                                 type=j["type"],
@@ -2288,6 +2357,14 @@ def merge_networks(
                             )
                             for j in jlist
                         ]
+                        # Register new dependent relationships
+                        for j in existing.justifications:
+                            for ant_id in j.antecedents:
+                                if ant_id in net.nodes:
+                                    net.nodes[ant_id].dependents.add(nid)
+                            for out_id in j.outlist:
+                                if out_id in net.nodes:
+                                    net.nodes[out_id].dependents.add(nid)
                     target_tv = ndata.get("truth_value", "IN")
                     if existing.truth_value != target_tv:
                         if target_tv == "OUT":
