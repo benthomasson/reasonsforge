@@ -160,16 +160,22 @@ class TestMerge:
 
         remote_db = str(tmp_path / "remote.db")
         api.init_db(db_path=remote_db)
-        api.add_node("b", "Remote", db_path=remote_db)
+        api.add_node("a", "Remote", db_path=remote_db)
+        api.add_node("b", "Remote B", db_path=remote_db)
         theirs = str(tmp_path / "theirs.json")
         self._export_to(remote_db, theirs)
 
         result = api.merge_networks(theirs, strategy="theirs", dry_run=True, db_path=db)
 
         assert result["added"] == 1
+        assert result["conflicts"] == 1
+        assert result["resolved"] == 1
+        assert result["kept_theirs"] == 1
         # But nothing actually changed
         status = api.get_status(db_path=db)
         assert status["total"] == 1
+        node = api.show_node("a", db_path=db)
+        assert node["text"] == "Local"
 
     def test_truth_value_conflict(self, tmp_path):
         db = self._setup_dbs(tmp_path)
@@ -253,6 +259,33 @@ class TestMerge:
         assert result["conflicts"] == 1
         node = api.show_node("a", db_path=db)
         assert node["justifications"][0]["antecedents"] == ["new-dep"]
+
+    def test_invalid_strategy_raises(self, tmp_path):
+        db = self._setup_dbs(tmp_path)
+        theirs = str(tmp_path / "theirs.json")
+        self._export_to(db, theirs)
+        with pytest.raises(ValueError, match="Unknown strategy"):
+            api.merge_networks(theirs, strategy="foobar", db_path=db)
+
+    def test_metadata_replaced_not_merged_on_theirs(self, tmp_path):
+        """Strategy theirs fully replaces metadata, not additive merge."""
+        db = self._setup_dbs(tmp_path)
+        api.add_node("a", "Belief A", db_path=db)
+        api.set_metadata("a", "local_key", "local_val", db_path=db)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("a", "Belief A changed", db_path=remote_db)
+        api.set_metadata("a", "remote_key", "remote_val", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        self._export_to(remote_db, theirs)
+
+        api.merge_networks(theirs, strategy="theirs", db_path=db)
+
+        node = api.show_node("a", db_path=db)
+        meta = node.get("metadata", {})
+        assert "remote_key" in meta
+        assert "local_key" not in meta
 
     def test_no_conflicts_identical(self, tmp_path):
         db = self._setup_dbs(tmp_path)

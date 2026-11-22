@@ -2130,6 +2130,10 @@ def merge_networks(
     """
     import json as json_mod
 
+    valid_strategies = ("ours", "theirs", "newest", "interactive")
+    if strategy not in valid_strategies:
+        raise ValueError(f"Unknown strategy {strategy!r}, must be one of {valid_strategies}")
+
     theirs_path = Path(theirs_file)
     if not theirs_path.exists():
         raise FileNotFoundError(f"File not found: {theirs_file}")
@@ -2203,6 +2207,31 @@ def merge_networks(
         kept_ours = 0
         kept_theirs = 0
 
+        # Compute resolution decisions (independent of dry_run)
+        resolution_decisions = []
+        for conflict in conflicts:
+            nid = conflict["id"]
+            if strategy == "ours":
+                resolution_decisions.append((conflict, False))
+                kept_ours += 1
+                resolved += 1
+            elif strategy == "theirs":
+                resolution_decisions.append((conflict, True))
+                kept_theirs += 1
+                resolved += 1
+            elif strategy == "newest":
+                ours_ts = conflict["ours"].get("updated_at", "")
+                theirs_ts = conflict["theirs"].get("updated_at", "")
+                if theirs_ts > ours_ts:
+                    resolution_decisions.append((conflict, True))
+                    kept_theirs += 1
+                else:
+                    resolution_decisions.append((conflict, False))
+                    kept_ours += 1
+                resolved += 1
+            elif strategy == "interactive":
+                resolution_decisions.append((conflict, None))
+
         if not dry_run:
             # Phase 1: add beliefs only in theirs (topological sort)
             remaining = {nid: theirs_nodes[nid] for nid in only_theirs}
@@ -2263,7 +2292,6 @@ def merge_networks(
                     else:
                         next_remaining[nid] = ndata
                 if len(next_remaining) == len(remaining):
-                    # No progress — add remaining anyway (broken deps)
                     for nid, ndata in next_remaining.items():
                         justifications = None
                         jlist = ndata.get("justifications", [])
@@ -2309,79 +2337,57 @@ def merge_networks(
                     break
                 remaining = next_remaining
 
-            # Phase 3: resolve conflicts
-            for conflict in conflicts:
+            # Phase 3: apply conflict resolutions
+            for conflict, use_theirs in resolution_decisions:
+                if not use_theirs:
+                    continue
                 nid = conflict["id"]
-                use_theirs = False
-
-                if strategy == "ours":
-                    kept_ours += 1
-                    resolved += 1
-                elif strategy == "theirs":
-                    use_theirs = True
-                    kept_theirs += 1
-                    resolved += 1
-                elif strategy == "newest":
-                    ours_ts = conflict["ours"].get("updated_at", "")
-                    theirs_ts = conflict["theirs"].get("updated_at", "")
-                    if theirs_ts > ours_ts:
-                        use_theirs = True
-                        kept_theirs += 1
+                ndata = conflict["theirs"]
+                existing = net.nodes[nid]
+                existing.text = ndata.get("text", existing.text)
+                jlist = ndata.get("justifications", [])
+                if jlist:
+                    for j in existing.justifications:
+                        for ant_id in j.antecedents:
+                            if ant_id in net.nodes:
+                                net.nodes[ant_id].dependents.discard(nid)
+                        for out_id in j.outlist:
+                            if out_id in net.nodes:
+                                net.nodes[out_id].dependents.discard(nid)
+                    existing.justifications = [
+                        Justification(
+                            type=j["type"],
+                            antecedents=j.get("antecedents", []),
+                            outlist=j.get("outlist", []),
+                            label=j.get("label", ""),
+                            content_hash=j.get("content_hash", ""),
+                        )
+                        for j in jlist
+                    ]
+                    for j in existing.justifications:
+                        for ant_id in j.antecedents:
+                            if ant_id in net.nodes:
+                                net.nodes[ant_id].dependents.add(nid)
+                        for out_id in j.outlist:
+                            if out_id in net.nodes:
+                                net.nodes[out_id].dependents.add(nid)
+                target_tv = ndata.get("truth_value", "IN")
+                if existing.truth_value != target_tv:
+                    if target_tv == "OUT":
+                        net.retract(nid)
                     else:
-                        kept_ours += 1
-                    resolved += 1
-                elif strategy == "interactive":
-                    pass  # leave unresolved for caller to handle
-
-                if use_theirs:
-                    ndata = conflict["theirs"]
-                    existing = net.nodes[nid]
-                    existing.text = ndata.get("text", existing.text)
-                    jlist = ndata.get("justifications", [])
-                    if jlist:
-                        # Remove old dependent registrations
-                        for j in existing.justifications:
-                            for ant_id in j.antecedents:
-                                if ant_id in net.nodes:
-                                    net.nodes[ant_id].dependents.discard(nid)
-                            for out_id in j.outlist:
-                                if out_id in net.nodes:
-                                    net.nodes[out_id].dependents.discard(nid)
-                        existing.justifications = [
-                            Justification(
-                                type=j["type"],
-                                antecedents=j.get("antecedents", []),
-                                outlist=j.get("outlist", []),
-                                label=j.get("label", ""),
-                                content_hash=j.get("content_hash", ""),
-                            )
-                            for j in jlist
-                        ]
-                        # Register new dependent relationships
-                        for j in existing.justifications:
-                            for ant_id in j.antecedents:
-                                if ant_id in net.nodes:
-                                    net.nodes[ant_id].dependents.add(nid)
-                            for out_id in j.outlist:
-                                if out_id in net.nodes:
-                                    net.nodes[out_id].dependents.add(nid)
-                    target_tv = ndata.get("truth_value", "IN")
-                    if existing.truth_value != target_tv:
-                        if target_tv == "OUT":
-                            net.retract(nid)
-                        else:
-                            net.assert_node(nid)
-                    for field in ("source", "source_url", "source_hash",
-                                  "text_hash", "date", "created_at",
-                                  "updated_at", "reviewed_at", "verified_at",
-                                  "retracted_at"):
-                        val = ndata.get(field, "")
-                        if val:
-                            setattr(existing, field, val)
-                    existing.metadata.update(ndata.get("metadata", {}))
-                    import_si = ndata.get("supporting_justification")
-                    if import_si is not None:
-                        existing.supporting_justification = import_si
+                        net.assert_node(nid)
+                for field in ("source", "source_url", "source_hash",
+                              "text_hash", "date",
+                              "updated_at", "reviewed_at", "verified_at",
+                              "retracted_at"):
+                    val = ndata.get(field, "")
+                    if val:
+                        setattr(existing, field, val)
+                existing.metadata = ndata.get("metadata", {})
+                import_si = ndata.get("supporting_justification")
+                if import_si is not None:
+                    existing.supporting_justification = import_si
 
         conflict_details = [
             {"id": c["id"], "fields": c["fields"],
