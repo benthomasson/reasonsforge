@@ -2346,31 +2346,32 @@ def merge_networks(
                 existing = net.nodes[nid]
                 existing.text = ndata.get("text", existing.text)
                 jlist = ndata.get("justifications", [])
-                if jlist:
-                    for j in existing.justifications:
-                        for ant_id in j.antecedents:
-                            if ant_id in net.nodes:
-                                net.nodes[ant_id].dependents.discard(nid)
-                        for out_id in j.outlist:
-                            if out_id in net.nodes:
-                                net.nodes[out_id].dependents.discard(nid)
-                    existing.justifications = [
-                        Justification(
-                            type=j["type"],
-                            antecedents=j.get("antecedents", []),
-                            outlist=j.get("outlist", []),
-                            label=j.get("label", ""),
-                            content_hash=j.get("content_hash", ""),
-                        )
-                        for j in jlist
-                    ]
-                    for j in existing.justifications:
-                        for ant_id in j.antecedents:
-                            if ant_id in net.nodes:
-                                net.nodes[ant_id].dependents.add(nid)
-                        for out_id in j.outlist:
-                            if out_id in net.nodes:
-                                net.nodes[out_id].dependents.add(nid)
+                # Remove old dependent registrations
+                for j in existing.justifications:
+                    for ant_id in j.antecedents:
+                        if ant_id in net.nodes:
+                            net.nodes[ant_id].dependents.discard(nid)
+                    for out_id in j.outlist:
+                        if out_id in net.nodes:
+                            net.nodes[out_id].dependents.discard(nid)
+                existing.justifications = [
+                    Justification(
+                        type=j["type"],
+                        antecedents=j.get("antecedents", []),
+                        outlist=j.get("outlist", []),
+                        label=j.get("label", ""),
+                        content_hash=j.get("content_hash", ""),
+                    )
+                    for j in jlist
+                ]
+                # Register new dependent relationships
+                for j in existing.justifications:
+                    for ant_id in j.antecedents:
+                        if ant_id in net.nodes:
+                            net.nodes[ant_id].dependents.add(nid)
+                    for out_id in j.outlist:
+                        if out_id in net.nodes:
+                            net.nodes[out_id].dependents.add(nid)
                 target_tv = ndata.get("truth_value", "IN")
                 if existing.truth_value != target_tv:
                     if target_tv == "OUT":

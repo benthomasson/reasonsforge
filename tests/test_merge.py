@@ -260,6 +260,26 @@ class TestMerge:
         node = api.show_node("a", db_path=db)
         assert node["justifications"][0]["antecedents"] == ["new-dep"]
 
+    def test_derived_to_premise_conversion(self, tmp_path):
+        """When theirs converts a derived node to a premise (empty justifications), merge applies it."""
+        db = self._setup_dbs(tmp_path)
+        api.add_node("dep", "Dependency", db_path=db)
+        api.add_node("a", "Derived A", sl="dep", db_path=db)
+
+        # Theirs has the same node but as a premise (no justifications)
+        theirs_path = str(tmp_path / "theirs.json")
+        theirs_data = api.export_network(db_path=db)
+        theirs_data["nodes"]["a"]["justifications"] = []
+        theirs_data["nodes"]["a"]["text"] = "Now a premise"
+        Path(theirs_path).write_text(json.dumps(theirs_data))
+
+        result = api.merge_networks(theirs_path, strategy="theirs", db_path=db)
+
+        assert result["conflicts"] == 1
+        node = api.show_node("a", db_path=db)
+        assert node["text"] == "Now a premise"
+        assert node["justifications"] == []
+
     def test_invalid_strategy_raises(self, tmp_path):
         db = self._setup_dbs(tmp_path)
         theirs = str(tmp_path / "theirs.json")

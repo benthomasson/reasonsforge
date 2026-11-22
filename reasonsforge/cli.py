@@ -1148,14 +1148,11 @@ def cmd_sync_status(args):
 
 def cmd_merge(args):
     """Merge a remote network.json into the local reasons.db."""
-    strategy = getattr(args, "strategy", "interactive")
-    dry_run = getattr(args, "dry_run", False)
-
     try:
         result = api.merge_networks(
             args.theirs_file,
-            strategy=strategy,
-            dry_run=dry_run,
+            strategy=args.strategy,
+            dry_run=args.dry_run,
             **_backend_kwargs(args),
         )
     except FileNotFoundError as e:
