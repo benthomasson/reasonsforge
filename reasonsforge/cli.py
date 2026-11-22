@@ -1159,7 +1159,7 @@ def cmd_merge(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    if dry_run:
+    if args.dry_run:
         print("Dry run — no changes applied\n")
 
     if result["added"]:
@@ -1177,7 +1177,7 @@ def cmd_merge(args):
         else:
             print(f"\nConflicts: {result['conflicts']} unresolved")
 
-        if strategy == "interactive" or not result["resolved"]:
+        if args.strategy == "interactive" or not result["resolved"]:
             print()
             for c in result["conflict_details"]:
                 print(f"  ~ {c['id']}")
@@ -1189,12 +1189,12 @@ def cmd_merge(args):
                         print(f"    truth ours: {c['ours_truth']}  theirs: {c['theirs_truth']}")
                     else:
                         print(f"    {field} differs")
-            if not dry_run:
+            if not args.dry_run:
                 print(f"\nRe-run with --strategy ours|theirs|newest to resolve")
     elif not result["added"] and not result["only_ours"]:
         print("Already in sync — nothing to merge")
 
-    if not dry_run and (result["added"] or result["resolved"]):
+    if not args.dry_run and (result["added"] or result["resolved"]):
         print(f"\nDone. Run `reasonsforge export` to update network.json")
 
 

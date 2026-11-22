@@ -1,11 +1,31 @@
 """Tests for reasonsforge merge command."""
 
 import json
+import sys
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from reasonsforge import api
+from reasonsforge.cli import main
+
+
+def run_cli(*args, db_path=None):
+    argv = ["reasons"]
+    if db_path:
+        argv += ["--db", db_path]
+    argv += list(args)
+    stdout, stderr = StringIO(), StringIO()
+    with patch.object(sys, "argv", argv), \
+         patch.object(sys, "stdout", stdout), \
+         patch.object(sys, "stderr", stderr):
+        try:
+            main()
+        except SystemExit as e:
+            return stdout.getvalue(), stderr.getvalue(), e.code
+    return stdout.getvalue(), stderr.getvalue(), 0
 
 
 class TestMerge:
@@ -319,3 +339,69 @@ class TestMerge:
         assert result["added"] == 0
         assert result["conflicts"] == 0
         assert result["only_ours"] == 0
+
+
+class TestMergeCLI:
+
+    def test_merge_cli_adds_beliefs(self, tmp_path):
+        db = str(tmp_path / "local.db")
+        api.init_db(db_path=db)
+        api.add_node("a", "Local A", db_path=db)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("b", "Remote B", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        data = api.export_network(db_path=remote_db)
+        Path(theirs).write_text(json.dumps(data))
+
+        out, err, code = run_cli("merge", theirs, "--strategy", "ours", db_path=db)
+
+        assert code == 0
+        assert "Added 1" in out
+
+    def test_merge_cli_dry_run(self, tmp_path):
+        db = str(tmp_path / "local.db")
+        api.init_db(db_path=db)
+        api.add_node("a", "Local", db_path=db)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("a", "Remote", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        data = api.export_network(db_path=remote_db)
+        Path(theirs).write_text(json.dumps(data))
+
+        out, err, code = run_cli("merge", theirs, "--strategy", "theirs", "--dry-run", db_path=db)
+
+        assert code == 0
+        assert "Dry run" in out
+        node = api.show_node("a", db_path=db)
+        assert node["text"] == "Local"
+
+    def test_merge_cli_interactive_shows_conflicts(self, tmp_path):
+        db = str(tmp_path / "local.db")
+        api.init_db(db_path=db)
+        api.add_node("a", "Local version", db_path=db)
+
+        remote_db = str(tmp_path / "remote.db")
+        api.init_db(db_path=remote_db)
+        api.add_node("a", "Remote version", db_path=remote_db)
+        theirs = str(tmp_path / "theirs.json")
+        data = api.export_network(db_path=remote_db)
+        Path(theirs).write_text(json.dumps(data))
+
+        out, err, code = run_cli("merge", theirs, db_path=db)
+
+        assert code == 0
+        assert "unresolved" in out
+        assert "Re-run with --strategy" in out
+
+    def test_merge_cli_file_not_found(self, tmp_path):
+        db = str(tmp_path / "local.db")
+        api.init_db(db_path=db)
+
+        out, err, code = run_cli("merge", str(tmp_path / "nope.json"), db_path=db)
+
+        assert code == 1
+        assert "Error" in err
