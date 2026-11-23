@@ -26,6 +26,7 @@ def cmd_introspect(args):
         sys.exit(1)
 
     from .schema_parser import introspect_database, schema_to_text
+
     schema = introspect_database(connection)
     print(f"Found {len(schema.tables)} table(s)", file=sys.stderr)
     print(schema_to_text(schema))
@@ -49,6 +50,7 @@ def cmd_profile(args):
     parquet_files = getattr(args, "parquet", None) or []
     if parquet_files:
         from .profiler import profile_parquet
+
         for pq_path in parquet_files:
             path = Path(pq_path)
             if not path.is_file():
@@ -66,7 +68,12 @@ def cmd_profile(args):
 
 def cmd_enrich(args):
     """Run semantic enrichment on parsed schema."""
-    from .pipeline import stage_parse_schema, stage_profile, stage_enrich, stage_accept_beliefs
+    from .pipeline import (
+        stage_parse_schema,
+        stage_profile,
+        stage_enrich,
+        stage_accept_beliefs,
+    )
 
     schema = stage_parse_schema(args)
     profile_text = stage_profile(args, schema)
@@ -93,6 +100,7 @@ def cmd_status(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
     except Exception:
@@ -101,8 +109,7 @@ def cmd_status(args):
     total = len(nodes)
     in_nodes = sum(1 for n in nodes.values() if n.get("truth_value") == "IN")
     data_forge = sum(
-        1 for n in nodes.values()
-        if "data-forge" in (n.get("source") or "")
+        1 for n in nodes.values() if "data-forge" in (n.get("source") or "")
     )
 
     print(f"Database: {db_path}")

@@ -18,9 +18,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -29,7 +31,6 @@ def run_cli(*args, db_path=None):
 
 
 class TestMerge:
-
     def _setup_dbs(self, tmp_path):
         db = str(tmp_path / "local.db")
         api.init_db(db_path=db)
@@ -342,7 +343,6 @@ class TestMerge:
 
 
 class TestMergeCLI:
-
     def test_merge_cli_adds_beliefs(self, tmp_path):
         db = str(tmp_path / "local.db")
         api.init_db(db_path=db)
@@ -372,7 +372,9 @@ class TestMergeCLI:
         data = api.export_network(db_path=remote_db)
         Path(theirs).write_text(json.dumps(data))
 
-        out, err, code = run_cli("merge", theirs, "--strategy", "theirs", "--dry-run", db_path=db)
+        out, err, code = run_cli(
+            "merge", theirs, "--strategy", "theirs", "--dry-run", db_path=db
+        )
 
         assert code == 0
         assert "Dry run" in out

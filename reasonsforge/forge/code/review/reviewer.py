@@ -23,6 +23,7 @@ DEFAULT_TIMEOUT = 300
 
 async def run_model(model: str, prompt: str, timeout: int = DEFAULT_TIMEOUT) -> str:
     from reasonsforge.llm import invoke_model
+
     return await asyncio.to_thread(invoke_model, prompt, model, timeout)
 
 
@@ -30,6 +31,7 @@ def check_model_available(model: str) -> bool:
     import os
     import shutil
     from reasonsforge.llm import resolve_model_cmd
+
     if model.startswith("api:") or model.startswith("vertex:"):
         return True
     if model.startswith("openai:"):
@@ -62,13 +64,21 @@ def parse_verdict(text: str) -> Verdict:
 
 def parse_correctness(text: str) -> Correctness | None:
     text = text.strip().upper()
-    mapping = {"VALID": Correctness.VALID, "QUESTIONABLE": Correctness.QUESTIONABLE, "BROKEN": Correctness.BROKEN}
+    mapping = {
+        "VALID": Correctness.VALID,
+        "QUESTIONABLE": Correctness.QUESTIONABLE,
+        "BROKEN": Correctness.BROKEN,
+    }
     return mapping.get(text)
 
 
 def parse_spec_compliance(text: str) -> SpecCompliance | None:
     text = text.strip().upper()
-    mapping = {"MEETS": SpecCompliance.MEETS, "PARTIAL": SpecCompliance.PARTIAL, "VIOLATES": SpecCompliance.VIOLATES}
+    mapping = {
+        "MEETS": SpecCompliance.MEETS,
+        "PARTIAL": SpecCompliance.PARTIAL,
+        "VIOLATES": SpecCompliance.VIOLATES,
+    }
     if text in ("N/A", "NA"):
         return SpecCompliance.NA
     return mapping.get(text)
@@ -76,13 +86,21 @@ def parse_spec_compliance(text: str) -> SpecCompliance | None:
 
 def parse_test_coverage(text: str) -> TestCoverage | None:
     text = text.strip().upper()
-    mapping = {"COVERED": TestCoverage.COVERED, "PARTIAL": TestCoverage.PARTIAL, "UNTESTED": TestCoverage.UNTESTED}
+    mapping = {
+        "COVERED": TestCoverage.COVERED,
+        "PARTIAL": TestCoverage.PARTIAL,
+        "UNTESTED": TestCoverage.UNTESTED,
+    }
     return mapping.get(text)
 
 
 def parse_integration(text: str) -> Integration | None:
     text = text.strip().upper()
-    mapping = {"WIRED": Integration.WIRED, "PARTIAL": Integration.PARTIAL, "MISSING": Integration.MISSING}
+    mapping = {
+        "WIRED": Integration.WIRED,
+        "PARTIAL": Integration.PARTIAL,
+        "MISSING": Integration.MISSING,
+    }
     return mapping.get(text)
 
 
@@ -154,7 +172,9 @@ def parse_review_response(model: str, response: str) -> ModelReview:
         change_id = match.group(1).strip()
         verdict = parse_verdict(match.group(2))
         correctness = parse_correctness(match.group(3)) if match.group(3) else None
-        spec_compliance = parse_spec_compliance(match.group(4)) if match.group(4) else None
+        spec_compliance = (
+            parse_spec_compliance(match.group(4)) if match.group(4) else None
+        )
         belief_compliance = match.group(6).strip() if match.group(6) else None
         test_coverage = parse_test_coverage(match.group(7)) if match.group(7) else None
         integration = parse_integration(match.group(8)) if match.group(8) else None
@@ -217,6 +237,7 @@ def parse_observe_response(response: str) -> list[dict]:
 
 async def observe_with_model(model: str, diff_content: str) -> list[dict]:
     from .prompts.observe import build_observe_prompt
+
     prompt = build_observe_prompt(diff_content)
     response = await run_model(model, prompt)
     return parse_observe_response(response)

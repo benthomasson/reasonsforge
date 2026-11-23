@@ -11,15 +11,64 @@ import os
 import re
 import sys
 
-
 _TOPIC_STOP_WORDS = {
-    "the", "is", "in", "to", "of", "and", "or", "not", "as", "by",
-    "via", "can", "with", "from", "than", "that", "this", "be", "has",
-    "have", "it", "its", "no", "do", "if", "so", "up", "out", "all",
-    "but", "get", "set", "only", "per", "use", "may", "one", "two",
-    "new", "any", "each", "must", "when", "how", "also", "into",
-    "over", "more", "both", "same", "own", "used", "using", "based",
-    "does", "then", "for",
+    "the",
+    "is",
+    "in",
+    "to",
+    "of",
+    "and",
+    "or",
+    "not",
+    "as",
+    "by",
+    "via",
+    "can",
+    "with",
+    "from",
+    "than",
+    "that",
+    "this",
+    "be",
+    "has",
+    "have",
+    "it",
+    "its",
+    "no",
+    "do",
+    "if",
+    "so",
+    "up",
+    "out",
+    "all",
+    "but",
+    "get",
+    "set",
+    "only",
+    "per",
+    "use",
+    "may",
+    "one",
+    "two",
+    "new",
+    "any",
+    "each",
+    "must",
+    "when",
+    "how",
+    "also",
+    "into",
+    "over",
+    "more",
+    "both",
+    "same",
+    "own",
+    "used",
+    "using",
+    "based",
+    "does",
+    "then",
+    "for",
 }
 
 
@@ -33,7 +82,7 @@ def _assign_topics(node_ids, topics):
     groups["Other"] = []
 
     for nid in node_ids:
-        words = [w for w in re.split(r'[-._:]', nid) if w and len(w) > 2]
+        words = [w for w in re.split(r"[-._:]", nid) if w and len(w) > 2]
         matched = False
         for word in words:
             if word in topic_set:
@@ -61,7 +110,7 @@ def _assign_topics_multi_word(node_ids, topics, node_details=None):
         label = t["topic"]
         patterns = [label] + t.get("aliases", [])
         for pattern in patterns:
-            words = [w.lower() for w in re.split(r'[\s-]+', pattern) if w]
+            words = [w.lower() for w in re.split(r"[\s-]+", pattern) if w]
             topic_matchers.append((label, words))
     topic_matchers.sort(key=lambda t: -len(t[1]))
 
@@ -69,11 +118,11 @@ def _assign_topics_multi_word(node_ids, topics, node_details=None):
     groups["Other"] = []
 
     for nid in node_ids:
-        id_words = set(w.lower() for w in re.split(r'[-._:]', nid) if w)
+        id_words = set(w.lower() for w in re.split(r"[-._:]", nid) if w)
         text_words = set()
         if node_details and nid in node_details:
             text = node_details[nid].get("text", "")
-            text_words = set(w.lower() for w in re.split(r'[\s-]+', text) if len(w) > 2)
+            text_words = set(w.lower() for w in re.split(r"[\s-]+", text) if len(w) > 2)
 
         searchable = id_words | text_words
         matched = False
@@ -127,8 +176,7 @@ def load_topics_file(path):
 def _compute_belief_hash(node_details):
     """Compute a hash over belief IDs and text, matching eem-wiki's convention."""
     items = sorted(
-        (nid, (detail.get("text") or ""))
-        for nid, detail in node_details.items()
+        (nid, (detail.get("text") or "")) for nid, detail in node_details.items()
     )
     return hashlib.sha256(json.dumps(items).encode()).hexdigest()
 
@@ -221,8 +269,7 @@ def generate_topic_summary(topic, nids, node_details, model, timeout):
         status = detail.get("truth_value", "?")
         lines.append(f"- [{status}] {nid}: {detail.get('text', '')}")
 
-    prompt = TOPIC_SUMMARY_PROMPT.format(
-        topic=topic, beliefs="\n".join(lines))
+    prompt = TOPIC_SUMMARY_PROMPT.format(topic=topic, beliefs="\n".join(lines))
     return invoke_model(prompt, model=model, timeout=timeout)
 
 
@@ -334,7 +381,7 @@ def save_summaries(summaries_dir, topic_sums, belief_sums, project_sum=""):
 
 def _page_name(label):
     """Sanitize a topic/cluster label to a valid markdown filename."""
-    safe = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-')
+    safe = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
     return safe or "other"
 
 
@@ -523,7 +570,7 @@ def _linkify(content, current_page, node_to_page, all_ids):
         if "[" + nid + "](" in content:
             continue
         link = "[" + nid + "](" + target + "#" + nid + ")"
-        pattern = r'(?<![a-z0-9\-])' + re.escape(nid) + r'(?![a-z0-9\-])'
+        pattern = r"(?<![a-z0-9\-])" + re.escape(nid) + r"(?![a-z0-9\-])"
         content = re.sub(pattern, link, content)
     return content
 
@@ -531,8 +578,16 @@ def _linkify(content, current_page, node_to_page, all_ids):
 _RESERVED_SLUGS = {"index"}
 
 
-def build_wiki(node_details, groups, output_dir, model="", timeout=300,
-               parallel=0, summaries_dir="", skip_belief_summaries=False):
+def build_wiki(
+    node_details,
+    groups,
+    output_dir,
+    model="",
+    timeout=300,
+    parallel=0,
+    summaries_dir="",
+    skip_belief_summaries=False,
+):
     """Write index.md and per-group pages to output_dir.
 
     Args:
@@ -587,8 +642,7 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         def _gen(label, nids):
-            return label, generate_wiki_page(label, nids, node_details,
-                                             model, timeout)
+            return label, generate_wiki_page(label, nids, node_details, model, timeout)
 
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = {
@@ -602,18 +656,21 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                 try:
                     _, content = future.result()
                     generated_content[label] = content
-                    print(f"  Generated {label} ({done}/{total_groups})",
-                          file=sys.stderr)
+                    print(
+                        f"  Generated {label} ({done}/{total_groups})", file=sys.stderr
+                    )
                 except Exception as e:
-                    print(f"  WARN: {label} failed: {e} ({done}/{total_groups})",
-                          file=sys.stderr)
+                    print(
+                        f"  WARN: {label} failed: {e} ({done}/{total_groups})",
+                        file=sys.stderr,
+                    )
     elif model:
         for i, (label, nids) in enumerate(groups.items(), 1):
-            print(f"  Generating {label} ({i}/{total_groups})...",
-                  file=sys.stderr)
+            print(f"  Generating {label} ({i}/{total_groups})...", file=sys.stderr)
             try:
                 generated_content[label] = generate_wiki_page(
-                    label, nids, node_details, model, timeout)
+                    label, nids, node_details, model, timeout
+                )
             except Exception as e:
                 print(f"  WARN: {label} failed: {e}", file=sys.stderr)
 
@@ -629,10 +686,13 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
             for nid in sorted(nids):
                 detail = node_details.get(nid)
                 if detail:
-                    page_lines.append(_format_node(nid, detail, node_to_page, all_details=node_details))
+                    page_lines.append(
+                        _format_node(
+                            nid, detail, node_to_page, all_details=node_details
+                        )
+                    )
         page_text = "\n".join(page_lines)
-        page_text = _linkify(page_text, page_file, node_to_page,
-                             node_details.keys())
+        page_text = _linkify(page_text, page_file, node_to_page, node_details.keys())
         with open(os.path.join(output_dir, page_file), "w") as f:
             f.write(page_text)
 
@@ -643,22 +703,24 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
 
         # Topic summaries — skip already-cached, save after each
         topic_sums = dict(saved_topic)
-        needed_topics = [(t, nids) for t, nids in groups.items()
-                         if t not in topic_sums]
+        needed_topics = [(t, nids) for t, nids in groups.items() if t not in topic_sums]
         if needed_topics:
-            print(f"  Generating {len(needed_topics)} topic summaries "
-                  f"({len(topic_sums)} cached)...", file=sys.stderr)
+            print(
+                f"  Generating {len(needed_topics)} topic summaries "
+                f"({len(topic_sums)} cached)...",
+                file=sys.stderr,
+            )
             if parallel > 0:
                 from concurrent.futures import ThreadPoolExecutor, as_completed
 
                 def _gen_topic(t, nids):
-                    return t, generate_topic_summary(t, nids, node_details,
-                                                     model, timeout)
+                    return t, generate_topic_summary(
+                        t, nids, node_details, model, timeout
+                    )
 
                 with ThreadPoolExecutor(max_workers=parallel) as executor:
                     futures = {
-                        executor.submit(_gen_topic, t, n): t
-                        for t, n in needed_topics
+                        executor.submit(_gen_topic, t, n): t for t, n in needed_topics
                     }
                     for future in as_completed(futures):
                         t = futures[future]
@@ -667,34 +729,45 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                             topic_sums[t] = text
                             save_summaries(summaries_dir, topic_sums, {}, "")
                         except Exception as e:
-                            print(f"  WARN: topic summary '{t}' failed: {e}",
-                                  file=sys.stderr)
+                            print(
+                                f"  WARN: topic summary '{t}' failed: {e}",
+                                file=sys.stderr,
+                            )
             else:
                 for i, (t, nids) in enumerate(needed_topics, 1):
                     try:
                         topic_sums[t] = generate_topic_summary(
-                            t, nids, node_details, model, timeout)
+                            t, nids, node_details, model, timeout
+                        )
                         save_summaries(summaries_dir, topic_sums, {}, "")
-                        print(f"  Topic summary {i}/{len(needed_topics)}: {t}",
-                              file=sys.stderr)
+                        print(
+                            f"  Topic summary {i}/{len(needed_topics)}: {t}",
+                            file=sys.stderr,
+                        )
                     except Exception as e:
-                        print(f"  WARN: topic summary '{t}' failed: {e}",
-                              file=sys.stderr)
+                        print(
+                            f"  WARN: topic summary '{t}' failed: {e}", file=sys.stderr
+                        )
 
         # Belief summaries — skip already-cached, save every 10
         belief_sums = dict(saved_belief)
         if not skip_belief_summaries:
-            needed_beliefs = [(nid, d) for nid, d in node_details.items()
-                              if nid not in belief_sums]
+            needed_beliefs = [
+                (nid, d) for nid, d in node_details.items() if nid not in belief_sums
+            ]
             if needed_beliefs:
-                print(f"  Generating {len(needed_beliefs)} belief summaries "
-                      f"({len(belief_sums)} cached)...", file=sys.stderr)
+                print(
+                    f"  Generating {len(needed_beliefs)} belief summaries "
+                    f"({len(belief_sums)} cached)...",
+                    file=sys.stderr,
+                )
                 if parallel > 0:
                     from concurrent.futures import ThreadPoolExecutor, as_completed
 
                     def _gen_belief(nid, detail):
                         return nid, generate_belief_summary(
-                            nid, detail, node_details, model, timeout)
+                            nid, detail, node_details, model, timeout
+                        )
 
                     with ThreadPoolExecutor(max_workers=parallel) as executor:
                         futures = {
@@ -711,33 +784,44 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
                                 belief_sums[nid] = text
                                 unsaved_count += 1
                                 if unsaved_count >= 10:
-                                    save_summaries(summaries_dir, topic_sums,
-                                                   belief_sums, "")
+                                    save_summaries(
+                                        summaries_dir, topic_sums, belief_sums, ""
+                                    )
                                     unsaved_count = 0
                                 if done_count % 50 == 0:
-                                    print(f"  {done_count}/{len(needed_beliefs)}"
-                                          " belief summaries",
-                                          file=sys.stderr)
+                                    print(
+                                        f"  {done_count}/{len(needed_beliefs)}"
+                                        " belief summaries",
+                                        file=sys.stderr,
+                                    )
                             except Exception as e:
-                                print(f"  WARN: belief summary '{nid}' "
-                                      f"failed: {e}", file=sys.stderr)
+                                print(
+                                    f"  WARN: belief summary '{nid}' failed: {e}",
+                                    file=sys.stderr,
+                                )
                 else:
                     unsaved_count = 0
                     for i, (nid, detail) in enumerate(needed_beliefs, 1):
                         try:
                             belief_sums[nid] = generate_belief_summary(
-                                nid, detail, node_details, model, timeout)
+                                nid, detail, node_details, model, timeout
+                            )
                             unsaved_count += 1
                             if unsaved_count >= 10:
-                                save_summaries(summaries_dir, topic_sums,
-                                               belief_sums, "")
+                                save_summaries(
+                                    summaries_dir, topic_sums, belief_sums, ""
+                                )
                                 unsaved_count = 0
                             if i % 50 == 0:
-                                print(f"  {i}/{len(needed_beliefs)} "
-                                      "belief summaries", file=sys.stderr)
+                                print(
+                                    f"  {i}/{len(needed_beliefs)} belief summaries",
+                                    file=sys.stderr,
+                                )
                         except Exception as e:
-                            print(f"  WARN: belief summary '{nid}' "
-                                  f"failed: {e}", file=sys.stderr)
+                            print(
+                                f"  WARN: belief summary '{nid}' failed: {e}",
+                                file=sys.stderr,
+                            )
 
         # Project summary
         project_sum = saved_project
@@ -745,7 +829,8 @@ def build_wiki(node_details, groups, output_dir, model="", timeout=300,
             print("  Generating project summary...", file=sys.stderr)
             try:
                 project_sum = generate_project_summary(
-                    "Belief Wiki", node_details, groups, model, timeout)
+                    "Belief Wiki", node_details, groups, model, timeout
+                )
             except Exception as e:
                 print(f"  WARN: project summary failed: {e}", file=sys.stderr)
 

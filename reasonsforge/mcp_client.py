@@ -13,6 +13,7 @@ import threading
 try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
+
     _mcp_available = True
 except ImportError:
     _mcp_available = False
@@ -47,12 +48,12 @@ class McpBridge:
 
     def connect(self):
         self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(
-            target=self._run_loop, daemon=True
-        )
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         if not self._ready.wait(timeout=30):
-            raise TimeoutError(f"MCP server '{self.command}' did not respond within 30s")
+            raise TimeoutError(
+                f"MCP server '{self.command}' did not respond within 30s"
+            )
         if self._error:
             raise self._error
 
@@ -63,7 +64,8 @@ class McpBridge:
     async def _session_lifecycle(self):
         parts = shlex.split(self.command)
         server_params = StdioServerParameters(
-            command=parts[0], args=parts[1:],
+            command=parts[0],
+            args=parts[1:],
         )
 
         async with stdio_client(server_params) as (read, write):

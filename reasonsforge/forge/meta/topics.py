@@ -12,12 +12,15 @@ from datetime import datetime
 @dataclass
 class Topic:
     """A queued investigation topic."""
+
     title: str
-    kind: str       # cross-domain, contradiction, derivation, general
-    target: str     # belief ID, agent pair, etc.
+    kind: str  # cross-domain, contradiction, derivation, general
+    target: str  # belief ID, agent pair, etc.
     source: str = ""
     status: str = "pending"
-    added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    added: str = field(
+        default_factory=lambda: datetime.now().isoformat(timespec="seconds")
+    )
 
 
 TOPIC_KINDS = {"cross-domain", "contradiction", "derivation", "general"}
@@ -100,11 +103,7 @@ def pending_count(meta_dir: str | None = None) -> int:
 # --- Parsing topics from model output ---
 
 TOPIC_LINE_PATTERN = re.compile(
-    r"^[-*]\s+"
-    r"\[(\w[\w-]*)\]\s+"
-    r"`([^`]+)`"
-    r"\s*(?:—|-|:)\s*"
-    r"(.+)$",
+    r"^[-*]\s+" r"\[(\w[\w-]*)\]\s+" r"`([^`]+)`" r"\s*(?:—|-|:)\s*" r"(.+)$",
     re.MULTILINE,
 )
 
@@ -129,11 +128,13 @@ def parse_topics_from_response(response: str, source: str = "") -> list[Topic]:
         if kind not in TOPIC_KINDS:
             kind = "general"
 
-        topics.append(Topic(
-            title=title,
-            kind=kind,
-            target=target,
-            source=source,
-        ))
+        topics.append(
+            Topic(
+                title=title,
+                kind=kind,
+                target=target,
+                source=source,
+            )
+        )
 
     return topics

@@ -69,15 +69,18 @@ def _get_meta_dir() -> str:
 def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly to summaries/YYYY/MM/DD/."""
     from ..utils import unique_path
+
     today = date.today()
-    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir = (
+        Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    )
     summary_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = unique_path(summary_dir / f"{entry_name}.md")
     parts = []
     if model:
-        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
+        parts.append(f'---\nmodel: "{model}"\ndate: {today.isoformat()}\n---\n\n')
     parts.append(f"# {title}\n\n{content}\n")
     entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
@@ -87,6 +90,7 @@ def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path
 def _load_network(db_path: str = REASONS_DB) -> dict:
     """Load the full network via reasonsforge.api.export_network()."""
     from reasonsforge.api import export_network
+
     return export_network(db_path=db_path)
 
 
@@ -102,11 +106,13 @@ def _group_beliefs_by_agent(nodes: dict) -> dict[str, list[dict]]:
             continue
         if ":" in nid:
             agent = nid.split(":")[0]
-            beliefs_by_agent.setdefault(agent, []).append({
-                "id": nid,
-                "text": node["text"],
-                "truth_value": node["truth_value"],
-            })
+            beliefs_by_agent.setdefault(agent, []).append(
+                {
+                    "id": nid,
+                    "text": node["text"],
+                    "truth_value": node["truth_value"],
+                }
+            )
     return beliefs_by_agent
 
 
@@ -117,11 +123,13 @@ def _get_derived_beliefs(nodes: dict) -> list[dict]:
         if nid.endswith(":active"):
             continue
         if ":" not in nid:
-            derived.append({
-                "id": nid,
-                "text": node["text"],
-                "truth_value": node["truth_value"],
-            })
+            derived.append(
+                {
+                    "id": nid,
+                    "text": node["text"],
+                    "truth_value": node["truth_value"],
+                }
+            )
     return derived
 
 
@@ -129,8 +137,7 @@ def _parse_derive_proposals(response: str) -> list[dict]:
     """Parse DERIVE and GATE proposals from LLM response."""
     proposals = []
     pattern = re.compile(
-        r"###\s+(DERIVE|GATE)\s+(\S+)\s*\n"
-        r"(.+?)(?=\n###\s+(?:DERIVE|GATE)|\Z)",
+        r"###\s+(DERIVE|GATE)\s+(\S+)\s*\n" r"(.+?)(?=\n###\s+(?:DERIVE|GATE)|\Z)",
         re.DOTALL,
     )
 
@@ -159,14 +166,16 @@ def _parse_derive_proposals(response: str) -> list[dict]:
                 label = line.split(":", 1)[1].strip()
 
         if antecedents:
-            proposals.append({
-                "kind": kind,
-                "id": belief_id,
-                "text": text,
-                "antecedents": antecedents,
-                "outlist": outlist,
-                "label": label,
-            })
+            proposals.append(
+                {
+                    "kind": kind,
+                    "id": belief_id,
+                    "text": text,
+                    "antecedents": antecedents,
+                    "outlist": outlist,
+                    "label": label,
+                }
+            )
 
     return proposals
 
@@ -175,8 +184,7 @@ def _parse_nogood_proposals(response: str) -> list[dict]:
     """Parse NOGOOD proposals from LLM response."""
     proposals = []
     pattern = re.compile(
-        r"###\s+NOGOOD\s+(\S+)\s*\n"
-        r"(.+?)(?=\n###\s+NOGOOD|\Z)",
+        r"###\s+NOGOOD\s+(\S+)\s*\n" r"(.+?)(?=\n###\s+NOGOOD|\Z)",
         re.DOTALL,
     )
 
@@ -201,13 +209,15 @@ def _parse_nogood_proposals(response: str) -> list[dict]:
                 resolution = line.split(":", 1)[1].strip()
 
         if len(claims) >= 2:
-            proposals.append({
-                "id": nogood_id,
-                "claims": claims,
-                "analysis": analysis,
-                "severity": severity,
-                "resolution": resolution,
-            })
+            proposals.append(
+                {
+                    "id": nogood_id,
+                    "claims": claims,
+                    "analysis": analysis,
+                    "severity": severity,
+                    "resolution": resolution,
+                }
+            )
 
     return proposals
 
@@ -230,7 +240,9 @@ def _derive_once(
     if not beliefs_by_agent:
         return 0
 
-    prompt = build_derive_prompt(beliefs_by_agent, derived_beliefs, budget=budget, seed=seed)
+    prompt = build_derive_prompt(
+        beliefs_by_agent, derived_beliefs, budget=budget, seed=seed
+    )
     response = invoke_sync(prompt, model, timeout)
     proposals = _parse_derive_proposals(response)
 
@@ -238,6 +250,7 @@ def _derive_once(
         return 0
 
     from reasonsforge.api import add_node
+
     applied = 0
     for p in proposals:
         try:
@@ -306,7 +319,9 @@ def _find_beliefs_file(expert_path: str) -> str | None:
     return None
 
 
-def _format_beliefs_by_agent(beliefs_by_agent: dict[str, list[dict]], budget: int = 200) -> str:
+def _format_beliefs_by_agent(
+    beliefs_by_agent: dict[str, list[dict]], budget: int = 200
+) -> str:
     """Format beliefs grouped by agent for prompt inclusion."""
     sections = []
     for agent_name in sorted(beliefs_by_agent):
@@ -357,7 +372,10 @@ def cmd_init(args) -> None:
         name, path = arg.split("=", 1)
         experts[name] = os.path.abspath(path)
 
-    domain = getattr(args, "domain", "Cross-domain expert synthesis") or "Cross-domain expert synthesis"
+    domain = (
+        getattr(args, "domain", "Cross-domain expert synthesis")
+        or "Cross-domain expert synthesis"
+    )
 
     # Save config
     config = {
@@ -416,7 +434,10 @@ def cmd_import_beliefs(args) -> None:
     for name, path in experts.items():
         beliefs_path = _find_beliefs_file(path)
         if beliefs_path is None:
-            print(f"Warning: no network.json or beliefs.md in {path}, skipping {name}", file=sys.stderr)
+            print(
+                f"Warning: no network.json or beliefs.md in {path}, skipping {name}",
+                file=sys.stderr,
+            )
             continue
 
         try:
@@ -450,8 +471,7 @@ def cmd_import_beliefs(args) -> None:
             "import",
             f"Imported beliefs from {expert_names}",
             f"Imported beliefs from {total_imported} expert(s): {expert_names}\n\n"
-            f"Only IN: {only_in}\n\n"
-            + "\n".join(import_details),
+            f"Only IN: {only_in}\n\n" + "\n".join(import_details),
         )
 
     print()
@@ -493,7 +513,9 @@ def cmd_derive(args) -> None:
         sys.exit(1)
 
     # Build prompt
-    prompt = build_derive_prompt(beliefs_by_agent, derived_beliefs, budget=budget, seed=seed)
+    prompt = build_derive_prompt(
+        beliefs_by_agent, derived_beliefs, budget=budget, seed=seed
+    )
 
     if dry_run:
         print(prompt)
@@ -599,7 +621,10 @@ def cmd_ask(args) -> None:
 
     db_path = REASONS_DB
     if not Path(db_path).exists():
-        print("Error: reasons.db not found. Run: reasonsforge meta import", file=sys.stderr)
+        print(
+            "Error: reasons.db not found. Run: reasonsforge meta import",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     question = args.question
@@ -610,6 +635,7 @@ def cmd_ask(args) -> None:
     closest_beliefs = ""
     try:
         from reasonsforge.api import search
+
         search_result = search(question, db_path=db_path, format="markdown")
         if search_result and "No results" not in search_result:
             closest_beliefs = search_result
@@ -640,6 +666,7 @@ def cmd_ask(args) -> None:
 
     # Get compact summary
     from reasonsforge.api import compact
+
     try:
         compact_summary = compact(budget=2000, db_path=db_path)
     except Exception:
@@ -761,6 +788,7 @@ def cmd_summary(args) -> None:
 
     # Get compact summary
     from reasonsforge.api import compact
+
     try:
         beliefs_text = compact(budget=2000, db_path=db_path)
     except Exception:
@@ -773,7 +801,9 @@ def cmd_summary(args) -> None:
     agent_stats = _build_agent_stats(nodes, nogoods)
 
     agent_names = list(config.get("experts", {}).keys())
-    prompt = build_summary_prompt(beliefs_text, domain, agent_stats, agent_names=agent_names)
+    prompt = build_summary_prompt(
+        beliefs_text, domain, agent_stats, agent_names=agent_names
+    )
 
     from ..llm import invoke_sync
 
@@ -813,8 +843,12 @@ def cmd_topics(args) -> None:
 
     display = queue if show_all else pending
     for i, topic in enumerate(display):
-        status_icon = {"pending": " ", "done": "x", "skipped": "-"}.get(topic.status, "?")
-        print(f"  [{status_icon}] {i:3d}. [{topic.kind}] `{topic.target}` -- {topic.title}")
+        status_icon = {"pending": " ", "done": "x", "skipped": "-"}.get(
+            topic.status, "?"
+        )
+        print(
+            f"  [{status_icon}] {i:3d}. [{topic.kind}] `{topic.target}` -- {topic.title}"
+        )
 
 
 def cmd_status(args) -> None:
@@ -847,12 +881,13 @@ def cmd_status(args) -> None:
 
             # Filter out :active sentinel nodes for display
             real_nodes = {
-                nid: n for nid, n in nodes.items()
-                if not nid.endswith(":active")
+                nid: n for nid, n in nodes.items() if not nid.endswith(":active")
             }
             total_in = sum(1 for n in real_nodes.values() if n["truth_value"] == "IN")
             total_out = sum(1 for n in real_nodes.values() if n["truth_value"] != "IN")
-            print(f"Belief network: {total_in} IN, {total_out} OUT, {len(real_nodes)} total")
+            print(
+                f"Belief network: {total_in} IN, {total_out} OUT, {len(real_nodes)} total"
+            )
             print()
 
             # Per-agent breakdown
@@ -923,6 +958,7 @@ def cmd_update(args) -> None:
     results: dict[str, int | str] = {}
 
     from ..caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     # --- import ---
@@ -935,7 +971,10 @@ def cmd_update(args) -> None:
         for name, path in experts.items():
             beliefs_path = _find_beliefs_file(path)
             if beliefs_path is None:
-                print(f"Warning: no network.json or beliefs.md in {path}, skipping {name}", file=sys.stderr)
+                print(
+                    f"Warning: no network.json or beliefs.md in {path}, skipping {name}",
+                    file=sys.stderr,
+                )
                 continue
 
             try:
@@ -982,13 +1021,17 @@ def cmd_update(args) -> None:
         beliefs_section = _format_beliefs_by_agent(beliefs_by_agent, budget=budget)
         if beliefs_section:
             agent_names = list(config.get("experts", {}).keys())
-            prompt = build_contradictions_prompt(beliefs_section, agent_names=agent_names)
+            prompt = build_contradictions_prompt(
+                beliefs_section, agent_names=agent_names
+            )
 
             from ..llm import invoke_sync
+
             response = invoke_sync(prompt, model, timeout)
             proposals = _parse_nogood_proposals(response)
 
             from reasonsforge.api import add_nogood
+
             applied = 0
             for p in proposals:
                 try:
@@ -1012,6 +1055,7 @@ def cmd_update(args) -> None:
         domain = config.get("domain", "")
 
         from reasonsforge.api import compact
+
         try:
             beliefs_text = compact(budget=2000, db_path=db_path)
         except Exception:
@@ -1023,9 +1067,12 @@ def cmd_update(args) -> None:
         agent_stats = _build_agent_stats(nodes, nogoods)
         agent_names = list(config.get("experts", {}).keys())
 
-        prompt = build_summary_prompt(beliefs_text, domain, agent_stats, agent_names=agent_names)
+        prompt = build_summary_prompt(
+            beliefs_text, domain, agent_stats, agent_names=agent_names
+        )
 
         from ..llm import invoke_sync
+
         response = invoke_sync(prompt, model, timeout)
         print(response)
 

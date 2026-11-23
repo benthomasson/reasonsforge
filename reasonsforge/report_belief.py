@@ -2,7 +2,6 @@
 
 from datetime import date
 
-
 REPORT_BELIEF_PROMPT = """\
 You are generating an evidence report for a single belief in a Truth Maintenance \
 System.  The report should explain why this belief is held (or not held), tracing \
@@ -27,8 +26,9 @@ Write the report now.
 """
 
 
-def _build_structured_report(node_id, node_detail, explain_steps, premises_data,
-                             source_chunks):
+def _build_structured_report(
+    node_id, node_detail, explain_steps, premises_data, source_chunks
+):
     """Generate a structured markdown report without an LLM."""
     lines = []
     lines.append(f"# Belief Report: `{node_id}`")
@@ -116,8 +116,9 @@ def _build_structured_report(node_id, node_detail, explain_steps, premises_data,
     return "\n".join(lines)
 
 
-def _format_data_for_prompt(node_id, node_detail, explain_steps, premises_data,
-                            source_chunks):
+def _format_data_for_prompt(
+    node_id, node_detail, explain_steps, premises_data, source_chunks
+):
     """Format all gathered data into structured text for the LLM prompt."""
     lines = []
     status = node_detail.get("truth_value", "UNKNOWN")
@@ -176,8 +177,15 @@ def generate_report(data_text, model, timeout):
     return invoke_model(prompt, model=model, timeout=timeout)
 
 
-def report_belief(node_id, node_detail, explain_steps, premises_data,
-                  source_chunks, model="", timeout=300):
+def report_belief(
+    node_id,
+    node_detail,
+    explain_steps,
+    premises_data,
+    source_chunks,
+    model="",
+    timeout=300,
+):
     """Generate a belief evidence report.
 
     Returns a markdown string — either structured (default) or
@@ -185,7 +193,10 @@ def report_belief(node_id, node_detail, explain_steps, premises_data,
     """
     if model:
         data_text = _format_data_for_prompt(
-            node_id, node_detail, explain_steps, premises_data,
+            node_id,
+            node_detail,
+            explain_steps,
+            premises_data,
             source_chunks,
         )
         content = generate_report(data_text, model, timeout)
@@ -199,6 +210,9 @@ def report_belief(node_id, node_detail, explain_steps, premises_data,
         return "\n".join(lines)
 
     return _build_structured_report(
-        node_id, node_detail, explain_steps, premises_data,
+        node_id,
+        node_detail,
+        explain_steps,
+        premises_data,
         source_chunks,
     )

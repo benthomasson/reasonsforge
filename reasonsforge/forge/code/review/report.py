@@ -51,7 +51,12 @@ def format_model_review(review: ModelReview) -> str:
 def format_disagreements(disagreements: list[dict]) -> str:
     if not disagreements:
         return ""
-    lines = ["## Disagreements", "", "The following changes have different verdicts across models:", ""]
+    lines = [
+        "## Disagreements",
+        "",
+        "The following changes have different verdicts across models:",
+        "",
+    ]
     for d in disagreements:
         verdict_str = ", ".join(f"{m}: {v}" for m, v in d["verdicts"].items())
         lines.append(f"- **{d['change_id']}** [{d['severity']}]: {verdict_str}")

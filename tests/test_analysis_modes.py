@@ -6,7 +6,10 @@ from reasonsforge.forge.code.prompts.modes import get_mode, VALID_MODES
 from reasonsforge.forge.code.prompts.file import build_file_prompt
 from reasonsforge.forge.code.prompts.function import build_function_prompt
 from reasonsforge.forge.code.prompts.repo import build_repo_prompt
-from reasonsforge.forge.code.prompts.diff import build_diff_prompt, build_diff_summary_prompt
+from reasonsforge.forge.code.prompts.diff import (
+    build_diff_prompt,
+    build_diff_summary_prompt,
+)
 from reasonsforge.forge.code.prompts.propose import build_propose_prompt
 
 
@@ -66,14 +69,16 @@ class TestFilePromptMode:
 
 class TestFunctionPromptMode:
     def test_security_mode(self):
-        prompt = build_function_prompt("test.py", "login", "def login(): pass",
-                                       mode="security")
+        prompt = build_function_prompt(
+            "test.py", "login", "def login(): pass", mode="security"
+        )
         assert "security engineer" in prompt
         assert "Trust boundaries" in prompt
 
     def test_performance_mode(self):
-        prompt = build_function_prompt("test.py", "query", "def query(): pass",
-                                       mode="performance")
+        prompt = build_function_prompt(
+            "test.py", "query", "def query(): pass", mode="performance"
+        )
         assert "performance engineer" in prompt
         assert "Resource leaks" in prompt
 

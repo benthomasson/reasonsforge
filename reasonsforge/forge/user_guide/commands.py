@@ -12,7 +12,12 @@ from .. import REASONS_DB
 def cmd_extract(args):
     """Extract interfaces and display them."""
     from .extractors.base import detect_language, get_extractor
-    from .pipeline import _format_interfaces, _format_config, _format_tests, stage_extract
+    from .pipeline import (
+        _format_interfaces,
+        _format_config,
+        _format_tests,
+        stage_extract,
+    )
 
     repo_path = args.repo
     language = getattr(args, "language", None) or detect_language(repo_path)
@@ -43,6 +48,7 @@ def cmd_status(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
     except Exception:
@@ -51,8 +57,7 @@ def cmd_status(args):
     total = len(nodes)
     in_nodes = sum(1 for n in nodes.values() if n.get("truth_value") == "IN")
     ug_forge = sum(
-        1 for n in nodes.values()
-        if "user-guide-forge" in (n.get("source") or "")
+        1 for n in nodes.values() if "user-guide-forge" in (n.get("source") or "")
     )
 
     print(f"Database: {db_path}")

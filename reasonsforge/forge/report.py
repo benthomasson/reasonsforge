@@ -29,13 +29,21 @@ def _report_filename(pipeline: str) -> str:
 class Report:
     """Track pipeline progress and write to a JSON report file."""
 
-    def __init__(self, pipeline: str, steps: list[str],
-                 path: str | None = None,
-                 project_dir: str | None = None):
+    def __init__(
+        self,
+        pipeline: str,
+        steps: list[str],
+        path: str | None = None,
+        project_dir: str | None = None,
+    ):
         if path:
             self._path = path
         else:
-            reports_dir = os.path.join(project_dir, "reports") if project_dir else ".forge/reports"
+            reports_dir = (
+                os.path.join(project_dir, "reports")
+                if project_dir
+                else ".forge/reports"
+            )
             self._path = os.path.join(reports_dir, _report_filename(pipeline))
         self._current: str | None = None
         job_id = os.environ.get("FORGE_JOB_ID")
@@ -72,9 +80,12 @@ class Report:
         self._current = name
         self._save()
 
-    def complete_step(self, detail: str | None = None,
-                      counts: dict | None = None,
-                      duration_seconds: float | None = None) -> None:
+    def complete_step(
+        self,
+        detail: str | None = None,
+        counts: dict | None = None,
+        duration_seconds: float | None = None,
+    ) -> None:
         """Mark the current step as completed."""
         if self._current is None:
             return

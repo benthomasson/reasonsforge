@@ -132,13 +132,16 @@ def _sanitize_path_for_filename(path: str) -> str:
 def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
     from ..utils import unique_path
+
     today = date.today()
-    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir = (
+        Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    )
     summary_dir.mkdir(parents=True, exist_ok=True)
     entry_path = unique_path(summary_dir / f"{topic}.md")
     parts = []
     if model:
-        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
+        parts.append(f'---\nmodel: "{model}"\ndate: {today.isoformat()}\n---\n\n')
     parts.append(f"# {title}\n\n{content}\n")
     entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
@@ -157,7 +160,8 @@ def _enqueue_topics(response: str, source: str, project_dir: str | None = None) 
 def _parse_beliefs_from_response(response: str) -> list[dict]:
     section_match = re.search(
         r"#+\s*Beliefs?\s*\n(.*?)(?=\n#|\Z)",
-        response, re.DOTALL | re.IGNORECASE,
+        response,
+        re.DOTALL | re.IGNORECASE,
     )
     if not section_match:
         return []
@@ -178,8 +182,13 @@ def _report_beliefs(response: str) -> None:
 
 def _find_project_config(repo_path: str) -> tuple[str | None, str | None]:
     config_files = [
-        "pyproject.toml", "package.json", "Cargo.toml",
-        "go.mod", "pom.xml", "build.gradle", "Makefile",
+        "pyproject.toml",
+        "package.json",
+        "Cargo.toml",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "Makefile",
     ]
     for config in config_files:
         path = os.path.join(repo_path, config)
@@ -189,7 +198,9 @@ def _find_project_config(repo_path: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _find_entry_points(repo_path: str, config_content: str | None, lang=None) -> list[str]:
+def _find_entry_points(
+    repo_path: str, config_content: str | None, lang=None
+) -> list[str]:
     lang = lang or PYTHON
     entry_points = []
     for candidate in lang.entry_point_candidates:
@@ -222,7 +233,7 @@ def _repo_path_to_entry_pattern(repo_path: str, lang=None) -> str:
     lang = lang or PYTHON
     ext = lang.primary_extension
     if repo_path.endswith(ext):
-        repo_path = repo_path[:-len(ext)]
+        repo_path = repo_path[: -len(ext)]
     return repo_path.replace("/", "-").replace("\\", "-")
 
 
@@ -299,6 +310,7 @@ def cmd_init(args):
         print("Created .gitignore")
 
     from ..claude_md import write_claude_md_if_missing
+
     if write_claude_md_if_missing(domain, repo_path=repo_path):
         print("Created CLAUDE.md")
 
@@ -319,6 +331,7 @@ def cmd_scan(args):
     """Scan a repo to identify key files and populate the exploration queue."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     repo_path = _get_repo(args)
@@ -358,14 +371,19 @@ def cmd_scan(args):
 
     all_files = list_source_files(repo_path)
     source_exts = set(lang.source_extensions)
-    source_files = [f for f in all_files if os.path.splitext(f)[1].lower() in source_exts]
+    source_files = [
+        f for f in all_files if os.path.splitext(f)[1].lower() in source_exts
+    ]
     if source_files:
         file_topics = [
             Topic(title=f, kind="file", target=f, source=f"scan:{repo_name}")
             for f in source_files
         ]
         added = add_topics(file_topics, project_dir)
-        print(f"Queued {added} source file(s) for exploration ({len(all_files) - len(source_files)} non-source skipped)", file=sys.stderr)
+        print(
+            f"Queued {added} source file(s) for exploration ({len(all_files) - len(source_files)} non-source skipped)",
+            file=sys.stderr,
+        )
 
     _enqueue_topics(result, source=f"scan:{repo_name}", project_dir=project_dir)
     print(result)
@@ -384,7 +402,11 @@ def _prepare_file_topic(topic, repo_path, lang=None, mode="discover"):
         if re.match(r"^\d+(-\d+)?$", suffix):
             file_path = base
     lang = language_for_file(file_path, fallback=lang or PYTHON)
-    abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
+    abs_path = (
+        os.path.join(repo_path, file_path)
+        if not os.path.isabs(file_path)
+        else file_path
+    )
 
     if os.path.isdir(abs_path):
         topic.kind = "repo"
@@ -458,24 +480,38 @@ def _resolve_rust_module(target, repo_path):
 
 def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
     # Detect Rust module::symbol syntax (no file extension, uses ::)
-    if "::" in topic.target and "/" not in topic.target and not any(
-        topic.target.endswith(ext) for ext in (".rs", ".py", ".java", ".go", ".cpp", ".c", ".h")
+    if (
+        "::" in topic.target
+        and "/" not in topic.target
+        and not any(
+            topic.target.endswith(ext)
+            for ext in (".rs", ".py", ".java", ".go", ".cpp", ".c", ".h")
+        )
     ):
         resolved = _resolve_rust_module(topic.target, repo_path)
         if resolved:
             file_path, symbol_name = resolved
         else:
-            print(f"Cannot resolve module path: {topic.target} (skipping)", file=sys.stderr)
+            print(
+                f"Cannot resolve module path: {topic.target} (skipping)",
+                file=sys.stderr,
+            )
             return None
     elif ":" not in topic.target:
-        print(f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr)
+        print(
+            f"Function topic must be file:symbol, got: {topic.target}", file=sys.stderr
+        )
         return None
     else:
         file_path, symbol_name = topic.target.split(":", 1)
 
     file_part = file_path
     lang = language_for_file(file_part, fallback=lang or PYTHON)
-    abs_path = os.path.join(repo_path, file_path) if not os.path.isabs(file_path) else file_path
+    abs_path = (
+        os.path.join(repo_path, file_path)
+        if not os.path.isabs(file_path)
+        else file_path
+    )
 
     if not os.path.isfile(abs_path):
         print(f"File not found: {file_path} (skipping)", file=sys.stderr)
@@ -512,7 +548,12 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
             mode=mode,
         )
         entry_name = _sanitize_path_for_filename(rel_path) + entry_suffix
-        return prompt, entry_name, f"{label.title()} in {rel_path}", f"function:{rel_path}:{symbol_name}"
+        return (
+            prompt,
+            entry_name,
+            f"{label.title()} in {rel_path}",
+            f"function:{rel_path}:{symbol_name}",
+        )
 
     # Wildcard symbol (e.g. draw_*) — find and extract all matching definitions
     if "*" in symbol_name:
@@ -536,7 +577,10 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
                     matched.append(m.group(m.lastindex))
         matched = list(dict.fromkeys(matched))  # dedupe, preserve order
         if not matched:
-            print(f"No symbols matching '{symbol_name}' in {file_path} (skipping)", file=sys.stderr)
+            print(
+                f"No symbols matching '{symbol_name}' in {file_path} (skipping)",
+                file=sys.stderr,
+            )
             return None
         parts = []
         for sym in matched:
@@ -544,7 +588,10 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
             if src:
                 parts.append(f"// --- {sym} ---\n{src}")
         if not parts:
-            print(f"No symbols matching '{symbol_name}' in {file_path} (skipping)", file=sys.stderr)
+            print(
+                f"No symbols matching '{symbol_name}' in {file_path} (skipping)",
+                file=sys.stderr,
+            )
             return None
         symbol_source = "\n\n".join(parts)
         label = f"{symbol_name} ({len(parts)} matches)"
@@ -559,7 +606,12 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
         )
         safe_name = symbol_name.replace("*", "STAR").replace("?", "Q")
         entry_name = _sanitize_path_for_filename(rel_path) + f"-{safe_name}"
-        return prompt, entry_name, f"Pattern: {symbol_name} in {rel_path}", f"function:{rel_path}:{symbol_name}"
+        return (
+            prompt,
+            entry_name,
+            f"Pattern: {symbol_name} in {rel_path}",
+            f"function:{rel_path}:{symbol_name}",
+        )
 
     symbol_source = extract_symbol(abs_path, symbol_name, lang=lang)
     # For Rust Type::method, try each component if the full name fails
@@ -570,7 +622,10 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
                 symbol_name = part
                 break
     if symbol_source is None:
-        print(f"Symbol '{symbol_name}' not found in {file_path} (skipping)", file=sys.stderr)
+        print(
+            f"Symbol '{symbol_name}' not found in {file_path} (skipping)",
+            file=sys.stderr,
+        )
         return None
 
     full_content = get_file_content(abs_path)
@@ -588,12 +643,19 @@ def _prepare_function_topic(topic, repo_path, lang=None, mode="discover"):
     )
 
     entry_name = _sanitize_path_for_filename(rel_path) + f"-{symbol_name}"
-    return prompt, entry_name, f"Function: {symbol_name} in {rel_path}", f"function:{rel_path}:{symbol_name}"
+    return (
+        prompt,
+        entry_name,
+        f"Function: {symbol_name} in {rel_path}",
+        f"function:{rel_path}:{symbol_name}",
+    )
 
 
 def _prepare_repo_topic(topic, repo_path, lang=None, mode="discover"):
     lang = lang or PYTHON
-    target_path = os.path.join(repo_path, topic.target) if topic.target != "." else repo_path
+    target_path = (
+        os.path.join(repo_path, topic.target) if topic.target != "." else repo_path
+    )
     if not os.path.isdir(target_path):
         target_path = repo_path
 
@@ -668,7 +730,9 @@ async def _run_general_topic_async(topic, model, repo_path, timeout, mode="disco
     lang = detect_language(repo_path)
     tree = get_repo_structure(repo_path, max_depth=2)
     observe_prompt = build_observe_prompt(
-        question=topic.title, tree=tree, default_glob=lang.source_globs[0],
+        question=topic.title,
+        tree=tree,
+        default_glob=lang.source_globs[0],
     )
 
     observe_response = await invoke(observe_prompt, model)
@@ -684,27 +748,43 @@ async def _run_general_topic_async(topic, model, repo_path, timeout, mode="disco
         "",
     ]
     if obs_results:
-        explain_sections.extend([
-            "## Observations", "",
-            "The following information was gathered from the codebase:", "",
-            "```json", json.dumps(obs_results, indent=2, default=str), "```", "",
-        ])
+        explain_sections.extend(
+            [
+                "## Observations",
+                "",
+                "The following information was gathered from the codebase:",
+                "",
+                "```json",
+                json.dumps(obs_results, indent=2, default=str),
+                "```",
+                "",
+            ]
+        )
     if m["explore_extra"]:
         explain_sections.append(m["explore_extra"])
-    explain_sections.extend([
-        "## Instructions", "",
-        f"Explain **{topic.title}** based on the observations above.",
-        "Reference specific files, functions, and line numbers from the observations.",
-        "If the observations are insufficient, say what's missing.", "",
-        "Format your response as markdown.",
-        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
-        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
-    ])
+    explain_sections.extend(
+        [
+            "## Instructions",
+            "",
+            f"Explain **{topic.title}** based on the observations above.",
+            "Reference specific files, functions, and line numbers from the observations.",
+            "If the observations are insufficient, say what's missing.",
+            "",
+            "Format your response as markdown.",
+            TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+            BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
+        ]
+    )
 
     result = await invoke("\n".join(explain_sections), model, timeout=timeout)
 
     safe_label = _sanitize_path_for_filename(topic.target)
-    return result, f"topic-{safe_label}", f"Topic: {topic.title}", f"general:{topic.target}"
+    return (
+        result,
+        f"topic-{safe_label}",
+        f"Topic: {topic.title}",
+        f"general:{topic.target}",
+    )
 
 
 def _parse_commit_diff_target(target: str) -> tuple[str, str] | None:
@@ -718,7 +798,7 @@ def _parse_commit_diff_target(target: str) -> tuple[str, str] | None:
     sha = target[:idx]
     if not all(c in "0123456789abcdef" for c in sha):
         return None
-    return sha, target[idx + 1:]
+    return sha, target[idx + 1 :]
 
 
 async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iterations=2):
@@ -741,7 +821,9 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
 
     for iteration in range(1, max_iterations + 1):
         observe_prompt = build_diff_observe_prompt(
-            diff_content, commit_message, file_path,
+            diff_content,
+            commit_message,
+            file_path,
             existing_observations=all_observations if all_observations else None,
         )
         observe_response = await invoke(observe_prompt, model, timeout=timeout)
@@ -757,15 +839,19 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
     current_content = get_file_content(abs_file)
 
     extract_prompt = build_diff_extract_prompt(
-        diff_content, commit_message, file_path,
+        diff_content,
+        commit_message,
+        file_path,
         observations=all_observations if all_observations else None,
         current_file_content=current_content,
     )
     result = await invoke(extract_prompt, model, timeout=timeout)
 
     if result.strip().startswith("NOT_RELEVANT"):
-        print(f"  Diff {file_path} ({sha[:8]}) no longer relevant, skipping",
-              file=sys.stderr)
+        print(
+            f"  Diff {file_path} ({sha[:8]}) no longer relevant, skipping",
+            file=sys.stderr,
+        )
         return "SKIP"
 
     safe_label = _sanitize_path_for_filename(file_path)
@@ -777,17 +863,39 @@ async def _run_diff_beliefs_async(topic, model, repo_path, timeout, max_iteratio
     return result, entry_name, entry_title, source
 
 
-async def _explore_topics_concurrent(topics, model, repo_path, timeout, max_concurrent, lang=None, mode="discover", project_dir=None):
+async def _explore_topics_concurrent(
+    topics,
+    model,
+    repo_path,
+    timeout,
+    max_concurrent,
+    lang=None,
+    mode="discover",
+    project_dir=None,
+):
     from ..llm import invoke
+
     lang = lang or detect_language(repo_path)
     sem = asyncio.Semaphore(max_concurrent)
 
     async def _do_topic(topic):
         async with sem:
-            print(f"Explaining [{topic.kind}] {topic.target} with {model}...", file=sys.stderr)
+            print(
+                f"Explaining [{topic.kind}] {topic.target} with {model}...",
+                file=sys.stderr,
+            )
             if topic.kind == "general":
-                result, entry_name, entry_title, source = await _run_general_topic_async(
-                    topic, model, repo_path, timeout, mode=mode,
+                (
+                    result,
+                    entry_name,
+                    entry_title,
+                    source,
+                ) = await _run_general_topic_async(
+                    topic,
+                    model,
+                    repo_path,
+                    timeout,
+                    mode=mode,
                 )
                 return topic, result, entry_name, entry_title, source
 
@@ -825,6 +933,7 @@ def cmd_explore(args):
     """Explore topics in the queue."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     project_dir = _get_project_dir(args)
@@ -849,7 +958,9 @@ def cmd_explore(args):
     topic = pop_next(project_dir, kind=kind_filter)
     if topic is None:
         if kind_filter:
-            print(f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics.")
+            print(
+                f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics."
+            )
         else:
             print("No pending topics. Run `reasonsforge code scan` to discover topics.")
         return
@@ -865,13 +976,13 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+        _finalize_topic(
+            entry_name, entry_title, source, result, project_dir, model=model
+        )
     elif topic.kind == "diff" and _parse_commit_diff_target(topic.target):
         print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
         try:
-            out = asyncio.run(
-                _run_diff_beliefs_async(topic, model, abs_repo, timeout)
-            )
+            out = asyncio.run(_run_diff_beliefs_async(topic, model, abs_repo, timeout))
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
@@ -882,7 +993,9 @@ def cmd_explore(args):
             mark_failed(topic, project_dir)
             return
         result, entry_name, entry_title, source = out
-        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+        _finalize_topic(
+            entry_name, entry_title, source, result, project_dir, model=model
+        )
     else:
         prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
         if not prepare_fn:
@@ -901,11 +1014,16 @@ def cmd_explore(args):
         except Exception as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
-        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+        _finalize_topic(
+            entry_name, entry_title, source, result, project_dir, model=model
+        )
 
     remaining = pending_count(project_dir)
     if remaining:
-        print(f"\n{remaining} topic(s) remaining. Run `reasonsforge code explore` to continue.", file=sys.stderr)
+        print(
+            f"\n{remaining} topic(s) remaining. Run `reasonsforge code explore` to continue.",
+            file=sys.stderr,
+        )
     else:
         print("\nNo more topics. Exploration complete.", file=sys.stderr)
 
@@ -934,24 +1052,43 @@ def _explore_loop(args, project_dir, max_topics):
             if not batch:
                 if explored == 0:
                     if kind_filter:
-                        print(f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics.")
+                        print(
+                            f"No pending '{kind_filter}' topics. Run `reasonsforge code scan` to discover topics."
+                        )
                     else:
-                        print("No pending topics. Run `reasonsforge code scan` to discover topics.")
+                        print(
+                            "No pending topics. Run `reasonsforge code scan` to discover topics."
+                        )
                 else:
-                    print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
+                    print(
+                        f"\nNo more topics after {explored} exploration(s).",
+                        file=sys.stderr,
+                    )
                 return
 
             remaining = pending_count(project_dir)
             print(f"\n{'=' * 40}", file=sys.stderr)
-            print(f"[{explored + 1}-{explored + len(batch)}/{max_topics}] "
-                  f"({remaining} remaining in queue)", file=sys.stderr)
+            print(
+                f"[{explored + 1}-{explored + len(batch)}/{max_topics}] "
+                f"({remaining} remaining in queue)",
+                file=sys.stderr,
+            )
             print(f"{'=' * 40}", file=sys.stderr)
             for topic in batch:
                 print(f"  [{topic.kind}] {topic.target}", file=sys.stderr)
 
             if parallel > 1 and len(batch) > 1:
                 results = asyncio.run(
-                    _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, mode=mode, project_dir=project_dir)
+                    _explore_topics_concurrent(
+                        batch,
+                        model,
+                        abs_repo,
+                        timeout,
+                        parallel,
+                        lang=lang,
+                        mode=mode,
+                        project_dir=project_dir,
+                    )
                 )
                 failed = []
                 for i, r in enumerate(results):
@@ -960,27 +1097,48 @@ def _explore_loop(args, project_dir, max_topics):
                         failed.append(batch[i])
                     elif r is not None:
                         _, result, entry_name, entry_title, source = r
-                        _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                        _finalize_topic(
+                            entry_name,
+                            entry_title,
+                            source,
+                            result,
+                            project_dir,
+                            model=model,
+                        )
                 if failed:
                     requeue_topics(failed, project_dir)
-                    print(f"  Requeued {len(failed)} failed topic(s) for retry",
-                          file=sys.stderr)
+                    print(
+                        f"  Requeued {len(failed)} failed topic(s) for retry",
+                        file=sys.stderr,
+                    )
             else:
                 topic = batch[0]
                 if topic.kind == "general":
                     print(f"Exploring '{topic.title}' with {model}...", file=sys.stderr)
                     try:
                         result, entry_name, entry_title, source = asyncio.run(
-                            _run_general_topic_async(topic, model, abs_repo, timeout, mode=mode)
+                            _run_general_topic_async(
+                                topic, model, abs_repo, timeout, mode=mode
+                            )
                         )
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
                         requeue_topics([topic], project_dir)
                         explored += len(batch)
                         continue
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                    _finalize_topic(
+                        entry_name,
+                        entry_title,
+                        source,
+                        result,
+                        project_dir,
+                        model=model,
+                    )
                 elif topic.kind == "diff" and _parse_commit_diff_target(topic.target):
-                    print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
+                    print(
+                        f"Processing diff {topic.target} with {model}...",
+                        file=sys.stderr,
+                    )
                     try:
                         out = asyncio.run(
                             _run_diff_beliefs_async(topic, model, abs_repo, timeout)
@@ -999,7 +1157,14 @@ def _explore_loop(args, project_dir, max_topics):
                         explored += len(batch)
                         continue
                     result, entry_name, entry_title, source = out
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                    _finalize_topic(
+                        entry_name,
+                        entry_title,
+                        source,
+                        result,
+                        project_dir,
+                        model=model,
+                    )
                 else:
                     prepare_fn = _PREPARE_DISPATCH.get(topic.kind)
                     if not prepare_fn:
@@ -1020,15 +1185,24 @@ def _explore_loop(args, project_dir, max_topics):
                         requeue_topics([topic], project_dir)
                         explored += len(batch)
                         continue
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                    _finalize_topic(
+                        entry_name,
+                        entry_title,
+                        source,
+                        result,
+                        project_dir,
+                        model=model,
+                    )
 
             explored += len(batch)
     except KeyboardInterrupt:
-        print(f"\n  Ending explore early — {explored} topic(s) saved",
-              file=sys.stderr)
+        print(f"\n  Ending explore early — {explored} topic(s) saved", file=sys.stderr)
 
     remaining = pending_count(project_dir)
-    print(f"\nExplored {explored} topic(s). {remaining} remaining in queue.", file=sys.stderr)
+    print(
+        f"\nExplored {explored} topic(s). {remaining} remaining in queue.",
+        file=sys.stderr,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1117,7 +1291,9 @@ def cmd_explain_function(args):
 
     symbol_source = extract_symbol(abs_path, symbol_name, lang=lang)
     if symbol_source is None:
-        print(f"Error: Symbol '{symbol_name}' not found in {file_path}", file=sys.stderr)
+        print(
+            f"Error: Symbol '{symbol_name}' not found in {file_path}", file=sys.stderr
+        )
         sys.exit(1)
 
     print(f"Explaining {symbol_name} from {file_path}...", file=sys.stderr)
@@ -1143,8 +1319,12 @@ def cmd_explain_function(args):
 
     project_dir = _get_project_dir(args)
     topic_name = _sanitize_path_for_filename(rel_path) + f"-{symbol_name}"
-    _create_entry(topic_name, f"Function: {symbol_name} in {rel_path}", result, model=model)
-    _enqueue_topics(result, source=f"function:{rel_path}:{symbol_name}", project_dir=project_dir)
+    _create_entry(
+        topic_name, f"Function: {symbol_name} in {rel_path}", result, model=model
+    )
+    _enqueue_topics(
+        result, source=f"function:{rel_path}:{symbol_name}", project_dir=project_dir
+    )
     _report_beliefs(result)
     print(result)
 
@@ -1173,10 +1353,18 @@ def cmd_explain_diff(args):
         if since_last:
             checkpoint = load_diff_checkpoint(project_dir, repo_path=abs_repo)
             if not checkpoint:
-                print("No previous diff checkpoint found. Use --since DATE first.", file=sys.stderr)
+                print(
+                    "No previous diff checkpoint found. Use --since DATE first.",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
-            print(f"Picking up from {checkpoint['timestamp']} ({checkpoint['head'][:8]})", file=sys.stderr)
-            diff_content, commit_log = get_diff_since_commit(checkpoint["head"], cwd=abs_repo)
+            print(
+                f"Picking up from {checkpoint['timestamp']} ({checkpoint['head'][:8]})",
+                file=sys.stderr,
+            )
+            diff_content, commit_log = get_diff_since_commit(
+                checkpoint["head"], cwd=abs_repo
+            )
         elif since:
             diff_content, commit_log = get_diff_since(since, cwd=abs_repo)
         elif branch:
@@ -1206,11 +1394,17 @@ def cmd_explain_diff(args):
         diff_label = f"since {since}"
     else:
         diff_label = branch or "staged"
-    print(f"Explaining {diff_label} changes ({len(changed_files)} files)...", file=sys.stderr)
+    print(
+        f"Explaining {diff_label} changes ({len(changed_files)} files)...",
+        file=sys.stderr,
+    )
 
     max_diff_chars = 100_000
     if len(diff_content) > max_diff_chars:
-        print(f"Diff too large ({len(diff_content):,} chars). Using summary mode.", file=sys.stderr)
+        print(
+            f"Diff too large ({len(diff_content):,} chars). Using summary mode.",
+            file=sys.stderr,
+        )
         prompt = build_diff_summary_prompt(
             commit_log=commit_log,
             changed_files=changed_files or None,
@@ -1246,7 +1440,9 @@ def cmd_explain_diff(args):
 # ---------------------------------------------------------------------------
 
 
-def _retract_beliefs_for_deleted_files(deleted_files: set[str], db_path: str, lang=None) -> None:
+def _retract_beliefs_for_deleted_files(
+    deleted_files: set[str], db_path: str, lang=None
+) -> None:
     from reasonsforge.api import export_network, retract_node
 
     try:
@@ -1273,13 +1469,17 @@ def _retract_beliefs_for_deleted_files(deleted_files: set[str], db_path: str, la
         return
 
     deleted_names = ", ".join(sorted(deleted_files))
-    print(f"  Retracting {len(to_retract)} belief(s) sourced from deleted file(s): {deleted_names}",
-          file=sys.stderr)
+    print(
+        f"  Retracting {len(to_retract)} belief(s) sourced from deleted file(s): {deleted_names}",
+        file=sys.stderr,
+    )
 
     retracted = 0
     for nid in to_retract:
         try:
-            retract_node(nid, reason=f"Source file deleted: {deleted_names}", db_path=db_path)
+            retract_node(
+                nid, reason=f"Source file deleted: {deleted_names}", db_path=db_path
+            )
             retracted += 1
             print(f"    Retracted: {nid}", file=sys.stderr)
         except Exception as e:
@@ -1291,6 +1491,7 @@ def cmd_walk_commits(args):
     """Walk commits since a date/commit and explore each changed file."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     repo_path = _get_repo(args)
@@ -1309,19 +1510,27 @@ def cmd_walk_commits(args):
     if since_last:
         checkpoint = load_diff_checkpoint(project_dir, repo_path=abs_repo)
         if not checkpoint:
-            print("No previous diff checkpoint found — running full analysis instead.",
-                  file=sys.stderr)
+            print(
+                "No previous diff checkpoint found — running full analysis instead.",
+                file=sys.stderr,
+            )
             from .pipeline import cmd_analyze
+
             cmd_analyze(args)
             return
         since_commit = checkpoint["head"]
         print(f"Walking from checkpoint {since_commit[:8]}", file=sys.stderr)
     elif not since and not since_commit:
-        print("Error: provide --since DATE, --since-commit SHA, or --since-last", file=sys.stderr)
+        print(
+            "Error: provide --since DATE, --since-commit SHA, or --since-last",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
-        commits = list_commits_with_files(since=since, since_commit=since_commit, cwd=abs_repo)
+        commits = list_commits_with_files(
+            since=since, since_commit=since_commit, cwd=abs_repo
+        )
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -1343,7 +1552,10 @@ def cmd_walk_commits(args):
             deleted_files.discard(f)
 
     total_files = len(file_to_commit)
-    print(f"Found {len(commits)} commit(s), {total_files} unique file(s) to explore", file=sys.stderr)
+    print(
+        f"Found {len(commits)} commit(s), {total_files} unique file(s) to explore",
+        file=sys.stderr,
+    )
     if deleted_files:
         print(f"  {len(deleted_files)} file(s) deleted", file=sys.stderr)
 
@@ -1354,7 +1566,9 @@ def cmd_walk_commits(args):
         for commit in commits:
             print(f"\n  {commit['sha'][:8]} {commit['subject']}")
             for f in commit["files"]:
-                marker = " " if file_to_commit[f] is commit else " (earlier version, skip)"
+                marker = (
+                    " " if file_to_commit[f] is commit else " (earlier version, skip)"
+                )
                 if f in deleted_files:
                     marker = " [DELETED]"
                 elif not os.path.isfile(os.path.join(abs_repo, f)):
@@ -1385,15 +1599,19 @@ def cmd_walk_commits(args):
     for file_path, commit in file_to_commit.items():
         abs_path = os.path.join(abs_repo, file_path)
         if not os.path.isfile(abs_path):
-            print(f"  File not found (deleted?): {file_path}, skipping", file=sys.stderr)
+            print(
+                f"  File not found (deleted?): {file_path}, skipping", file=sys.stderr
+            )
             skipped += 1
             continue
-        all_topics.append(Topic(
-            title=f"{commit['subject']} — {file_path}",
-            kind="file",
-            target=file_path,
-            source=f"walk-commits:{commit['sha'][:8]}",
-        ))
+        all_topics.append(
+            Topic(
+                title=f"{commit['subject']} — {file_path}",
+                kind="file",
+                target=file_path,
+                source=f"walk-commits:{commit['sha'][:8]}",
+            )
+        )
 
     diff_topics = []
     if process_diffs:
@@ -1404,12 +1622,14 @@ def cmd_walk_commits(args):
                     continue
                 if not os.path.isfile(os.path.join(abs_repo, f)):
                     continue
-                diff_topics.append(Topic(
-                    title=f"{commit['subject']} — {f}",
-                    kind="diff",
-                    target=f"{sha}:{f}",
-                    source=f"walk-commits:{sha[:8]}",
-                ))
+                diff_topics.append(
+                    Topic(
+                        title=f"{commit['subject']} — {f}",
+                        kind="diff",
+                        target=f"{sha}:{f}",
+                        source=f"walk-commits:{sha[:8]}",
+                    )
+                )
 
     total_file = len(all_topics)
     total_diff = len(diff_topics)
@@ -1419,25 +1639,46 @@ def cmd_walk_commits(args):
 
     explored = 0
     while explored < len(combined_topics):
-        batch = combined_topics[explored:explored + parallel]
+        batch = combined_topics[explored : explored + parallel]
         print(f"\n{'=' * 40}", file=sys.stderr)
-        print(f"[{explored + 1}-{explored + len(batch)}/{len(combined_topics)}]", file=sys.stderr)
+        print(
+            f"[{explored + 1}-{explored + len(batch)}/{len(combined_topics)}]",
+            file=sys.stderr,
+        )
         print(f"{'=' * 40}", file=sys.stderr)
 
         if parallel > 1 and len(batch) > 1:
             results = asyncio.run(
-                _explore_topics_concurrent(batch, model, abs_repo, timeout, parallel, lang=lang, project_dir=project_dir)
+                _explore_topics_concurrent(
+                    batch,
+                    model,
+                    abs_repo,
+                    timeout,
+                    parallel,
+                    lang=lang,
+                    project_dir=project_dir,
+                )
             )
             for r in results:
                 if isinstance(r, Exception):
                     print(f"  Error: {r}", file=sys.stderr)
                 elif r is not None:
                     _, result, entry_name, entry_title, source = r
-                    _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                    _finalize_topic(
+                        entry_name,
+                        entry_title,
+                        source,
+                        result,
+                        project_dir,
+                        model=model,
+                    )
         else:
             for topic in batch:
                 if topic.kind == "diff" and _parse_commit_diff_target(topic.target):
-                    print(f"Processing diff {topic.target} with {model}...", file=sys.stderr)
+                    print(
+                        f"Processing diff {topic.target} with {model}...",
+                        file=sys.stderr,
+                    )
                     try:
                         out = asyncio.run(
                             _run_diff_beliefs_async(topic, model, abs_repo, timeout)
@@ -1464,20 +1705,22 @@ def cmd_walk_commits(args):
                     except Exception as e:
                         print(f"Error: {e}", file=sys.stderr)
                         continue
-                _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                _finalize_topic(
+                    entry_name, entry_title, source, result, project_dir, model=model
+                )
 
         explored += len(batch)
 
     save_diff_checkpoint(project_dir, cwd=abs_repo)
-    print(f"\nWalked {len(commits)} commit(s), explored {total_file} file(s), "
-          f"processed {total_diff} diff(s) ({skipped} skipped)",
-          file=sys.stderr)
+    print(
+        f"\nWalked {len(commits)} commit(s), explored {total_file} file(s), "
+        f"processed {total_diff} diff(s) ({skipped} skipped)",
+        file=sys.stderr,
+    )
     print("Diff checkpoint saved.", file=sys.stderr)
 
 
-_BELIEF_LINE_RE = re.compile(
-    r'^-\s+`([a-z][a-z0-9]*(?:[-_][a-z0-9]+)+)`\s+—\s+(.+)$'
-)
+_BELIEF_LINE_RE = re.compile(r"^-\s+`([a-z][a-z0-9]*(?:[-_][a-z0-9]+)+)`\s+—\s+(.+)$")
 
 
 def _parse_beliefs_from_entries(
@@ -1528,6 +1771,7 @@ def cmd_propose_beliefs(args):
     """Extract candidate beliefs from entries."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke, invoke_sync
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -1561,7 +1805,10 @@ def cmd_propose_beliefs(args):
     if since:
         before = len(entries)
         entries = [e for e in entries if (_entry_date(e) or "") >= since]
-        print(f"Filtered to {len(entries)} entries since {since} (from {before} total)", file=sys.stderr)
+        print(
+            f"Filtered to {len(entries)} entries since {since} (from {before} total)",
+            file=sys.stderr,
+        )
         if not entries:
             print("No entries found since that date.")
             return
@@ -1574,7 +1821,9 @@ def cmd_propose_beliefs(args):
         entries = _filter_unprocessed(entries, processed)
         skipped = total - len(entries)
         if skipped:
-            print(f"Skipping {skipped} already-processed entries (use --all to reprocess)")
+            print(
+                f"Skipping {skipped} already-processed entries (use --all to reprocess)"
+            )
         if not entries:
             print("No new entries to process.")
             return
@@ -1583,7 +1832,10 @@ def cmd_propose_beliefs(args):
     existing_beliefs = _load_existing_beliefs(db_path)
     existing_ids = {b["id"] for b in existing_beliefs}
     if existing_ids:
-        print(f"Found {len(existing_ids)} existing beliefs (will skip duplicates)", file=sys.stderr)
+        print(
+            f"Found {len(existing_ids)} existing beliefs (will skip duplicates)",
+            file=sys.stderr,
+        )
 
     belief_vectors = None
     batches = []
@@ -1591,16 +1843,23 @@ def cmd_propose_beliefs(args):
     if not parse_only:
         if existing_beliefs and not no_embeddings and _has_embeddings():
             try:
-                print("Computing belief embeddings for semantic dedup...", file=sys.stderr)
+                print(
+                    "Computing belief embeddings for semantic dedup...", file=sys.stderr
+                )
                 cache_path = Path(project_dir) / "belief-vectors.json"
                 belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
                 print(f"  {len(belief_vectors)} belief vectors ready", file=sys.stderr)
             except Exception as e:
-                print(f"  Embedding init failed ({e}), falling back to keyword dedup", file=sys.stderr)
+                print(
+                    f"  Embedding init failed ({e}), falling back to keyword dedup",
+                    file=sys.stderr,
+                )
                 belief_vectors = None
         elif existing_beliefs:
-            print("(install fastembed for semantic dedup: pip install 'reasonsforge[forge-embeddings]')",
-                  file=sys.stderr)
+            print(
+                "(install fastembed for semantic dedup: pip install 'reasonsforge[forge-embeddings]')",
+                file=sys.stderr,
+            )
 
         print(f"Reading {len(entries)} entries...", file=sys.stderr)
 
@@ -1621,7 +1880,10 @@ def cmd_propose_beliefs(args):
             batches.append("\n\n".join(current_batch))
             batch_paths.append(current_paths)
 
-    print(f"Processing {len(batches)} batches (batch size: {batch_size})...", file=sys.stderr)
+    print(
+        f"Processing {len(batches)} batches (batch size: {batch_size})...",
+        file=sys.stderr,
+    )
 
     output_path = Path(output)
 
@@ -1654,7 +1916,9 @@ def cmd_propose_beliefs(args):
         if not path.exists() or path.stat().st_size == 0:
             with path.open("w") as f:
                 f.write("# Proposed Beliefs\n\n")
-                f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
+                f.write(
+                    "Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n"
+                )
                 f.write("Then run: `reasonsforge code accept-beliefs`\n\n")
 
     if not auto_accept:
@@ -1664,14 +1928,22 @@ def cmd_propose_beliefs(args):
     parsed_beliefs = _parse_beliefs_from_entries(entries, existing_ids)
     parsed_count = 0
     if parsed_beliefs:
-        print(f"Parsed {len(parsed_beliefs)} beliefs from ## Beliefs sections", file=sys.stderr)
+        print(
+            f"Parsed {len(parsed_beliefs)} beliefs from ## Beliefs sections",
+            file=sys.stderr,
+        )
         if auto_accept:
             _accept_proposals(parsed_beliefs, db_path)
-            print(f"  Auto-accepted {len(parsed_beliefs)} parsed belief(s)", file=sys.stderr)
+            print(
+                f"  Auto-accepted {len(parsed_beliefs)} parsed belief(s)",
+                file=sys.stderr,
+            )
         else:
             with output_path.open("a") as f:
                 f.write(f"\n---\n\n")
-                f.write(f"**Generated:** {date.today().isoformat()} (parsed from ## Beliefs sections)\n")
+                f.write(
+                    f"**Generated:** {date.today().isoformat()} (parsed from ## Beliefs sections)\n"
+                )
                 f.write(f"**Source:** {len(entries)} summary files\n\n")
                 for belief_id, claim_text, source in parsed_beliefs:
                     f.write(f"### [ACCEPT] {belief_id}\n")
@@ -1688,12 +1960,18 @@ def cmd_propose_beliefs(args):
         try:
             for i, batch_text in enumerate(batches):
                 existing_context = _build_dedup_context(
-                    existing_beliefs, batch_paths[i], batch_text,
+                    existing_beliefs,
+                    batch_paths[i],
+                    batch_text,
                     belief_vectors=belief_vectors,
                 )
                 from .prompts.propose import build_propose_prompt
+
                 propose_mode = getattr(args, "mode", None) or "discover"
-                prompt = build_propose_prompt(batch_text, mode=propose_mode) + existing_context
+                prompt = (
+                    build_propose_prompt(batch_text, mode=propose_mode)
+                    + existing_context
+                )
 
                 print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
                 try:
@@ -1715,11 +1993,16 @@ def cmd_propose_beliefs(args):
                     matches = accept_pattern.findall(filtered)
                     if matches:
                         _accept_proposals(matches, db_path)
-                        print(f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}", file=sys.stderr)
+                        print(
+                            f"  Auto-accepted {len(matches)} belief(s) from batch {i + 1}",
+                            file=sys.stderr,
+                        )
                 else:
                     with output_path.open("a") as f:
                         f.write(f"\n---\n\n")
-                        f.write(f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n")
+                        f.write(
+                            f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n"
+                        )
                         f.write(f"**Model:** {model}\n\n")
                         f.write(filtered)
                         f.write("\n\n")
@@ -1730,11 +2013,14 @@ def cmd_propose_beliefs(args):
                 # Update processed dict so subsequent _save_processed calls include all prior batches
                 processed = _load_processed(processed_path)
         except KeyboardInterrupt:
-            print(f"\n  Ending extraction early — partial results saved",
-                  file=sys.stderr)
+            print(
+                f"\n  Ending extraction early — partial results saved", file=sys.stderr
+            )
 
     if total_dup_skipped:
-        print(f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr)
+        print(
+            f"  Filtered {total_dup_skipped} already-accepted beliefs", file=sys.stderr
+        )
 
     if not all_proposals and not parsed_count:
         print("No beliefs extracted.")
@@ -1776,6 +2062,7 @@ def _load_processed(path: Path) -> dict[str, str]:
 
 def _save_processed(path: Path, entries: list[Path], existing: dict[str, str]):
     import hashlib
+
     updated = dict(existing)
     for entry_path in entries:
         content = entry_path.read_text()
@@ -1787,6 +2074,7 @@ def _save_processed(path: Path, entries: list[Path], existing: dict[str, str]):
 
 def _filter_unprocessed(entries: list[Path], processed: dict[str, str]) -> list[Path]:
     import hashlib
+
     unprocessed = []
     for entry_path in entries:
         key = str(entry_path)
@@ -1803,6 +2091,7 @@ def _filter_unprocessed(entries: list[Path], processed: dict[str, str]) -> list[
 def _load_existing_beliefs(db_path: str) -> list[dict]:
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
         return [
@@ -1819,6 +2108,7 @@ def _has_embeddings() -> bool:
     try:
         import numpy  # noqa: F401
         from fastembed import TextEmbedding  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -1832,6 +2122,7 @@ def _get_embed_model():
     global _embed_model
     if _embed_model is None:
         from fastembed import TextEmbedding
+
         _embed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
     return _embed_model
 
@@ -1851,7 +2142,8 @@ def _save_belief_vectors(cache_path: Path, vectors: dict[str, list[float]]):
 
 
 def _get_belief_embeddings(
-    beliefs: list[dict], cache_path: Path,
+    beliefs: list[dict],
+    cache_path: Path,
 ) -> dict[str, list[float]]:
     """Get embeddings for all beliefs, using cache for known ones."""
     import hashlib
@@ -1913,8 +2205,9 @@ def _score_by_embedding(
         dot = np.dot(query_vec, belief_vec)
         norm = np.linalg.norm(query_vec) * np.linalg.norm(belief_vec)
         similarity = float(dot / norm) if norm > 0 else 0.0
-        if belief["source"] and any(belief["source"] in p or p in belief["source"]
-                                     for p in batch_entry_paths):
+        if belief["source"] and any(
+            belief["source"] in p or p in belief["source"] for p in batch_entry_paths
+        ):
             similarity += 1.0
         scored.append((similarity, belief))
 
@@ -1935,12 +2228,15 @@ def _build_dedup_context(
 
     if belief_vectors:
         scored = _score_by_embedding(
-            existing_beliefs, belief_vectors, batch_text, batch_entry_paths,
+            existing_beliefs,
+            belief_vectors,
+            batch_text,
+            batch_entry_paths,
         )
     else:
         scored = _score_by_keywords(existing_beliefs, batch_text, batch_entry_paths)
     detailed = scored[:max_detailed]
-    compact = scored[max_detailed:max_detailed + max_compact]
+    compact = scored[max_detailed : max_detailed + max_compact]
 
     parts = [
         "\n\n## Already Accepted Beliefs\n\n"
@@ -1963,14 +2259,15 @@ def _score_by_keywords(
     batch_text: str,
     batch_entry_paths: list[str],
 ) -> list[tuple[float, dict]]:
-    batch_words = set(re.findall(r'[a-z]{3,}', batch_text.lower()))
+    batch_words = set(re.findall(r"[a-z]{3,}", batch_text.lower()))
     scored = []
     for belief in beliefs:
         score = 0.0
-        if belief["source"] and any(belief["source"] in p or p in belief["source"]
-                                     for p in batch_entry_paths):
+        if belief["source"] and any(
+            belief["source"] in p or p in belief["source"] for p in batch_entry_paths
+        ):
             score += 1000
-        belief_words = set(re.findall(r'[a-z]{3,}', belief["text"].lower()))
+        belief_words = set(re.findall(r"[a-z]{3,}", belief["text"].lower()))
         belief_words |= set(belief["id"].replace("-", " ").lower().split())
         overlap = len(batch_words & belief_words)
         score += overlap
@@ -1984,7 +2281,9 @@ def _score_by_keywords(
 # ---------------------------------------------------------------------------
 
 
-def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tuple[int, int, int]:
+def _accept_proposals(
+    matches: list[tuple[str, str, str]], db_path: str
+) -> tuple[int, int, int]:
     from reasonsforge.storage import Storage
 
     print("Batch-loading network...", file=sys.stderr)
@@ -2024,12 +2323,17 @@ def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tupl
         if (i + 1) % 1000 == 0:
             elapsed = time.monotonic() - t_loop
             rate = (i + 1) / elapsed
-            print(f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
-                  f"{elapsed:.0f}s elapsed)", file=sys.stderr)
+            print(
+                f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
+                f"{elapsed:.0f}s elapsed)",
+                file=sys.stderr,
+            )
 
     loop_elapsed = time.monotonic() - t_loop
-    print(f"  Add loop: {loop_elapsed:.1f}s for {added} added, "
-          f"{skipped} skipped", file=sys.stderr)
+    print(
+        f"  Add loop: {loop_elapsed:.1f}s for {added} added, {skipped} skipped",
+        file=sys.stderr,
+    )
 
     print(f"Saving {added} new beliefs...", file=sys.stderr)
     t_save = time.monotonic()
@@ -2054,16 +2358,16 @@ def cmd_accept_beliefs(args):
 
     text = proposals_path.read_text()
     pattern = re.compile(
-        r"### \[?ACCEPT\]? (\S+)\n"
-        r"(.+?)\n"
-        r"- Source: (.+?)(?:\n|$)",
+        r"### \[?ACCEPT\]? (\S+)\n" r"(.+?)\n" r"- Source: (.+?)(?:\n|$)",
         re.DOTALL,
     )
     matches = pattern.findall(text)
 
     if not matches:
         print("No [ACCEPT] entries found in proposals file.")
-        print("Edit the file and change [ACCEPT/REJECT] to [ACCEPT] for beliefs to keep.")
+        print(
+            "Edit the file and change [ACCEPT/REJECT] to [ACCEPT] for beliefs to keep."
+        )
         return
 
     print(f"Found {len(matches)} accepted beliefs")
@@ -2148,6 +2452,7 @@ def cmd_review_proposals(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         existing_nodes = network.get("nodes", {})
     except Exception:
@@ -2172,23 +2477,29 @@ def cmd_review_proposals(args):
         if "[REJECT]" in header and "[ACCEPT" not in header:
             already_rejected += 1
             continue
-        to_review.append({
-            "match": match,
-            "header": header,
-            "id": match.group(2),
-            "text": match.group(3).strip(),
-            "source": match.group(4).strip().removeprefix("- Source: "),
-        })
+        to_review.append(
+            {
+                "match": match,
+                "header": header,
+                "id": match.group(2),
+                "text": match.group(3).strip(),
+                "source": match.group(4).strip().removeprefix("- Source: "),
+            }
+        )
 
     if not to_review:
         print("No proposals to review (all already rejected).", file=sys.stderr)
         return
 
-    print(f"Reviewing {len(to_review)} proposals ({already_rejected} already rejected)...",
-          file=sys.stderr)
+    print(
+        f"Reviewing {len(to_review)} proposals ({already_rejected} already rejected)...",
+        file=sys.stderr,
+    )
 
     existing_beliefs = _build_existing_beliefs_section(existing_nodes)
-    review_batches = [to_review[i:i + batch_size] for i in range(0, len(to_review), batch_size)]
+    review_batches = [
+        to_review[i : i + batch_size] for i in range(0, len(to_review), batch_size)
+    ]
 
     kept = 0
     rejected = 0
@@ -2214,7 +2525,9 @@ def cmd_review_proposals(args):
                 new_header = f"### [REJECT] {belief_id}"
                 new_block = old_block.replace(f"{header} {belief_id}", new_header, 1)
                 source_line = proposal["match"].group(4).strip()
-                new_block = new_block.replace(source_line, f"{source_line}\n- Rejected: {reason}", 1)
+                new_block = new_block.replace(
+                    source_line, f"{source_line}\n- Rejected: {reason}", 1
+                )
                 replacements.append((old_block, new_block))
                 print(f"  REJECT {belief_id}: {reason}", file=sys.stderr)
             else:
@@ -2223,6 +2536,7 @@ def cmd_review_proposals(args):
 
     if parallel > 1 and len(review_batches) > 1:
         from ..llm import invoke
+
         done_count = 0
         all_replacements = []
 
@@ -2245,8 +2559,11 @@ def cmd_review_proposals(args):
                         replacements = _process_batch_result(batch, result_text, idx)
                         all_replacements.extend(replacements)
                         done_count += 1
-                        print(f"  Batch {idx + 1}/{len(review_batches)} done "
-                              f"({done_count} completed)", file=sys.stderr)
+                        print(
+                            f"  Batch {idx + 1}/{len(review_batches)} done "
+                            f"({done_count} completed)",
+                            file=sys.stderr,
+                        )
                 except Exception as e:
                     async with lock:
                         done_count += 1
@@ -2286,7 +2603,10 @@ def cmd_review_proposals(args):
                 text = text.replace(old_block, new_block, 1)
             proposals_path.write_text(text)
 
-    print(f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected", file=sys.stderr)
+    print(
+        f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected",
+        file=sys.stderr,
+    )
     if categories:
         print("Rejections by category:", file=sys.stderr)
         for cat, count in sorted(categories.items(), key=lambda x: -x[1]):
@@ -2407,7 +2727,9 @@ async def _auto_gather_verify_observations(
         auto_names.append(f"find_usages:{sym}")
 
     if not symbols and terms:
-        auto_tasks.append(grep(terms[0], repo_path, glob=lang.source_globs, max_results=10))
+        auto_tasks.append(
+            grep(terms[0], repo_path, glob=lang.source_globs, max_results=10)
+        )
         auto_names.append(f"grep:{terms[0]}")
 
     results = await asyncio.gather(*auto_tasks, return_exceptions=True)
@@ -2444,7 +2766,11 @@ async def _verify_belief_with_observations(
     bid = belief["id"]
 
     src_file, auto_obs = await _auto_gather_verify_observations(
-        belief, node, repo_path, project_dir, lang=lang,
+        belief,
+        node,
+        repo_path,
+        project_dir,
+        lang=lang,
     )
 
     tree = get_repo_structure(repo_path, max_depth=3)
@@ -2464,11 +2790,17 @@ async def _verify_belief_with_observations(
                     abs_candidate = os.path.join(repo_path, candidate)
                     if os.path.isfile(abs_candidate):
                         src_file = candidate
-                        file_result = await read_file(src_file, repo_path, max_lines=500)
+                        file_result = await read_file(
+                            src_file, repo_path, max_lines=500
+                        )
                         auto_obs[f"source_file:{src_file}"] = file_result
-                        print(f"  Inferred source file for {bid}: {src_file}", file=sys.stderr)
+                        print(
+                            f"  Inferred source file for {bid}: {src_file}",
+                            file=sys.stderr,
+                        )
                         try:
                             from reasonsforge.api import set_metadata
+
                             set_metadata(bid, "source_file", src_file, db_path=db_path)
                         except Exception:
                             pass
@@ -2511,7 +2843,9 @@ async def _verify_belief_with_observations(
                 f"## Observations\n\n```json\n{json.dumps(display_obs, indent=2, default=str)}\n```"
             )
 
-    return bid, "\n\n".join(context_parts) if context_parts else "(no code context found)"
+    return bid, (
+        "\n\n".join(context_parts) if context_parts else "(no code context found)"
+    )
 
 
 async def _gather_verify_contexts(
@@ -2526,7 +2860,12 @@ async def _gather_verify_contexts(
     """Gather observation-based code context for verifying beliefs."""
     tasks = [
         _verify_belief_with_observations(
-            b, nodes.get(b["id"], {}), repo_path, project_dir, model, timeout,
+            b,
+            nodes.get(b["id"], {}),
+            repo_path,
+            project_dir,
+            model,
+            timeout,
             db_path=db_path,
         )
         for b in beliefs
@@ -2535,7 +2874,10 @@ async def _gather_verify_contexts(
     contexts: dict[str, str] = {}
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            print(f"  Error gathering context for {beliefs[i]['id']}: {result}", file=sys.stderr)
+            print(
+                f"  Error gathering context for {beliefs[i]['id']}: {result}",
+                file=sys.stderr,
+            )
             contexts[beliefs[i]["id"]] = "(error gathering context)"
         else:
             contexts[result[0]] = result[1]
@@ -2546,6 +2888,7 @@ def cmd_verify(args):
     """Check whether beliefs still hold against current source code."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke_sync
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -2567,6 +2910,7 @@ def cmd_verify(args):
 
     try:
         from reasonsforge.api import export_network, retract_node, set_metadata
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
     except Exception as e:
@@ -2594,7 +2938,9 @@ def cmd_verify(args):
                 continue
             if keyword in nid.lower() or keyword in node.get("text", "").lower():
                 beliefs.append({"id": nid, "text": node.get("text", "")})
-        print(f"Found {len(beliefs)} IN belief(s) matching '{category}'", file=sys.stderr)
+        print(
+            f"Found {len(beliefs)} IN belief(s) matching '{category}'", file=sys.stderr
+        )
     elif verify_all:
         for nid, node in nodes.items():
             if node.get("truth_value") == "IN":
@@ -2615,10 +2961,13 @@ def cmd_verify(args):
         return
 
     all_results: dict[str, dict] = {}
-    batches = [beliefs[i:i + batch_size] for i in range(0, len(beliefs), batch_size)]
+    batches = [beliefs[i : i + batch_size] for i in range(0, len(beliefs), batch_size)]
 
     for i, batch in enumerate(batches):
-        print(f"\nVerifying batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...", file=sys.stderr)
+        print(
+            f"\nVerifying batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...",
+            file=sys.stderr,
+        )
 
         if no_observe:
             contexts = asyncio.run(
@@ -2627,7 +2976,12 @@ def cmd_verify(args):
         else:
             contexts = asyncio.run(
                 _gather_verify_contexts(
-                    batch, nodes, abs_repo, project_dir, model, timeout,
+                    batch,
+                    nodes,
+                    abs_repo,
+                    project_dir,
+                    model,
+                    timeout,
                     db_path=db_path,
                 )
             )
@@ -2674,8 +3028,11 @@ def cmd_verify(args):
             inconclusive.append(bid)
             print(f"  {bid}: INCONCLUSIVE — {reason}", file=sys.stderr)
 
-    print(f"\nResults: {len(confirmed)} confirmed, {len(stale)} stale, "
-          f"{len(inconclusive)} inconclusive", file=sys.stderr)
+    print(
+        f"\nResults: {len(confirmed)} confirmed, {len(stale)} stale, "
+        f"{len(inconclusive)} inconclusive",
+        file=sys.stderr,
+    )
 
     # List referenced source files (walk justification chain)
     referenced_files: set[str] = set()
@@ -2735,6 +3092,7 @@ def cmd_verify_fix(args):
     """Verify that a fix addresses a blocker belief, then retract it."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -2755,6 +3113,7 @@ def cmd_verify_fix(args):
 
     try:
         from reasonsforge.api import export_network, retract_node, set_metadata
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
     except Exception as e:
@@ -2792,8 +3151,10 @@ def cmd_verify_fix(args):
 
     if dry_run:
         print(f"\nWould verify fix for: {belief_id}", file=sys.stderr)
-        print(f"Fix source: {'PR ' + pr_ref if pr_ref else 'commit ' + commit_ref}",
-              file=sys.stderr)
+        print(
+            f"Fix source: {'PR ' + pr_ref if pr_ref else 'commit ' + commit_ref}",
+            file=sys.stderr,
+        )
         print(f"Diff lines: {len(fix_diff.splitlines())}", file=sys.stderr)
         return
 
@@ -2826,7 +3187,11 @@ def cmd_verify_fix(args):
                 f"{json.dumps(obs_results, indent=2, default=str)}\n```"
             )
 
-        code_context = "\n\n".join(code_context_parts) if code_context_parts else "(no additional context)"
+        code_context = (
+            "\n\n".join(code_context_parts)
+            if code_context_parts
+            else "(no additional context)"
+        )
 
         verify_prompt = build_verify_fix_prompt(
             belief_id=belief_id,
@@ -2897,7 +3262,10 @@ def cmd_verify_fix(args):
                 issue["state"] = "fixed"
                 issue["fixed_at"] = now
                 _save_issues_registry(issues, project_dir)
-                print(f"  Updated issue registry: {issue.get('url', belief_id)}", file=sys.stderr)
+                print(
+                    f"  Updated issue registry: {issue.get('url', belief_id)}",
+                    file=sys.stderr,
+                )
                 break
 
     elif verdict == "PARTIAL":
@@ -2925,19 +3293,33 @@ def _get_pr_diff(pr_ref: str, repo_path: str) -> tuple[str, str]:
     try:
         result = subprocess.run(
             ["gh", "pr", "diff", pr_ref],
-            capture_output=True, text=True, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            cwd=repo_path,
         )
         diff = result.stdout if result.returncode == 0 else ""
     except FileNotFoundError:
-        print("  'gh' CLI not found — install GitHub CLI for PR support", file=sys.stderr)
+        print(
+            "  'gh' CLI not found — install GitHub CLI for PR support", file=sys.stderr
+        )
         diff = ""
 
     description = ""
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", pr_ref, "--json", "title,body",
-             "--template", "{{.title}}\n\n{{.body}}"],
-            capture_output=True, text=True, cwd=repo_path,
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_ref,
+                "--json",
+                "title,body",
+                "--template",
+                "{{.title}}\n\n{{.body}}",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=repo_path,
         )
         if result.returncode == 0:
             description = result.stdout.strip()
@@ -3021,6 +3403,7 @@ def cmd_research(args):
     """
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke, invoke_concurrent_sync
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -3064,6 +3447,7 @@ def cmd_research(args):
     # Step 2: Load belief network for claim text
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
     except Exception:
@@ -3077,28 +3461,37 @@ def cmd_research(args):
     # Step 4: Infer source files via LLM
     print(f"\nInferring source files with {model}...", file=sys.stderr)
     repo_tree = get_repo_structure(abs_repo, max_depth=3)
-    explored_list = "\n".join(f"- {f}" for f in sorted(explored)) if explored else "(none)"
+    explored_list = (
+        "\n".join(f"- {f}" for f in sorted(explored)) if explored else "(none)"
+    )
 
     prompts = []
     for c in candidates:
         node = nodes.get(c["id"], {})
         belief_text = node.get("text", c["id"])
-        prompts.append(RESEARCH_INFER_FILES_PROMPT.format(
-            belief_id=c["id"],
-            belief_text=belief_text,
-            comment=c.get("comment") or "",
-            repo_tree=repo_tree,
-            explored_files=explored_list,
-        ))
+        prompts.append(
+            RESEARCH_INFER_FILES_PROMPT.format(
+                belief_id=c["id"],
+                belief_text=belief_text,
+                comment=c.get("comment") or "",
+                repo_tree=repo_tree,
+                explored_files=explored_list,
+            )
+        )
 
-    results = invoke_concurrent_sync(prompts, model=model, timeout=timeout, max_concurrent=parallel)
+    results = invoke_concurrent_sync(
+        prompts, model=model, timeout=timeout, max_concurrent=parallel
+    )
 
     # Step 5: Collect and deduplicate inferred files
     all_files: dict[str, list[str]] = {}
     for i, result in enumerate(results):
         candidate = candidates[i]
         if isinstance(result, Exception):
-            print(f"  Error inferring files for {candidate['id']}: {result}", file=sys.stderr)
+            print(
+                f"  Error inferring files for {candidate['id']}: {result}",
+                file=sys.stderr,
+            )
             continue
         files = _parse_inferred_files(result)
         print(f"  {candidate['id']}: {files}", file=sys.stderr)
@@ -3142,14 +3535,24 @@ def cmd_research(args):
     print(f"\nExploring {len(topics)} file(s)...", file=sys.stderr)
     if parallel > 1 and len(topics) > 1:
         batch_results = asyncio.run(
-            _explore_topics_concurrent(topics, model, abs_repo, timeout, parallel, lang=lang, project_dir=project_dir)
+            _explore_topics_concurrent(
+                topics,
+                model,
+                abs_repo,
+                timeout,
+                parallel,
+                lang=lang,
+                project_dir=project_dir,
+            )
         )
         for r in batch_results:
             if isinstance(r, Exception):
                 print(f"  Error: {r}", file=sys.stderr)
             elif r is not None:
                 _, result, entry_name, entry_title, source = r
-                _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+                _finalize_topic(
+                    entry_name, entry_title, source, result, project_dir, model=model
+                )
     else:
         for topic in topics:
             prepared = _prepare_file_topic(topic, abs_repo, lang=lang)
@@ -3163,7 +3566,9 @@ def cmd_research(args):
             except Exception as e:
                 print(f"  Error exploring {topic.target}: {e}", file=sys.stderr)
                 continue
-            _finalize_topic(entry_name, entry_title, source, result, project_dir, model=model)
+            _finalize_topic(
+                entry_name, entry_title, source, result, project_dir, model=model
+            )
 
     # Step 7: Propose and accept beliefs from new entries
     print(f"\n{'=' * 40}", file=sys.stderr)
@@ -3184,8 +3589,10 @@ def cmd_research(args):
     except Exception as e:
         print(f"WARN: propose-beliefs failed: {e}", file=sys.stderr)
 
-    print("\nResearch complete. Run `reasonsforge code derive` to attempt rejustification.",
-          file=sys.stderr)
+    print(
+        "\nResearch complete. Run `reasonsforge code derive` to attempt rejustification.",
+        file=sys.stderr,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3197,8 +3604,14 @@ def cmd_derive(args):
     """Derive deeper reasoning chains from existing beliefs."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke_sync
-    from reasonsforge.derive import apply_proposals, build_prompt, parse_proposals, validate_proposals
+    from reasonsforge.derive import (
+        apply_proposals,
+        build_prompt,
+        parse_proposals,
+        validate_proposals,
+    )
     from reasonsforge.api import export_network
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -3222,7 +3635,9 @@ def cmd_derive(args):
     try:
         for round_num in range(1, max_rounds + 1):
             if exhaust:
-                print(f"\n--- Derive round {round_num}/{max_rounds} ---", file=sys.stderr)
+                print(
+                    f"\n--- Derive round {round_num}/{max_rounds} ---", file=sys.stderr
+                )
 
             try:
                 network = export_network(db_path=db_path)
@@ -3233,15 +3648,25 @@ def cmd_derive(args):
 
             source_path = getattr(args, "source_path", None)
             mode = getattr(args, "mode", None) or "discover"
-            prompt, _stats = build_prompt(nodes, domain=domain, budget=budget, sample=True,
-                                          source_path=source_path, mode=mode)
+            prompt, _stats = build_prompt(
+                nodes,
+                domain=domain,
+                budget=budget,
+                sample=True,
+                source_path=source_path,
+                mode=mode,
+            )
 
             if search_rounds > 0:
                 from reasonsforge.derive_tools import derive_with_tools
+
                 try:
                     proposals = derive_with_tools(
-                        prompt, model=model, db_path=db_path,
-                        max_rounds=search_rounds, timeout=timeout,
+                        prompt,
+                        model=model,
+                        db_path=db_path,
+                        max_rounds=search_rounds,
+                        timeout=timeout,
                     )
                 except Exception as e:
                     print(f"Error: {e}", file=sys.stderr)
@@ -3256,16 +3681,20 @@ def cmd_derive(args):
             if not proposals:
                 print("No proposals generated.", file=sys.stderr)
                 if exhaust:
-                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                          file=sys.stderr)
+                    print(
+                        f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                        file=sys.stderr,
+                    )
                 break
 
             valid, skipped = validate_proposals(proposals, nodes)
             if not valid:
                 print("No valid proposals after validation.", file=sys.stderr)
                 if exhaust:
-                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                          file=sys.stderr)
+                    print(
+                        f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                        file=sys.stderr,
+                    )
                 break
 
             print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
@@ -3276,8 +3705,10 @@ def cmd_derive(args):
                 print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
                 total_added += added
                 if added == 0 and exhaust:
-                    print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                          file=sys.stderr)
+                    print(
+                        f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                        file=sys.stderr,
+                    )
                     break
             else:
                 for v in valid:
@@ -3287,8 +3718,7 @@ def cmd_derive(args):
             if not exhaust:
                 break
     except KeyboardInterrupt:
-        print(f"\n  Ending derive early — {total_added} beliefs saved",
-              file=sys.stderr)
+        print(f"\n  Ending derive early — {total_added} beliefs saved", file=sys.stderr)
 
     if exhaust and total_added > 0:
         print(f"\nDerived {total_added} belief(s) total.", file=sys.stderr)
@@ -3358,7 +3788,9 @@ def _topics_list(args, project_dir):
                 print(f"     (from {topic.source})")
             print()
 
-    summary = ", ".join(f"{count} {status}" for status, count in sorted(by_status.items()))
+    summary = ", ".join(
+        f"{count} {status}" for status, count in sorted(by_status.items())
+    )
     print(f"\nTotal: {len(queue)} — {summary}")
 
 
@@ -3406,10 +3838,14 @@ def _topics_remove(args, project_dir):
         print(f"Removed [{removed.kind}] {removed.target}")
     elif status_filter or kind_filter:
         before = len(queue)
-        queue = [t for t in queue if not (
-            (not status_filter or t.status == status_filter) and
-            (not kind_filter or t.kind == kind_filter)
-        )]
+        queue = [
+            t
+            for t in queue
+            if not (
+                (not status_filter or t.status == status_filter)
+                and (not kind_filter or t.kind == kind_filter)
+            )
+        ]
         removed = before - len(queue)
         if removed:
             save_queue(queue, project_dir)
@@ -3418,7 +3854,9 @@ def _topics_remove(args, project_dir):
         else:
             print("No matching topics to remove.")
     else:
-        print("Specify --target, --index, or --status/--kind to filter.", file=sys.stderr)
+        print(
+            "Specify --target, --index, or --status/--kind to filter.", file=sys.stderr
+        )
         sys.exit(1)
 
 
@@ -3515,14 +3953,19 @@ def _topics_prune(args, project_dir):
 
     config = _load_config()
     if not config:
-        print("Not initialized. Run: reasonsforge code init --repo <path>", file=sys.stderr)
+        print(
+            "Not initialized. Run: reasonsforge code init --repo <path>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     domain = config.get("domain", "unknown")
     description = config.get("description", "")
     if not description:
-        print("No domain description set. Use: reasonsforge code init --description '...'",
-              file=sys.stderr)
+        print(
+            "No domain description set. Use: reasonsforge code init --description '...'",
+            file=sys.stderr,
+        )
         print("A description is needed to evaluate topic relevance.", file=sys.stderr)
         sys.exit(1)
 
@@ -3539,10 +3982,12 @@ def _topics_prune(args, project_dir):
         print("No pending topics to prune.")
         return
 
-    print(f"Evaluating {len(pending)} pending topic(s) against domain '{domain}'...",
-          file=sys.stderr)
+    print(
+        f"Evaluating {len(pending)} pending topic(s) against domain '{domain}'...",
+        file=sys.stderr,
+    )
 
-    batches = [pending[i:i + batch_size] for i in range(0, len(pending), batch_size)]
+    batches = [pending[i : i + batch_size] for i in range(0, len(pending), batch_size)]
     total_pruned = 0
     total_kept = 0
 
@@ -3557,8 +4002,10 @@ def _topics_prune(args, project_dir):
             topics_section=topics_section,
         )
 
-        print(f"  Batch {batch_num + 1}/{len(batches)} ({len(batch)} topics)...",
-              file=sys.stderr)
+        print(
+            f"  Batch {batch_num + 1}/{len(batches)} ({len(batch)} topics)...",
+            file=sys.stderr,
+        )
         try:
             result = invoke_sync(prompt, model=model, timeout=timeout)
         except Exception as e:
@@ -3609,13 +4056,16 @@ def cmd_status(args):
     print()
 
     summaries_dir = Path("summaries")
-    summary_count = len(list(summaries_dir.rglob("*.md"))) if summaries_dir.exists() else 0
+    summary_count = (
+        len(list(summaries_dir.rglob("*.md"))) if summaries_dir.exists() else 0
+    )
     print(f"Summaries: {summary_count}")
 
     db_path = _get_db_path(args)
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network, get_status
+
             status = get_status(db_path=db_path)
             print(f"Beliefs:  {status['in_count']} IN, {status['out_count']} OUT")
             network = export_network(db_path=db_path)
@@ -3635,9 +4085,13 @@ def cmd_status(args):
     print(f"Topics:   {pending} pending, {done_count} done, {skipped} skipped")
 
     repo_path = _get_repo(args)
-    unexplored = commits_since_checkpoint(project_dir, cwd=repo_path, repo_path=os.path.abspath(repo_path))
+    unexplored = commits_since_checkpoint(
+        project_dir, cwd=repo_path, repo_path=os.path.abspath(repo_path)
+    )
     if unexplored is not None:
-        checkpoint = load_diff_checkpoint(project_dir, repo_path=os.path.abspath(repo_path))
+        checkpoint = load_diff_checkpoint(
+            project_dir, repo_path=os.path.abspath(repo_path)
+        )
         ts = checkpoint["timestamp"] if checkpoint else "?"
         if unexplored == 0:
             print(f"Diff:     up to date (last: {ts})")
@@ -3649,12 +4103,18 @@ def cmd_status(args):
     proposals_path = Path("proposed-beliefs.md")
     if proposals_path.exists():
         text = proposals_path.read_text()
-        total = len(re.findall(r"^### \[(?:ACCEPT(?:ED)?|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE))
+        total = len(
+            re.findall(
+                r"^### \[(?:ACCEPT(?:ED)?|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE
+            )
+        )
         accepted = len(re.findall(r"^### \[ACCEPT(?:ED)?\]", text, re.MULTILINE))
         imported = len(re.findall(r"^### \[ACCEPTED\]", text, re.MULTILINE))
         if total:
             if imported:
-                print(f"Proposed: {total} candidates ({accepted} accepted, {imported} imported)")
+                print(
+                    f"Proposed: {total} candidates ({accepted} accepted, {imported} imported)"
+                )
             else:
                 print(f"Proposed: {total} candidates ({accepted} accepted)")
 
@@ -3684,16 +4144,24 @@ def _save_issues_registry(issues: list[dict], project_dir: str | None = None):
         json.dump(issues, f, indent=2)
 
 
-def _record_issue(issues: list[dict], belief_id: str, url: str,
-                  issue_type: str, title: str, description: str,
-                  gated: list[dict] | None = None,
-                  project_dir: str | None = None):
+def _record_issue(
+    issues: list[dict],
+    belief_id: str,
+    url: str,
+    issue_type: str,
+    title: str,
+    description: str,
+    gated: list[dict] | None = None,
+    project_dir: str | None = None,
+):
     """Record a filed issue in the registry and save."""
     for existing in issues:
         if existing["belief_id"] == belief_id:
             existing["url"] = url
             existing["state"] = "open"
-            existing["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            existing["updated_at"] = datetime.now(timezone.utc).isoformat(
+                timespec="seconds"
+            )
             _save_issues_registry(issues, project_dir)
             return
     entry = {
@@ -3715,7 +4183,9 @@ def _detect_platform(repo_path: str):
     """Detect GitHub/GitLab from git remote. Returns (platform, owner/repo)."""
     result = subprocess.run(
         ["git", "config", "--get", "remote.origin.url"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True,
+        text=True,
+        cwd=repo_path,
     )
     if result.returncode != 0:
         return None, None
@@ -3731,17 +4201,28 @@ def _detect_platform(repo_path: str):
     return None, None
 
 
-def _find_existing_issues(platform: str, repo_slug: str,
-                          blocker_ids: list[str],
-                          blocker_texts: dict[str, str]) -> set[str]:
+def _find_existing_issues(
+    platform: str, repo_slug: str, blocker_ids: list[str], blocker_texts: dict[str, str]
+) -> set[str]:
     """Search for existing issues matching blockers. Returns matched blocker IDs."""
     found = set()
     if platform == "github":
         result = subprocess.run(
-            ["gh", "issue", "list", "--repo", repo_slug,
-             "--state", "all", "--json", "title,number,state",
-             "--limit", "200"],
-            capture_output=True, text=True,
+            [
+                "gh",
+                "issue",
+                "list",
+                "--repo",
+                repo_slug,
+                "--state",
+                "all",
+                "--json",
+                "title,number,state",
+                "--limit",
+                "200",
+            ],
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return found
@@ -3757,10 +4238,21 @@ def _find_existing_issues(platform: str, repo_slug: str,
         for bid in blocker_ids:
             search = bid.replace("-", " ")
             result = subprocess.run(
-                ["glab", "issue", "list", "--repo", repo_slug,
-                 "--search", search, "--in", "title",
-                 "--output", "json"],
-                capture_output=True, text=True,
+                [
+                    "glab",
+                    "issue",
+                    "list",
+                    "--repo",
+                    repo_slug,
+                    "--search",
+                    search,
+                    "--in",
+                    "title",
+                    "--output",
+                    "json",
+                ],
+                capture_output=True,
+                text=True,
             )
             if result.returncode == 0 and result.stdout.strip():
                 issues = json.loads(result.stdout)
@@ -3773,7 +4265,21 @@ def _titles_match(bid_words: str, title: str) -> bool:
     """Check if a belief ID's words substantially overlap with an issue title."""
     bid_tokens = set(bid_words.replace("-", " ").split())
     title_tokens = set(title.replace("-", " ").split())
-    bid_tokens -= {"is", "a", "an", "the", "and", "or", "not", "no", "in", "on", "to", "for", "of"}
+    bid_tokens -= {
+        "is",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "not",
+        "no",
+        "in",
+        "on",
+        "to",
+        "for",
+        "of",
+    }
     if not bid_tokens:
         return False
     overlap = bid_tokens & title_tokens
@@ -3794,18 +4300,20 @@ def _build_issue_body(blocker_node: dict, gated_nodes: list[dict]) -> str:
     ]
     for gated in gated_nodes:
         lines.append(f"- **{gated['id']}**: {gated['text'][:120]}")
-    lines.extend([
-        "",
-        "## Resolution",
-        "",
-        "When this issue is resolved, retract the blocker belief to restore gated conclusions:",
-        "```bash",
-        f"reasonsforge retract {blocker_node['id']}",
-        "```",
-        "",
-        "---",
-        "*Filed automatically from belief network by `reasonsforge code file-issues`*",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Resolution",
+            "",
+            "When this issue is resolved, retract the blocker belief to restore gated conclusions:",
+            "```bash",
+            f"reasonsforge retract {blocker_node['id']}",
+            "```",
+            "",
+            "---",
+            "*Filed automatically from belief network by `reasonsforge code file-issues`*",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -3833,8 +4341,19 @@ def _ensure_labels(platform: str, repo_slug: str, labels: set[str]):
     """Create any labels that do not already exist on the repo."""
     if platform == "github":
         result = subprocess.run(
-            ["gh", "label", "list", "--repo", repo_slug, "--json", "name", "--limit", "200"],
-            capture_output=True, text=True,
+            [
+                "gh",
+                "label",
+                "list",
+                "--repo",
+                repo_slug,
+                "--json",
+                "name",
+                "--limit",
+                "200",
+            ],
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0 and result.stdout.strip():
             existing = {l["name"] for l in json.loads(result.stdout)}
@@ -3842,20 +4361,40 @@ def _ensure_labels(platform: str, repo_slug: str, labels: set[str]):
             existing = set()
         for label in labels - existing:
             subprocess.run(
-                ["gh", "label", "create", label, "--repo", repo_slug,
-                 "--description", "Auto-created by reasonsforge file-issues",
-                 "--color", "d93f0b"],
-                capture_output=True, text=True,
+                [
+                    "gh",
+                    "label",
+                    "create",
+                    label,
+                    "--repo",
+                    repo_slug,
+                    "--description",
+                    "Auto-created by reasonsforge file-issues",
+                    "--color",
+                    "d93f0b",
+                ],
+                capture_output=True,
+                text=True,
             )
             print(f"  Created label: {label}", file=sys.stderr)
 
 
-def _create_issue(platform: str, repo_slug: str, title: str, body: str,
-                  labels: list[str]):
+def _create_issue(
+    platform: str, repo_slug: str, title: str, body: str, labels: list[str]
+):
     """Create an issue and return its URL, or None on failure."""
     if platform == "github":
-        cmd = ["gh", "issue", "create", "--repo", repo_slug,
-               "--title", title, "--body", body]
+        cmd = [
+            "gh",
+            "issue",
+            "create",
+            "--repo",
+            repo_slug,
+            "--title",
+            title,
+            "--body",
+            body,
+        ]
         for label in labels:
             cmd.extend(["--label", label])
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -3864,8 +4403,18 @@ def _create_issue(platform: str, repo_slug: str, title: str, body: str,
         print(f"  Error creating issue: {result.stderr.strip()}", file=sys.stderr)
         return None
     elif platform == "gitlab":
-        cmd = ["glab", "issue", "create", "--repo", repo_slug,
-               "--title", title, "--description", body, "--yes"]
+        cmd = [
+            "glab",
+            "issue",
+            "create",
+            "--repo",
+            repo_slug,
+            "--title",
+            title,
+            "--description",
+            body,
+            "--yes",
+        ]
         for label in labels:
             cmd.extend(["--label", label])
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -3941,6 +4490,7 @@ def _get_negative_beliefs(nodes: dict, db_path: str = REASONS_DB) -> list[dict]:
     """Get negative IN beliefs via API or keyword fallback."""
     try:
         from reasonsforge import api
+
         result = api.list_negative(db_path=db_path)
         return [{"id": b["id"], "text": b["text"]} for b in result.get("beliefs", [])]
     except Exception:
@@ -3958,11 +4508,14 @@ def _confirm_file_issues(
 ) -> list[dict]:
     """Confirm beliefs still exist in code using LLM. Returns confirmed beliefs."""
     from ..llm import invoke_sync
+
     confirmed = []
-    batches = [beliefs[i:i + batch_size] for i in range(0, len(beliefs), batch_size)]
+    batches = [beliefs[i : i + batch_size] for i in range(0, len(beliefs), batch_size)]
     for i, batch in enumerate(batches):
-        print(f"  Confirming batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...",
-              file=sys.stderr)
+        print(
+            f"  Confirming batch {i + 1}/{len(batches)} ({len(batch)} beliefs)...",
+            file=sys.stderr,
+        )
         contexts = asyncio.run(
             _gather_confirmation_context(batch, nodes, repo_path, project_dir)
         )
@@ -3983,7 +4536,10 @@ def _confirm_file_issues(
                 else:
                     print(f"    {belief['id']}: resolved (skipping)", file=sys.stderr)
         except Exception as e:
-            print(f"    Confirmation failed ({e}), including all in batch", file=sys.stderr)
+            print(
+                f"    Confirmation failed ({e}), including all in batch",
+                file=sys.stderr,
+            )
             confirmed.extend(batch)
     return confirmed
 
@@ -4031,18 +4587,22 @@ def cmd_file_issues(args):
                     continue
                 if nodes[outlist_id].get("truth_value") != "IN":
                     continue
-                blockers.setdefault(outlist_id, []).append({
-                    "id": nid,
-                    "text": node.get("text", ""),
-                })
+                blockers.setdefault(outlist_id, []).append(
+                    {
+                        "id": nid,
+                        "text": node.get("text", ""),
+                    }
+                )
 
     for bid, gated in blockers.items():
-        candidates.append({
-            "id": bid,
-            "text": nodes[bid].get("text", ""),
-            "type": "gate",
-            "gated": gated,
-        })
+        candidates.append(
+            {
+                "id": bid,
+                "text": nodes[bid].get("text", ""),
+                "type": "gate",
+                "gated": gated,
+            }
+        )
 
     # 2. Find negative IN beliefs
     if not no_negative:
@@ -4050,11 +4610,13 @@ def cmd_file_issues(args):
         gate_ids = set(blockers.keys())
         for belief in negative:
             if belief["id"] not in gate_ids:
-                candidates.append({
-                    "id": belief["id"],
-                    "text": belief["text"],
-                    "type": "negative",
-                })
+                candidates.append(
+                    {
+                        "id": belief["id"],
+                        "text": belief["text"],
+                        "type": "negative",
+                    }
+                )
 
     if not candidates:
         print("No active blockers or negative beliefs found.")
@@ -4062,8 +4624,10 @@ def cmd_file_issues(args):
 
     gate_count = sum(1 for c in candidates if c["type"] == "gate")
     neg_count = sum(1 for c in candidates if c["type"] == "negative")
-    print(f"Found {gate_count} gated blocker(s) and {neg_count} negative belief(s)",
-          file=sys.stderr)
+    print(
+        f"Found {gate_count} gated blocker(s) and {neg_count} negative belief(s)",
+        file=sys.stderr,
+    )
 
     # Detect platform
     config = _load_config()
@@ -4079,8 +4643,10 @@ def cmd_file_issues(args):
             repo_slug = detected_slug
 
     if not platform or not repo_slug:
-        print("Error: Could not detect platform/repo. Use --repo-slug and --platform flags.",
-              file=sys.stderr)
+        print(
+            "Error: Could not detect platform/repo. Use --repo-slug and --platform flags.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     cli_tool = "gh" if platform == "github" else "glab"
@@ -4102,8 +4668,10 @@ def cmd_file_issues(args):
         existing = _find_existing_issues(platform, repo_slug, all_ids, all_texts)
         existing |= registry_ids
         if existing:
-            print(f"  {len(existing)} already have issues: {', '.join(sorted(existing))}",
-                  file=sys.stderr)
+            print(
+                f"  {len(existing)} already have issues: {', '.join(sorted(existing))}",
+                file=sys.stderr,
+            )
     else:
         existing = set()
 
@@ -4111,16 +4679,25 @@ def cmd_file_issues(args):
 
     # Confirm issues still exist in code
     from ..llm import check_model_available
+
     if not dry_run and not skip_confirm and remaining and check_model_available(model):
-        print(f"Confirming {len(remaining)} candidate(s) against current code...",
-              file=sys.stderr)
+        print(
+            f"Confirming {len(remaining)} candidate(s) against current code...",
+            file=sys.stderr,
+        )
         confirmed = _confirm_file_issues(
-            remaining, nodes, target_repo_path,
-            model=model, timeout=timeout, project_dir=project_dir,
+            remaining,
+            nodes,
+            target_repo_path,
+            model=model,
+            timeout=timeout,
+            project_dir=project_dir,
         )
         unconfirmed = len(remaining) - len(confirmed)
         if unconfirmed:
-            print(f"  {unconfirmed} belief(s) no longer present in code", file=sys.stderr)
+            print(
+                f"  {unconfirmed} belief(s) no longer present in code", file=sys.stderr
+            )
         remaining = confirmed
 
     # Ensure labels exist
@@ -4157,8 +4734,11 @@ def cmd_file_issues(args):
         if url:
             filed.append((candidate["id"], url))
             _record_issue(
-                issues_registry, candidate["id"], url,
-                issue_type=ctype, title=title,
+                issues_registry,
+                candidate["id"],
+                url,
+                issue_type=ctype,
+                title=title,
                 description=candidate["text"],
                 gated=candidate.get("gated"),
                 project_dir=project_dir,

@@ -118,15 +118,27 @@ def format_relation_for_review(node_id, nodes):
     lines.append(f"Subject: {triple.subject}")
     lines.append(f"Object: {triple.object}")
 
-    justs = node.get("justifications", []) if isinstance(node, dict) else getattr(node, "justifications", [])
+    justs = (
+        node.get("justifications", [])
+        if isinstance(node, dict)
+        else getattr(node, "justifications", [])
+    )
     if justs:
         lines.append("Source beliefs:")
         for j in justs:
-            antes = j.get("antecedents", []) if isinstance(j, dict) else getattr(j, "antecedents", [])
+            antes = (
+                j.get("antecedents", [])
+                if isinstance(j, dict)
+                else getattr(j, "antecedents", [])
+            )
             for ant_id in antes:
                 ant_node = nodes.get(ant_id)
                 if ant_node:
-                    ant_text = ant_node.get("text", "") if isinstance(ant_node, dict) else getattr(ant_node, "text", "")
+                    ant_text = (
+                        ant_node.get("text", "")
+                        if isinstance(ant_node, dict)
+                        else getattr(ant_node, "text", "")
+                    )
                     lines.append(f"  - {ant_id}: {ant_text}")
                 else:
                     lines.append(f"  - {ant_id}: (not found)")
@@ -138,7 +150,11 @@ def build_existing_relations_section(nodes):
     """Build a section listing existing relations for redundancy checking."""
     lines = []
     for nid in sorted(nodes.keys()):
-        tv = nodes[nid].get("truth_value", "IN") if isinstance(nodes[nid], dict) else getattr(nodes[nid], "truth_value", "IN")
+        tv = (
+            nodes[nid].get("truth_value", "IN")
+            if isinstance(nodes[nid], dict)
+            else getattr(nodes[nid], "truth_value", "IN")
+        )
         if tv != "IN":
             continue
         triple = extract_triple(nid)
@@ -163,16 +179,18 @@ def parse_review_response(response):
         for item in items:
             if not isinstance(item, dict) or "id" not in item:
                 continue
-            results.append({
-                "id": item["id"],
-                "type_correct": item.get("type_correct", True),
-                "direction_correct": item.get("direction_correct", True),
-                "grounded": item.get("grounded", True),
-                "redundant": item.get("redundant", False),
-                "suggested_type": item.get("suggested_type", ""),
-                "suggested_direction": item.get("suggested_direction", ""),
-                "comment": item.get("comment", ""),
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "type_correct": item.get("type_correct", True),
+                    "direction_correct": item.get("direction_correct", True),
+                    "grounded": item.get("grounded", True),
+                    "redundant": item.get("redundant", False),
+                    "suggested_type": item.get("suggested_type", ""),
+                    "suggested_direction": item.get("suggested_direction", ""),
+                    "comment": item.get("comment", ""),
+                }
+            )
         if results:
             return results
     return []
@@ -182,7 +200,11 @@ def find_relational_beliefs(nodes, topic=None, relation_type=None):
     """Find all IN relational beliefs, optionally filtered."""
     results = []
     for nid, node in sorted(nodes.items()):
-        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        tv = (
+            node.get("truth_value", "IN")
+            if isinstance(node, dict)
+            else getattr(node, "truth_value", "IN")
+        )
         if tv != "IN":
             continue
         triple = extract_triple(nid)
@@ -192,7 +214,11 @@ def find_relational_beliefs(nodes, topic=None, relation_type=None):
             continue
         if topic:
             keywords = topic.lower().split()
-            text = node.get("text", "") if isinstance(node, dict) else getattr(node, "text", "")
+            text = (
+                node.get("text", "")
+                if isinstance(node, dict)
+                else getattr(node, "text", "")
+            )
             searchable = f"{nid} {text}".lower()
             if not any(kw in searchable for kw in keywords):
                 continue
@@ -200,9 +226,16 @@ def find_relational_beliefs(nodes, topic=None, relation_type=None):
     return results
 
 
-def review_relations(nodes, belief_ids=None, model="claude", timeout=300,
-                     batch_size=REVIEW_BATCH_SIZE, topic=None,
-                     relation_type=None, on_batch=None):
+def review_relations(
+    nodes,
+    belief_ids=None,
+    model="claude",
+    timeout=300,
+    batch_size=REVIEW_BATCH_SIZE,
+    topic=None,
+    relation_type=None,
+    on_batch=None,
+):
     """Review relational beliefs for correctness.
 
     Args:
@@ -218,8 +251,9 @@ def review_relations(nodes, belief_ids=None, model="claude", timeout=300,
     Returns: list of review result dicts.
     """
     if belief_ids is None:
-        belief_ids = find_relational_beliefs(nodes, topic=topic,
-                                             relation_type=relation_type)
+        belief_ids = find_relational_beliefs(
+            nodes, topic=topic, relation_type=relation_type
+        )
     else:
         belief_ids = [nid for nid in belief_ids if nid in nodes]
 
@@ -232,10 +266,13 @@ def review_relations(nodes, belief_ids=None, model="claude", timeout=300,
     total_batches = (len(belief_ids) + batch_size - 1) // batch_size
 
     for i in range(0, len(belief_ids), batch_size):
-        batch = belief_ids[i:i + batch_size]
+        batch = belief_ids[i : i + batch_size]
         batch_num = i // batch_size + 1
-        print(f"  Reviewing batch {batch_num}/{total_batches} "
-              f"({len(batch)} relations)...", file=sys.stderr)
+        print(
+            f"  Reviewing batch {batch_num}/{total_batches} "
+            f"({len(batch)} relations)...",
+            file=sys.stderr,
+        )
 
         relations_text = "\n\n".join(
             format_relation_for_review(nid, nodes) for nid in batch
@@ -319,16 +356,28 @@ def fix_relations(reviews, nodes, db_path="reasons.db"):
 
         if new_id in nodes:
             node_data = nodes[new_id]
-            tv = node_data.get("truth_value", "IN") if isinstance(node_data, dict) else getattr(node_data, "truth_value", "IN")
+            tv = (
+                node_data.get("truth_value", "IN")
+                if isinstance(node_data, dict)
+                else getattr(node_data, "truth_value", "IN")
+            )
             if tv == "IN":
                 results.append((original_id, new_id, "already-exists"))
                 continue
 
         original_node = nodes.get(original_id, {})
-        justs = original_node.get("justifications", []) if isinstance(original_node, dict) else getattr(original_node, "justifications", [])
+        justs = (
+            original_node.get("justifications", [])
+            if isinstance(original_node, dict)
+            else getattr(original_node, "justifications", [])
+        )
         sl_parts = []
         for j in justs:
-            antes = j.get("antecedents", []) if isinstance(j, dict) else getattr(j, "antecedents", [])
+            antes = (
+                j.get("antecedents", [])
+                if isinstance(j, dict)
+                else getattr(j, "antecedents", [])
+            )
             sl_parts.extend(antes)
         sl = ",".join(sl_parts) if sl_parts else ""
 

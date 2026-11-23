@@ -13,8 +13,19 @@ from .base import (
     TestPattern,
 )
 
-SKIP_DIRS = {"node_modules", ".venv", "venv", "__pycache__", ".tox", ".nox",
-             "dist", "build", ".eggs", ".mypy_cache", ".ruff_cache"}
+SKIP_DIRS = {
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".tox",
+    ".nox",
+    "dist",
+    "build",
+    ".eggs",
+    ".mypy_cache",
+    ".ruff_cache",
+}
 
 _DATACLASS_RE = re.compile(
     r"@dataclass(?:es\.dataclass)?(?:\([^)]*\))?\s*\n(?:\s*@\w+(?:\([^)]*\))?\s*\n)*\s*class\s+(\w+)",
@@ -64,7 +75,9 @@ def _iter_files(repo: Path, extensions: set[str]) -> list[Path]:
 def _extract_docstring(text: str, class_end: int) -> str:
     """Extract the docstring immediately after a class/def line."""
     rest = text[class_end:]
-    m = re.match(r'[^:\n]*:\s*(?:#.*)?\n\s+(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', rest, re.DOTALL)
+    m = re.match(
+        r'[^:\n]*:\s*(?:#.*)?\n\s+(?:"""(.*?)"""|\'\'\'(.*?)\'\'\')', rest, re.DOTALL
+    )
     if m:
         doc = (m.group(1) or m.group(2) or "").strip()
         lines = doc.splitlines()
@@ -78,7 +91,7 @@ def _extract_class_body(text: str, class_match_end: int) -> str:
     colon_match = re.search(r":\s*(?:#.*)?\n", rest)
     if not colon_match:
         return ""
-    rest = rest[colon_match.end():]
+    rest = rest[colon_match.end() :]
     lines = rest.split("\n")
     body_lines = []
     for line in lines:
@@ -134,10 +147,15 @@ def _parse_fields(body: str) -> list[PropInfo]:
             dm = re.search(r"\bdefault\s*=\s*([^,)]+)", field_args)
             if dm:
                 default_val = dm.group(1).strip()
-            props.append(PropInfo(
-                name=name, type=ftype, required=required,
-                default_value=default_val, description=docstring_buf,
-            ))
+            props.append(
+                PropInfo(
+                    name=name,
+                    type=ftype,
+                    required=required,
+                    default_value=default_val,
+                    description=docstring_buf,
+                )
+            )
             docstring_buf = ""
             i += 1
             continue
@@ -153,13 +171,22 @@ def _parse_fields(body: str) -> list[PropInfo]:
             optional = ftype.startswith("Optional") or "| None" in ftype
             required = default is None and not optional
             default_val = default.strip() if default else None
-            props.append(PropInfo(
-                name=name, type=ftype, required=required,
-                default_value=default_val, description=docstring_buf,
-            ))
+            props.append(
+                PropInfo(
+                    name=name,
+                    type=ftype,
+                    required=required,
+                    default_value=default_val,
+                    description=docstring_buf,
+                )
+            )
             docstring_buf = ""
 
-        elif stripped and not stripped.startswith("def ") and not stripped.startswith("@"):
+        elif (
+            stripped
+            and not stripped.startswith("def ")
+            and not stripped.startswith("@")
+        ):
             docstring_buf = ""
 
         i += 1
@@ -182,7 +209,6 @@ def _humanize_test_name(name: str) -> str:
 
 
 class PythonExtractor(Extractor):
-
     @property
     def name(self) -> str:
         return "python"
@@ -190,12 +216,13 @@ class PythonExtractor(Extractor):
     def detect(self, repo_path: str) -> bool:
         root = Path(repo_path)
         return any(
-            (root / f).exists()
-            for f in ("pyproject.toml", "setup.py", "setup.cfg")
+            (root / f).exists() for f in ("pyproject.toml", "setup.py", "setup.cfg")
         )
 
     def extract_interfaces(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[InterfaceInfo]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".py"})
@@ -216,7 +243,7 @@ class PythonExtractor(Extractor):
                     if components and not _matches_component(class_name, components):
                         continue
 
-                    line_number = text[:m.start()].count("\n") + 1
+                    line_number = text[: m.start()].count("\n") + 1
                     body = _extract_class_body(text, m.end())
                     props = _parse_fields(body)
 
@@ -225,19 +252,23 @@ class PythonExtractor(Extractor):
 
                     description = _extract_docstring(text, m.end())
 
-                    interfaces.append(InterfaceInfo(
-                        name=class_name,
-                        file_path=rel_path,
-                        line_number=line_number,
-                        props=props,
-                        description=description,
-                        component_name=class_name,
-                    ))
+                    interfaces.append(
+                        InterfaceInfo(
+                            name=class_name,
+                            file_path=rel_path,
+                            line_number=line_number,
+                            props=props,
+                            description=description,
+                            component_name=class_name,
+                        )
+                    )
 
         return interfaces
 
     def extract_config(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[ConfigValue]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".py"})
@@ -256,28 +287,41 @@ class PythonExtractor(Extractor):
                 value = m.group(2).strip()
                 if value.startswith(("import", "from", "class", "def")):
                     continue
-                values.append(ConfigValue(
-                    name=name, value=value, category="constant",
-                    file_path=rel_path,
-                ))
+                values.append(
+                    ConfigValue(
+                        name=name,
+                        value=value,
+                        category="constant",
+                        file_path=rel_path,
+                    )
+                )
 
             for m in _ENV_VAR_RE.finditer(text):
-                values.append(ConfigValue(
-                    name=m.group(1), value="(env)", category="environment",
-                    file_path=rel_path,
-                ))
+                values.append(
+                    ConfigValue(
+                        name=m.group(1),
+                        value="(env)",
+                        category="environment",
+                        file_path=rel_path,
+                    )
+                )
 
         return values
 
     def extract_tests(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[TestPattern]:
         repo = Path(repo_path)
         all_files = _iter_files(repo, {".py"})
         test_files = [
-            f for f in all_files
-            if f.name.startswith("test_") or f.name.endswith("_test.py")
-            or "/tests/" in str(f) or "/test/" in str(f)
+            f
+            for f in all_files
+            if f.name.startswith("test_")
+            or f.name.endswith("_test.py")
+            or "/tests/" in str(f)
+            or "/test/" in str(f)
         ]
 
         if components:
@@ -301,29 +345,41 @@ class PythonExtractor(Extractor):
             for m in _PYTEST_DESC_RE.finditer(text):
                 func_name = m.group(1)
                 desc = _humanize_test_name(func_name)
-                line_number = text[:m.start()].count("\n") + 1
+                line_number = text[: m.start()].count("\n") + 1
 
                 lower_desc = desc.lower()
-                if any(kw in lower_desc for kw in ("error", "invalid", "fail", "raise", "exception")):
+                if any(
+                    kw in lower_desc
+                    for kw in ("error", "invalid", "fail", "raise", "exception")
+                ):
                     ptype = "error_case"
-                elif any(kw in lower_desc for kw in ("not", "cannot", "without", "missing")):
+                elif any(
+                    kw in lower_desc for kw in ("not", "cannot", "without", "missing")
+                ):
                     ptype = "invalid_usage"
-                elif any(kw in lower_desc for kw in ("edge", "boundary", "empty", "none", "zero")):
+                elif any(
+                    kw in lower_desc
+                    for kw in ("edge", "boundary", "empty", "none", "zero")
+                ):
                     ptype = "edge_case"
                 else:
                     ptype = "valid_usage"
 
-                patterns.append(TestPattern(
-                    description=desc,
-                    file_path=rel_path,
-                    line_number=line_number,
-                    pattern_type=ptype,
-                ))
+                patterns.append(
+                    TestPattern(
+                        description=desc,
+                        file_path=rel_path,
+                        line_number=line_number,
+                        pattern_type=ptype,
+                    )
+                )
 
         return patterns
 
     def extract_examples(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[str]:
         repo = Path(repo_path)
         examples: list[str] = []

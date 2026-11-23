@@ -41,7 +41,7 @@ def strip_frontmatter(text: str) -> tuple[str, dict[str, str]]:
             key, _, val = line.partition(":")
             val = val.strip().strip('"').strip("'")
             fm[key.strip()] = val
-    body = "\n".join(lines[end + 1:])
+    body = "\n".join(lines[end + 1 :])
     return body, fm
 
 
@@ -98,27 +98,27 @@ def parse_beliefs(text: str) -> list[dict]:
             continue
 
         if line.startswith("- Source: "):
-            current["source"] = line[len("- Source: "):].strip()
+            current["source"] = line[len("- Source: ") :].strip()
         elif line.startswith("- Source URL: "):
-            current["source_url"] = line[len("- Source URL: "):].strip()
+            current["source_url"] = line[len("- Source URL: ") :].strip()
         elif line.startswith("- Source hash: "):
-            current["source_hash"] = line[len("- Source hash: "):].strip()
+            current["source_hash"] = line[len("- Source hash: ") :].strip()
         elif line.startswith("- Date: "):
-            current["date"] = line[len("- Date: "):].strip()
+            current["date"] = line[len("- Date: ") :].strip()
         elif line.startswith("- Depends on: "):
-            deps = line[len("- Depends on: "):].strip()
+            deps = line[len("- Depends on: ") :].strip()
             current["depends_on"] = [d.strip() for d in deps.split(",") if d.strip()]
         elif line.startswith("- Unless: "):
-            unless = line[len("- Unless: "):].strip()
+            unless = line[len("- Unless: ") :].strip()
             current["unless"] = [u.strip() for u in unless.split(",") if u.strip()]
         elif line.startswith("- Source type: "):
-            current["source_type"] = line[len("- Source type: "):].strip()
+            current["source_type"] = line[len("- Source type: ") :].strip()
         elif line.lower().startswith("- stale reason: "):
-            current["stale_reason"] = line[line.index(": ") + 2:].strip()
+            current["stale_reason"] = line[line.index(": ") + 2 :].strip()
         elif line.lower().startswith("- superseded by: "):
-            current["superseded_by"] = line[line.index(": ") + 2:].strip()
+            current["superseded_by"] = line[line.index(": ") + 2 :].strip()
         elif line.startswith("- Accepted PR: "):
-            current["accepted_pr"] = line[len("- Accepted PR: "):].strip()
+            current["accepted_pr"] = line[len("- Accepted PR: ") :].strip()
         elif line.startswith("- "):
             pass  # other metadata lines — skip
         elif line.startswith("### "):
@@ -155,11 +155,11 @@ def parse_nogoods(text: str) -> list[dict]:
             continue
 
         if line.startswith("- Discovered: "):
-            current["discovered"] = line[len("- Discovered: "):].strip()
+            current["discovered"] = line[len("- Discovered: ") :].strip()
         elif line.startswith("- Resolution: "):
-            current["resolution"] = line[len("- Resolution: "):].strip()
+            current["resolution"] = line[len("- Resolution: ") :].strip()
         elif line.startswith("- Affects: "):
-            affects = line[len("- Affects: "):].strip()
+            affects = line[len("- Affects: ") :].strip()
             current["affects"] = [a.strip() for a in affects.split(",") if a.strip()]
 
     if current:

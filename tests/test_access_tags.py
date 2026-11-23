@@ -13,7 +13,6 @@ def db_path(tmp_path):
 
 
 class TestInheritance:
-
     def test_derived_inherits_single_parent_tags(self):
         net = Network()
         net.add_node("a", "Premise A", metadata={"access_tags": ["finance"]})
@@ -123,7 +122,6 @@ class TestInheritance:
 
 
 class TestVisibleTo:
-
     def test_list_nodes_filters_by_access(self, db_path):
         api.add_node("pub", "Public", db_path=db_path)
         api.add_node("fin", "Finance data", access_tags=["finance"], db_path=db_path)
@@ -155,7 +153,9 @@ class TestVisibleTo:
         assert result["count"] == 1
 
     def test_list_nodes_multi_tag_requires_all(self, db_path):
-        api.add_node("a", "Multi-source", access_tags=["finance", "hr"], db_path=db_path)
+        api.add_node(
+            "a", "Multi-source", access_tags=["finance", "hr"], db_path=db_path
+        )
 
         only_finance = api.list_nodes(visible_to=["finance"], db_path=db_path)
         assert only_finance["count"] == 0
@@ -182,7 +182,9 @@ class TestVisibleTo:
         assert node["id"] == "fin"
 
     def test_lookup_respects_visible_to(self, db_path):
-        api.add_node("fin-data", "Finance data point", access_tags=["finance"], db_path=db_path)
+        api.add_node(
+            "fin-data", "Finance data point", access_tags=["finance"], db_path=db_path
+        )
         api.add_node("pub-data", "Public data point", db_path=db_path)
 
         result = api.lookup("data", visible_to=["public"], db_path=db_path)
@@ -190,7 +192,12 @@ class TestVisibleTo:
         assert "fin-data" not in result
 
     def test_search_respects_visible_to(self, db_path):
-        api.add_node("secret-item", "Secret finance item", access_tags=["finance"], db_path=db_path)
+        api.add_node(
+            "secret-item",
+            "Secret finance item",
+            access_tags=["finance"],
+            db_path=db_path,
+        )
         api.add_node("public-item", "Public item", db_path=db_path)
 
         result = api.search("item", visible_to=["public"], db_path=db_path)
@@ -198,7 +205,9 @@ class TestVisibleTo:
         assert "secret-item" not in result
 
     def test_search_neighbors_filtered(self, db_path):
-        api.add_node("secret", "Secret finance data", access_tags=["finance"], db_path=db_path)
+        api.add_node(
+            "secret", "Secret finance data", access_tags=["finance"], db_path=db_path
+        )
         api.add_node("public", "Public derived fact", sl="secret", db_path=db_path)
 
         result = api.search("public", visible_to=["public"], db_path=db_path)
@@ -226,7 +235,9 @@ class TestVisibleTo:
         A derived node inherits its parent's tags, so a caller without
         access to the parent also can't explain the derived node.
         """
-        api.add_node("secret", "Secret finance data", access_tags=["finance"], db_path=db_path)
+        api.add_node(
+            "secret", "Secret finance data", access_tags=["finance"], db_path=db_path
+        )
         api.add_node("derived", "Derived from secret", sl="secret", db_path=db_path)
 
         # derived inherits ["finance"] — caller without finance can't explain it
@@ -251,7 +262,9 @@ class TestVisibleTo:
         api.add_node("fin", "Finance premise", access_tags=["finance"], db_path=db_path)
         api.add_node("derived", "Derived", sl="pub,fin", db_path=db_path)
 
-        result = api.trace_assumptions("derived", visible_to=["finance", "public"], db_path=db_path)
+        result = api.trace_assumptions(
+            "derived", visible_to=["finance", "public"], db_path=db_path
+        )
         assert "pub" in result["premises"]
         assert "fin" in result["premises"]
 
@@ -296,7 +309,6 @@ class TestVisibleTo:
 
 
 class TestTraceAccessTags:
-
     def test_premise_returns_own_tags(self):
         net = Network()
         net.add_node("a", "A", metadata={"access_tags": ["finance"]})

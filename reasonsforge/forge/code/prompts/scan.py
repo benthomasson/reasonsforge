@@ -59,7 +59,9 @@ def build_scan_prompt(
 
     entry_points_section = ""
     if entry_points:
-        entry_points_section = "## Entry Points\n\n" + "\n".join(f"- {ep}" for ep in entry_points)
+        entry_points_section = "## Entry Points\n\n" + "\n".join(
+            f"- {ep}" for ep in entry_points
+        )
 
     return SCAN_PROMPT.format(
         tree=tree,

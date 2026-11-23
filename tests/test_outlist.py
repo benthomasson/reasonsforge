@@ -20,18 +20,26 @@ class TestOutlistBasic:
         net = Network()
         net.add_node("y", "Counter-evidence Y")
         net.retract("y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
     def test_outlist_invalid_when_in(self):
         """X holds unless Y — Y is IN, so X is OUT."""
         net = Network()
         net.add_node("y", "Counter-evidence Y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "OUT"
 
     def test_outlist_with_inlist(self):
@@ -40,9 +48,13 @@ class TestOutlistBasic:
         net.add_node("a", "Premise A")
         net.add_node("y", "Counter-evidence Y")
         net.retract("y")
-        net.add_node("x", "X from A unless Y", justifications=[
-            Justification(type="SL", antecedents=["a"], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "X from A unless Y",
+            justifications=[
+                Justification(type="SL", antecedents=["a"], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
     def test_outlist_with_inlist_both_fail(self):
@@ -52,17 +64,25 @@ class TestOutlistBasic:
         net.add_node("y", "Counter-evidence Y")
         net.retract("a")
         net.retract("y")
-        net.add_node("x", "X from A unless Y", justifications=[
-            Justification(type="SL", antecedents=["a"], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "X from A unless Y",
+            justifications=[
+                Justification(type="SL", antecedents=["a"], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "OUT"
 
     def test_outlist_node_not_in_network(self):
         """Outlist node doesn't exist — treated as OUT (absent = not believed)."""
         net = Network()
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["nonexistent"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["nonexistent"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
 
@@ -74,9 +94,13 @@ class TestOutlistCascading:
         net = Network()
         net.add_node("y", "Counter-evidence Y")
         net.retract("y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
         # Assert Y — X should go OUT
@@ -88,9 +112,13 @@ class TestOutlistCascading:
         """X unless Y. Y is IN (X is OUT). Retract Y → X restored."""
         net = Network()
         net.add_node("y", "Counter-evidence Y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "OUT"
 
         # Retract Y — X should come back IN
@@ -103,12 +131,20 @@ class TestOutlistCascading:
         net = Network()
         net.add_node("y", "Counter-evidence Y")
         net.retract("y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
-        net.add_node("z", "Derived Z", justifications=[
-            Justification(type="SL", antecedents=["x"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
+        net.add_node(
+            "z",
+            "Derived Z",
+            justifications=[
+                Justification(type="SL", antecedents=["x"]),
+            ],
+        )
         assert net.nodes["z"].truth_value == "IN"
 
         changed = net.assert_node("y")
@@ -122,9 +158,13 @@ class TestOutlistCascading:
         net.add_node("z", "Z")
         net.retract("y")
         net.retract("z")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y", "z"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y", "z"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
         # Assert just Y — X goes OUT
@@ -145,10 +185,14 @@ class TestOutlistWithMultipleJustifications:
         net.add_node("y", "Counter-evidence Y")
         net.add_node("a", "Premise A")
         net.retract("y")
-        net.add_node("x", "X with backup", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "x",
+            "X with backup",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         assert net.nodes["x"].truth_value == "IN"
 
         # Assert Y — first justification fails, but second keeps X IN
@@ -167,9 +211,13 @@ class TestOutlistExplain:
         net = Network()
         net.add_node("y", "Y")
         net.retract("y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         steps = net.explain("x")
         assert steps[0]["truth_value"] == "IN"
         assert steps[0]["outlist"] == ["y"]
@@ -177,9 +225,13 @@ class TestOutlistExplain:
     def test_explain_shows_violated_outlist(self):
         net = Network()
         net.add_node("y", "Y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"]),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=["y"]),
+            ],
+        )
         steps = net.explain("x")
         assert steps[0]["truth_value"] == "OUT"
         assert steps[0]["violated_outlist"] == ["y"]
@@ -194,9 +246,15 @@ class TestOutlistPersistence:
         net = Network()
         net.add_node("y", "Y")
         net.retract("y")
-        net.add_node("x", "Default X", justifications=[
-            Justification(type="SL", antecedents=[], outlist=["y"], label="default unless Y"),
-        ])
+        net.add_node(
+            "x",
+            "Default X",
+            justifications=[
+                Justification(
+                    type="SL", antecedents=[], outlist=["y"], label="default unless Y"
+                ),
+            ],
+        )
 
         store = Storage(db_path)
         store.save(net)

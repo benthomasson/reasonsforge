@@ -8,15 +8,18 @@ import pytest
 
 try:
     from reasonsforge.cluster import (
-        cluster_beliefs, list_clusters, ClusterCache, _require_cluster_deps,
-        _auto_k, HAS_CLUSTER_DEPS,
+        cluster_beliefs,
+        list_clusters,
+        ClusterCache,
+        _require_cluster_deps,
+        _auto_k,
+        HAS_CLUSTER_DEPS,
     )
 except ImportError:
     HAS_CLUSTER_DEPS = False
 
 skip_no_cluster = pytest.mark.skipif(
-    not HAS_CLUSTER_DEPS,
-    reason="sentence-transformers and scikit-learn not installed"
+    not HAS_CLUSTER_DEPS, reason="sentence-transformers and scikit-learn not installed"
 )
 
 
@@ -25,6 +28,7 @@ def test_require_cluster_deps_message():
     if HAS_CLUSTER_DEPS:
         pytest.skip("deps are installed, can't test missing-dep path")
     from reasonsforge.cluster import _require_cluster_deps
+
     with pytest.raises(ImportError, match="reasonsforge\\[cluster\\]"):
         _require_cluster_deps()
 
@@ -55,17 +59,17 @@ def test_cluster_beliefs_reproducible():
 
 @skip_no_cluster
 def test_cluster_beliefs_cross_domain():
-    auth_beliefs = {f"auth-{i}": f"Authentication and login security check {i}"
-                    for i in range(25)}
-    db_beliefs = {f"db-{i}": f"Database query performance and indexing {i}"
-                  for i in range(25)}
+    auth_beliefs = {
+        f"auth-{i}": f"Authentication and login security check {i}" for i in range(25)
+    }
+    db_beliefs = {
+        f"db-{i}": f"Database query performance and indexing {i}" for i in range(25)
+    }
     beliefs = {**auth_beliefs, **db_beliefs}
     selected, stats = cluster_beliefs(beliefs, budget=20, seed=42)
     has_auth = any(k.startswith("auth-") for k in selected)
     has_db = any(k.startswith("db-") for k in selected)
-    assert has_auth and has_db, (
-        f"Expected beliefs from both domains, got: {selected}"
-    )
+    assert has_auth and has_db, f"Expected beliefs from both domains, got: {selected}"
 
 
 @skip_no_cluster

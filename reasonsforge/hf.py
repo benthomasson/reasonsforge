@@ -6,7 +6,6 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-
 HF_BASE = "https://huggingface.co"
 DEFAULT_HF_ORG = "EEM-Hub"
 
@@ -97,12 +96,14 @@ def create_repo(repo_id: str, token: str, private: bool = False) -> str:
     parsed_id = resolve_repo_id(repo_id)
     org, name = parsed_id.split("/", 1)
 
-    payload = json.dumps({
-        "name": name,
-        "organization": org,
-        "private": private,
-        "type": "model",
-    }).encode()
+    payload = json.dumps(
+        {
+            "name": name,
+            "organization": org,
+            "private": private,
+            "type": "model",
+        }
+    ).encode()
 
     req = Request(
         f"{HF_BASE}/api/repos/create",

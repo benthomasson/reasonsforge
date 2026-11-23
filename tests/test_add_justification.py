@@ -12,14 +12,13 @@ class TestNetworkAddJustification:
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         assert net.nodes["b"].truth_value == "IN"
 
-        result = net.add_justification(
-            "b", Justification(type="SL", antecedents=["c"])
-        )
+        result = net.add_justification("b", Justification(type="SL", antecedents=["c"]))
         assert result["node_id"] == "b"
         assert result["old_truth_value"] == "IN"
         assert result["new_truth_value"] == "IN"
@@ -31,7 +30,8 @@ class TestNetworkAddJustification:
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
 
@@ -46,15 +46,14 @@ class TestNetworkAddJustification:
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
         assert net.nodes["b"].truth_value == "OUT"
 
-        result = net.add_justification(
-            "b", Justification(type="SL", antecedents=["c"])
-        )
+        result = net.add_justification("b", Justification(type="SL", antecedents=["c"]))
         assert result["old_truth_value"] == "OUT"
         assert result["new_truth_value"] == "IN"
         assert "b" in result["changed"]
@@ -65,19 +64,19 @@ class TestNetworkAddJustification:
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "d", "Depends on B",
+            "d",
+            "Depends on B",
             justifications=[Justification(type="SL", antecedents=["b"])],
         )
         net.retract("a")
         assert net.nodes["d"].truth_value == "OUT"
 
-        result = net.add_justification(
-            "b", Justification(type="SL", antecedents=["c"])
-        )
+        result = net.add_justification("b", Justification(type="SL", antecedents=["c"]))
         assert net.nodes["b"].truth_value == "IN"
         assert net.nodes["d"].truth_value == "IN"
         assert "d" in result["changed"]
@@ -87,7 +86,8 @@ class TestNetworkAddJustification:
         net.add_node("a", "Premise A")
         net.add_node("enemy", "Enemy")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
@@ -109,18 +109,14 @@ class TestNetworkAddJustification:
         net.add_node("p", "Premise")
         net.add_node("c", "Support C")
 
-        net.add_justification(
-            "p", Justification(type="SL", antecedents=["c"])
-        )
+        net.add_justification("p", Justification(type="SL", antecedents=["c"]))
         assert len(net.nodes["p"].justifications) == 1
         assert net.nodes["p"].truth_value == "IN"
 
     def test_add_justification_nonexistent_node(self):
         net = Network()
         with pytest.raises(KeyError, match="not found"):
-            net.add_justification(
-                "ghost", Justification(type="SL", antecedents=[])
-            )
+            net.add_justification("ghost", Justification(type="SL", antecedents=[]))
 
     def test_add_justification_registers_dependents(self):
         """Antecedent and outlist nodes get the target registered as dependent."""

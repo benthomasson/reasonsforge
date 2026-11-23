@@ -28,15 +28,18 @@ def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path
     """Write an entry file directly to summaries/YYYY/MM/DD/."""
     from datetime import date, datetime
     from ..utils import unique_path
+
     today = date.today()
-    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir = (
+        Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    )
     summary_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = unique_path(summary_dir / f"{entry_name}.md")
     parts = []
     if model:
-        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
+        parts.append(f'---\nmodel: "{model}"\ndate: {today.isoformat()}\n---\n\n')
     parts.append(f"# {title}\n\n{content}\n")
     entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
@@ -79,8 +82,7 @@ def _format_tests(tests) -> str:
     parts = []
     for tp in tests:
         parts.append(
-            f"- [{tp.pattern_type}] {tp.description} "
-            f"({tp.file_path}:{tp.line_number})"
+            f"- [{tp.pattern_type}] {tp.description} ({tp.file_path}:{tp.line_number})"
         )
     return "\n".join(parts)
 
@@ -178,7 +180,12 @@ def _build_batches(extracted: dict) -> list[dict]:
 
 
 def _propose_batch(
-    interfaces, config, tests, examples, model, timeout,
+    interfaces,
+    config,
+    tests,
+    examples,
+    model,
+    timeout,
 ) -> list[dict]:
     """Propose beliefs for a single batch."""
     from ..llm import invoke_sync
@@ -209,14 +216,19 @@ def stage_propose(args, extracted: dict) -> list[dict]:
 
     if len(batches) <= 1:
         return _propose_batch(
-            extracted["interfaces"], config,
-            extracted.get("tests", []), examples,
-            model, timeout,
+            extracted["interfaces"],
+            config,
+            extracted.get("tests", []),
+            examples,
+            model,
+            timeout,
         )
 
     n_batches = len(batches)
-    print(f"  {n_batches} batches (~{BATCH_SIZE} interfaces each, "
-          f"parallel={parallel})", file=sys.stderr)
+    print(
+        f"  {n_batches} batches (~{BATCH_SIZE} interfaces each, parallel={parallel})",
+        file=sys.stderr,
+    )
 
     all_beliefs: list[dict] = []
     lock = threading.Lock()
@@ -224,15 +236,21 @@ def stage_propose(args, extracted: dict) -> list[dict]:
 
     def _run(batch):
         beliefs = _propose_batch(
-            batch["interfaces"], config,
-            batch["tests"], examples,
-            model, timeout,
+            batch["interfaces"],
+            config,
+            batch["tests"],
+            examples,
+            model,
+            timeout,
         )
         with lock:
             done[0] += 1
-            print(f"  Batch {done[0]}/{n_batches}: "
-                  f"{len(batch['interfaces'])} interfaces → "
-                  f"{len(beliefs)} beliefs", file=sys.stderr)
+            print(
+                f"  Batch {done[0]}/{n_batches}: "
+                f"{len(batch['interfaces'])} interfaces → "
+                f"{len(beliefs)} beliefs",
+                file=sys.stderr,
+            )
         return beliefs
 
     with ThreadPoolExecutor(max_workers=parallel) as executor:
@@ -282,6 +300,7 @@ def stage_accept(beliefs: list[dict], db_path: str, model: str = "") -> int:
 def cmd_pipeline(args):
     """Run the full user-guide forge pipeline."""
     from ..caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     from .extractors.base import detect_language, get_extractor
@@ -291,8 +310,9 @@ def cmd_pipeline(args):
     if not language:
         language = detect_language(repo_path)
         if not language:
-            print("Could not detect language. Use --language to specify.",
-                  file=sys.stderr)
+            print(
+                "Could not detect language. Use --language to specify.", file=sys.stderr
+            )
             sys.exit(1)
         print(f"Detected language: {language}", file=sys.stderr)
 
@@ -311,13 +331,17 @@ def cmd_pipeline(args):
     n_config = len(extracted["config"])
     n_tests = len(extracted["tests"])
     n_examples = len(extracted["examples"])
-    print(f"  {n_ifaces} interfaces, {n_props} props, {n_config} config values, "
-          f"{n_tests} test patterns, {n_examples} examples ({_fmt_duration(elapsed)})",
-          file=sys.stderr)
+    print(
+        f"  {n_ifaces} interfaces, {n_props} props, {n_config} config values, "
+        f"{n_tests} test patterns, {n_examples} examples ({_fmt_duration(elapsed)})",
+        file=sys.stderr,
+    )
 
     if not extracted["interfaces"] and not extracted["config"]:
-        print("No interfaces or config extracted. Check your --repo path.",
-              file=sys.stderr)
+        print(
+            "No interfaces or config extracted. Check your --repo path.",
+            file=sys.stderr,
+        )
         return
 
     # Stage 2: Propose beliefs
@@ -325,8 +349,9 @@ def cmd_pipeline(args):
     t0 = time.monotonic()
     beliefs = stage_propose(args, extracted)
     elapsed = time.monotonic() - t0
-    print(f"  {len(beliefs)} beliefs proposed ({_fmt_duration(elapsed)})",
-          file=sys.stderr)
+    print(
+        f"  {len(beliefs)} beliefs proposed ({_fmt_duration(elapsed)})", file=sys.stderr
+    )
 
     if not beliefs:
         print("No beliefs proposed.", file=sys.stderr)
@@ -337,8 +362,10 @@ def cmd_pipeline(args):
     t0 = time.monotonic()
     added = stage_accept(beliefs, db_path, model=model)
     elapsed = time.monotonic() - t0
-    print(f"  Added {added} belief(s) to {db_path} ({_fmt_duration(elapsed)})",
-          file=sys.stderr)
+    print(
+        f"  Added {added} belief(s) to {db_path} ({_fmt_duration(elapsed)})",
+        file=sys.stderr,
+    )
 
     # Stage 4: Derive (optional)
     no_auto_accept = getattr(args, "no_auto_accept", False)
@@ -348,6 +375,7 @@ def cmd_pipeline(args):
         print("Stage 4: Derive...", file=sys.stderr)
         t0 = time.monotonic()
         from ..pipeline import _run_convergence_loop
+
         try:
             _run_convergence_loop(args, rounds)
             elapsed = time.monotonic() - t0
@@ -355,8 +383,7 @@ def cmd_pipeline(args):
             ran_convergence = True
         except Exception as e:
             elapsed = time.monotonic() - t0
-            print(f"  Derive failed: {e} ({_fmt_duration(elapsed)})",
-                  file=sys.stderr)
+            print(f"  Derive failed: {e} ({_fmt_duration(elapsed)})", file=sys.stderr)
 
     # Stage 5: Dedup (only if convergence loop didn't run)
     if not ran_convergence:
@@ -364,23 +391,30 @@ def cmd_pipeline(args):
         t0 = time.monotonic()
         try:
             from reasonsforge.api import deduplicate
+
             dedup_result = deduplicate(auto=True, db_path=db_path)
             retracted = dedup_result.get("retracted", [])
             elapsed = time.monotonic() - t0
             if retracted:
-                print(f"  Retracted {len(retracted)} duplicate(s) "
-                      f"({_fmt_duration(elapsed)})", file=sys.stderr)
+                print(
+                    f"  Retracted {len(retracted)} duplicate(s) "
+                    f"({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
             else:
-                print(f"  No duplicates found ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"  No duplicates found ({_fmt_duration(elapsed)})", file=sys.stderr
+                )
         except Exception as e:
             elapsed = time.monotonic() - t0
-            print(f"  Dedup skipped: {e} ({_fmt_duration(elapsed)})",
-                  file=sys.stderr)
+            print(f"  Dedup skipped: {e} ({_fmt_duration(elapsed)})", file=sys.stderr)
 
     total_elapsed = time.monotonic() - pipeline_t0
-    print(f"\nUser-guide forge complete: {n_ifaces} interfaces, {n_props} props, "
-          f"{added} beliefs added to {db_path}", file=sys.stderr)
+    print(
+        f"\nUser-guide forge complete: {n_ifaces} interfaces, {n_props} props, "
+        f"{added} beliefs added to {db_path}",
+        file=sys.stderr,
+    )
     print(f"Duration: {_fmt_duration(total_elapsed)}", file=sys.stderr)
 
     _create_entry(

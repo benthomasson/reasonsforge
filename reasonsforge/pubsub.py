@@ -23,6 +23,7 @@ class ChangeEvent:
     Does not include cause or cascade_root — the _with_network hook only
     sees before/after snapshots, not which operation triggered the change.
     """
+
     type: str
     node_id: str
     old_truth_value: str | None
@@ -97,23 +98,27 @@ def compute_changes(
     for nid, new_tv in after.items():
         old_tv = before.get(nid)
         if old_tv != new_tv:
-            events.append(ChangeEvent(
-                type="node_changed",
-                node_id=nid,
-                old_truth_value=old_tv,
-                new_truth_value=new_tv,
-                db_path=db_path,
-            ))
+            events.append(
+                ChangeEvent(
+                    type="node_changed",
+                    node_id=nid,
+                    old_truth_value=old_tv,
+                    new_truth_value=new_tv,
+                    db_path=db_path,
+                )
+            )
 
     for nid in before:
         if nid not in after:
-            events.append(ChangeEvent(
-                type="node_changed",
-                node_id=nid,
-                old_truth_value=before[nid],
-                new_truth_value=None,
-                db_path=db_path,
-            ))
+            events.append(
+                ChangeEvent(
+                    type="node_changed",
+                    node_id=nid,
+                    old_truth_value=before[nid],
+                    new_truth_value=None,
+                    db_path=db_path,
+                )
+            )
 
     return events
 

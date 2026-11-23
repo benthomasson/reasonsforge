@@ -25,17 +25,22 @@ def _load_network(db_path):
 
 class TestSourceUrlRoundTrip:
     def test_export_includes_source_url(self, db):
-        api.add_node("n1", "A belief.", source="repo/file.py",
-                      source_url="https://github.com/org/repo/blob/main/file.py",
-                      db_path=db)
+        api.add_node(
+            "n1",
+            "A belief.",
+            source="repo/file.py",
+            source_url="https://github.com/org/repo/blob/main/file.py",
+            db_path=db,
+        )
         net = _load_network(db)
         md = export_markdown(net)
         assert "- Source URL: https://github.com/org/repo/blob/main/file.py" in md
 
     def test_source_url_round_trip(self, db):
         url = "https://github.com/org/repo/blob/main/file.py"
-        api.add_node("n1", "A belief.", source="repo/file.py",
-                      source_url=url, db_path=db)
+        api.add_node(
+            "n1", "A belief.", source="repo/file.py", source_url=url, db_path=db
+        )
         net = _load_network(db)
         md = export_markdown(net)
 
@@ -65,14 +70,22 @@ The API uses REST.
 
 class TestAcceptedPrRoundTrip:
     def test_add_with_accepted_pr(self, db):
-        api.add_node("n1", "A belief.", accepted_pr="https://github.com/org/repo/pull/42",
-                      db_path=db)
+        api.add_node(
+            "n1",
+            "A belief.",
+            accepted_pr="https://github.com/org/repo/pull/42",
+            db_path=db,
+        )
         node = api.show_node("n1", db_path=db)
         assert node["metadata"]["accepted_pr"] == "https://github.com/org/repo/pull/42"
 
     def test_export_includes_accepted_pr(self, db):
-        api.add_node("n1", "A belief.", accepted_pr="https://github.com/org/repo/pull/42",
-                      db_path=db)
+        api.add_node(
+            "n1",
+            "A belief.",
+            accepted_pr="https://github.com/org/repo/pull/42",
+            db_path=db,
+        )
         net = _load_network(db)
         md = export_markdown(net)
         assert "- Accepted PR: https://github.com/org/repo/pull/42" in md
@@ -106,13 +119,21 @@ The API uses REST.
         assert claims[0]["accepted_pr"] == "https://github.com/org/repo/pull/99"
 
     def test_show_displays_accepted_pr(self, db, capsys):
-        api.add_node("n1", "A belief.", accepted_pr="https://github.com/org/repo/pull/42",
-                      db_path=db)
+        api.add_node(
+            "n1",
+            "A belief.",
+            accepted_pr="https://github.com/org/repo/pull/42",
+            db_path=db,
+        )
         from reasonsforge.cli import cmd_show
         import argparse
+
         args = argparse.Namespace(
-            node_id="n1", db=db, visible_to=None,
-            pg_conninfo=None, pg_project=None,
+            node_id="n1",
+            db=db,
+            visible_to=None,
+            pg_conninfo=None,
+            pg_project=None,
         )
         cmd_show(args)
         captured = capsys.readouterr()
@@ -122,9 +143,13 @@ The API uses REST.
         api.add_node("n1", "A belief.", db_path=db)
         from reasonsforge.cli import cmd_show
         import argparse
+
         args = argparse.Namespace(
-            node_id="n1", db=db, visible_to=None,
-            pg_conninfo=None, pg_project=None,
+            node_id="n1",
+            db=db,
+            visible_to=None,
+            pg_conninfo=None,
+            pg_project=None,
         )
         cmd_show(args)
         captured = capsys.readouterr()
@@ -136,7 +161,8 @@ class TestFullRoundTrip:
 
     def test_all_fields_survive(self, db):
         api.add_node(
-            "obs-1", "The API uses REST endpoints.",
+            "obs-1",
+            "The API uses REST endpoints.",
             source="repo/api.py",
             source_url="https://github.com/org/repo/blob/main/api.py",
             source_type="code",
@@ -152,14 +178,16 @@ class TestFullRoundTrip:
         storage.close()
 
         api.add_node(
-            "obs-2", "The config is YAML-based.",
+            "obs-2",
+            "The config is YAML-based.",
             source="repo/config.yaml",
             source_url="https://github.com/org/repo/blob/main/config.yaml",
             source_type="document",
             db_path=db,
         )
         api.add_node(
-            "derived-1", "REST + YAML means declarative API.",
+            "derived-1",
+            "REST + YAML means declarative API.",
             sl="obs-1,obs-2",
             source_type="derived",
             accepted_pr="https://github.com/org/repo/pull/11",
@@ -238,7 +266,8 @@ class TestFullRoundTrip:
     def test_double_round_trip_stability(self, db):
         """Export -> import -> export should produce identical markdown."""
         api.add_node(
-            "obs-1", "REST API.",
+            "obs-1",
+            "REST API.",
             source="repo/api.py",
             source_url="https://github.com/org/repo/blob/main/api.py",
             source_type="code",

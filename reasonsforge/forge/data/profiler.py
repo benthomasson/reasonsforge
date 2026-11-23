@@ -91,6 +91,7 @@ def profile_csv(path: str | Path, table_name: str | None = None) -> DataProfile:
 
         if len(unique_vals) <= 50:
             from collections import Counter
+
             counts = Counter(non_null)
             cp.top_values = counts.most_common(10)
 
@@ -108,8 +109,10 @@ def profile_parquet(path: str | Path, table_name: str | None = None) -> DataProf
         import pyarrow.compute as pc
         import pyarrow.types as pat
     except ImportError:
-        print("pyarrow is required for Parquet profiling: pip install pyarrow",
-              file=sys.stderr)
+        print(
+            "pyarrow is required for Parquet profiling: pip install pyarrow",
+            file=sys.stderr,
+        )
         raise
 
     path = Path(path)
@@ -132,8 +135,11 @@ def profile_parquet(path: str | Path, table_name: str | None = None) -> DataProf
         )
 
         col_type = column.type
-        is_numeric = (pat.is_integer(col_type) or pat.is_floating(col_type)
-                      or pat.is_decimal(col_type))
+        is_numeric = (
+            pat.is_integer(col_type)
+            or pat.is_floating(col_type)
+            or pat.is_decimal(col_type)
+        )
 
         if is_numeric and row_count > null_count:
             cp.min_value = str(pc.min(column).as_py())
@@ -171,8 +177,10 @@ def profile_to_text(profile: DataProfile) -> str:
         for col in table.columns:
             null_pct = (col.null_count / col.row_count * 100) if col.row_count else 0
             lines.append(f"  {col.name}:")
-            lines.append(f"    Unique: {col.unique_count:,}, "
-                         f"Nulls: {col.null_count:,} ({null_pct:.1f}%)")
+            lines.append(
+                f"    Unique: {col.unique_count:,}, "
+                f"Nulls: {col.null_count:,} ({null_pct:.1f}%)"
+            )
             if col.min_value is not None:
                 lines.append(f"    Range: {col.min_value} .. {col.max_value}")
             if col.mean_value is not None:

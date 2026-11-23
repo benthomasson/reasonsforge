@@ -20,7 +20,10 @@ if TYPE_CHECKING:
 
 
 async def grep(
-    pattern: str, repo_path: str, glob: str | list[str] = "*.py", max_results: int = 30,
+    pattern: str,
+    repo_path: str,
+    glob: str | list[str] = "*.py",
+    max_results: int = 30,
 ) -> dict[str, Any]:
     """
     Search for a pattern in the codebase.
@@ -38,7 +41,11 @@ async def grep(
         globs = [glob] if isinstance(glob, str) else glob
         include_args = [f"--include={g}" for g in globs]
         proc = await asyncio.create_subprocess_exec(
-            "grep", "-Ern", *include_args, pattern, repo_path,
+            "grep",
+            "-Ern",
+            *include_args,
+            pattern,
+            repo_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -53,11 +60,13 @@ async def grep(
             if line and ":" in line:
                 parts = line.split(":", 2)
                 if len(parts) >= 3:
-                    matches.append({
-                        "file": parts[0].replace(repo_path + "/", ""),
-                        "line": int(parts[1]),
-                        "text": parts[2].strip()[:120],
-                    })
+                    matches.append(
+                        {
+                            "file": parts[0].replace(repo_path + "/", ""),
+                            "line": int(parts[1]),
+                            "text": parts[2].strip()[:120],
+                        }
+                    )
 
         return {
             "pattern": pattern,
@@ -68,7 +77,9 @@ async def grep(
         return {"error": str(e), "pattern": pattern}
 
 
-async def read_file(file_path: str, repo_path: str, start_line: int = 0, max_lines: int = 200) -> dict[str, Any]:
+async def read_file(
+    file_path: str, repo_path: str, start_line: int = 0, max_lines: int = 200
+) -> dict[str, Any]:
     """
     Read a file's contents.
 
@@ -90,7 +101,7 @@ async def read_file(file_path: str, repo_path: str, start_line: int = 0, max_lin
         lines = content.split("\n")
         total_lines = len(lines)
 
-        selected = lines[start_line:start_line + max_lines]
+        selected = lines[start_line : start_line + max_lines]
 
         return {
             "file": file_path,
@@ -103,7 +114,9 @@ async def read_file(file_path: str, repo_path: str, start_line: int = 0, max_lin
         return {"error": str(e), "file": file_path}
 
 
-async def list_directory(dir_path: str, repo_path: str, max_depth: int = 2) -> dict[str, Any]:
+async def list_directory(
+    dir_path: str, repo_path: str, max_depth: int = 2
+) -> dict[str, Any]:
     """
     List contents of a directory.
 
@@ -121,8 +134,16 @@ async def list_directory(dir_path: str, repo_path: str, max_depth: int = 2) -> d
             return {"error": f"Directory not found: {dir_path}", "dir": dir_path}
 
         skip_dirs = {
-            ".git", "node_modules", "__pycache__", ".venv", "venv",
-            ".tox", ".eggs", "dist", "build", ".mypy_cache",
+            ".git",
+            "node_modules",
+            "__pycache__",
+            ".venv",
+            "venv",
+            ".tox",
+            ".eggs",
+            "dist",
+            "build",
+            ".mypy_cache",
         }
 
         entries = []
@@ -156,7 +177,9 @@ async def list_directory(dir_path: str, repo_path: str, max_depth: int = 2) -> d
 
 
 async def find_symbol(
-    symbol: str, repo_path: str, lang: LanguageProfile | None = None,
+    symbol: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """
     Find where a symbol (class, function, variable) is defined.
@@ -174,13 +197,19 @@ async def find_symbol(
     lang = lang or PYTHON
 
     try:
-        patterns = [p.format(symbol=re.escape(symbol)) for p in lang.definition_patterns]
+        patterns = [
+            p.format(symbol=re.escape(symbol)) for p in lang.definition_patterns
+        ]
         include_args = get_grep_include_args(lang)
 
         definitions = []
         for pattern in patterns:
             proc = await asyncio.create_subprocess_exec(
-                "grep", "-Ern", *include_args, pattern, repo_path,
+                "grep",
+                "-Ern",
+                *include_args,
+                pattern,
+                repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -194,11 +223,13 @@ async def find_symbol(
                 if line and ":" in line:
                     parts = line.split(":", 2)
                     if len(parts) >= 3:
-                        definitions.append({
-                            "file": parts[0].replace(repo_path + "/", ""),
-                            "line": int(parts[1]),
-                            "text": parts[2].strip()[:120],
-                        })
+                        definitions.append(
+                            {
+                                "file": parts[0].replace(repo_path + "/", ""),
+                                "line": int(parts[1]),
+                                "text": parts[2].strip()[:120],
+                            }
+                        )
 
         return {
             "symbol": symbol,
@@ -210,7 +241,9 @@ async def find_symbol(
 
 
 async def find_usages(
-    symbol: str, repo_path: str, lang: LanguageProfile | None = None,
+    symbol: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """
     Find where a symbol is used (imported, called, referenced).
@@ -230,7 +263,11 @@ async def find_usages(
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            "grep", "-Frn", *include_args, symbol, repo_path,
+            "grep",
+            "-Frn",
+            *include_args,
+            symbol,
+            repo_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -245,11 +282,13 @@ async def find_usages(
             if line and ":" in line:
                 parts = line.split(":", 2)
                 if len(parts) >= 3:
-                    usages.append({
-                        "file": parts[0].replace(repo_path + "/", ""),
-                        "line": int(parts[1]),
-                        "text": parts[2].strip()[:120],
-                    })
+                    usages.append(
+                        {
+                            "file": parts[0].replace(repo_path + "/", ""),
+                            "line": int(parts[1]),
+                            "text": parts[2].strip()[:120],
+                        }
+                    )
 
         return {
             "symbol": symbol,
@@ -261,7 +300,9 @@ async def find_usages(
 
 
 async def file_imports(
-    file_path: str, repo_path: str, lang: LanguageProfile | None = None,
+    file_path: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """
     Extract import statements from a file.
@@ -328,7 +369,9 @@ OBSERVATION_TOOLS: dict[str, Any] = {
 }
 
 
-async def run_observation(name: str, tool: str, params: dict[str, Any], repo_path: str) -> dict[str, Any]:
+async def run_observation(
+    name: str, tool: str, params: dict[str, Any], repo_path: str
+) -> dict[str, Any]:
     """Run a single observation tool."""
     if tool not in OBSERVATION_TOOLS:
         return {"name": name, "result": {"error": f"Unknown tool: {tool}"}}
@@ -351,7 +394,9 @@ async def run_observation(name: str, tool: str, params: dict[str, Any], repo_pat
     return {"name": name, "tool": tool, "result": result}
 
 
-async def run_observations(observations: list[dict[str, Any]], repo_path: str) -> dict[str, Any]:
+async def run_observations(
+    observations: list[dict[str, Any]], repo_path: str
+) -> dict[str, Any]:
     """Run multiple observations in parallel."""
     results = {}
     tasks = []
@@ -381,6 +426,7 @@ async def run_observations(observations: list[dict[str, Any]], repo_path: str) -
 
 
 # --- Parsing observation requests from model output ---
+
 
 def parse_observation_requests(response: str) -> list[dict]:
     """Parse observation requests from model response."""

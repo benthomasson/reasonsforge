@@ -133,6 +133,7 @@ class Network:
         # Compute Merkle hashes
         if not node.text_hash:
             from .merkle import compute_text_hash, compute_content_hash
+
             node.text_hash = compute_text_hash(node.text)
             for j in node.justifications:
                 if not j.content_hash:
@@ -214,9 +215,7 @@ class Network:
         for j in node.justifications:
             for ant_id in j.antecedents:
                 if ant_id in self.nodes:
-                    inherited.update(
-                        self.nodes[ant_id].metadata.get("access_tags", [])
-                    )
+                    inherited.update(self.nodes[ant_id].metadata.get("access_tags", []))
         if inherited:
             node.metadata["access_tags"] = sorted(inherited)
 
@@ -325,7 +324,8 @@ class Network:
         # Metadata-based type scoring
         btype = node.metadata.get("beliefs_type", "").upper()
         type_scores = {
-            "AXIOM": 90, "WARNING": 90,
+            "AXIOM": 90,
+            "WARNING": 90,
             "OBSERVATION": 80,
             "DERIVED": 40,
             "PREDICTED": 30,
@@ -371,12 +371,14 @@ class Network:
                     would_resolve.append(nid)
             if would_resolve:
                 entrenchment = self._entrenchment(premise_id)
-                candidates.append({
-                    "premise": premise_id,
-                    "would_resolve": would_resolve,
-                    "dependent_count": len(self.nodes[premise_id].dependents),
-                    "entrenchment": entrenchment,
-                })
+                candidates.append(
+                    {
+                        "premise": premise_id,
+                        "would_resolve": would_resolve,
+                        "dependent_count": len(self.nodes[premise_id].dependents),
+                        "entrenchment": entrenchment,
+                    }
+                )
 
         # Sort: least entrenched first (retract speculative assumptions first)
         candidates.sort(key=lambda c: c["entrenchment"])
@@ -517,8 +519,10 @@ class Network:
 
         if not justification.content_hash:
             from .merkle import compute_content_hash
+
             if not node.text_hash:
                 from .merkle import compute_text_hash
+
                 node.text_hash = compute_text_hash(node.text)
             justification.content_hash = compute_content_hash(node, justification, self)
 
@@ -541,7 +545,9 @@ class Network:
             "changed": changed,
         }
 
-    def challenge(self, target_id: str, reason: str, challenge_id: str | None = None) -> dict:
+    def challenge(
+        self, target_id: str, reason: str, challenge_id: str | None = None
+    ) -> dict:
         """Challenge a node — create a challenge node and add it to the target's outlist.
 
         The challenge node is a premise (IN by default), so the target
@@ -614,7 +620,11 @@ class Network:
         else:
             self._log("challenge", target_id, f"unchanged ({old_value})")
 
-        return {"challenge_id": challenge_id, "target_id": target_id, "changed": changed}
+        return {
+            "challenge_id": challenge_id,
+            "target_id": target_id,
+            "changed": changed,
+        }
 
     def defend(
         self,
@@ -819,8 +829,9 @@ class Network:
             "truth_value": node.truth_value,
         }
 
-    def explain(self, node_id: str, _visited: set | None = None,
-                _path: set | None = None) -> list[dict]:
+    def explain(
+        self, node_id: str, _visited: set | None = None, _path: set | None = None
+    ) -> list[dict]:
         """Trace why a node is IN or OUT.
 
         Returns a list of explanation steps tracing back through justifications.
@@ -834,8 +845,13 @@ class Network:
             _path = set()
 
         if node_id in _path:
-            return [{"node": node_id, "truth_value": self.nodes[node_id].truth_value,
-                     "reason": "circular dependency"}]
+            return [
+                {
+                    "node": node_id,
+                    "truth_value": self.nodes[node_id].truth_value,
+                    "reason": "circular dependency",
+                }
+            ]
         if node_id in _visited:
             return []
         _visited.add(node_id)
@@ -845,11 +861,15 @@ class Network:
         steps = []
 
         if not node.justifications:
-            steps.append({
-                "node": node_id,
-                "truth_value": node.truth_value,
-                "reason": "premise" if node.truth_value == "IN" else "retracted premise",
-            })
+            steps.append(
+                {
+                    "node": node_id,
+                    "truth_value": node.truth_value,
+                    "reason": (
+                        "premise" if node.truth_value == "IN" else "retracted premise"
+                    ),
+                }
+            )
             return steps
 
         if node.truth_value == "IN":
@@ -882,11 +902,13 @@ class Network:
             # All justifications invalid — explain why
             for j in node.justifications:
                 failed = [
-                    a for a in j.antecedents
+                    a
+                    for a in j.antecedents
                     if a in self.nodes and self.nodes[a].truth_value == "OUT"
                 ]
                 violated_outlist = [
-                    o for o in j.outlist
+                    o
+                    for o in j.outlist
                     if o in self.nodes and self.nodes[o].truth_value == "IN"
                 ]
                 step = {
@@ -998,9 +1020,11 @@ class Network:
 
     def _log(self, action: str, target: str, value: str) -> None:
         """Record a propagation event."""
-        self.log.append({
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "action": action,
-            "target": target,
-            "value": value,
-        })
+        self.log.append(
+            {
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "action": action,
+                "target": target,
+                "value": value,
+            }
+        )

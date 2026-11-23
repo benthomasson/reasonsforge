@@ -45,6 +45,7 @@ def test_content_hash_incorporates_antecedents(tmp_path):
     # Simulate unauthorized text mutation via Storage layer
     from reasonsforge.storage import Storage
     from reasonsforge.merkle import compute_text_hash
+
     store = Storage(str(db))
     net = store.load()
     net.nodes["p1"].text = "P1 CHANGED"
@@ -73,6 +74,7 @@ def test_merkle_transitive(tmp_path):
     # Simulate unauthorized text mutation via Storage layer
     from reasonsforge.storage import Storage
     from reasonsforge.merkle import compute_text_hash
+
     store = Storage(str(db))
     net = store.load()
     net.nodes["c"].text = "C CHANGED"
@@ -107,6 +109,7 @@ def test_verify_text_mutation(tmp_path):
     # Directly mutate text without going through update_node
     # (simulating a raw DB edit or bug)
     from reasonsforge.api import _with_network
+
     with _with_network(str(db), write=True) as net:
         net.nodes["p1"].text = "Tampered text"
 
@@ -124,6 +127,7 @@ def test_verify_chain_mutation(tmp_path):
     # Simulate text mutation with updated text_hash (e.g. direct SQL)
     from reasonsforge.storage import Storage
     from reasonsforge.merkle import compute_text_hash
+
     store = Storage(str(db))
     net = store.load()
     net.nodes["p1"].text = "P1 CHANGED"
@@ -149,6 +153,7 @@ def test_backfill_hashes(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     from reasonsforge.api import _with_network
+
     with _with_network(str(db), write=True) as net:
         net.nodes["p1"].text_hash = ""
         net.nodes["d1"].text_hash = ""
@@ -191,6 +196,7 @@ def test_export_import_preserves_hashes(tmp_path):
     db2 = tmp_path / "test2.db"
     api.init_db(str(db2))
     import json
+
     json_path = tmp_path / "export.json"
     json_path.write_text(json.dumps(export))
     api.import_json(str(json_path), db_path=str(db2))
@@ -210,6 +216,7 @@ def test_cycle_safety(tmp_path):
     # Artificially create a cycle: make a's antecedents point to b
     from reasonsforge import Justification
     from reasonsforge.api import _with_network
+
     with _with_network(str(db), write=True) as net:
         net.nodes["a"].justifications.append(
             Justification(type="SL", antecedents=["b"])
@@ -252,4 +259,7 @@ def test_multiple_justifications_each_hashed(tmp_path):
     assert d1["justifications"][0]["content_hash"] != ""
     assert d1["justifications"][1]["content_hash"] != ""
     # Different antecedents should produce different hashes
-    assert d1["justifications"][0]["content_hash"] != d1["justifications"][1]["content_hash"]
+    assert (
+        d1["justifications"][0]["content_hash"]
+        != d1["justifications"][1]["content_hash"]
+    )

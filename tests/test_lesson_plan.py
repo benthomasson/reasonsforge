@@ -24,7 +24,6 @@ from reasonsforge.lesson_plan import (
     build_survey_lesson_prompt,
 )
 
-
 NODES = {
     "group": {
         "text": "A group is a set with a binary operation satisfying closure, associativity, identity, and inverses.",
@@ -155,6 +154,7 @@ def test_out_beliefs_ignored():
 
 def test_module_classification_from_graph():
     from reasonsforge.relations import extract_all_relations
+
     triples = extract_all_relations(NODES)
     concepts = set()
     for _, rel in triples:
@@ -168,6 +168,7 @@ def test_module_classification_from_graph():
 
 def test_module_classification_contains():
     from reasonsforge.relations import Relation
+
     concepts = {"parent", "child1", "child2", "isolated"}
     triples = [
         ("parent-contains-child1", Relation("parent", "contains", "child1")),
@@ -319,9 +320,15 @@ def test_select_beliefs_respects_max():
 
 def test_select_beliefs_ignores_out():
     plan = build_lesson_plan(NODES)
-    lesson = {"concept": "retracted", "number": 1, "module": "other",
-              "prerequisites": [], "motivation": None, "examples": [],
-              "cross_references": []}
+    lesson = {
+        "concept": "retracted",
+        "number": 1,
+        "module": "other",
+        "prerequisites": [],
+        "motivation": None,
+        "examples": [],
+        "cross_references": [],
+    }
     beliefs = select_beliefs_for_lesson(lesson, NODES)
     ids = [b["id"] for b in beliefs]
     assert "retracted-requires-something" not in ids
@@ -353,6 +360,7 @@ def test_parse_lesson_response_no_markers():
 
 def test_generate_lesson_with_mock():
     from reasonsforge.lesson_plan import generate_lesson
+
     plan = build_lesson_plan(NODES)
     lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
     ring_lesson = lessons_by_concept["ring"]
@@ -368,7 +376,9 @@ BELIEFS: ring, ring-requires-group"""
         return mock_response
 
     result = generate_lesson(
-        ring_lesson, NODES, invoke_fn=mock_invoke,
+        ring_lesson,
+        NODES,
+        invoke_fn=mock_invoke,
     )
     assert result is not None
     assert result["title"] == "Understanding Rings"
@@ -385,16 +395,36 @@ STANDALONE_NODES = {
     "beta": {"text": "Beta concept", "truth_value": "IN", "metadata": {}},
     "gamma": {"text": "Gamma concept", "truth_value": "IN", "metadata": {}},
     "delta": {"text": "Delta concept", "truth_value": "IN", "metadata": {}},
-    "alpha-requires-beta": {"text": "Alpha requires Beta", "truth_value": "IN", "metadata": {}},
-    "gamma-enables-delta": {"text": "Gamma enables Delta", "truth_value": "IN", "metadata": {}},
+    "alpha-requires-beta": {
+        "text": "Alpha requires Beta",
+        "truth_value": "IN",
+        "metadata": {},
+    },
+    "gamma-enables-delta": {
+        "text": "Gamma enables Delta",
+        "truth_value": "IN",
+        "metadata": {},
+    },
     # Standalone concepts (only connected via contains — no lesson fields)
     "topics": {"text": "Topics", "truth_value": "IN", "metadata": {}},
     "topic-a": {"text": "Topic A", "truth_value": "IN", "metadata": {}},
     "topic-b": {"text": "Topic B", "truth_value": "IN", "metadata": {}},
     "topic-c": {"text": "Topic C", "truth_value": "IN", "metadata": {}},
-    "topics-contains-topic-a": {"text": "Topics contains Topic A", "truth_value": "IN", "metadata": {}},
-    "topics-contains-topic-b": {"text": "Topics contains Topic B", "truth_value": "IN", "metadata": {}},
-    "topics-contains-topic-c": {"text": "Topics contains Topic C", "truth_value": "IN", "metadata": {}},
+    "topics-contains-topic-a": {
+        "text": "Topics contains Topic A",
+        "truth_value": "IN",
+        "metadata": {},
+    },
+    "topics-contains-topic-b": {
+        "text": "Topics contains Topic B",
+        "truth_value": "IN",
+        "metadata": {},
+    },
+    "topics-contains-topic-c": {
+        "text": "Topics contains Topic C",
+        "truth_value": "IN",
+        "metadata": {},
+    },
 }
 
 
@@ -429,10 +459,10 @@ def test_build_consolidation_prompt():
 
 
 def test_parse_consolidation_response_valid():
-    response = '''[
+    response = """[
         {"title": "Greek Letters", "concepts": ["alpha", "beta"], "rationale": "Both Greek"},
         {"title": "More Greek", "concepts": ["gamma"], "rationale": "Also Greek"}
-    ]'''
+    ]"""
     groups = _parse_consolidation_response(response)
     assert len(groups) == 2
     assert groups[0]["title"] == "Greek Letters"
@@ -441,10 +471,10 @@ def test_parse_consolidation_response_valid():
 
 
 def test_parse_consolidation_response_with_preamble():
-    response = '''Here are the groups:
+    response = """Here are the groups:
     ```json
     [{"title": "Group A", "concepts": ["x", "y"], "rationale": "Related"}]
-    ```'''
+    ```"""
     groups = _parse_consolidation_response(response)
     assert len(groups) == 1
     assert groups[0]["concepts"] == ["x", "y"]
@@ -462,6 +492,7 @@ def test_consolidate_lessons_with_mock():
 
     mock_response = '[{"title": "Misc Topics", "concepts": '
     import json as _json
+
     mock_response += _json.dumps(standalone_concepts)
     mock_response += ', "rationale": "Grouped standalone concepts"}]'
 
@@ -494,6 +525,7 @@ def test_format_consolidated_markdown():
     standalone_concepts = [l["concept"] for l in standalone]
 
     import json as _json
+
     mock_response = '[{"title": "Misc Topics", "concepts": '
     mock_response += _json.dumps(standalone_concepts)
     mock_response += ', "rationale": "Standalone concepts"}]'
@@ -517,10 +549,10 @@ def test_build_survey_prompt():
 
 
 def test_parse_survey_response_valid():
-    response = '''[
+    response = """[
         {"title": "Foundations", "concepts": ["a", "b"], "summary": "Basics", "order": 1},
         {"title": "Advanced", "concepts": ["c", "d"], "summary": "Deep stuff", "order": 2}
-    ]'''
+    ]"""
     groups = _parse_survey_response(response)
     assert len(groups) == 2
     assert groups[0]["title"] == "Foundations"
@@ -529,10 +561,10 @@ def test_parse_survey_response_valid():
 
 
 def test_parse_survey_response_orders_by_order():
-    response = '''[
+    response = """[
         {"title": "Second", "concepts": ["x"], "summary": "Later", "order": 2},
         {"title": "First", "concepts": ["y"], "summary": "Earlier", "order": 1}
-    ]'''
+    ]"""
     groups = _parse_survey_response(response)
     assert groups[0]["title"] == "First"
     assert groups[1]["title"] == "Second"
@@ -548,14 +580,27 @@ def test_survey_lessons_with_mock():
     all_concepts = [l["concept"] for l in plan["lessons"]]
 
     import json as _json
-    mock_response = _json.dumps([
-        {"title": "Algebra Basics", "concepts": all_concepts[:len(all_concepts)//2],
-         "summary": "Foundation concepts", "order": 1},
-        {"title": "Advanced Algebra", "concepts": all_concepts[len(all_concepts)//2:],
-         "summary": "Building on basics", "order": 2},
-    ])
 
-    survey = survey_lessons(plan, invoke_fn=lambda p, m: mock_response, target_lessons=2)
+    mock_response = _json.dumps(
+        [
+            {
+                "title": "Algebra Basics",
+                "concepts": all_concepts[: len(all_concepts) // 2],
+                "summary": "Foundation concepts",
+                "order": 1,
+            },
+            {
+                "title": "Advanced Algebra",
+                "concepts": all_concepts[len(all_concepts) // 2 :],
+                "summary": "Building on basics",
+                "order": 2,
+            },
+        ]
+    )
+
+    survey = survey_lessons(
+        plan, invoke_fn=lambda p, m: mock_response, target_lessons=2
+    )
     assert survey["stats"]["total_lessons"] == 2
     assert survey["stats"]["survey_from"] == len(all_concepts)
     assert len(survey["lessons"]) == 2
@@ -574,10 +619,17 @@ def test_format_survey_markdown():
     all_concepts = [l["concept"] for l in plan["lessons"]]
 
     import json as _json
-    mock_response = _json.dumps([
-        {"title": "All Topics", "concepts": all_concepts,
-         "summary": "Everything in one lesson", "order": 1},
-    ])
+
+    mock_response = _json.dumps(
+        [
+            {
+                "title": "All Topics",
+                "concepts": all_concepts,
+                "summary": "Everything in one lesson",
+                "order": 1,
+            },
+        ]
+    )
 
     survey = survey_lessons(plan, invoke_fn=lambda p, m: mock_response)
     md = format_survey_markdown(survey, title="Test Survey")
@@ -664,6 +716,7 @@ def test_build_survey_lesson_prompt_with_completed():
 
 def test_generate_lesson_survey_mode():
     from reasonsforge.lesson_plan import generate_lesson
+
     plan = build_lesson_plan(NODES)
     all_concepts = [l["concept"] for l in plan["lessons"]]
     survey_lesson = {
@@ -686,7 +739,9 @@ Groups are the foundation. Rings add a second operation. Fields add inverses.
 BELIEFS: group, ring, field"""
 
     result = generate_lesson(
-        survey_lesson, NODES, invoke_fn=lambda p, m: mock_response,
+        survey_lesson,
+        NODES,
+        invoke_fn=lambda p, m: mock_response,
         survey=True,
     )
     assert result is not None

@@ -24,36 +24,42 @@ def build_explore_prompt(
         sections.append(f"**Focus question:** {question}")
         sections.append("")
 
-    sections.extend([
-        "## Issue Details",
-        "",
-        issue_text,
-        "",
-    ])
+    sections.extend(
+        [
+            "## Issue Details",
+            "",
+            issue_text,
+            "",
+        ]
+    )
 
     if context_text:
-        sections.extend([
-            "## Related Issues",
-            "",
-            context_text,
-            "",
-        ])
+        sections.extend(
+            [
+                "## Related Issues",
+                "",
+                context_text,
+                "",
+            ]
+        )
 
-    sections.extend([
-        "## Instructions",
-        "",
-        "Provide a thorough analysis:",
-        "",
-        "1. **Summary** — What is this issue/epic about?",
-        "2. **Status Assessment** — Is it on track? What's blocking progress?",
-        "3. **Dependencies** — What does this depend on? What depends on it?",
-        "4. **Risk** — What could go wrong? What's the blast radius?",
-        "5. **Recommendations** — What should happen next?",
-        "",
-        "Be specific — reference issue IDs, timelines, and assignees.",
-        "",
-        TOPICS_INSTRUCTIONS,
-        BELIEFS_INSTRUCTIONS,
-    ])
+    sections.extend(
+        [
+            "## Instructions",
+            "",
+            "Provide a thorough analysis:",
+            "",
+            "1. **Summary** — What is this issue/epic about?",
+            "2. **Status Assessment** — Is it on track? What's blocking progress?",
+            "3. **Dependencies** — What does this depend on? What depends on it?",
+            "4. **Risk** — What could go wrong? What's the blast radius?",
+            "5. **Recommendations** — What should happen next?",
+            "",
+            "Be specific — reference issue IDs, timelines, and assignees.",
+            "",
+            TOPICS_INSTRUCTIONS,
+            BELIEFS_INSTRUCTIONS,
+        ]
+    )
 
     return "\n".join(sections)

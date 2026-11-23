@@ -21,7 +21,6 @@ def cleanup_subscribers():
 
 
 class TestComputeChanges:
-
     def test_no_changes(self):
         before = {"a": "IN", "b": "OUT"}
         after = {"a": "IN", "b": "OUT"}
@@ -74,7 +73,6 @@ class TestComputeChanges:
 
 
 class TestSubscriberRegistry:
-
     def test_subscribe_and_has_subscribers(self):
         assert not has_subscribers()
         subscribe(lambda events: None)
@@ -152,7 +150,6 @@ class TestSubscriberRegistry:
 
 
 class TestApiIntegration:
-
     def test_add_node_emits_event(self, tmp_path):
         db = str(tmp_path / "test.db")
         received = []
@@ -305,13 +302,11 @@ class TestApiIntegration:
     def test_defend_emits_events(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.add_node("target", "A belief", db_path=db)
-        api.challenge("target", reason="disputed",
-                      challenge_id="ch-1", db_path=db)
+        api.challenge("target", reason="disputed", challenge_id="ch-1", db_path=db)
 
         received = []
         subscribe(lambda events: received.extend(events))
-        api.defend("target", "ch-1", reason="evidence",
-                   db_path=db)
+        api.defend("target", "ch-1", reason="evidence", db_path=db)
 
         changed_ids = {e.node_id for e in received}
         assert "target" in changed_ids

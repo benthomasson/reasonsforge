@@ -11,19 +11,30 @@ def test_defeat_with_scope_basic(tmp_path):
 
     api.add_node("premise-a", "A establishes safety", db_path=str(db))
     api.add_node("premise-b", "B establishes correctness", db_path=str(db))
-    api.add_node("belief", "System is safe, correct, and traceable",
-                 sl="premise-a,premise-b", db_path=str(db))
+    api.add_node(
+        "belief",
+        "System is safe, correct, and traceable",
+        sl="premise-a,premise-b",
+        db_path=str(db),
+    )
 
     node = api.show_node("belief", db_path=str(db))
     assert node["truth_value"] == "IN"
 
     result = api.defeat_with_scope(
-        "belief", 0,
+        "belief",
+        0,
         scope_findings=[
-            {"antecedent": "premise-a", "establishes": "safety",
-             "does_not_establish": "traceability"},
-            {"antecedent": "premise-b", "establishes": "correctness",
-             "does_not_establish": "traceability"},
+            {
+                "antecedent": "premise-a",
+                "establishes": "safety",
+                "does_not_establish": "traceability",
+            },
+            {
+                "antecedent": "premise-b",
+                "establishes": "correctness",
+                "does_not_establish": "traceability",
+            },
         ],
         missing_property="traceability",
         db_path=str(db),
@@ -47,7 +58,8 @@ def test_scope_beliefs_are_premises(tmp_path):
     api.add_node("derived", "Derived text", sl="p1", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "derived", 0,
+        "derived",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -74,7 +86,8 @@ def test_defeater_is_derived(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -102,7 +115,8 @@ def test_challenge_scope_restores_target(tmp_path):
     api.add_node("target", "Target", sl="p1,p2", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "target", 0,
+        "target",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Z"},
             {"antecedent": "p2", "establishes": "Y", "does_not_establish": "Z"},
@@ -131,7 +145,8 @@ def test_defeat_with_scope_in_export(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -151,6 +166,7 @@ def test_defeat_with_scope_in_export(tmp_path):
     db2 = tmp_path / "test2.db"
     api.init_db(str(db2))
     import json
+
     json_path = tmp_path / "export.json"
     json_path.write_text(json.dumps(export))
     api.import_json(str(json_path), db_path=str(db2))
@@ -168,16 +184,23 @@ def test_defeat_with_scope_errors(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     with pytest.raises(KeyError, match="not found"):
-        api.defeat_with_scope("nonexistent", 0, [{"antecedent": "p1",
-            "establishes": "X"}], "Y", db_path=str(db))
+        api.defeat_with_scope(
+            "nonexistent",
+            0,
+            [{"antecedent": "p1", "establishes": "X"}],
+            "Y",
+            db_path=str(db),
+        )
 
     with pytest.raises(ValueError, match="no justifications"):
-        api.defeat_with_scope("p1", 0, [{"antecedent": "p1",
-            "establishes": "X"}], "Y", db_path=str(db))
+        api.defeat_with_scope(
+            "p1", 0, [{"antecedent": "p1", "establishes": "X"}], "Y", db_path=str(db)
+        )
 
     with pytest.raises(IndexError, match="out of range"):
-        api.defeat_with_scope("d1", 5, [{"antecedent": "p1",
-            "establishes": "X"}], "Y", db_path=str(db))
+        api.defeat_with_scope(
+            "d1", 5, [{"antecedent": "p1", "establishes": "X"}], "Y", db_path=str(db)
+        )
 
     with pytest.raises(ValueError, match="scope_findings must not be empty"):
         api.defeat_with_scope("d1", 0, [], "Y", db_path=str(db))
@@ -192,7 +215,8 @@ def test_scope_ids_are_unique(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     r1 = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -204,7 +228,8 @@ def test_scope_ids_are_unique(tmp_path):
     api.add_justification("d1", sl="p1", db_path=str(db))
 
     r2 = api.defeat_with_scope(
-        "d1", 1,
+        "d1",
+        1,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Z"},
         ],
@@ -229,7 +254,8 @@ def test_cascade_through_scope_defeat(tmp_path):
     assert api.show_node("d2", db_path=str(db))["truth_value"] == "IN"
 
     result = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -250,7 +276,8 @@ def test_defeat_reason_type_stored(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -273,7 +300,8 @@ def test_defeat_reason_type_omitted(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     result = api.defeat_with_scope(
-        "d1", 0,
+        "d1",
+        0,
         scope_findings=[
             {"antecedent": "p1", "establishes": "X", "does_not_establish": "Y"},
         ],
@@ -295,7 +323,9 @@ def test_defeat_justification_reason_type(tmp_path):
     api.add_node("d1", "D1", sl="p1", db_path=str(db))
 
     result = api.defeat_justification(
-        "d1", 0, "overclaims scope",
+        "d1",
+        0,
+        "overclaims scope",
         defeat_reason_type="scope-mismatch",
         db_path=str(db),
     )

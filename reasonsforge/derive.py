@@ -17,7 +17,6 @@ from pathlib import Path
 
 from . import api
 
-
 DERIVE_PROMPT = """\
 You are a reasoning architect analyzing a belief network. Your task is to \
 identify opportunities for deeper derived conclusions by combining existing beliefs.
@@ -212,11 +211,20 @@ def _sample_beliefs(belief_ids, budget, rng=None):
     return rng.sample(belief_ids, budget)
 
 
-def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
-                           sample=False, seed=None,
-                           cluster=False, intra_cluster=False,
-                           round_num=0, cluster_cache=None,
-                           embedding_model=None, n_clusters=None):
+def _build_beliefs_section(
+    nodes,
+    derived,
+    agents=None,
+    max_beliefs=300,
+    sample=False,
+    seed=None,
+    cluster=False,
+    intra_cluster=False,
+    round_num=0,
+    cluster_cache=None,
+    embedding_model=None,
+    n_clusters=None,
+):
     """Build a compact beliefs section for the derive prompt.
 
     Args:
@@ -235,43 +243,61 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
     """
     lines = []
     rng = random.Random(seed) if sample else None
-    in_nodes = {k: v for k, v in nodes.items()
-                if v.get("truth_value") == "IN" and k not in derived}
+    in_nodes = {
+        k: v
+        for k, v in nodes.items()
+        if v.get("truth_value") == "IN" and k not in derived
+    }
 
     if intra_cluster:
         from .cluster import cluster_beliefs_intra as _cluster_intra
+
         belief_texts = {k: v["text"] for k, v in in_nodes.items()}
         selected_ids, cluster_stats = _cluster_intra(
-            belief_texts, max_beliefs, round_num=round_num, seed=seed,
-            n_clusters=n_clusters, cache=cluster_cache,
+            belief_texts,
+            max_beliefs,
+            round_num=round_num,
+            seed=seed,
+            n_clusters=n_clusters,
+            cache=cluster_cache,
             model_name=embedding_model or "all-MiniLM-L6-v2",
         )
     elif cluster:
         from .cluster import cluster_beliefs as _cluster
+
         belief_texts = {k: v["text"] for k, v in in_nodes.items()}
         selected_ids, cluster_stats = _cluster(
-            belief_texts, max_beliefs, seed=seed, n_clusters=n_clusters,
-            cache=cluster_cache, model_name=embedding_model or "all-MiniLM-L6-v2",
+            belief_texts,
+            max_beliefs,
+            seed=seed,
+            n_clusters=n_clusters,
+            cache=cluster_cache,
+            model_name=embedding_model or "all-MiniLM-L6-v2",
         )
 
     if intra_cluster or cluster:
         if agents:
             for agent_name in sorted(agents, key=lambda a: -len(agents[a])):
-                agent_sel = sorted(k for k in selected_ids
-                                   if k.startswith(f"{agent_name}:"))
+                agent_sel = sorted(
+                    k for k in selected_ids if k.startswith(f"{agent_name}:")
+                )
                 agent_total = sum(1 for k in in_nodes if k.startswith(f"{agent_name}:"))
                 if not agent_sel:
                     continue
-                lines.append(f"\n### Agent: {agent_name} ({agent_total} beliefs, "
-                             f"showing {len(agent_sel)})")
+                lines.append(
+                    f"\n### Agent: {agent_name} ({agent_total} beliefs, "
+                    f"showing {len(agent_sel)})"
+                )
                 for belief_id in agent_sel:
                     text = in_nodes[belief_id]["text"][:120]
                     lines.append(f"- `{belief_id}`: {text}")
             local_sel = sorted(k for k in selected_ids if ":" not in k)
             if local_sel:
                 local_total = sum(1 for k in in_nodes if ":" not in k)
-                lines.append(f"\n### Local beliefs ({local_total} beliefs, "
-                             f"showing {len(local_sel)})")
+                lines.append(
+                    f"\n### Local beliefs ({local_total} beliefs, "
+                    f"showing {len(local_sel)})"
+                )
                 for belief_id in local_sel:
                     text = in_nodes[belief_id]["text"][:120]
                     lines.append(f"- `{belief_id}`: {text}")
@@ -285,8 +311,10 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
                 prefix = k.split("-")[0] if "-" in k else k
                 all_groups[prefix].append(k)
             for prefix in sorted(groups, key=lambda p: -len(all_groups.get(p, []))):
-                lines.append(f"\n### {prefix} ({len(all_groups.get(prefix, []))} beliefs, "
-                             f"showing {len(groups[prefix])})")
+                lines.append(
+                    f"\n### {prefix} ({len(all_groups.get(prefix, []))} beliefs, "
+                    f"showing {len(groups[prefix])})"
+                )
                 for belief_id in sorted(groups[prefix]):
                     text = in_nodes[belief_id]["text"][:120]
                     lines.append(f"- `{belief_id}`: {text}")
@@ -296,16 +324,16 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
     if agents:
         # Allocate budget proportionally across agents
         total_agent_beliefs = sum(
-            len([k for k in in_nodes if k.startswith(f"{a}:")])
-            for a in agents
+            len([k for k in in_nodes if k.startswith(f"{a}:")]) for a in agents
         )
         non_agent = {k: v for k, v in in_nodes.items() if ":" not in k}
         total_all = total_agent_beliefs + len(non_agent)
 
         count = 0
         for agent_name in sorted(agents, key=lambda a: -len(agents[a])):
-            agent_beliefs = {k: v for k, v in in_nodes.items()
-                            if k.startswith(f"{agent_name}:")}
+            agent_beliefs = {
+                k: v for k, v in in_nodes.items() if k.startswith(f"{agent_name}:")
+            }
             if not agent_beliefs:
                 continue
 
@@ -322,8 +350,10 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
             else:
                 belief_ids = belief_ids[:agent_budget]
 
-            lines.append(f"\n### Agent: {agent_name} ({len(agent_beliefs)} beliefs, "
-                         f"showing {len(belief_ids)})")
+            lines.append(
+                f"\n### Agent: {agent_name} ({len(agent_beliefs)} beliefs, "
+                f"showing {len(belief_ids)})"
+            )
             for belief_id in belief_ids:
                 text = agent_beliefs[belief_id]["text"][:120]
                 lines.append(f"- `{belief_id}`: {text}")
@@ -338,8 +368,10 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
                 local_ids.sort()
             else:
                 local_ids = local_ids[:remaining]
-            lines.append(f"\n### Local beliefs ({len(non_agent)} beliefs, "
-                         f"showing {len(local_ids)})")
+            lines.append(
+                f"\n### Local beliefs ({len(non_agent)} beliefs, "
+                f"showing {len(local_ids)})"
+            )
             for belief_id in local_ids:
                 text = non_agent[belief_id]["text"][:120]
                 lines.append(f"- `{belief_id}`: {text}")
@@ -353,14 +385,18 @@ def _build_beliefs_section(nodes, derived, agents=None, max_beliefs=300,
         if sample:
             # Flatten, sample, regroup for display
             all_items = [(k, text) for items in groups.values() for k, text in items]
-            sampled_keys = set(k for k, _ in _sample_beliefs(all_items, max_beliefs, rng))
+            sampled_keys = set(
+                k for k, _ in _sample_beliefs(all_items, max_beliefs, rng)
+            )
             count = 0
             for prefix in sorted(groups, key=lambda p: -len(groups[p])):
                 prefix_items = [(k, t) for k, t in groups[prefix] if k in sampled_keys]
                 if not prefix_items:
                     continue
-                lines.append(f"\n### {prefix} ({len(groups[prefix])} beliefs, "
-                             f"showing {len(prefix_items)})")
+                lines.append(
+                    f"\n### {prefix} ({len(groups[prefix])} beliefs, "
+                    f"showing {len(prefix_items)})"
+                )
                 for belief_id, text in sorted(prefix_items):
                     lines.append(f"- `{belief_id}`: {text}")
                     count += 1
@@ -386,7 +422,9 @@ def _build_derived_section(nodes, derived, max_derived=300):
     count = 0
     for k in sorted(derived, key=lambda x: -_get_depth(x, nodes, derived, memo)):
         if count >= max_derived:
-            lines.append(f"\n... ({len(derived) - count} more derived conclusions omitted)")
+            lines.append(
+                f"\n... ({len(derived) - count} more derived conclusions omitted)"
+            )
             break
         depth = _get_depth(k, nodes, derived, memo)
         text = nodes[k]["text"][:150]
@@ -430,8 +468,11 @@ def parse_proposals(response):
             "id": match.group(2).strip("`"),
             "text": match.group(3).strip(),
             "antecedents": [a.strip().strip("`") for a in match.group(4).split(",")],
-            "unless": [u.strip().strip("`") for u in match.group(5).split(",")]
-                      if match.group(5) else [],
+            "unless": (
+                [u.strip().strip("`") for u in match.group(5).split(",")]
+                if match.group(5)
+                else []
+            ),
             "mode": mode_raw.lower() if mode_raw else "all",
             "label": match.group(7).strip(),
         }
@@ -450,15 +491,18 @@ def parse_proposals(response):
     )
     for match in old_pattern.finditer(response):
         # Detect kind from the header text before the colon
-        header_start = response[max(0, match.start() - 30):match.start() + 30]
+        header_start = response[max(0, match.start() - 30) : match.start() + 30]
         kind = "gate" if "GATE" in header_start else "derive"
         proposal = {
             "kind": kind,
             "id": match.group(1),
             "text": match.group(2).strip(),
             "antecedents": [a.strip().strip("`") for a in match.group(3).split(",")],
-            "unless": [u.strip().strip("`") for u in match.group(4).split(",")]
-                      if match.group(4) else [],
+            "unless": (
+                [u.strip().strip("`") for u in match.group(4).split(",")]
+                if match.group(4)
+                else []
+            ),
             "label": match.group(5).strip(),
         }
         proposals.append(proposal)
@@ -466,13 +510,27 @@ def parse_proposals(response):
     return proposals
 
 
-def build_prompt(nodes, domain=None, topic=None, source_path=None,
-                 budget=300, sample=False,
-                 seed=None, min_depth=None, max_depth_filter=None,
-                 premises_only=False, has_dependents=False,
-                 cluster=False, intra_cluster=False, round_num=0,
-                 cluster_cache=None, embedding_model=None,
-                 n_clusters=None, prompt_template=None, mode=None):
+def build_prompt(
+    nodes,
+    domain=None,
+    topic=None,
+    source_path=None,
+    budget=300,
+    sample=False,
+    seed=None,
+    min_depth=None,
+    max_depth_filter=None,
+    premises_only=False,
+    has_dependents=False,
+    cluster=False,
+    intra_cluster=False,
+    round_num=0,
+    cluster_cache=None,
+    embedding_model=None,
+    n_clusters=None,
+    prompt_template=None,
+    mode=None,
+):
     """Build the full derive prompt from a network's nodes dict.
 
     Args:
@@ -500,10 +558,15 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
         nodes = _filter_by_source_path(nodes, source_path)
 
     # Compute depth and dependency info from the full graph before filtering
-    all_derived = {k: v for k, v in nodes.items()
-                   if v.get("justifications") and len(v["justifications"]) > 0}
+    all_derived = {
+        k: v
+        for k, v in nodes.items()
+        if v.get("justifications") and len(v["justifications"]) > 0
+    }
     memo = {}
-    max_depth = max((_get_depth(k, nodes, all_derived, memo) for k in all_derived), default=0)
+    max_depth = max(
+        (_get_depth(k, nodes, all_derived, memo) for k in all_derived), default=0
+    )
 
     referenced = set()
     for v in nodes.values():
@@ -529,11 +592,16 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
             filtered[k] = v
         nodes = filtered
 
-    derived = {k: v for k, v in nodes.items()
-               if v.get("justifications") and len(v["justifications"]) > 0}
+    derived = {
+        k: v
+        for k, v in nodes.items()
+        if v.get("justifications") and len(v["justifications"]) > 0
+    }
     in_nodes = {k: v for k, v in nodes.items() if v.get("truth_value") == "IN"}
     if premises_only or has_dependents or need_depth:
-        max_depth = max((_get_depth(k, nodes, all_derived, memo) for k in derived), default=0)
+        max_depth = max(
+            (_get_depth(k, nodes, all_derived, memo) for k in derived), default=0
+        )
 
     agents = _detect_agents(nodes)
 
@@ -559,6 +627,7 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
     mode_task_extra = ""
     if mode and mode != "discover":
         from reasonsforge.forge.code.prompts.modes import get_mode
+
         mode_task_extra = get_mode(mode).get("derive_task_extra", "")
 
     # Cross-agent task instructions
@@ -573,11 +642,18 @@ def build_prompt(nodes, domain=None, topic=None, source_path=None,
         agents_stats = "\n".join(parts)
 
     beliefs_section, cluster_stats = _build_beliefs_section(
-        nodes, derived, agents, max_beliefs=budget,
-        sample=sample, seed=seed,
-        cluster=cluster, intra_cluster=intra_cluster,
-        round_num=round_num, cluster_cache=cluster_cache,
-        embedding_model=embedding_model, n_clusters=n_clusters,
+        nodes,
+        derived,
+        agents,
+        max_beliefs=budget,
+        sample=sample,
+        seed=seed,
+        cluster=cluster,
+        intra_cluster=intra_cluster,
+        round_num=round_num,
+        cluster_cache=cluster_cache,
+        embedding_model=embedding_model,
+        n_clusters=n_clusters,
     )
     derived_section = _build_derived_section(nodes, derived, max_derived=budget)
 
@@ -681,7 +757,9 @@ def validate_proposals(proposals, nodes):
         similar = find_similar_out(p["id"], nodes)
         if similar:
             best_id, best_sim = similar[0]
-            skipped.append((p, f"similar to retracted belief: {best_id} ({best_sim:.0%} overlap)"))
+            skipped.append(
+                (p, f"similar to retracted belief: {best_id} ({best_sim:.0%} overlap)")
+            )
             continue
         valid.append(p)
     return valid, skipped

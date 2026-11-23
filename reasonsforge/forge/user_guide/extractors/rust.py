@@ -108,9 +108,9 @@ def _extract_brace_block(text: str, start: int) -> str:
         elif text[i] == "}":
             depth -= 1
             if depth == 0:
-                return text[start + 1:i]
+                return text[start + 1 : i]
         i += 1
-    return text[start + 1:]
+    return text[start + 1 :]
 
 
 def _extract_paren_block(text: str, start: int) -> str:
@@ -123,9 +123,9 @@ def _extract_paren_block(text: str, start: int) -> str:
         elif text[i] == ")":
             depth -= 1
             if depth == 0:
-                return text[start + 1:i]
+                return text[start + 1 : i]
         i += 1
-    return text[start + 1:]
+    return text[start + 1 :]
 
 
 def _extract_doc_comment(text: str, pos: int) -> str:
@@ -204,13 +204,15 @@ def _parse_struct_fields(body: str) -> list[PropInfo]:
                 doc_buf = ""
                 continue
 
-            props.append(PropInfo(
-                name=name,
-                type=ftype,
-                required=required,
-                default_value=default_val,
-                description=doc_buf,
-            ))
+            props.append(
+                PropInfo(
+                    name=name,
+                    type=ftype,
+                    required=required,
+                    default_value=default_val,
+                    description=doc_buf,
+                )
+            )
             doc_buf = ""
         elif stripped and not stripped.startswith("//"):
             doc_buf = ""
@@ -247,12 +249,14 @@ def _parse_enum_variants(body: str) -> list[PropInfo]:
             else:
                 payload = "unit variant"
 
-            props.append(PropInfo(
-                name=variant_name,
-                type=payload,
-                required=True,
-                description=doc_buf,
-            ))
+            props.append(
+                PropInfo(
+                    name=variant_name,
+                    type=payload,
+                    required=True,
+                    description=doc_buf,
+                )
+            )
             doc_buf = ""
         elif stripped:
             doc_buf = ""
@@ -289,7 +293,7 @@ def _parse_declare_class(text: str, start: int, rel_path: str) -> InterfaceInfo 
             elif text[i] == ")":
                 depth -= 1
                 if depth == 0:
-                    body = text[paren_start + 1:i]
+                    body = text[paren_start + 1 : i]
                     break
             i += 1
         if not body:
@@ -317,7 +321,11 @@ def _parse_declare_class(text: str, start: int, rel_path: str) -> InterfaceInfo 
     protocols = []
     for proto_m in _UNSAFE_IMPL_RE.finditer(body):
         proto_name = proto_m.group(1)
-        if proto_name != rust_name and proto_name not in ("ClassType", "DeclaredClass", "NSObjectProtocol"):
+        if proto_name != rust_name and proto_name not in (
+            "ClassType",
+            "DeclaredClass",
+            "NSObjectProtocol",
+        ):
             protocols.append(proto_name)
 
     # Extract methods (#[method(selector)] fn name)
@@ -331,35 +339,43 @@ def _parse_declare_class(text: str, start: int, rel_path: str) -> InterfaceInfo 
 
     # Build props from the extracted information
     props = []
-    props.append(PropInfo(
-        name="objc_class_name",
-        type="&'static str",
-        required=True,
-        description=f"ObjC runtime class name (use with objc_getClass). Rust struct name is '{rust_name}'.",
-        default_value=f'"{objc_name}"',
-    ))
+    props.append(
+        PropInfo(
+            name="objc_class_name",
+            type="&'static str",
+            required=True,
+            description=f"ObjC runtime class name (use with objc_getClass). Rust struct name is '{rust_name}'.",
+            default_value=f'"{objc_name}"',
+        )
+    )
     if superclass:
         chain = " > ".join([superclass] + inherits) if inherits else superclass
-        props.append(PropInfo(
-            name="superclass",
-            type="ObjC class",
-            required=True,
-            description=f"Inheritance chain: {chain}",
-        ))
+        props.append(
+            PropInfo(
+                name="superclass",
+                type="ObjC class",
+                required=True,
+                description=f"Inheritance chain: {chain}",
+            )
+        )
     for proto in protocols:
-        props.append(PropInfo(
-            name=f"protocol_{proto}",
-            type="protocol conformance",
-            required=True,
-            description=f"Conforms to {proto} protocol",
-        ))
+        props.append(
+            PropInfo(
+                name=f"protocol_{proto}",
+                type="protocol conformance",
+                required=True,
+                description=f"Conforms to {proto} protocol",
+            )
+        )
     for selector, fn_name, params, ret in methods:
-        props.append(PropInfo(
-            name=fn_name,
-            type=f"fn({params}) -> {ret}",
-            required=True,
-            description=f"ObjC selector: {selector}",
-        ))
+        props.append(
+            PropInfo(
+                name=fn_name,
+                type=f"fn({params}) -> {ret}",
+                required=True,
+                description=f"ObjC selector: {selector}",
+            )
+        )
 
     line_number = text[:start].count("\n") + 1
     description = _extract_doc_comment(text, start)
@@ -433,12 +449,14 @@ def _extract_methods_from_body(body: str) -> list[PropInfo]:
                     desc = f"ObjC selector: {selector}"
                     if is_optional:
                         desc += " (optional)"
-                    props.append(PropInfo(
-                        name=fn_name,
-                        type=f"fn({params}) -> {ret}",
-                        required=not is_optional,
-                        description=desc,
-                    ))
+                    props.append(
+                        PropInfo(
+                            name=fn_name,
+                            type=f"fn({params}) -> {ret}",
+                            required=not is_optional,
+                            description=desc,
+                        )
+                    )
                     i = j
                 break
         i += 1
@@ -446,7 +464,9 @@ def _extract_methods_from_body(body: str) -> list[PropInfo]:
     return props
 
 
-def _parse_extern_class(text: str, paren_start: int, rel_path: str) -> InterfaceInfo | None:
+def _parse_extern_class(
+    text: str, paren_start: int, rel_path: str
+) -> InterfaceInfo | None:
     """Parse an extern_class!(...) macro invocation."""
     body = _extract_paren_block(text, paren_start)
     if not body:
@@ -468,12 +488,14 @@ def _parse_extern_class(text: str, paren_start: int, rel_path: str) -> Interface
     props = []
     if superclass:
         chain = " > ".join([superclass] + inherits) if inherits else superclass
-        props.append(PropInfo(
-            name="superclass",
-            type="ObjC class",
-            required=True,
-            description=f"Inheritance chain: {chain}",
-        ))
+        props.append(
+            PropInfo(
+                name="superclass",
+                type="ObjC class",
+                required=True,
+                description=f"Inheritance chain: {chain}",
+            )
+        )
 
     line_number = text[:paren_start].count("\n") + 1
     desc_parts = [f"ObjC class '{class_name}'"]
@@ -491,7 +513,9 @@ def _parse_extern_class(text: str, paren_start: int, rel_path: str) -> Interface
     )
 
 
-def _parse_extern_methods(text: str, paren_start: int, rel_path: str) -> tuple[str, list[PropInfo]]:
+def _parse_extern_methods(
+    text: str, paren_start: int, rel_path: str
+) -> tuple[str, list[PropInfo]]:
     """Parse an extern_methods!(...) block. Returns (class_name, methods)."""
     body = _extract_paren_block(text, paren_start)
     if not body:
@@ -507,7 +531,9 @@ def _parse_extern_methods(text: str, paren_start: int, rel_path: str) -> tuple[s
     return (class_name, methods)
 
 
-def _parse_extern_protocol(text: str, paren_start: int, rel_path: str) -> InterfaceInfo | None:
+def _parse_extern_protocol(
+    text: str, paren_start: int, rel_path: str
+) -> InterfaceInfo | None:
     """Parse an extern_protocol!(...) macro invocation."""
     body = _extract_paren_block(text, paren_start)
     if not body:
@@ -525,12 +551,14 @@ def _parse_extern_protocol(text: str, paren_start: int, rel_path: str) -> Interf
 
     props = []
     if super_traits:
-        props.append(PropInfo(
-            name="super_traits",
-            type="protocol",
-            required=True,
-            description=f"Requires: {super_traits}",
-        ))
+        props.append(
+            PropInfo(
+                name="super_traits",
+                type="protocol",
+                required=True,
+                description=f"Requires: {super_traits}",
+            )
+        )
     props.extend(methods)
 
     if not props:
@@ -568,7 +596,6 @@ def _humanize_test_name(name: str) -> str:
 
 
 class RustExtractor(Extractor):
-
     @property
     def name(self) -> str:
         return "rust"
@@ -577,7 +604,9 @@ class RustExtractor(Extractor):
         return (Path(repo_path) / "Cargo.toml").exists()
 
     def extract_interfaces(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[InterfaceInfo]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".rs"})
@@ -599,7 +628,9 @@ class RustExtractor(Extractor):
                 for m in pattern.finditer(text):
                     struct_name = m.group(1)
 
-                    if components and not _matches_component(struct_name, components, rel_path):
+                    if components and not _matches_component(
+                        struct_name, components, rel_path
+                    ):
                         continue
 
                     body = _extract_brace_block(text, m.end() - 1)
@@ -607,30 +638,38 @@ class RustExtractor(Extractor):
                     if not props:
                         continue
 
-                    line_number = text[:m.start()].count("\n") + 1
+                    line_number = text[: m.start()].count("\n") + 1
                     description = _extract_doc_comment(text, m.start())
 
                     derives = _extract_derives(text, m.start())
                     if derives:
-                        description = (description + f" [derives: {', '.join(derives)}]").strip()
+                        description = (
+                            description + f" [derives: {', '.join(derives)}]"
+                        ).strip()
 
-                    interfaces.append(InterfaceInfo(
-                        name=struct_name,
-                        file_path=rel_path,
-                        line_number=line_number,
-                        props=props,
-                        description=description,
-                        component_name=struct_name,
-                    ))
+                    interfaces.append(
+                        InterfaceInfo(
+                            name=struct_name,
+                            file_path=rel_path,
+                            line_number=line_number,
+                            props=props,
+                            description=description,
+                            component_name=struct_name,
+                        )
+                    )
 
             # declare_class! macro extraction (ObjC interop — user-defined classes)
             for m in _DECLARE_CLASS_RE.finditer(text):
                 if components and not _matches_component("", components, rel_path):
                     continue
 
-                info = _parse_declare_class(text, m.start() + len("declare_class!") - 1, rel_path)
+                info = _parse_declare_class(
+                    text, m.start() + len("declare_class!") - 1, rel_path
+                )
                 if info:
-                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                    if components and not _matches_component(
+                        info.component_name or "", components, rel_path
+                    ):
                         continue
                     interfaces.append(info)
 
@@ -642,17 +681,21 @@ class RustExtractor(Extractor):
                     continue
                 info = _parse_extern_class(text, paren_start, rel_path)
                 if info:
-                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                    if components and not _matches_component(
+                        info.component_name or "", components, rel_path
+                    ):
                         continue
                     # Collect protocol conformances from the file
                     protos = _collect_protocol_conformances(text, info.name)
                     for proto in protos:
-                        info.props.append(PropInfo(
-                            name=f"protocol_{proto}",
-                            type="protocol conformance",
-                            required=True,
-                            description=f"Conforms to {proto} protocol",
-                        ))
+                        info.props.append(
+                            PropInfo(
+                                name=f"protocol_{proto}",
+                                type="protocol conformance",
+                                required=True,
+                                description=f"Conforms to {proto} protocol",
+                            )
+                        )
                     extern_class_map[info.name] = info
 
             # extern_methods! — attach methods to extern_class! entries
@@ -664,12 +707,14 @@ class RustExtractor(Extractor):
                 if class_name and methods:
                     if class_name in extern_class_map:
                         extern_class_map[class_name].props.extend(methods)
-                    elif not components or _matches_component(class_name, components, rel_path):
+                    elif not components or _matches_component(
+                        class_name, components, rel_path
+                    ):
                         # Standalone extern_methods for a class defined elsewhere
                         extern_class_map[class_name] = InterfaceInfo(
                             name=class_name,
                             file_path=rel_path,
-                            line_number=text[:m.start()].count("\n") + 1,
+                            line_number=text[: m.start()].count("\n") + 1,
                             props=methods,
                             description=f"ObjC class '{class_name}' methods",
                             component_name=class_name,
@@ -684,14 +729,18 @@ class RustExtractor(Extractor):
                     continue
                 info = _parse_extern_protocol(text, paren_start, rel_path)
                 if info:
-                    if components and not _matches_component(info.component_name or "", components, rel_path):
+                    if components and not _matches_component(
+                        info.component_name or "", components, rel_path
+                    ):
                         continue
                     interfaces.append(info)
 
         return interfaces
 
     def extract_config(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[ConfigValue]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".rs"})
@@ -716,12 +765,14 @@ class RustExtractor(Extractor):
                 matched_text = m.group(0)
                 category = "static" if "static" in matched_text else "const"
 
-                values.append(ConfigValue(
-                    name=name,
-                    value=f"{value} ({ctype})",
-                    category=category,
-                    file_path=rel_path,
-                ))
+                values.append(
+                    ConfigValue(
+                        name=name,
+                        value=f"{value} ({ctype})",
+                        category=category,
+                        file_path=rel_path,
+                    )
+                )
 
         # Also extract from Cargo.toml features
         cargo_path = repo / "Cargo.toml"
@@ -738,19 +789,23 @@ class RustExtractor(Extractor):
                         break
                     if in_features and "=" in stripped:
                         fname, fval = stripped.split("=", 1)
-                        values.append(ConfigValue(
-                            name=fname.strip(),
-                            value=fval.strip(),
-                            category="feature",
-                            file_path="Cargo.toml",
-                        ))
+                        values.append(
+                            ConfigValue(
+                                name=fname.strip(),
+                                value=fval.strip(),
+                                category="feature",
+                                file_path="Cargo.toml",
+                            )
+                        )
             except OSError:
                 pass
 
         return values
 
     def extract_tests(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[TestPattern]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".rs"})
@@ -773,29 +828,41 @@ class RustExtractor(Extractor):
             for m in _TEST_FN_RE.finditer(text):
                 func_name = m.group(1)
                 desc = _humanize_test_name(func_name)
-                line_number = text[:m.start()].count("\n") + 1
+                line_number = text[: m.start()].count("\n") + 1
 
                 lower_desc = desc.lower()
-                if any(kw in lower_desc for kw in ("error", "invalid", "fail", "panic", "err")):
+                if any(
+                    kw in lower_desc
+                    for kw in ("error", "invalid", "fail", "panic", "err")
+                ):
                     ptype = "error_case"
-                elif any(kw in lower_desc for kw in ("not", "cannot", "without", "missing")):
+                elif any(
+                    kw in lower_desc for kw in ("not", "cannot", "without", "missing")
+                ):
                     ptype = "invalid_usage"
-                elif any(kw in lower_desc for kw in ("edge", "boundary", "empty", "none", "zero", "default")):
+                elif any(
+                    kw in lower_desc
+                    for kw in ("edge", "boundary", "empty", "none", "zero", "default")
+                ):
                     ptype = "edge_case"
                 else:
                     ptype = "valid_usage"
 
-                patterns.append(TestPattern(
-                    description=desc,
-                    file_path=rel_path,
-                    line_number=line_number,
-                    pattern_type=ptype,
-                ))
+                patterns.append(
+                    TestPattern(
+                        description=desc,
+                        file_path=rel_path,
+                        line_number=line_number,
+                        pattern_type=ptype,
+                    )
+                )
 
         return patterns
 
     def extract_examples(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[str]:
         repo = Path(repo_path)
         examples: list[str] = []

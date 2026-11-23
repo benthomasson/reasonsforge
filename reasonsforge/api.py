@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import sys
+
 try:
     from tqdm import tqdm
 except ImportError:
@@ -27,7 +28,6 @@ from . import pubsub
 from .metadata import build_meta
 from .network import Network
 from .storage import Storage
-
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,7 @@ def _resolve_namespace(node_id: str, namespace: str | None) -> str:
 
 def _with_network(db_path: str, write: bool = False):
     """Context manager pattern for load/operate/save."""
+
     class _Ctx:
         def __init__(self):
             self.store = Storage(db_path)
@@ -69,8 +70,7 @@ def _with_network(db_path: str, write: bool = False):
         def __enter__(self):
             if write and pubsub.has_subscribers(db_path):
                 self._before = {
-                    nid: n.truth_value
-                    for nid, n in self.network.nodes.items()
+                    nid: n.truth_value for nid, n in self.network.nodes.items()
                 }
             return self.network
 
@@ -79,12 +79,9 @@ def _with_network(db_path: str, write: bool = False):
                 self.store.save(self.network)
                 if self._before is not None:
                     after = {
-                        nid: n.truth_value
-                        for nid, n in self.network.nodes.items()
+                        nid: n.truth_value for nid, n in self.network.nodes.items()
                     }
-                    events = pubsub.compute_changes(
-                        self._before, after, db_path
-                    )
+                    events = pubsub.compute_changes(self._before, after, db_path)
                     pubsub.publish(events, db_path)
             self.store.close()
             return False
@@ -95,13 +92,18 @@ def _with_network(db_path: str, write: bool = False):
 def _pg_dispatch(pg_conninfo, project_id, method_name, **kwargs):
     """Dispatch a call to the PostgreSQL backend."""
     from .pg import PgApi
+
     with PgApi(pg_conninfo, project_id) as pg:
         return getattr(pg, method_name)(**kwargs)
 
 
-def init_db(db_path: str = DEFAULT_DB, force: bool = False,
-            project_name: str = "",
-            pg_conninfo=None, project_id=None) -> dict:
+def init_db(
+    db_path: str = DEFAULT_DB,
+    force: bool = False,
+    project_name: str = "",
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Initialize a new RMS database.
 
     Args:
@@ -112,8 +114,9 @@ def init_db(db_path: str = DEFAULT_DB, force: bool = False,
     Returns: {"db_path": str, "created": bool}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "init_db",
-                            project_name=project_name)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "init_db", project_name=project_name
+        )
     p = Path(db_path)
     if p.exists() and not force:
         raise FileExistsError(f"Database already exists: {db_path}")
@@ -124,8 +127,9 @@ def init_db(db_path: str = DEFAULT_DB, force: bool = False,
     return {"db_path": str(p), "created": True}
 
 
-def ensure_namespace(namespace: str, db_path: str = DEFAULT_DB,
-                     pg_conninfo=None, project_id=None) -> dict:
+def ensure_namespace(
+    namespace: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Ensure a namespace premise node exists (namespace:active).
 
     Creates the premise if it doesn't exist. This is the node that all
@@ -135,8 +139,9 @@ def ensure_namespace(namespace: str, db_path: str = DEFAULT_DB,
     Returns: {"namespace": str, "active_node": str, "created": bool}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "ensure_namespace",
-                            namespace=namespace)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "ensure_namespace", namespace=namespace
+        )
     active_id = f"{namespace}:active"
     with _with_network(db_path, write=True) as net:
         created = False
@@ -150,8 +155,9 @@ def ensure_namespace(namespace: str, db_path: str = DEFAULT_DB,
         return {"namespace": namespace, "active_node": active_id, "created": created}
 
 
-def list_namespaces(db_path: str = DEFAULT_DB,
-                    pg_conninfo=None, project_id=None) -> dict:
+def list_namespaces(
+    db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """List all namespaces (agents) in the database.
 
     Detects namespaces by looking for nodes with ':active' suffix
@@ -165,20 +171,23 @@ def list_namespaces(db_path: str = DEFAULT_DB,
         namespaces = []
         for nid, node in sorted(net.nodes.items()):
             if nid.endswith(":active") and node.metadata.get("role") == "agent_premise":
-                ns = nid[:-len(":active")]
+                ns = nid[: -len(":active")]
                 # Count beliefs in this namespace
                 count = sum(1 for n in net.nodes if n.startswith(f"{ns}:") and n != nid)
                 in_count = sum(
-                    1 for n, nd in net.nodes.items()
+                    1
+                    for n, nd in net.nodes.items()
                     if n.startswith(f"{ns}:") and n != nid and nd.truth_value == "IN"
                 )
-                namespaces.append({
-                    "namespace": ns,
-                    "active_node": nid,
-                    "active": node.truth_value == "IN",
-                    "total_beliefs": count,
-                    "in_beliefs": in_count,
-                })
+                namespaces.append(
+                    {
+                        "namespace": ns,
+                        "active_node": nid,
+                        "active": node.truth_value == "IN",
+                        "total_beliefs": count,
+                        "in_beliefs": in_count,
+                    }
+                )
         return {"namespaces": namespaces}
 
 
@@ -202,7 +211,8 @@ def add_node(
     accepted_pr: str = "",
     model: str = "",
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Add a node to the network.
 
@@ -225,26 +235,51 @@ def add_node(
     if pg_conninfo:
         if any_mode:
             raise NotImplementedError("any_mode is not supported with PostgreSQL")
-        return _pg_dispatch(pg_conninfo, project_id, "add_node",
-                            node_id=node_id, text=text, sl=sl, cp=cp, unless=unless,
-                            label=label, source=source, source_url=source_url,
-                            access_tags=access_tags, namespace=namespace,
-                            example=example)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "add_node",
+            node_id=node_id,
+            text=text,
+            sl=sl,
+            cp=cp,
+            unless=unless,
+            label=label,
+            source=source,
+            source_url=source_url,
+            access_tags=access_tags,
+            namespace=namespace,
+            example=example,
+        )
     outlist = [o.strip() for o in unless.split(",") if o.strip()] if unless else []
     justifications = []
     if sl:
         antecedents = [a.strip() for a in sl.split(",")]
         if any_mode and len(antecedents) > 1:
             for a in antecedents:
-                justifications.append(Justification(type="SL", antecedents=[a], outlist=outlist, label=label))
+                justifications.append(
+                    Justification(
+                        type="SL", antecedents=[a], outlist=outlist, label=label
+                    )
+                )
         else:
-            justifications.append(Justification(type="SL", antecedents=antecedents, outlist=outlist, label=label))
+            justifications.append(
+                Justification(
+                    type="SL", antecedents=antecedents, outlist=outlist, label=label
+                )
+            )
     elif cp:
         antecedents = [a.strip() for a in cp.split(",")]
-        justifications.append(Justification(type="CP", antecedents=antecedents, outlist=outlist, label=label))
+        justifications.append(
+            Justification(
+                type="CP", antecedents=antecedents, outlist=outlist, label=label
+            )
+        )
     elif outlist:
         # Outlist-only justification (no inlist) — premise that holds unless something is believed
-        justifications.append(Justification(type="SL", antecedents=[], outlist=outlist, label=label))
+        justifications.append(
+            Justification(type="SL", antecedents=[], outlist=outlist, label=label)
+        )
 
     with _with_network(db_path, write=True) as net:
         # Namespace support: prefix node_id and add dependency on ns:active
@@ -268,16 +303,20 @@ def add_node(
                     j.antecedents.insert(0, active_id)
             else:
                 # No explicit justification — create SL depending on ns:active
-                justifications.append(Justification(
-                    type="SL",
-                    antecedents=[active_id],
-                    outlist=outlist,
-                    label=label or f"added by agent: {namespace}",
-                ))
+                justifications.append(
+                    Justification(
+                        type="SL",
+                        antecedents=[active_id],
+                        outlist=outlist,
+                        label=label or f"added by agent: {namespace}",
+                    )
+                )
 
             # Also resolve namespace in antecedent references
             for j in justifications:
-                j.antecedents = [_resolve_namespace(a, namespace) for a in j.antecedents]
+                j.antecedents = [
+                    _resolve_namespace(a, namespace) for a in j.antecedents
+                ]
                 j.outlist = [_resolve_namespace(o, namespace) for o in j.outlist]
 
         if source_type and source_type not in SOURCE_TYPES:
@@ -325,7 +364,8 @@ def add_justification(
     namespace: str | None = None,
     any_mode: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Add a new justification to an existing node.
 
@@ -344,9 +384,17 @@ def add_justification(
     if pg_conninfo:
         if any_mode:
             raise NotImplementedError("any_mode is not supported with PostgreSQL")
-        return _pg_dispatch(pg_conninfo, project_id, "add_justification",
-                            node_id=node_id, sl=sl, cp=cp, unless=unless,
-                            label=label, namespace=namespace)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "add_justification",
+            node_id=node_id,
+            sl=sl,
+            cp=cp,
+            unless=unless,
+            label=label,
+            namespace=namespace,
+        )
     outlist = [o.strip() for o in unless.split(",") if o.strip()] if unless else []
 
     if sl:
@@ -370,21 +418,31 @@ def add_justification(
         if any_mode and jtype == "SL" and len(antecedents) > 1:
             result = None
             for a in antecedents:
-                j = Justification(type="SL", antecedents=[a], outlist=outlist, label=label)
+                j = Justification(
+                    type="SL", antecedents=[a], outlist=outlist, label=label
+                )
                 result = net.add_justification(node_id, j)
             result["premise_count"] = 1
             return result
 
         justification = Justification(
-            type=jtype, antecedents=antecedents, outlist=outlist, label=label,
+            type=jtype,
+            antecedents=antecedents,
+            outlist=outlist,
+            label=label,
         )
         result = net.add_justification(node_id, justification)
         result["premise_count"] = len(antecedents)
         return result
 
 
-def retract_node(node_id: str, reason: str = "", db_path: str = DEFAULT_DB,
-                 pg_conninfo=None, project_id=None) -> dict:
+def retract_node(
+    node_id: str,
+    reason: str = "",
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Retract a node and cascade.
 
     Args:
@@ -395,13 +453,22 @@ def retract_node(node_id: str, reason: str = "", db_path: str = DEFAULT_DB,
     Returns: {"changed", "went_out", "went_in", "restoration_hints"}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "retract_node",
-                            node_id=node_id, reason=reason)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "retract_node", node_id=node_id, reason=reason
+        )
     with _with_network(db_path, write=True) as net:
         before = {nid: n.truth_value for nid, n in net.nodes.items()}
         changed = net.retract(node_id, reason=reason)
-        went_out = [nid for nid in changed if before.get(nid) == "IN" and net.nodes[nid].truth_value == "OUT"]
-        went_in = [nid for nid in changed if before.get(nid) == "OUT" and net.nodes[nid].truth_value == "IN"]
+        went_out = [
+            nid
+            for nid in changed
+            if before.get(nid) == "IN" and net.nodes[nid].truth_value == "OUT"
+        ]
+        went_in = [
+            nid
+            for nid in changed
+            if before.get(nid) == "OUT" and net.nodes[nid].truth_value == "IN"
+        ]
 
         hints = []
         for nid in went_out:
@@ -410,20 +477,32 @@ def retract_node(node_id: str, reason: str = "", db_path: str = DEFAULT_DB,
             node = net.nodes[nid]
             for j in node.justifications:
                 if j.type == "SL" and len(j.antecedents) >= 2:
-                    still_in = [a for a in j.antecedents if a in net.nodes and net.nodes[a].truth_value == "IN"]
+                    still_in = [
+                        a
+                        for a in j.antecedents
+                        if a in net.nodes and net.nodes[a].truth_value == "IN"
+                    ]
                     if still_in:
-                        hints.append({
-                            "node_id": nid,
-                            "all_premises": j.antecedents,
-                            "surviving_premises": still_in,
-                        })
+                        hints.append(
+                            {
+                                "node_id": nid,
+                                "all_premises": j.antecedents,
+                                "surviving_premises": still_in,
+                            }
+                        )
                     break
 
-        return {"changed": changed, "went_out": went_out, "went_in": went_in, "restoration_hints": hints}
+        return {
+            "changed": changed,
+            "went_out": went_out,
+            "went_in": went_in,
+            "restoration_hints": hints,
+        }
 
 
-def what_if_retract(node_id: str, db_path: str = DEFAULT_DB,
-                   pg_conninfo=None, project_id=None) -> dict:
+def what_if_retract(
+    node_id: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Simulate retracting a node without mutating the database.
 
     Loads the network read-only, performs the retraction in memory,
@@ -434,8 +513,7 @@ def what_if_retract(node_id: str, db_path: str = DEFAULT_DB,
     Returns: {"node_id": str, "retracted": list[dict], "restored": list[dict], ...}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "what_if_retract",
-                            node_id=node_id)
+        return _pg_dispatch(pg_conninfo, project_id, "what_if_retract", node_id=node_id)
 
     with _with_network(db_path, write=False) as net:
         if node_id not in net.nodes:
@@ -487,8 +565,9 @@ def what_if_retract(node_id: str, db_path: str = DEFAULT_DB,
         }
 
 
-def what_if_assert(node_id: str, db_path: str = DEFAULT_DB,
-                  pg_conninfo=None, project_id=None) -> dict:
+def what_if_assert(
+    node_id: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Simulate asserting (restoring) a node without mutating the database.
 
     Shows what would change if a currently-OUT node were asserted back to IN.
@@ -498,8 +577,7 @@ def what_if_assert(node_id: str, db_path: str = DEFAULT_DB,
     Returns: {"node_id": str, "retracted": list[dict], "restored": list[dict], ...}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "what_if_assert",
-                            node_id=node_id)
+        return _pg_dispatch(pg_conninfo, project_id, "what_if_assert", node_id=node_id)
 
     with _with_network(db_path, write=False) as net:
         if node_id not in net.nodes:
@@ -554,6 +632,7 @@ def what_if_assert(node_id: str, db_path: str = DEFAULT_DB,
 def _cascade_depth(net, target_id: str, retracted_id: str) -> int:
     """Find the shortest justification path from retracted node to target."""
     from collections import deque
+
     visited = {retracted_id}
     queue = deque([(retracted_id, 0)])
     while queue:
@@ -569,26 +648,33 @@ def _cascade_depth(net, target_id: str, retracted_id: str) -> int:
     return 0
 
 
-def assert_node(node_id: str, db_path: str = DEFAULT_DB,
-                pg_conninfo=None, project_id=None) -> dict:
+def assert_node(
+    node_id: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Assert a node and cascade restoration.
 
     Returns: {"changed": list[str], "went_out": list[str], "went_in": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "assert_node",
-                            node_id=node_id)
+        return _pg_dispatch(pg_conninfo, project_id, "assert_node", node_id=node_id)
 
     with _with_network(db_path, write=True) as net:
         before = {nid: n.truth_value for nid, n in net.nodes.items()}
         changed = net.assert_node(node_id)
-        went_out = [nid for nid in changed if before.get(nid) == "IN" and net.nodes[nid].truth_value == "OUT"]
-        went_in = [nid for nid in changed if before.get(nid) == "OUT" and net.nodes[nid].truth_value == "IN"]
+        went_out = [
+            nid
+            for nid in changed
+            if before.get(nid) == "IN" and net.nodes[nid].truth_value == "OUT"
+        ]
+        went_in = [
+            nid
+            for nid in changed
+            if before.get(nid) == "OUT" and net.nodes[nid].truth_value == "IN"
+        ]
         return {"changed": changed, "went_out": went_out, "went_in": went_in}
 
 
-def propagate(db_path: str = DEFAULT_DB,
-              pg_conninfo=None, project_id=None) -> dict:
+def propagate(db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None) -> dict:
     if pg_conninfo:
         return _pg_dispatch(pg_conninfo, project_id, "propagate")
     with _with_network(db_path, write=True) as net:
@@ -596,12 +682,16 @@ def propagate(db_path: str = DEFAULT_DB,
     return {"changed": changed}
 
 
-def get_status(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-               namespace: str | None = None,
-               status_filter: str | None = None,
-               premises_only: bool = False,
-               limit: int | None = None,
-               pg_conninfo=None, project_id=None) -> dict:
+def get_status(
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    namespace: str | None = None,
+    status_filter: str | None = None,
+    premises_only: bool = False,
+    limit: int | None = None,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Get network status with optional filtering.
 
     Returns: {
@@ -613,8 +703,9 @@ def get_status(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
     }
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "get_status",
-                            visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "get_status", visible_to=visible_to
+        )
 
     with _with_network(db_path) as net:
         nodes = []
@@ -659,12 +750,14 @@ def get_status(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
             if premises_only and node.justifications:
                 continue
 
-            nodes.append({
-                "id": nid,
-                "text": node.text,
-                "truth_value": node.truth_value,
-                "justification_count": len(node.justifications),
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "text": node.text,
+                    "truth_value": node.truth_value,
+                    "justification_count": len(node.justifications),
+                }
+            )
 
         if limit is not None:
             nodes = nodes[:limit]
@@ -724,9 +817,16 @@ def get_stats(db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None) -> d
             " JOIN nodes n ON j.node_id = n.id"
             " WHERE j.outlist_json != '[]' AND n.truth_value != 'IN'"
         ).fetchall()
-        in_nodes = set(r[0] for r in conn.execute(
-            "SELECT id FROM nodes WHERE truth_value = 'IN'"
-        ).fetchall()) if rows else set()
+        in_nodes = (
+            set(
+                r[0]
+                for r in conn.execute(
+                    "SELECT id FROM nodes WHERE truth_value = 'IN'"
+                ).fetchall()
+            )
+            if rows
+            else set()
+        )
         for node_id, outlist_json in rows:
             outlist = json.loads(outlist_json)
             active_blockers = [o for o in outlist if o in in_nodes]
@@ -748,16 +848,22 @@ def get_stats(db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None) -> d
         conn.close()
 
 
-def show_node(node_id: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-              pg_conninfo=None, project_id=None) -> dict:
+def show_node(
+    node_id: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Get full details for a node.
 
     Returns: dict with id, text, truth_value, source, justifications, dependents
     Raises PermissionError if node's access_tags are not a subset of visible_to.
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "show_node",
-                            node_id=node_id, visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "show_node", node_id=node_id, visible_to=visible_to
+        )
 
     with _with_network(db_path) as net:
         if node_id not in net.nodes:
@@ -777,8 +883,13 @@ def show_node(node_id: str, visible_to: list[str] | None = None, db_path: str = 
             "source_hash": node.source_hash,
             "text_hash": node.text_hash,
             "justifications": [
-                {"type": j.type, "antecedents": j.antecedents, "outlist": j.outlist,
-                 "label": j.label, "content_hash": j.content_hash}
+                {
+                    "type": j.type,
+                    "antecedents": j.antecedents,
+                    "outlist": j.outlist,
+                    "label": j.label,
+                    "content_hash": j.content_hash,
+                }
                 for j in node.justifications
             ],
             "dependents": sorted(node.dependents),
@@ -791,16 +902,26 @@ def show_node(node_id: str, visible_to: list[str] | None = None, db_path: str = 
         }
 
 
-def explain_node(node_id: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-                 pg_conninfo=None, project_id=None) -> dict:
+def explain_node(
+    node_id: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Explain why a node is IN or OUT.
 
     Returns: {"steps": list[dict]}
     Raises PermissionError if node's access_tags are not a subset of visible_to.
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "explain_node",
-                            node_id=node_id, visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "explain_node",
+            node_id=node_id,
+            visible_to=visible_to,
+        )
 
     with _with_network(db_path) as net:
         if node_id not in net.nodes:
@@ -813,8 +934,13 @@ def explain_node(node_id: str, visible_to: list[str] | None = None, db_path: str
         return {"steps": steps}
 
 
-def trace_assumptions(node_id: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-                      pg_conninfo=None, project_id=None) -> dict:
+def trace_assumptions(
+    node_id: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Trace backward to find all premises a node rests on.
 
     Returns: {"node_id": str, "premises": list[str]}
@@ -822,8 +948,13 @@ def trace_assumptions(node_id: str, visible_to: list[str] | None = None, db_path
     Filters returned premises by visible_to.
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "trace_assumptions",
-                            node_id=node_id, visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "trace_assumptions",
+            node_id=node_id,
+            visible_to=visible_to,
+        )
 
     with _with_network(db_path) as net:
         if node_id not in net.nodes:
@@ -834,21 +965,34 @@ def trace_assumptions(node_id: str, visible_to: list[str] | None = None, db_path
             )
         premises = net.trace_assumptions(node_id)
         if visible_to is not None:
-            premises = [p for p in premises if p in net.nodes and _is_visible(net.nodes[p], visible_to)]
+            premises = [
+                p
+                for p in premises
+                if p in net.nodes and _is_visible(net.nodes[p], visible_to)
+            ]
         return {"node_id": node_id, "premises": premises}
 
 
-def trace_access_tags(node_id: str, visible_to: list[str] | None = None,
-                      db_path: str = DEFAULT_DB,
-                      pg_conninfo=None, project_id=None) -> dict:
+def trace_access_tags(
+    node_id: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Trace backward through dependency chains and return union of all access_tags.
 
     Returns: {"node_id": str, "access_tags": list[str]}
     Raises PermissionError if node's access_tags are not a subset of visible_to.
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "trace_access_tags",
-                            node_id=node_id, visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "trace_access_tags",
+            node_id=node_id,
+            visible_to=visible_to,
+        )
     with _with_network(db_path) as net:
         if node_id not in net.nodes:
             raise KeyError(f"Node '{node_id}' not found")
@@ -860,42 +1004,52 @@ def trace_access_tags(node_id: str, visible_to: list[str] | None = None,
         return {"node_id": node_id, "access_tags": tags}
 
 
-def find_culprits(node_ids: list[str], db_path: str = DEFAULT_DB,
-                  pg_conninfo=None, project_id=None) -> dict:
+def find_culprits(
+    node_ids: list[str], db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Find premises that could be retracted to resolve a contradiction.
 
     Returns: {"culprits": list[dict]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "find_culprits",
-                            node_ids=node_ids)
+        return _pg_dispatch(pg_conninfo, project_id, "find_culprits", node_ids=node_ids)
     with _with_network(db_path) as net:
         culprits = net.find_culprits(node_ids)
         return {"culprits": culprits}
 
 
-def convert_to_premise(node_id: str, db_path: str = DEFAULT_DB,
-                       pg_conninfo=None, project_id=None) -> dict:
+def convert_to_premise(
+    node_id: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Strip justifications from a node, making it a premise (IN by default).
 
     Returns: {"node_id": str, "old_justifications": int, "truth_value": str, "changed": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "convert_to_premise",
-                            node_id=node_id)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "convert_to_premise", node_id=node_id
+        )
 
     with _with_network(db_path, write=True) as net:
         return net.convert_to_premise(node_id)
 
 
 def remove_justification(
-    node_id: str, index: int, db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    node_id: str,
+    index: int,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Remove a single justification by index and propagate."""
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "remove_justification",
-                            node_id=node_id, index=index)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "remove_justification",
+            node_id=node_id,
+            index=index,
+        )
     with _with_network(db_path, write=True) as net:
         return net.remove_justification(node_id, index)
 
@@ -906,23 +1060,35 @@ def summarize(
     over: list[str],
     source: str = "",
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Create a summary node that abstracts over a group of nodes.
 
     Returns: {"summary_id": str, "over": list[str], "truth_value": str}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "summarize",
-                            summary_id=summary_id, text=text,
-                            over=over, source=source)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "summarize",
+            summary_id=summary_id,
+            text=text,
+            over=over,
+            source=source,
+        )
     with _with_network(db_path, write=True) as net:
         return net.summarize(summary_id, text, over, source=source)
 
 
-def supersede(old_id: str, new_id: str, db_path: str = DEFAULT_DB,
-              transitive: bool = False,
-              pg_conninfo=None, project_id=None) -> dict:
+def supersede(
+    old_id: str,
+    new_id: str,
+    db_path: str = DEFAULT_DB,
+    transitive: bool = False,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Mark old_id as superseded by new_id. Old goes OUT when new is IN.
 
     With transitive=True, also defeats all ancestors in the supersession
@@ -931,8 +1097,9 @@ def supersede(old_id: str, new_id: str, db_path: str = DEFAULT_DB,
     Returns: {"old_id": str, "new_id": str, "changed": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "supersede",
-                            old_id=old_id, new_id=new_id)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "supersede", old_id=old_id, new_id=new_id
+        )
     with _with_network(db_path, write=True) as net:
         return net.supersede(old_id, new_id, transitive=transitive)
 
@@ -981,7 +1148,8 @@ def update_node(
     source_url: str | None = None,
     example: str | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Update a node's source, source_url, or example metadata.
 
@@ -990,9 +1158,16 @@ def update_node(
     Returns: {"node_id": str, "updated_fields": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "update_node",
-                            node_id=node_id, text=text, source=source,
-                            source_url=source_url, example=example)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "update_node",
+            node_id=node_id,
+            text=text,
+            source=source,
+            source_url=source_url,
+            example=example,
+        )
     with _with_network(db_path, write=True) as net:
         if node_id not in net.nodes:
             raise KeyError(f"Node '{node_id}' not found")
@@ -1024,12 +1199,19 @@ def set_metadata(
     key: str,
     value,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Set a single metadata key on a node."""
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "set_metadata",
-                            node_id=node_id, key=key, value=value)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "set_metadata",
+            node_id=node_id,
+            key=key,
+            value=value,
+        )
     with _with_network(db_path, write=True) as net:
         if node_id not in net.nodes:
             raise KeyError(f"Node '{node_id}' not found")
@@ -1175,7 +1357,9 @@ def defeat_justification(
         if not defeater_id:
             defeater_id = f"{defeater_type}-{node_id}-j{justification_index}"
 
-        defeater_text = f"{reason} (defeats {node_id} justification {justification_index})"
+        defeater_text = (
+            f"{reason} (defeats {node_id} justification {justification_index})"
+        )
 
         before = {nid: n.truth_value for nid, n in net.nodes.items()}
 
@@ -1201,8 +1385,7 @@ def defeat_justification(
         changed = net.recompute_all()
 
         actually_changed = [
-            nid for nid in changed
-            if before.get(nid) != net.nodes[nid].truth_value
+            nid for nid in changed if before.get(nid) != net.nodes[nid].truth_value
         ]
 
         return {
@@ -1286,11 +1469,12 @@ def defeat_with_scope(
             scope_id = f"scope-{ant_id}-for-{node_id}-j{justification_index}"
             suffix = 1
             while scope_id in net.nodes:
-                scope_id = f"scope-{ant_id}-for-{node_id}-j{justification_index}-{suffix}"
+                scope_id = (
+                    f"scope-{ant_id}-for-{node_id}-j{justification_index}-{suffix}"
+                )
                 suffix += 1
-            scope_text = (
-                f"{ant_id} establishes {establishes}"
-                + (f", and does not establish {does_not}" if does_not else "")
+            scope_text = f"{ant_id} establishes {establishes}" + (
+                f", and does not establish {does_not}" if does_not else ""
             )
             net.add_node(
                 id=scope_id,
@@ -1335,8 +1519,7 @@ def defeat_with_scope(
         changed = net.recompute_all()
 
         actually_changed = [
-            nid for nid in changed
-            if before.get(nid) != net.nodes[nid].truth_value
+            nid for nid in changed if before.get(nid) != net.nodes[nid].truth_value
         ]
 
         return {
@@ -1404,11 +1587,13 @@ def migrate_retract_to_defeaters(
                 continue
 
             if dry_run:
-                migrated.append({
-                    "id": nid,
-                    "retract_reason": retract_reason,
-                    "justification_index": satisfied_idx,
-                })
+                migrated.append(
+                    {
+                        "id": nid,
+                        "retract_reason": retract_reason,
+                        "justification_index": satisfied_idx,
+                    }
+                )
                 continue
 
             # Apply: inline defeat logic (can't call defeat_justification
@@ -1432,20 +1617,20 @@ def migrate_retract_to_defeaters(
             if defeater_id not in justification.outlist:
                 justification.outlist.append(defeater_id)
             defeater.dependents.add(nid)
-            node.updated_at = datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            )
+            node.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
             # Clear the string-based retract metadata
             node.metadata.pop("retract_reason", None)
             node.metadata.pop("_retracted", None)
 
-            migrated.append({
-                "id": nid,
-                "defeater_id": defeater_id,
-                "retract_reason": retract_reason,
-                "justification_index": satisfied_idx,
-            })
+            migrated.append(
+                {
+                    "id": nid,
+                    "defeater_id": defeater_id,
+                    "retract_reason": retract_reason,
+                    "justification_index": satisfied_idx,
+                }
+            )
 
         if not dry_run and migrated:
             net.recompute_all()
@@ -1490,7 +1675,12 @@ def classify_defeat_reason_types(
             skipped.append({"id": nid, "reason": "already classified"})
             continue
         if defeater_type_filter and meta.get("defeater_type") != defeater_type_filter:
-            skipped.append({"id": nid, "reason": f"defeater_type '{meta.get('defeater_type')}' != '{defeater_type_filter}'"})
+            skipped.append(
+                {
+                    "id": nid,
+                    "reason": f"defeater_type '{meta.get('defeater_type')}' != '{defeater_type_filter}'",
+                }
+            )
             continue
         candidates.append(nid)
 
@@ -1506,7 +1696,8 @@ def classify_defeat_reason_types(
         reason_type = classify_defeat_reason(
             node.get("text", ""),
             defeated.get("text", ""),
-            model, timeout,
+            model,
+            timeout,
         )
 
         if not reason_type:
@@ -1526,16 +1717,22 @@ def challenge(
     reason: str,
     challenge_id: str | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Challenge a node — creates a challenge node and the target goes OUT.
 
     Returns: {"challenge_id": str, "target_id": str, "changed": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "challenge",
-                            target_id=target_id, reason=reason,
-                            challenge_id=challenge_id)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "challenge",
+            target_id=target_id,
+            reason=reason,
+            challenge_id=challenge_id,
+        )
     with _with_network(db_path, write=True) as net:
         return net.challenge(target_id, reason, challenge_id=challenge_id)
 
@@ -1546,35 +1743,41 @@ def defend(
     reason: str,
     defense_id: str | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Defend a node against a challenge — neutralises the challenge, target restored.
 
     Returns: {"defense_id": str, "challenge_id": str, "target_id": str, "changed": list[str]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "defend",
-                            target_id=target_id, challenge_id=challenge_id,
-                            reason=reason, defense_id=defense_id)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "defend",
+            target_id=target_id,
+            challenge_id=challenge_id,
+            reason=reason,
+            defense_id=defense_id,
+        )
     with _with_network(db_path, write=True) as net:
         return net.defend(target_id, challenge_id, reason, defense_id=defense_id)
 
 
-def add_nogood(node_ids: list[str], db_path: str = DEFAULT_DB,
-               pg_conninfo=None, project_id=None) -> dict:
+def add_nogood(
+    node_ids: list[str], db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Record a contradiction and use backtracking to resolve.
 
     Returns: {"nogood_id": str, "nodes": list[str], "changed": list[str], "backtracked_to": str | None}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "add_nogood",
-                            node_ids=node_ids)
+        return _pg_dispatch(pg_conninfo, project_id, "add_nogood", node_ids=node_ids)
 
     with _with_network(db_path, write=True) as net:
         # Find culprits before retraction for reporting
         all_in = all(
-            nid in net.nodes and net.nodes[nid].truth_value == "IN"
-            for nid in node_ids
+            nid in net.nodes and net.nodes[nid].truth_value == "IN" for nid in node_ids
         )
         culprits = net.find_culprits(node_ids) if all_in else []
         backtracked_to = culprits[0]["premise"] if culprits else None
@@ -1589,8 +1792,9 @@ def add_nogood(node_ids: list[str], db_path: str = DEFAULT_DB,
         }
 
 
-def list_nogoods(db_path: str = DEFAULT_DB,
-                 pg_conninfo=None, project_id=None) -> list[dict]:
+def list_nogoods(
+    db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> list[dict]:
     """List all recorded nogoods.
 
     Returns: list of {"id": str, "nodes": list[str], "discovered": str, "resolution": str}
@@ -1599,13 +1803,19 @@ def list_nogoods(db_path: str = DEFAULT_DB,
         return _pg_dispatch(pg_conninfo, project_id, "list_nogoods")
     with _with_network(db_path) as net:
         return [
-            {"id": ng.id, "nodes": ng.nodes, "discovered": ng.discovered, "resolution": ng.resolution}
+            {
+                "id": ng.id,
+                "nodes": ng.nodes,
+                "discovered": ng.discovered,
+                "resolution": ng.resolution,
+            }
             for ng in net.nogoods
         ]
 
 
-def get_belief_set(db_path: str = DEFAULT_DB,
-                   pg_conninfo=None, project_id=None) -> list[str]:
+def get_belief_set(
+    db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> list[str]:
     """Return all node IDs currently IN."""
     if pg_conninfo:
         return _pg_dispatch(pg_conninfo, project_id, "get_belief_set")
@@ -1613,15 +1823,18 @@ def get_belief_set(db_path: str = DEFAULT_DB,
         return net.get_belief_set()
 
 
-def get_log(last: int | None = None, db_path: str = DEFAULT_DB,
-            pg_conninfo=None, project_id=None) -> dict:
+def get_log(
+    last: int | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Get propagation history.
 
     Returns: {"entries": list[dict]}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "get_log",
-                            last=last)
+        return _pg_dispatch(pg_conninfo, project_id, "get_log", last=last)
 
     with _with_network(db_path) as net:
         entries = net.log
@@ -1630,15 +1843,20 @@ def get_log(last: int | None = None, db_path: str = DEFAULT_DB,
         return {"entries": entries}
 
 
-def export_network(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-                   pg_conninfo=None, project_id=None) -> dict:
+def export_network(
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Export the entire network as a dict.
 
     Returns: {"meta": dict, "nodes": dict, "nogoods": list, "repos": dict}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "export_network",
-                            visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "export_network", visible_to=visible_to
+        )
 
     with _with_network(db_path) as net:
         nodes = {
@@ -1647,8 +1865,13 @@ def export_network(visible_to: list[str] | None = None, db_path: str = DEFAULT_D
                 "truth_value": n.truth_value,
                 "supporting_justification": n.supporting_justification,
                 "justifications": [
-                    {"type": j.type, "antecedents": j.antecedents, "outlist": j.outlist,
-                     "label": j.label, "content_hash": j.content_hash}
+                    {
+                        "type": j.type,
+                        "antecedents": j.antecedents,
+                        "outlist": j.outlist,
+                        "label": j.label,
+                        "content_hash": j.content_hash,
+                    }
                     for j in n.justifications
                 ],
                 "source": n.source,
@@ -1656,7 +1879,9 @@ def export_network(visible_to: list[str] | None = None, db_path: str = DEFAULT_D
                 "source_hash": n.source_hash,
                 "text_hash": n.text_hash,
                 "date": n.date,
-                "metadata": {k: v for k, v in n.metadata.items() if not k.startswith("_")},
+                "metadata": {
+                    k: v for k, v in n.metadata.items() if not k.startswith("_")
+                },
                 "created_at": n.created_at,
                 "updated_at": n.updated_at,
                 "reviewed_at": n.reviewed_at,
@@ -1675,9 +1900,18 @@ def export_network(visible_to: list[str] | None = None, db_path: str = DEFAULT_D
             "meta": meta,
             "nodes": nodes,
             "nogoods": [
-                {"id": ng.id, "nodes": ng.nodes, "discovered": ng.discovered, "resolution": ng.resolution}
+                {
+                    "id": ng.id,
+                    "nodes": ng.nodes,
+                    "discovered": ng.discovered,
+                    "resolution": ng.resolution,
+                }
                 for ng in net.nogoods
-                if visible_to is None or all(n in net.nodes and _is_visible(net.nodes[n], visible_to) for n in ng.nodes)
+                if visible_to is None
+                or all(
+                    n in net.nodes and _is_visible(net.nodes[n], visible_to)
+                    for n in ng.nodes
+                )
             ],
             "repos": dict(net.repos),
         }
@@ -1687,7 +1921,8 @@ def import_beliefs(
     beliefs_file: str,
     nogoods_file: str | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Import a beliefs.md registry into the RMS network.
 
@@ -1711,10 +1946,16 @@ def import_beliefs(
             nogoods_text = auto_nogoods.read_text()
 
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "import_beliefs",
-                            beliefs_text=beliefs_text, nogoods_text=nogoods_text)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "import_beliefs",
+            beliefs_text=beliefs_text,
+            nogoods_text=nogoods_text,
+        )
 
     from .import_beliefs import import_into_network
+
     with _with_network(db_path, write=True) as net:
         return import_into_network(net, beliefs_text, nogoods_text)
 
@@ -1725,7 +1966,8 @@ def import_agent(
     nogoods_file: str | None = None,
     only_in: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Import another agent's beliefs into the local RMS with namespacing.
 
@@ -1744,11 +1986,15 @@ def import_agent(
 
     if pg_conninfo:
         from .import_agent import (
-            _normalize_json, _normalize_markdown,
-            _normalize_nogoods_json, _normalize_nogoods_markdown,
+            _normalize_json,
+            _normalize_markdown,
+            _normalize_nogoods_json,
+            _normalize_nogoods_markdown,
         )
+
         if beliefs_path.suffix == ".json":
             import json as json_mod
+
             data = json_mod.loads(beliefs_path.read_text())
             claims = _normalize_json(data, only_in)
             nogoods = _normalize_nogoods_json(data)
@@ -1766,9 +2012,15 @@ def import_agent(
                     nogoods_text = auto_nogoods.read_text()
             claims = _normalize_markdown(beliefs_text, only_in)
             nogoods = _normalize_nogoods_markdown(nogoods_text)
-        return _pg_dispatch(pg_conninfo, project_id, "import_agent",
-                            agent_name=agent_name, claims=claims,
-                            nogoods=nogoods, source_path=str(beliefs_path))
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "import_agent",
+            agent_name=agent_name,
+            claims=claims,
+            nogoods=nogoods,
+            source_path=str(beliefs_path),
+        )
 
     if beliefs_path.suffix == ".json":
         from .import_agent import import_agent_json as _import_agent_json
@@ -1817,7 +2069,8 @@ def sync_agent(
     nogoods_file: str | None = None,
     only_in: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Sync another agent's beliefs into the local RMS (remote wins).
 
@@ -1832,11 +2085,15 @@ def sync_agent(
 
     if pg_conninfo:
         from .import_agent import (
-            _normalize_json, _normalize_markdown,
-            _normalize_nogoods_json, _normalize_nogoods_markdown,
+            _normalize_json,
+            _normalize_markdown,
+            _normalize_nogoods_json,
+            _normalize_nogoods_markdown,
         )
+
         if beliefs_path.suffix == ".json":
             import json as json_mod
+
             data = json_mod.loads(beliefs_path.read_text())
             claims = _normalize_json(data, only_in)
             nogoods = _normalize_nogoods_json(data)
@@ -1854,9 +2111,15 @@ def sync_agent(
                     nogoods_text = auto_nogoods.read_text()
             claims = _normalize_markdown(beliefs_text, only_in)
             nogoods = _normalize_nogoods_markdown(nogoods_text)
-        return _pg_dispatch(pg_conninfo, project_id, "sync_agent",
-                            agent_name=agent_name, claims=claims,
-                            nogoods=nogoods, source_path=str(beliefs_path))
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "sync_agent",
+            agent_name=agent_name,
+            claims=claims,
+            nogoods=nogoods,
+            source_path=str(beliefs_path),
+        )
 
     if beliefs_path.suffix == ".json":
         from .import_agent import sync_agent_json as _sync_agent_json
@@ -1899,9 +2162,13 @@ def sync_agent(
         )
 
 
-def import_json(json_file: str, db_path: str = DEFAULT_DB,
-                pg_conninfo=None, project_id=None,
-                only_new: bool = False) -> dict:
+def import_json(
+    json_file: str,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+    only_new: bool = False,
+) -> dict:
     """Import a network from a JSON file (produced by export).
 
     Reconstructs the full network: nodes with justifications, truth values,
@@ -1918,7 +2185,9 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
     data = json_mod.loads(json_path.read_text())
 
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "import_json", data=data, only_new=only_new)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "import_json", data=data, only_new=only_new
+        )
 
     with _with_network(db_path, write=True) as net:
         imported_meta = data.get("meta")
@@ -1950,17 +2219,28 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
                         existing = net.nodes[nid]
                         updated = False
                         # Fill in empty metadata fields from import data
-                        for field in ("source", "source_url", "source_hash",
-                                      "text_hash", "date", "created_at",
-                                      "updated_at", "reviewed_at", "verified_at",
-                                      "retracted_at"):
+                        for field in (
+                            "source",
+                            "source_url",
+                            "source_hash",
+                            "text_hash",
+                            "date",
+                            "created_at",
+                            "updated_at",
+                            "reviewed_at",
+                            "verified_at",
+                            "retracted_at",
+                        ):
                             import_val = ndata.get(field, "")
                             if import_val and not getattr(existing, field, ""):
                                 setattr(existing, field, import_val)
                                 updated = True
                         # supporting_justification: 0 is valid (first justification), None means unset
                         import_si = ndata.get("supporting_justification")
-                        if import_si is not None and existing.supporting_justification is None:
+                        if (
+                            import_si is not None
+                            and existing.supporting_justification is None
+                        ):
                             existing.supporting_justification = import_si
                             updated = True
                         # Fill in empty content_hash on justifications
@@ -2081,6 +2361,7 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
         # Import nogoods
 
         from . import Nogood
+
         nogoods_imported = 0
         existing_nogood_ids = {ng.id for ng in net.nogoods}
         for ng_data in data.get("nogoods", []):
@@ -2100,7 +2381,12 @@ def import_json(json_file: str, db_path: str = DEFAULT_DB,
         for name, path in data.get("repos", {}).items():
             net.repos[name] = path
 
-        return {"nodes_imported": nodes_imported, "nodes_updated": nodes_updated, "nodes_skipped": skipped, "nogoods_imported": nogoods_imported}
+        return {
+            "nodes_imported": nodes_imported,
+            "nodes_updated": nodes_updated,
+            "nodes_skipped": skipped,
+            "nogoods_imported": nogoods_imported,
+        }
 
 
 def merge_networks(
@@ -2132,7 +2418,9 @@ def merge_networks(
 
     valid_strategies = ("ours", "theirs", "newest", "interactive")
     if strategy not in valid_strategies:
-        raise ValueError(f"Unknown strategy {strategy!r}, must be one of {valid_strategies}")
+        raise ValueError(
+            f"Unknown strategy {strategy!r}, must be one of {valid_strategies}"
+        )
 
     theirs_path = Path(theirs_file)
     if not theirs_path.exists():
@@ -2151,8 +2439,13 @@ def merge_networks(
                 "truth_value": n.truth_value,
                 "supporting_justification": n.supporting_justification,
                 "justifications": [
-                    {"type": j.type, "antecedents": j.antecedents, "outlist": j.outlist,
-                     "label": j.label, "content_hash": j.content_hash}
+                    {
+                        "type": j.type,
+                        "antecedents": j.antecedents,
+                        "outlist": j.outlist,
+                        "label": j.label,
+                        "content_hash": j.content_hash,
+                    }
                     for j in n.justifications
                 ],
                 "source": n.source,
@@ -2160,7 +2453,9 @@ def merge_networks(
                 "source_hash": n.source_hash,
                 "text_hash": n.text_hash,
                 "date": n.date,
-                "metadata": {k: v for k, v in n.metadata.items() if not k.startswith("_")},
+                "metadata": {
+                    k: v for k, v in n.metadata.items() if not k.startswith("_")
+                },
                 "created_at": n.created_at,
                 "updated_at": n.updated_at,
                 "reviewed_at": n.reviewed_at,
@@ -2195,12 +2490,14 @@ def merge_networks(
                 if ours_n.get("metadata") != theirs_n.get("metadata"):
                     diffs.append("metadata")
                 if diffs:
-                    conflicts.append({
-                        "id": nid,
-                        "fields": diffs,
-                        "ours": ours_n,
-                        "theirs": theirs_n,
-                    })
+                    conflicts.append(
+                        {
+                            "id": nid,
+                            "fields": diffs,
+                            "ours": ours_n,
+                            "theirs": theirs_n,
+                        }
+                    )
 
         added = 0
         resolved = 0
@@ -2378,10 +2675,17 @@ def merge_networks(
                         net.retract(nid)
                     else:
                         net.assert_node(nid)
-                for field in ("source", "source_url", "source_hash",
-                              "text_hash", "date",
-                              "updated_at", "reviewed_at", "verified_at",
-                              "retracted_at"):
+                for field in (
+                    "source",
+                    "source_url",
+                    "source_hash",
+                    "text_hash",
+                    "date",
+                    "updated_at",
+                    "reviewed_at",
+                    "verified_at",
+                    "retracted_at",
+                ):
                     val = ndata.get(field, "")
                     if val:
                         setattr(existing, field, val)
@@ -2391,13 +2695,16 @@ def merge_networks(
                     existing.supporting_justification = import_si
 
         conflict_details = [
-            {"id": c["id"], "fields": c["fields"],
-             "ours_text": c["ours"].get("text", "")[:80],
-             "theirs_text": c["theirs"].get("text", "")[:80],
-             "ours_truth": c["ours"].get("truth_value", ""),
-             "theirs_truth": c["theirs"].get("truth_value", ""),
-             "ours_updated": c["ours"].get("updated_at", ""),
-             "theirs_updated": c["theirs"].get("updated_at", "")}
+            {
+                "id": c["id"],
+                "fields": c["fields"],
+                "ours_text": c["ours"].get("text", "")[:80],
+                "theirs_text": c["theirs"].get("text", "")[:80],
+                "ours_truth": c["ours"].get("truth_value", ""),
+                "theirs_truth": c["theirs"].get("truth_value", ""),
+                "ours_updated": c["ours"].get("updated_at", ""),
+                "theirs_updated": c["theirs"].get("updated_at", ""),
+            }
             for c in conflicts
         ]
 
@@ -2412,9 +2719,14 @@ def merge_networks(
         }
 
 
-def import_hf(repo_id: str, init: bool = False, token: str | None = None,
-              db_path: str = DEFAULT_DB,
-              pg_conninfo=None, project_id=None) -> dict:
+def import_hf(
+    repo_id: str,
+    init: bool = False,
+    token: str | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Download network.json from a HuggingFace repo and import it.
 
     Args:
@@ -2435,21 +2747,27 @@ def import_hf(repo_id: str, init: bool = False, token: str | None = None,
     if not db_exists and (init or not pg_conninfo):
         data = json_mod.loads(json_str)
         project_name = data.get("meta", {}).get("project_name", "")
-        init_db(db_path=db_path, force=False,
-                project_name=project_name,
-                pg_conninfo=pg_conninfo, project_id=project_id)
+        init_db(
+            db_path=db_path,
+            force=False,
+            project_name=project_name,
+            pg_conninfo=pg_conninfo,
+            project_id=project_id,
+        )
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(json_str)
         temp_path = f.name
 
     try:
-        result = import_json(temp_path, db_path=db_path,
-                             pg_conninfo=pg_conninfo, project_id=project_id)
+        result = import_json(
+            temp_path, db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id
+        )
     finally:
         Path(temp_path).unlink()
 
     from .hf import _parse_repo_id
+
     result["repo_id"] = _parse_repo_id(repo_id)
     return result
 
@@ -2464,7 +2782,8 @@ def publish_hf(
     base_network: str | None = None,
     source_repos: list[str] | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Export and publish network to a HuggingFace repo.
 
@@ -2498,8 +2817,11 @@ def publish_hf(
     beliefs_md = export_markdown(visible_to=visible_to, **backend)
 
     card_md = export_card(
-        visible_to=visible_to, domain=domain, license=license,
-        base_network=base_network, source_repos=source_repos,
+        visible_to=visible_to,
+        domain=domain,
+        license=license,
+        base_network=base_network,
+        source_repos=source_repos,
         **backend,
     )
 
@@ -2519,10 +2841,15 @@ def publish_hf(
     }
 
 
-def import_api(url: str | None = None, agent_id: str | None = None,
-               api_key: str | None = None, init: bool = False,
-               db_path: str = DEFAULT_DB,
-               pg_conninfo=None, project_id=None) -> dict:
+def import_api(
+    url: str | None = None,
+    agent_id: str | None = None,
+    api_key: str | None = None,
+    init: bool = False,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Import beliefs from agentic-mind-service.
 
     Downloads the full network via GET /export and imports it locally.
@@ -2534,32 +2861,42 @@ def import_api(url: str | None = None, agent_id: str | None = None,
     from .mind_service import _resolve_config, fetch_export
 
     resolved_url, resolved_agent_id, resolved_api_key = _resolve_config(
-        url, agent_id, api_key)
+        url, agent_id, api_key
+    )
     json_str = fetch_export(resolved_url, resolved_agent_id, resolved_api_key)
 
     db_exists = Path(db_path).exists()
     if not db_exists and (init or not pg_conninfo):
         data = json.loads(json_str)
         project_name = data.get("meta", {}).get("project_name", "")
-        init_db(db_path=db_path, force=False,
-                project_name=project_name,
-                pg_conninfo=pg_conninfo, project_id=project_id)
+        init_db(
+            db_path=db_path,
+            force=False,
+            project_name=project_name,
+            pg_conninfo=pg_conninfo,
+            project_id=project_id,
+        )
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(json_str)
         temp_path = f.name
 
     try:
-        return import_json(temp_path, db_path=db_path,
-                           pg_conninfo=pg_conninfo, project_id=project_id)
+        return import_json(
+            temp_path, db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id
+        )
     finally:
         Path(temp_path).unlink()
 
 
-def export_api(url: str | None = None, agent_id: str | None = None,
-               api_key: str | None = None,
-               db_path: str = DEFAULT_DB,
-               pg_conninfo=None, project_id=None) -> dict:
+def export_api(
+    url: str | None = None,
+    agent_id: str | None = None,
+    api_key: str | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
     """Export local beliefs to agentic-mind-service.
 
     Pushes each node via POST /beliefs. Idempotent on node_id.
@@ -2569,10 +2906,12 @@ def export_api(url: str | None = None, agent_id: str | None = None,
     from .mind_service import _resolve_config, push_belief
 
     resolved_url, resolved_agent_id, resolved_api_key = _resolve_config(
-        url, agent_id, api_key)
+        url, agent_id, api_key
+    )
 
-    data = export_network(db_path=db_path, pg_conninfo=pg_conninfo,
-                          project_id=project_id)
+    data = export_network(
+        db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id
+    )
 
     exported = 0
     errors = 0
@@ -2585,7 +2924,9 @@ def export_api(url: str | None = None, agent_id: str | None = None,
 
         try:
             push_belief(
-                resolved_url, resolved_agent_id, resolved_api_key,
+                resolved_url,
+                resolved_agent_id,
+                resolved_api_key,
                 node_id=nid,
                 text=ndata.get("text", ""),
                 sl=sl,
@@ -2613,7 +2954,8 @@ def push_to_service(
     chunk_size: int = 50,
     progress: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Push local forge artifacts to a reasons-service instance.
 
@@ -2622,22 +2964,32 @@ def push_to_service(
 
     Returns: {"network": {...}, "sources": {...}, "summaries": {...}, "topics": {...}}
     """
-    from .reasons_service import _resolve_config, push_network, push_sources, push_summaries, push_topics as _push_topics
+    from .reasons_service import (
+        _resolve_config,
+        push_network,
+        push_sources,
+        push_summaries,
+        push_topics as _push_topics,
+    )
 
     resolved_url, resolved_key, resolved_domain = _resolve_config(
-        url, api_key, domain_id, domain_name=domain_name)
+        url, api_key, domain_id, domain_name=domain_name
+    )
 
     result = {}
 
     if include_network:
         import tempfile
+
         backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
         network_data = export_network(**backend)
         fd, temp_path = tempfile.mkstemp(suffix=".json")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(network_data, f, indent=2, sort_keys=True)
-            net_result = push_network(resolved_url, resolved_key, resolved_domain, temp_path)
+            net_result = push_network(
+                resolved_url, resolved_key, resolved_domain, temp_path
+            )
             result["network"] = net_result
         finally:
             Path(temp_path).unlink(missing_ok=True)
@@ -2647,26 +2999,54 @@ def push_to_service(
         if src_dir.exists():
             source_payloads = _collect_sources(src_dir)
             if source_payloads:
-                src_result = push_sources(resolved_url, resolved_key, resolved_domain, source_payloads,
-                                          chunk_size=chunk_size, progress=progress)
+                src_result = push_sources(
+                    resolved_url,
+                    resolved_key,
+                    resolved_domain,
+                    source_payloads,
+                    chunk_size=chunk_size,
+                    progress=progress,
+                )
                 result["sources"] = src_result
             else:
-                result["sources"] = {"imported": 0, "skipped": 0, "note": "no source files found"}
+                result["sources"] = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "note": "no source files found",
+                }
         else:
-            result["sources"] = {"imported": 0, "skipped": 0, "note": f"{sources_dir}/ not found"}
+            result["sources"] = {
+                "imported": 0,
+                "skipped": 0,
+                "note": f"{sources_dir}/ not found",
+            }
 
     if include_summaries:
         sum_dir = Path(summaries_dir)
         if sum_dir.exists():
             summary_payloads = _collect_summaries(sum_dir)
             if summary_payloads:
-                sum_result = push_summaries(resolved_url, resolved_key, resolved_domain, summary_payloads,
-                                            chunk_size=chunk_size, progress=progress)
+                sum_result = push_summaries(
+                    resolved_url,
+                    resolved_key,
+                    resolved_domain,
+                    summary_payloads,
+                    chunk_size=chunk_size,
+                    progress=progress,
+                )
                 result["summaries"] = sum_result
             else:
-                result["summaries"] = {"imported": 0, "skipped": 0, "note": "no summary files found"}
+                result["summaries"] = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "note": "no summary files found",
+                }
         else:
-            result["summaries"] = {"imported": 0, "skipped": 0, "note": f"{summaries_dir}/ not found"}
+            result["summaries"] = {
+                "imported": 0,
+                "skipped": 0,
+                "note": f"{summaries_dir}/ not found",
+            }
 
     if include_topics:
         backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
@@ -2676,7 +3056,9 @@ def push_to_service(
             for t in topics_result.get("topics", [])
         ]
         if topic_payloads:
-            t_result = _push_topics(resolved_url, resolved_key, resolved_domain, topic_payloads)
+            t_result = _push_topics(
+                resolved_url, resolved_key, resolved_domain, topic_payloads
+            )
             result["topics"] = t_result
         else:
             result["topics"] = {"imported": 0, "note": "no topics extracted"}
@@ -2692,7 +3074,7 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     if end == -1:
         return {}, text
     fm_block = text[3:end]
-    body = text[end + 4:].strip()
+    body = text[end + 4 :].strip()
     meta = {}
     for line in fm_block.splitlines():
         if ":" in line:
@@ -2769,13 +3151,15 @@ def derive_prompt(domain: str | None = None, db_path: str = DEFAULT_DB) -> dict:
     return {"prompt": prompt, "stats": stats}
 
 
-def derive_apply(proposals: list[dict], db_path: str = DEFAULT_DB,
-                 model: str = "") -> dict:
+def derive_apply(
+    proposals: list[dict], db_path: str = DEFAULT_DB, model: str = ""
+) -> dict:
     """Apply validated derive proposals to the network.
 
     Returns: {"added": list[dict], "failed": list[dict]}
     """
     from .derive import apply_proposals
+
     results = apply_proposals(proposals, db_path=db_path, model=model)
 
     added = []
@@ -2789,22 +3173,21 @@ def derive_apply(proposals: list[dict], db_path: str = DEFAULT_DB,
     return {"added": added, "failed": failed}
 
 
-def add_repo(name: str, path: str, db_path: str = DEFAULT_DB,
-             pg_conninfo=None, project_id=None) -> dict:
+def add_repo(
+    name: str, path: str, db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None
+) -> dict:
     """Add a repo to the network.
 
     Returns: {"name": str, "path": str}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "add_repo",
-                            name=name, path=path)
+        return _pg_dispatch(pg_conninfo, project_id, "add_repo", name=name, path=path)
     with _with_network(db_path, write=True) as net:
         net.repos[name] = path
         return {"name": name, "path": path}
 
 
-def list_repos(db_path: str = DEFAULT_DB,
-               pg_conninfo=None, project_id=None) -> dict:
+def list_repos(db_path: str = DEFAULT_DB, pg_conninfo=None, project_id=None) -> dict:
     """List all repos.
 
     Returns: {"repos": dict[str, str]}
@@ -2815,8 +3198,12 @@ def list_repos(db_path: str = DEFAULT_DB,
         return {"repos": dict(net.repos)}
 
 
-def export_markdown(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-                    pg_conninfo=None, project_id=None) -> str:
+def export_markdown(
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> str:
     """Export the network as beliefs.md-compatible markdown.
 
     Returns: the markdown string
@@ -2824,10 +3211,12 @@ def export_markdown(visible_to: list[str] | None = None, db_path: str = DEFAULT_
     from .export_markdown import export_markdown as _export
 
     if pg_conninfo:
-        data = export_network(visible_to=visible_to, pg_conninfo=pg_conninfo,
-                              project_id=project_id)
+        data = export_network(
+            visible_to=visible_to, pg_conninfo=pg_conninfo, project_id=project_id
+        )
         from . import Node, Justification, Nogood
         from .network import Network
+
         net = Network()
         for nid, ndata in data.get("nodes", {}).items():
             node = Node(nid, ndata.get("text", ""))
@@ -2855,12 +3244,14 @@ def export_markdown(visible_to: list[str] | None = None, db_path: str = DEFAULT_
                     if out_id in net.nodes:
                         net.nodes[out_id].dependents.add(nid)
         for ngdata in data.get("nogoods", []):
-            net.nogoods.append(Nogood(
-                id=ngdata.get("id", ""),
-                nodes=ngdata.get("nodes", []),
-                discovered=ngdata.get("discovered", ""),
-                resolution=ngdata.get("resolution", ""),
-            ))
+            net.nogoods.append(
+                Nogood(
+                    id=ngdata.get("id", ""),
+                    nodes=ngdata.get("nodes", []),
+                    discovered=ngdata.get("discovered", ""),
+                    resolution=ngdata.get("resolution", ""),
+                )
+            )
         repos = data.get("repos", {})
         meta = data.get("meta")
         if meta:
@@ -2870,35 +3261,50 @@ def export_markdown(visible_to: list[str] | None = None, db_path: str = DEFAULT_
     with _with_network(db_path) as net:
         if visible_to is not None:
             from .network import Network
+
             filtered = Network()
             for nid, node in net.nodes.items():
                 if _is_visible(node, visible_to):
                     filtered.nodes[nid] = node
-            filtered.nogoods = [ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)]
+            filtered.nogoods = [
+                ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)
+            ]
             filtered.repos = net.repos
             filtered.meta = net.meta
             return _export(filtered, repos=filtered.repos)
         return _export(net, repos=net.repos)
 
 
-def export_card(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-                pg_conninfo=None, project_id=None,
-                domain=None, license="mit", base_network=None,
-                source_repos=None) -> str:
+def export_card(
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+    domain=None,
+    license="mit",
+    base_network=None,
+    source_repos=None,
+) -> str:
     """Export the network as a HuggingFace EEM card (README.md).
 
     Returns: the markdown string
     """
     from .export_card import export_card as _export_card
 
-    card_kwargs = dict(domain=domain, license=license,
-                       base_network=base_network, source_repos=source_repos)
+    card_kwargs = dict(
+        domain=domain,
+        license=license,
+        base_network=base_network,
+        source_repos=source_repos,
+    )
 
     if pg_conninfo:
-        data = export_network(visible_to=visible_to, pg_conninfo=pg_conninfo,
-                              project_id=project_id)
+        data = export_network(
+            visible_to=visible_to, pg_conninfo=pg_conninfo, project_id=project_id
+        )
         from . import Node, Justification, Nogood
         from .network import Network
+
         net = Network()
         for nid, ndata in data.get("nodes", {}).items():
             node = Node(nid, ndata.get("text", ""))
@@ -2926,12 +3332,14 @@ def export_card(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
                     if out_id in net.nodes:
                         net.nodes[out_id].dependents.add(nid)
         for ngdata in data.get("nogoods", []):
-            net.nogoods.append(Nogood(
-                id=ngdata.get("id", ""),
-                nodes=ngdata.get("nodes", []),
-                discovered=ngdata.get("discovered", ""),
-                resolution=ngdata.get("resolution", ""),
-            ))
+            net.nogoods.append(
+                Nogood(
+                    id=ngdata.get("id", ""),
+                    nodes=ngdata.get("nodes", []),
+                    discovered=ngdata.get("discovered", ""),
+                    resolution=ngdata.get("resolution", ""),
+                )
+            )
         meta = data.get("meta")
         if meta:
             net.meta = dict(meta)
@@ -2940,11 +3348,14 @@ def export_card(visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
     with _with_network(db_path) as net:
         if visible_to is not None:
             from .network import Network
+
             filtered = Network()
             for nid, node in net.nodes.items():
                 if _is_visible(node, visible_to):
                     filtered.nodes[nid] = node
-            filtered.nogoods = [ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)]
+            filtered.nogoods = [
+                ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)
+            ]
             filtered.repos = net.repos
             filtered.meta = net.meta
             return _export_card(filtered, **card_kwargs)
@@ -2956,7 +3367,8 @@ def check_stale(
     upgrade_hashes: bool = False,
     git_aware: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Check all IN nodes for source file staleness.
 
@@ -2970,9 +3382,14 @@ def check_stale(
               "upgraded": int, "sha_bumped": int}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "check_stale",
-                            repos=repos, upgrade_hashes=upgrade_hashes,
-                            git_aware=git_aware)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "check_stale",
+            repos=repos,
+            upgrade_hashes=upgrade_hashes,
+            git_aware=git_aware,
+        )
     from pathlib import Path as P
     from .check_stale import check_stale as _check
 
@@ -2987,12 +3404,17 @@ def check_stale(
             repo_paths = {k: P(v) for k, v in repo_paths.items()}
 
         in_with_source = sum(
-            1 for n in net.nodes.values()
+            1
+            for n in net.nodes.values()
             if n.truth_value == "IN" and n.source and n.source_hash
         )
-        results, upgraded, sha_bumped = _check(net, repo_paths, db_dir=db_dir,
-                                               upgrade_hashes=upgrade_hashes,
-                                               git_aware=git_aware)
+        results, upgraded, sha_bumped = _check(
+            net,
+            repo_paths,
+            db_dir=db_dir,
+            upgrade_hashes=upgrade_hashes,
+            git_aware=git_aware,
+        )
         return {
             "stale": results,
             "checked": in_with_source,
@@ -3008,6 +3430,7 @@ def check_integrity(db_path: str = DEFAULT_DB) -> dict:
     Returns: {"text_mutations": [...], "chain_mutations": [...], "missing_hashes": int}
     """
     from .merkle import verify_all
+
     with _with_network(db_path, write=False) as net:
         result = verify_all(net)
     text_mutations = [f for f in result["findings"] if f["type"] == "text_mutation"]
@@ -3022,6 +3445,7 @@ def check_integrity(db_path: str = DEFAULT_DB) -> dict:
 def backfill_hashes(db_path: str = DEFAULT_DB) -> dict:
     """Compute and store hashes for nodes/justifications missing them."""
     from .merkle import backfill_hashes as _backfill
+
     with _with_network(db_path, write=True) as net:
         return _backfill(net)
 
@@ -3030,15 +3454,17 @@ def hash_sources(
     force: bool = False,
     repos: dict[str, str] | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Backfill source hashes for nodes with source paths but no stored hash.
 
     Returns: {"hashed": list[dict], "count": int}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "hash_sources",
-                            force=force, repos=repos)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "hash_sources", force=force, repos=repos
+        )
     from pathlib import Path as P
     from .check_stale import hash_sources as _hash
 
@@ -3079,8 +3505,7 @@ def pin_sources(
         if repo_paths:
             repo_paths = {k: P(v) for k, v in repo_paths.items()}
 
-        results = _pin(net, repo_paths, db_dir=db_dir,
-                        force=force, pin_urls=pin_urls)
+        results = _pin(net, repo_paths, db_dir=db_dir, force=force, pin_urls=pin_urls)
         return {"pinned": results, "count": len(results)}
 
 
@@ -3107,8 +3532,7 @@ def pin_update(
 
         results = _update(net, node_ids, repo_paths, db_dir=db_dir)
         errors = sum(1 for r in results if "error" in r)
-        return {"updated": results, "count": len(results) - errors,
-                "errors": errors}
+        return {"updated": results, "count": len(results) - errors, "errors": errors}
 
 
 def pin_lines(
@@ -3136,15 +3560,21 @@ def pin_lines(
         if repo_paths:
             repo_paths = {k: P(v) for k, v in repo_paths.items()}
 
-        return _pin_lines(net, node_id, line_start, line_end,
-                          repos=repo_paths, db_dir=db_dir)
+        return _pin_lines(
+            net, node_id, line_start, line_end, repos=repo_paths, db_dir=db_dir
+        )
 
 
-def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | None = None,
-            include_out: bool = False,
-            format: str = "default",
-            db_path: str = DEFAULT_DB,
-            pg_conninfo=None, project_id=None) -> str:
+def compact(
+    budget: int = 500,
+    truncate: bool = True,
+    visible_to: list[str] | None = None,
+    include_out: bool = False,
+    format: str = "default",
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> str:
     """Generate a token-budgeted belief state summary.
 
     Args:
@@ -3155,9 +3585,13 @@ def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | No
     """
     if format == "names-only":
         status_filter = None if include_out else "IN"
-        result = list_nodes(status=status_filter, visible_to=visible_to,
-                            db_path=db_path, pg_conninfo=pg_conninfo,
-                            project_id=project_id)
+        result = list_nodes(
+            status=status_filter,
+            visible_to=visible_to,
+            db_path=db_path,
+            pg_conninfo=pg_conninfo,
+            project_id=project_id,
+        )
         ids = [n["id"] for n in result["nodes"]]
         lines = []
         used = 0
@@ -3169,15 +3603,22 @@ def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | No
             used += cost
         return "\n".join(lines)
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "compact",
-                            budget=budget, truncate=truncate, visible_to=visible_to,
-                            include_out=include_out)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "compact",
+            budget=budget,
+            truncate=truncate,
+            visible_to=visible_to,
+            include_out=include_out,
+        )
     from .compact import compact as _compact
 
     with _with_network(db_path) as net:
         needs_filter = visible_to is not None or not include_out
         if needs_filter:
             from .network import Network
+
             filtered = Network()
             for nid, node in net.nodes.items():
                 if not include_out and node.truth_value == "OUT":
@@ -3185,15 +3626,22 @@ def compact(budget: int = 500, truncate: bool = True, visible_to: list[str] | No
                 if visible_to is not None and not _is_visible(node, visible_to):
                     continue
                 filtered.nodes[nid] = node
-            filtered.nogoods = [ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)]
+            filtered.nogoods = [
+                ng for ng in net.nogoods if all(n in filtered.nodes for n in ng.nodes)
+            ]
             return _compact(filtered, budget=budget, truncate=truncate)
         return _compact(net, budget=budget, truncate=truncate)
 
 
-def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-           include_out: bool = False,
-           format: str = "full",
-           pg_conninfo=None, project_id=None) -> str:
+def lookup(
+    query: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    include_out: bool = False,
+    format: str = "full",
+    pg_conninfo=None,
+    project_id=None,
+) -> str:
     """Simple all-terms search over the full belief block — ID, text, source,
     dependencies, and metadata. Matches the same search corpus and output
     format as lookup_beliefs on a flat beliefs.md file.
@@ -3208,9 +3656,14 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
     Returns: formatted string with matching beliefs (full blocks)
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "lookup",
-                            query=query, visible_to=visible_to,
-                            include_out=include_out)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "lookup",
+            query=query,
+            visible_to=visible_to,
+            include_out=include_out,
+        )
     with _with_network(db_path) as net:
         query_terms = query.lower().split()
         matches = []
@@ -3261,12 +3714,18 @@ def lookup(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         return "\n".join(parts)
 
 
-def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAULT_DB,
-           format: str = "markdown", depth: int = 1,
-           include_out: bool = False,
-           sort: str = "relevance",
-           namespace: str | None = None,
-           pg_conninfo=None, project_id=None) -> str:
+def search(
+    query: str,
+    visible_to: list[str] | None = None,
+    db_path: str = DEFAULT_DB,
+    format: str = "markdown",
+    depth: int = 1,
+    include_out: bool = False,
+    sort: str = "relevance",
+    namespace: str | None = None,
+    pg_conninfo=None,
+    project_id=None,
+) -> str:
     """Search nodes using full-text search with neighbor expansion.
 
     Uses SQLite FTS5 for ranked all-terms matching. Returns matched nodes
@@ -3289,9 +3748,15 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
     if pg_conninfo:
         if depth != 1:
             raise NotImplementedError("depth is not supported with PostgreSQL")
-        return _pg_dispatch(pg_conninfo, project_id, "search",
-                            query=query, visible_to=visible_to, format=format,
-                            include_out=include_out)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "search",
+            query=query,
+            visible_to=visible_to,
+            format=format,
+            include_out=include_out,
+        )
     with _with_network(db_path) as net:
         matched_ids = _fts_search(query, db_path)
 
@@ -3304,8 +3769,11 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
         # Filter OUT beliefs unless explicitly requested
         if not include_out:
-            matched_ids = [nid for nid in matched_ids
-                           if nid in net.nodes and net.nodes[nid].truth_value != "OUT"]
+            matched_ids = [
+                nid
+                for nid in matched_ids
+                if nid in net.nodes and net.nodes[nid].truth_value != "OUT"
+            ]
             if not matched_ids:
                 return "No results found."
 
@@ -3319,7 +3787,8 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
         # Apply access filtering
         if visible_to is not None:
             matched_ids = [
-                nid for nid in matched_ids
+                nid
+                for nid in matched_ids
                 if nid in net.nodes and _is_visible(net.nodes[nid], visible_to)
             ]
             if not matched_ids:
@@ -3360,13 +3829,17 @@ def search(query: str, visible_to: list[str] | None = None, db_path: str = DEFAU
 
         # Filter OUT neighbors too
         if not include_out:
-            neighbor_ids = {nid for nid in neighbor_ids
-                            if nid in net.nodes and net.nodes[nid].truth_value != "OUT"}
+            neighbor_ids = {
+                nid
+                for nid in neighbor_ids
+                if nid in net.nodes and net.nodes[nid].truth_value != "OUT"
+            }
 
         # Apply access filtering to neighbors too
         if visible_to is not None:
             neighbor_ids = {
-                nid for nid in neighbor_ids
+                nid
+                for nid in neighbor_ids
                 if nid in net.nodes and _is_visible(net.nodes[nid], visible_to)
             }
 
@@ -3391,25 +3864,137 @@ def _fts_query(conn, terms: list[str]) -> list[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
-_STOP_WORDS = frozenset({
-    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "must",
-    "in", "on", "at", "to", "for", "of", "with", "by", "from", "as",
-    "into", "through", "during", "before", "after", "above", "below",
-    "between", "under", "over", "about", "against", "along", "among",
-    "and", "but", "or", "nor", "not", "so", "yet", "both", "either",
-    "neither", "each", "every", "all", "any", "few", "more", "most",
-    "other", "some", "such", "no", "only", "own", "same", "than",
-    "too", "very", "just", "also", "now", "how", "what", "when", "where",
-    "which", "who", "whom", "why", "this", "that", "these", "those",
-    "it", "its", "he", "she", "they", "them", "his", "her", "their",
-    "we", "you", "your", "my", "our", "me", "us", "him",
-    "if", "then", "else", "while", "until", "unless",
-    "there", "here", "up", "out", "off",
-    "specific", "specifically", "particular", "particularly",
-    "included", "including", "within",
-})
+_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "must",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "under",
+        "over",
+        "about",
+        "against",
+        "along",
+        "among",
+        "and",
+        "but",
+        "or",
+        "nor",
+        "not",
+        "so",
+        "yet",
+        "both",
+        "either",
+        "neither",
+        "each",
+        "every",
+        "all",
+        "any",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "only",
+        "own",
+        "same",
+        "than",
+        "too",
+        "very",
+        "just",
+        "also",
+        "now",
+        "how",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "whom",
+        "why",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "its",
+        "he",
+        "she",
+        "they",
+        "them",
+        "his",
+        "her",
+        "their",
+        "we",
+        "you",
+        "your",
+        "my",
+        "our",
+        "me",
+        "us",
+        "him",
+        "if",
+        "then",
+        "else",
+        "while",
+        "until",
+        "unless",
+        "there",
+        "here",
+        "up",
+        "out",
+        "off",
+        "specific",
+        "specifically",
+        "particular",
+        "particularly",
+        "included",
+        "including",
+        "within",
+    }
+)
 
 
 def _fts_search(query: str, db_path: str) -> list[str]:
@@ -3417,8 +4002,10 @@ def _fts_search(query: str, db_path: str) -> list[str]:
     try:
         conn = sqlite3.connect(db_path)
         try:
-            raw_terms = re.findall(r'\w+', query)
-            terms = [t for t in raw_terms if t.lower() not in _STOP_WORDS and len(t) > 1]
+            raw_terms = re.findall(r"\w+", query)
+            terms = [
+                t for t in raw_terms if t.lower() not in _STOP_WORDS and len(t) > 1
+            ]
             if not terms:
                 terms = [t for t in raw_terms if len(t) > 1]
             if not terms:
@@ -3492,23 +4079,27 @@ def _format_json(net, matched_ids: list[str], neighbor_ids: set[str]) -> str:
     results = []
     for nid in matched_ids:
         node = net.nodes[nid]
-        results.append({
-            "id": nid,
-            "text": node.text,
-            "truth_value": node.truth_value,
-            "source": node.source,
-            "match": True,
-        })
+        results.append(
+            {
+                "id": nid,
+                "text": node.text,
+                "truth_value": node.truth_value,
+                "source": node.source,
+                "match": True,
+            }
+        )
     for nid in sorted(neighbor_ids):
         node = net.nodes[nid]
-        results.append({
-            "id": nid,
-            "text": node.text,
-            "truth_value": node.truth_value,
-            "source": node.source,
-            "match": False,
-            "relation": "neighbor",
-        })
+        results.append(
+            {
+                "id": nid,
+                "text": node.text,
+                "truth_value": node.truth_value,
+                "source": node.source,
+                "match": False,
+                "relation": "neighbor",
+            }
+        )
     return json.dumps(results, indent=2)
 
 
@@ -3581,7 +4172,8 @@ def list_nodes(
     sort: str | None = None,
     label: str | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """List nodes with optional filters.
 
@@ -3603,11 +4195,19 @@ def list_nodes(
             unsupported.append("by_impact")
         if unsupported:
             raise NotImplementedError(
-                f"{', '.join(unsupported)} not supported with PostgreSQL")
-        return _pg_dispatch(pg_conninfo, project_id, "list_nodes",
-                            status=status, premises_only=premises_only,
-                            has_dependents=has_dependents, namespace=namespace,
-                            visible_to=visible_to, label=label)
+                f"{', '.join(unsupported)} not supported with PostgreSQL"
+            )
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "list_nodes",
+            status=status,
+            premises_only=premises_only,
+            has_dependents=has_dependents,
+            namespace=namespace,
+            visible_to=visible_to,
+            label=label,
+        )
     from datetime import timedelta
 
     with _with_network(db_path) as net:
@@ -3657,20 +4257,23 @@ def list_nodes(
                     except ValueError:
                         pass
             depth = _node_depth(nid, net, memo) if memo is not None else None
-            nodes.append({
-                "id": nid,
-                "text": node.text,
-                "truth_value": node.truth_value,
-                "justification_count": len(node.justifications),
-                "dependent_count": len(node.dependents),
-                "challenges": node.metadata.get("challenges", []),
-                "last_reviewed": node.reviewed_at or node.metadata.get("last_reviewed"),
-                "review_result": node.metadata.get("review_result"),
-                "source_type": node.metadata.get("source_type", ""),
-                "created_at": node.created_at or "",
-                "updated_at": node.updated_at or "",
-                "depth": depth,
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "text": node.text,
+                    "truth_value": node.truth_value,
+                    "justification_count": len(node.justifications),
+                    "dependent_count": len(node.dependents),
+                    "challenges": node.metadata.get("challenges", []),
+                    "last_reviewed": node.reviewed_at
+                    or node.metadata.get("last_reviewed"),
+                    "review_result": node.metadata.get("review_result"),
+                    "source_type": node.metadata.get("source_type", ""),
+                    "created_at": node.created_at or "",
+                    "updated_at": node.updated_at or "",
+                    "depth": depth,
+                }
+            )
         if sort == "created":
             nodes.sort(key=lambda n: n["created_at"] or "", reverse=True)
         elif sort == "updated":
@@ -3687,20 +4290,78 @@ def list_nodes(
 
 
 _TOPIC_STOP_WORDS = {
-    "a", "an", "the", "is", "are", "was", "were", "in", "on", "at", "to",
-    "for", "of", "and", "or", "not", "as", "by", "via", "can", "with",
-    "from", "than", "that", "this", "be", "has", "have", "it", "its",
-    "no", "do", "if", "so", "up", "out", "all", "but", "get", "set",
-    "only", "per", "use", "may", "one", "two", "new", "any", "each",
-    "must", "when", "how", "also", "into", "over", "more", "both",
-    "same", "own", "used", "using", "based", "does", "then",
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "and",
+    "or",
+    "not",
+    "as",
+    "by",
+    "via",
+    "can",
+    "with",
+    "from",
+    "than",
+    "that",
+    "this",
+    "be",
+    "has",
+    "have",
+    "it",
+    "its",
+    "no",
+    "do",
+    "if",
+    "so",
+    "up",
+    "out",
+    "all",
+    "but",
+    "get",
+    "set",
+    "only",
+    "per",
+    "use",
+    "may",
+    "one",
+    "two",
+    "new",
+    "any",
+    "each",
+    "must",
+    "when",
+    "how",
+    "also",
+    "into",
+    "over",
+    "more",
+    "both",
+    "same",
+    "own",
+    "used",
+    "using",
+    "based",
+    "does",
+    "then",
 }
 
 
 def topics(
     limit: int = 20,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Extract topics from node IDs by word frequency.
 
@@ -3711,7 +4372,7 @@ def topics(
     with _with_network(db_path) as net:
         word_counts: dict[str, int] = {}
         for nid in net.nodes:
-            for word in re.split(r'[-._:]', nid):
+            for word in re.split(r"[-._:]", nid):
                 if word and len(word) > 2 and word not in _TOPIC_STOP_WORDS:
                     word_counts[word] = word_counts.get(word, 0) + 1
         ranked = sorted(word_counts, key=lambda w: (-word_counts[w], w))[:limit]
@@ -3742,7 +4403,11 @@ def build_wiki(
 
     Returns: {"output_dir": str, "pages": int, "total_nodes": int}
     """
-    from .build_wiki import _assign_topics, _assign_topics_multi_word, build_wiki as _build_wiki
+    from .build_wiki import (
+        _assign_topics,
+        _assign_topics_multi_word,
+        build_wiki as _build_wiki,
+    )
     from .build_wiki import load_topics_file
 
     nodes_result = list_nodes(status=status, visible_to=visible_to, db_path=db_path)
@@ -3750,6 +4415,7 @@ def build_wiki(
 
     if not node_ids:
         import os
+
         os.makedirs(output_dir, exist_ok=True)
         with open(os.path.join(output_dir, "index.md"), "w") as f:
             f.write("# Belief Wiki\n\n*No beliefs found.*\n")
@@ -3776,10 +4442,14 @@ def build_wiki(
             ids_in_cluster = [b["id"] for b in c["beliefs"]]
             word_counts: dict[str, int] = {}
             for nid in ids_in_cluster:
-                for word in re.split(r'[-._:]', nid):
+                for word in re.split(r"[-._:]", nid):
                     if word and len(word) > 2 and word not in _TOPIC_STOP_WORDS:
                         word_counts[word] = word_counts.get(word, 0) + 1
-            label = max(word_counts, key=word_counts.get) if word_counts else f"cluster-{c['id']}"
+            label = (
+                max(word_counts, key=word_counts.get)
+                if word_counts
+                else f"cluster-{c['id']}"
+            )
             if label in groups:
                 label = f"{label}-{c['id']}"
             groups[label] = ids_in_cluster
@@ -3790,16 +4460,23 @@ def build_wiki(
         topics_result = topics(limit=max_topics, db_path=db_path)
         groups = _assign_topics(node_ids, topics_result["topics"])
 
-    return _build_wiki(node_details, groups, output_dir,
-                       model=model, timeout=timeout, parallel=parallel,
-                       summaries_dir=summaries_dir,
-                       skip_belief_summaries=skip_belief_summaries)
+    return _build_wiki(
+        node_details,
+        groups,
+        output_dir,
+        model=model,
+        timeout=timeout,
+        parallel=parallel,
+        summaries_dir=summaries_dir,
+        skip_belief_summaries=skip_belief_summaries,
+    )
 
 
 def list_gated(
     visible_to: list[str] | None = None,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Find OUT nodes blocked by IN outlist nodes (active gates).
 
@@ -3807,8 +4484,9 @@ def list_gated(
               "gated_count": int, "blocker_count": int}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "list_gated",
-                            visible_to=visible_to)
+        return _pg_dispatch(
+            pg_conninfo, project_id, "list_gated", visible_to=visible_to
+        )
     with _with_network(db_path) as net:
         blockers: dict[str, dict] = {}
         for nid, node in sorted(net.nodes.items()):
@@ -3831,12 +4509,18 @@ def list_gated(
                             "gated": [],
                         }
                     if not any(g["id"] == nid for g in blockers[outlist_id]["gated"]):
-                        blockers[outlist_id]["gated"].append({
-                            "id": nid,
-                            "text": node.text,
-                        })
+                        blockers[outlist_id]["gated"].append(
+                            {
+                                "id": nid,
+                                "text": node.text,
+                            }
+                        )
         gated_count = sum(len(b["gated"]) for b in blockers.values())
-        return {"blockers": blockers, "gated_count": gated_count, "blocker_count": len(blockers)}
+        return {
+            "blockers": blockers,
+            "gated_count": gated_count,
+            "blocker_count": len(blockers),
+        }
 
 
 def report_gated(
@@ -3844,7 +4528,8 @@ def report_gated(
     model: str = "",
     timeout: int = 300,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Generate a problems/open-issues report from gated beliefs.
 
@@ -3853,8 +4538,7 @@ def report_gated(
     """
     from .report_gated import report_gated as _report_gated
 
-    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo,
-                   project_id=project_id)
+    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
     vis = dict(visible_to=visible_to)
 
     in_nodes = list_nodes(status="IN", **vis, **backend)
@@ -3862,19 +4546,20 @@ def report_gated(
     in_count = in_nodes["count"]
     out_count = out_nodes["count"]
 
-    out_premises = list_nodes(status="OUT", premises_only=True, **vis,
-                              **backend)
+    out_premises = list_nodes(status="OUT", premises_only=True, **vis, **backend)
     retracted = []
     for node in out_premises["nodes"]:
         detail = show_node(node["id"], **vis, **backend)
         reason = detail.get("metadata", {}).get("retract_reason")
         if reason:
-            retracted.append({
-                "id": node["id"],
-                "text": node["text"],
-                "retract_reason": reason,
-                "dependent_count": node["dependent_count"],
-            })
+            retracted.append(
+                {
+                    "id": node["id"],
+                    "text": node["text"],
+                    "retract_reason": reason,
+                    "dependent_count": node["dependent_count"],
+                }
+            )
 
     gated_data = list_gated(**vis, **backend)
 
@@ -3889,8 +4574,13 @@ def report_gated(
         }
 
     report = _report_gated(
-        gated_data, retracted, blocker_details,
-        in_count, out_count, model=model, timeout=timeout,
+        gated_data,
+        retracted,
+        blocker_details,
+        in_count,
+        out_count,
+        model=model,
+        timeout=timeout,
     )
     return {
         "report": report,
@@ -3906,7 +4596,8 @@ def report_belief(
     model: str = "",
     timeout: int = 300,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Generate an evidence report tracing a belief to its root premises.
 
@@ -3914,8 +4605,7 @@ def report_belief(
     """
     from .report_belief import report_belief as _report_belief
 
-    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo,
-                   project_id=project_id)
+    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
 
     node_detail = show_node(node_id, **backend)
     explain_data = explain_node(node_id, **backend)
@@ -3925,18 +4615,23 @@ def report_belief(
     for pid in trace_data["premises"]:
         try:
             detail = show_node(pid, **backend)
-            premises_data.append({
-                "id": pid,
-                "text": detail.get("text", ""),
-                "truth_value": detail.get("truth_value", ""),
-                "source": detail.get("source", ""),
-            })
+            premises_data.append(
+                {
+                    "id": pid,
+                    "text": detail.get("text", ""),
+                    "truth_value": detail.get("truth_value", ""),
+                    "source": detail.get("source", ""),
+                }
+            )
         except (KeyError, PermissionError):
-            premises_data.append({"id": pid, "text": "", "truth_value": "UNKNOWN", "source": ""})
+            premises_data.append(
+                {"id": pid, "text": "", "truth_value": "UNKNOWN", "source": ""}
+            )
 
     source_chunks = {}
     if sources_db:
         from .ask import search_source_chunks
+
         for pd in premises_data:
             if pd["text"]:
                 try:
@@ -3946,8 +4641,13 @@ def report_belief(
                     source_chunks[pd["id"]] = []
 
     report = _report_belief(
-        node_id, node_detail, explain_data["steps"], premises_data,
-        source_chunks, model=model, timeout=timeout,
+        node_id,
+        node_detail,
+        explain_data["steps"],
+        premises_data,
+        source_chunks,
+        model=model,
+        timeout=timeout,
     )
     return {
         "report": report,
@@ -3963,7 +4663,8 @@ def verify_belief(
     model: str = "claude",
     timeout: int = 120,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Verify a belief against its source documents.
 
@@ -3978,8 +4679,7 @@ def verify_belief(
     from .verify import read_source, verify_beliefs
     from datetime import datetime, timezone
 
-    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo,
-                   project_id=project_id)
+    backend = dict(db_path=db_path, pg_conninfo=pg_conninfo, project_id=project_id)
 
     detail = show_node(node_id, **backend)
     has_justifications = bool(detail.get("justifications"))
@@ -3995,30 +4695,41 @@ def verify_belief(
             seen.add(pid)
             try:
                 pd = show_node(pid, **backend)
-                beliefs_to_check.append({
-                    "id": pid,
-                    "text": pd.get("text", ""),
-                    "truth_value": pd.get("truth_value", ""),
-                    "source": pd.get("source", ""),
-                    "source_url": pd.get("source_url", ""),
-                })
+                beliefs_to_check.append(
+                    {
+                        "id": pid,
+                        "text": pd.get("text", ""),
+                        "truth_value": pd.get("truth_value", ""),
+                        "source": pd.get("source", ""),
+                        "source_url": pd.get("source_url", ""),
+                    }
+                )
             except (KeyError, PermissionError):
-                beliefs_to_check.append({
-                    "id": pid, "text": "", "truth_value": "UNKNOWN",
-                    "source": "", "source_url": "",
-                })
+                beliefs_to_check.append(
+                    {
+                        "id": pid,
+                        "text": "",
+                        "truth_value": "UNKNOWN",
+                        "source": "",
+                        "source_url": "",
+                    }
+                )
     else:
-        beliefs_to_check = [{
-            "id": node_id,
-            "text": detail.get("text", ""),
-            "truth_value": detail.get("truth_value", ""),
-            "source": detail.get("source", ""),
-            "source_url": detail.get("source_url", ""),
-        }]
+        beliefs_to_check = [
+            {
+                "id": node_id,
+                "text": detail.get("text", ""),
+                "truth_value": detail.get("truth_value", ""),
+                "source": detail.get("source", ""),
+                "source_url": detail.get("source_url", ""),
+            }
+        ]
 
     beliefs_with_sources = []
     for b in beliefs_to_check:
-        source_content = read_source(b["source"], db_path=db_path) if b["source"] else None
+        source_content = (
+            read_source(b["source"], db_path=db_path) if b["source"] else None
+        )
         beliefs_with_sources.append((b, source_content))
 
     if dry_run:
@@ -4085,25 +4796,92 @@ def verify_belief(
 NEGATIVE_BATCH_SIZE = 50
 
 NEGATIVE_TERMS = [
-    'bug', 'defect', 'missing', 'fail', 'error', 'broken', 'incorrect',
-    'wrong', 'risk', 'gap', 'lack', 'vulnerable', 'insecure', 'stale',
-    'outdated', 'deprecated', 'fragile', 'brittle', 'hack', 'workaround',
-    'technical debt', 'tech debt', 'not implemented', 'unimplemented',
-    'incomplete', 'inconsistent', 'unclear', 'confusing', 'problem',
-    'known issue', 'security issue', 'concern', 'warning', 'danger',
-    'threat', 'weakness', 'limitation', 'constraint', 'bottleneck',
-    'blocker', 'obstacle', 'undermines', 'concentrated',
-    'single point of failure', 'no tests', 'untested', 'not tested',
-    'hard-coded', 'hardcoded', 'tight coupling', 'tightly coupled',
-    'monolithic', 'legacy', 'unmaintained',
-    'blocked', 'blocking', 'deferred', 'stalled', 'unresolved',
-    'disabled', 'skipped',
-    'sole', 'empty', 'placeholder', 'regression', 'corrupted',
-    'orphaned', 'zombie',
-    'absent', 'absence', 'invisible', 'silent', 'hollow', 'vacuum',
-    'debt', 'overhead', 'degradation', 'deficit', 'friction',
-    'undocumented', 'unverified',
-    'dysfunction', 'opacity', 'opaque', 'isolated', 'permanently',
+    "bug",
+    "defect",
+    "missing",
+    "fail",
+    "error",
+    "broken",
+    "incorrect",
+    "wrong",
+    "risk",
+    "gap",
+    "lack",
+    "vulnerable",
+    "insecure",
+    "stale",
+    "outdated",
+    "deprecated",
+    "fragile",
+    "brittle",
+    "hack",
+    "workaround",
+    "technical debt",
+    "tech debt",
+    "not implemented",
+    "unimplemented",
+    "incomplete",
+    "inconsistent",
+    "unclear",
+    "confusing",
+    "problem",
+    "known issue",
+    "security issue",
+    "concern",
+    "warning",
+    "danger",
+    "threat",
+    "weakness",
+    "limitation",
+    "constraint",
+    "bottleneck",
+    "blocker",
+    "obstacle",
+    "undermines",
+    "concentrated",
+    "single point of failure",
+    "no tests",
+    "untested",
+    "not tested",
+    "hard-coded",
+    "hardcoded",
+    "tight coupling",
+    "tightly coupled",
+    "monolithic",
+    "legacy",
+    "unmaintained",
+    "blocked",
+    "blocking",
+    "deferred",
+    "stalled",
+    "unresolved",
+    "disabled",
+    "skipped",
+    "sole",
+    "empty",
+    "placeholder",
+    "regression",
+    "corrupted",
+    "orphaned",
+    "zombie",
+    "absent",
+    "absence",
+    "invisible",
+    "silent",
+    "hollow",
+    "vacuum",
+    "debt",
+    "overhead",
+    "degradation",
+    "deficit",
+    "friction",
+    "undocumented",
+    "unverified",
+    "dysfunction",
+    "opacity",
+    "opaque",
+    "isolated",
+    "permanently",
 ]
 
 NEGATIVE_CLASSIFY_PROMPT = """\
@@ -4129,7 +4907,8 @@ def list_negative(
     model: str = "claude",
     skip_llm: bool = False,
     db_path: str = DEFAULT_DB,
-    pg_conninfo=None, project_id=None,
+    pg_conninfo=None,
+    project_id=None,
 ) -> dict:
     """Find IN beliefs that describe problems, defects, or risks.
 
@@ -4140,9 +4919,14 @@ def list_negative(
               "count": int, "candidates": int, "total": int}
     """
     if pg_conninfo:
-        return _pg_dispatch(pg_conninfo, project_id, "list_negative",
-                            visible_to=visible_to, model=model,
-                            skip_llm=skip_llm)
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "list_negative",
+            visible_to=visible_to,
+            model=model,
+            skip_llm=skip_llm,
+        )
     from . import ask
 
     with _with_network(db_path) as net:
@@ -4180,15 +4964,20 @@ def list_negative(
         from .llm import invoke_model
 
         negative_ids = set()
-        total_batches = (len(candidates) + NEGATIVE_BATCH_SIZE - 1) // NEGATIVE_BATCH_SIZE
+        total_batches = (
+            len(candidates) + NEGATIVE_BATCH_SIZE - 1
+        ) // NEGATIVE_BATCH_SIZE
         for i in range(0, len(candidates), NEGATIVE_BATCH_SIZE):
-            batch = candidates[i:i + NEGATIVE_BATCH_SIZE]
+            batch = candidates[i : i + NEGATIVE_BATCH_SIZE]
             lines = [f"- [{nid}] `{text}`" for nid, text in batch]
             prompt = NEGATIVE_CLASSIFY_PROMPT.format(candidates="\n".join(lines))
 
             batch_num = i // NEGATIVE_BATCH_SIZE + 1
-            print(f"  Classifying batch {batch_num}/{total_batches} "
-                  f"({len(batch)} candidates)...", file=sys.stderr)
+            print(
+                f"  Classifying batch {batch_num}/{total_batches} "
+                f"({len(batch)} candidates)...",
+                file=sys.stderr,
+            )
 
             response = invoke_model(prompt, model=model)
 
@@ -4258,7 +5047,8 @@ def review_beliefs(
     nodes = result.get("nodes", {})
 
     all_derived = {
-        k: v for k, v in nodes.items()
+        k: v
+        for k, v in nodes.items()
         if v.get("truth_value") == "IN"
         and v.get("justifications")
         and len(v["justifications"]) > 0
@@ -4267,9 +5057,9 @@ def review_beliefs(
 
     if include_out:
         candidates = {
-            k: v for k, v in nodes.items()
-            if v.get("justifications")
-            and len(v["justifications"]) > 0
+            k: v
+            for k, v in nodes.items()
+            if v.get("justifications") and len(v["justifications"]) > 0
         }
     else:
         candidates = dict(all_derived)
@@ -4280,7 +5070,8 @@ def review_beliefs(
     if visible_to is not None:
         tags = set(visible_to)
         candidates = {
-            k: v for k, v in candidates.items()
+            k: v
+            for k, v in candidates.items()
             if not v.get("metadata", {}).get("access_tags")
             or all(t in tags for t in v["metadata"]["access_tags"])
         }
@@ -4288,13 +5079,15 @@ def review_beliefs(
     if min_depth is not None:
         memo = {}
         candidates = {
-            k: v for k, v in candidates.items()
+            k: v
+            for k, v in candidates.items()
             if _get_depth(k, nodes, all_derived, memo) >= min_depth
         }
 
     if depends_on:
         candidates = {
-            k: v for k, v in candidates.items()
+            k: v
+            for k, v in candidates.items()
             if any(
                 depends_on in j.get("antecedents", [])
                 for j in v.get("justifications", [])
@@ -4306,18 +5099,19 @@ def review_beliefs(
             candidates = {k: v for k, v in candidates.items() if ":" not in k}
         else:
             candidates = {
-                k: v for k, v in candidates.items()
-                if k.startswith(f"{namespace}:")
+                k: v for k, v in candidates.items() if k.startswith(f"{namespace}:")
             }
 
     if sample is not None and len(candidates) > sample:
         import random
+
         sampled_keys = random.sample(sorted(candidates.keys()), sample)
         candidates = {k: candidates[k] for k in sampled_keys}
 
     review_ids = sorted(candidates.keys())
-    results = _review(nodes, belief_ids=review_ids, model=model, timeout=timeout,
-                      on_batch=on_batch)
+    results = _review(
+        nodes, belief_ids=review_ids, model=model, timeout=timeout, on_batch=on_batch
+    )
 
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -4328,7 +5122,9 @@ def review_beliefs(
                 if nid in net.nodes and nid in result_map:
                     net.nodes[nid].reviewed_at = now
                     net.nodes[nid].updated_at = now
-                    net.nodes[nid].metadata["review_result"] = _classify_review_result(result_map[nid])
+                    net.nodes[nid].metadata["review_result"] = _classify_review_result(
+                        result_map[nid]
+                    )
 
     invalid = sum(1 for r in results if not r.get("valid", True))
     insufficient = sum(1 for r in results if not r.get("sufficient", True))
@@ -4372,7 +5168,8 @@ def review_justifications(
     nodes = result.get("nodes", {})
 
     candidates = {
-        nid: node for nid, node in nodes.items()
+        nid: node
+        for nid, node in nodes.items()
         if node.get("truth_value") == "IN"
         and _has_multi_antecedent_sl(node, min_antecedents)
     }
@@ -4380,9 +5177,15 @@ def review_justifications(
         candidates = {k: v for k, v in candidates.items() if k in belief_ids}
     total_candidates = len(candidates)
 
-    results = _review(nodes, belief_ids=belief_ids, model=model, timeout=timeout,
-                      min_antecedents=min_antecedents, on_batch=on_batch,
-                      parallel=parallel)
+    results = _review(
+        nodes,
+        belief_ids=belief_ids,
+        model=model,
+        timeout=timeout,
+        min_antecedents=min_antecedents,
+        on_batch=on_batch,
+        parallel=parallel,
+    )
 
     convert_any = sum(1 for r in results if r.get("classification") == "ANY")
     convert_mixed = sum(1 for r in results if r.get("classification") == "MIXED")
@@ -4432,7 +5235,8 @@ def review_premises(
     db_dir = Path(db_path).parent if db_path else None
 
     all_premises = {
-        k: v for k, v in nodes.items()
+        k: v
+        for k, v in nodes.items()
         if v.get("truth_value") == "IN"
         and (not v.get("justifications") or len(v["justifications"]) == 0)
     }
@@ -4446,13 +5250,15 @@ def review_premises(
     if visible_to is not None:
         tags = set(visible_to)
         candidates = {
-            k: v for k, v in candidates.items()
+            k: v
+            for k, v in candidates.items()
             if not v.get("metadata", {}).get("access_tags")
             or all(t in tags for t in v["metadata"]["access_tags"])
         }
 
     if sample is not None and len(candidates) > sample:
         import random
+
         sampled_keys = random.sample(sorted(candidates.keys()), sample)
         candidates = {k: candidates[k] for k in sampled_keys}
 
@@ -4480,9 +5286,15 @@ def review_premises(
                 continue
         review_ids.append(nid)
 
-    results = _review(nodes, premise_ids=review_ids, source_contents=source_contents,
-                      model=model, timeout=timeout, on_batch=on_batch,
-                      parallel=parallel)
+    results = _review(
+        nodes,
+        premise_ids=review_ids,
+        source_contents=source_contents,
+        model=model,
+        timeout=timeout,
+        on_batch=on_batch,
+        parallel=parallel,
+    )
 
     now = datetime.now().isoformat(timespec="seconds")
 
@@ -4496,13 +5308,18 @@ def review_premises(
                     if r.get("accurate", True) and r.get("well_scoped", True):
                         net.nodes[nid].metadata["premise_review_result"] = "pass"
                     elif not r.get("accurate", True):
-                        net.nodes[nid].metadata["premise_review_result"] = r.get("error_type", "inaccurate")
+                        net.nodes[nid].metadata["premise_review_result"] = r.get(
+                            "error_type", "inaccurate"
+                        )
                     else:
-                        net.nodes[nid].metadata["premise_review_result"] = "overgeneralized"
+                        net.nodes[nid].metadata["premise_review_result"] = (
+                            "overgeneralized"
+                        )
 
     inaccurate = sum(1 for r in results if not r.get("accurate", True))
-    overgeneralized = sum(1 for r in results
-                         if r.get("accurate", True) and not r.get("well_scoped", True))
+    overgeneralized = sum(
+        1 for r in results if r.get("accurate", True) and not r.get("well_scoped", True)
+    )
 
     return {
         "results": results,
@@ -4541,12 +5358,16 @@ def repair_premises(
 
     if review_file:
         import json as json_mod
+
         data = json_mod.loads(Path(review_file).read_text())
         review_results_list = data.get("results", [])
     elif belief_ids:
         review_result = review_premises(
-            belief_ids=belief_ids, model=model, timeout=timeout,
-            dry_run=True, db_path=db_path,
+            belief_ids=belief_ids,
+            model=model,
+            timeout=timeout,
+            dry_run=True,
+            db_path=db_path,
         )
         review_results_list = review_result.get("results", [])
     else:
@@ -4554,8 +5375,13 @@ def repair_premises(
 
     inaccurate = [r for r in review_results_list if not r.get("accurate", True)]
     if not inaccurate:
-        return {"results": [], "total_inaccurate": 0, "rewritten": 0,
-                "retracted": 0, "failed": 0}
+        return {
+            "results": [],
+            "total_inaccurate": 0,
+            "rewritten": 0,
+            "retracted": 0,
+            "failed": 0,
+        }
 
     review_map = {r["id"]: r for r in inaccurate}
 
@@ -4587,9 +5413,16 @@ def repair_premises(
                 continue
         repair_ids.append(nid)
 
-    results = _repair(nodes, premise_ids=repair_ids, source_contents=source_contents,
-                      review_results=review_map, model=model, timeout=timeout,
-                      parallel=parallel, on_result=on_result)
+    results = _repair(
+        nodes,
+        premise_ids=repair_ids,
+        source_contents=source_contents,
+        review_results=review_map,
+        model=model,
+        timeout=timeout,
+        parallel=parallel,
+        on_result=on_result,
+    )
 
     if not dry_run:
         for r in results:
@@ -4599,15 +5432,19 @@ def repair_premises(
                 try:
                     sup = supersede_with_text(nid, r["corrected_text"], db_path=db_path)
                     r["new_id"] = sup["new_id"]
-                    set_metadata(sup["new_id"], "repair_action", "rewritten", db_path=db_path)
+                    set_metadata(
+                        sup["new_id"], "repair_action", "rewritten", db_path=db_path
+                    )
                 except Exception as e:
                     print(f"  ERROR updating {nid}: {e}", file=sys.stderr)
                     r["action"] = "error"
             elif action == "retract":
                 try:
-                    retract_node(nid,
-                                 reason=f"repair-premises: {r.get('rationale', 'inaccurate')}",
-                                 db_path=db_path)
+                    retract_node(
+                        nid,
+                        reason=f"repair-premises: {r.get('rationale', 'inaccurate')}",
+                        db_path=db_path,
+                    )
                     set_metadata(nid, "repair_action", "retracted", db_path=db_path)
                 except Exception as e:
                     print(f"  ERROR retracting {nid}: {e}", file=sys.stderr)
@@ -4648,17 +5485,15 @@ def propose_update(
     result = export_network(db_path=db_path)
     nodes = result.get("nodes", {})
 
-    candidates = {
-        k: v for k, v in nodes.items()
-        if v.get("truth_value") == "IN"
-    }
+    candidates = {k: v for k, v in nodes.items() if v.get("truth_value") == "IN"}
 
     if belief_ids:
         candidates = {k: v for k, v in candidates.items() if k in belief_ids}
 
     if stale_only:
         candidates = {
-            k: v for k, v in candidates.items()
+            k: v
+            for k, v in candidates.items()
             if (v.get("metadata") or {}).get("stale_reason")
         }
 
@@ -4667,12 +5502,12 @@ def propose_update(
             candidates = {k: v for k, v in candidates.items() if ":" not in k}
         else:
             candidates = {
-                k: v for k, v in candidates.items()
-                if k.startswith(f"{namespace}:")
+                k: v for k, v in candidates.items() if k.startswith(f"{namespace}:")
             }
 
     if sample is not None and len(candidates) > sample:
         import random
+
         sampled_keys = random.sample(sorted(candidates.keys()), sample)
         candidates = {k: candidates[k] for k in sampled_keys}
 
@@ -4684,8 +5519,9 @@ def propose_update(
             if nid in net.nodes:
                 nodes[nid]["dependents"] = sorted(net.nodes[nid].dependents)
 
-    proposals = _propose(nodes, belief_ids=review_ids, model=model,
-                         timeout=timeout, on_batch=on_batch)
+    proposals = _propose(
+        nodes, belief_ids=review_ids, model=model, timeout=timeout, on_batch=on_batch
+    )
 
     cascades = {}
     for p in proposals:
@@ -4725,13 +5561,17 @@ def repair_smuggled(
 
     if review_file:
         import json as _json
+
         with open(review_file) as f:
             report = _json.load(f)
         review_results = report.get("results", [])
     elif belief_ids:
         result = review_beliefs(
-            belief_ids=belief_ids, model=model, timeout=timeout,
-            dry_run=True, db_path=db_path,
+            belief_ids=belief_ids,
+            model=model,
+            timeout=timeout,
+            dry_run=True,
+            db_path=db_path,
         )
         review_results = result["results"]
     else:
@@ -4754,8 +5594,12 @@ def repair_smuggled(
     nodes = net.get("nodes", {})
 
     repairs = repair_smuggled_beliefs(
-        invalid, nodes, model=model, timeout=timeout,
-        db_path=db_path, dry_run=dry_run,
+        invalid,
+        nodes,
+        model=model,
+        timeout=timeout,
+        db_path=db_path,
+        dry_run=dry_run,
     )
 
     return {
@@ -4764,7 +5608,9 @@ def repair_smuggled(
         "repaired": sum(1 for r in repairs if r["status"] == "repaired"),
         "no_candidates": sum(1 for r in repairs if r["status"] == "no_candidates"),
         "no_match": sum(1 for r in repairs if r["status"] == "no_match"),
-        "extraction_failed": sum(1 for r in repairs if r["status"] == "extraction_failed"),
+        "extraction_failed": sum(
+            1 for r in repairs if r["status"] == "extraction_failed"
+        ),
         "errors": sum(1 for r in repairs if r["status"] == "error"),
     }
 
@@ -4789,13 +5635,17 @@ def repair(
 
     if review_file:
         import json as _json
+
         with open(review_file) as f:
             report = _json.load(f)
         review_results = report.get("results", [])
     elif belief_ids:
         result = review_beliefs(
-            belief_ids=belief_ids, model=model, timeout=timeout,
-            dry_run=True, db_path=db_path,
+            belief_ids=belief_ids,
+            model=model,
+            timeout=timeout,
+            dry_run=True,
+            db_path=db_path,
         )
         review_results = result["results"]
     else:
@@ -4819,8 +5669,12 @@ def repair(
     nodes = net.get("nodes", {})
 
     results = repair_beliefs(
-        invalid, nodes, model=model, timeout=timeout,
-        db_path=db_path, dry_run=dry_run,
+        invalid,
+        nodes,
+        model=model,
+        timeout=timeout,
+        db_path=db_path,
+        dry_run=dry_run,
     )
 
     return {
@@ -4830,9 +5684,18 @@ def repair(
         "softened": sum(1 for r in results if r["status"] == "softened"),
         "abandoned": sum(1 for r in results if r["status"] == "abandoned"),
         "needs_research": sum(1 for r in results if r["status"] == "needs_research"),
-        "failed": sum(1 for r in results if r["status"] in
-                       ("triage_failed", "no_candidates", "no_match",
-                        "soften_failed", "extraction_failed")),
+        "failed": sum(
+            1
+            for r in results
+            if r["status"]
+            in (
+                "triage_failed",
+                "no_candidates",
+                "no_match",
+                "soften_failed",
+                "extraction_failed",
+            )
+        ),
         "errors": sum(1 for r in results if r["status"] == "error"),
     }
 
@@ -4865,16 +5728,14 @@ def detect_contradictions(
               "applied": int, "total_in": int}
     """
     from .contradictions import detect_contradictions as _detect
+
     if semantic:
         from .contradictions import detect_contradictions_semantic as _detect_semantic
 
     result = export_network(db_path=db_path)
     nodes = result.get("nodes", {})
 
-    candidates = {
-        k: v for k, v in nodes.items()
-        if v.get("truth_value") == "IN"
-    }
+    candidates = {k: v for k, v in nodes.items() if v.get("truth_value") == "IN"}
     total_in = len(candidates)
 
     if belief_ids:
@@ -4882,21 +5743,30 @@ def detect_contradictions(
 
     if sample is not None and len(candidates) > sample:
         import random
+
         sampled_keys = random.sample(sorted(candidates.keys()), sample)
         candidates = {k: candidates[k] for k in sampled_keys}
 
     check_ids = sorted(candidates.keys())
     if semantic:
-        contradictions = _detect_semantic(nodes, belief_ids=check_ids,
-                                          model=model, timeout=timeout,
-                                          embedding_model=embedding_model,
-                                          output_path=output_path,
-                                          parallel=parallel)
+        contradictions = _detect_semantic(
+            nodes,
+            belief_ids=check_ids,
+            model=model,
+            timeout=timeout,
+            embedding_model=embedding_model,
+            output_path=output_path,
+            parallel=parallel,
+        )
     else:
-        contradictions = _detect(nodes, belief_ids=check_ids, model=model,
-                                timeout=timeout,
-                                output_path=output_path,
-                                parallel=parallel)
+        contradictions = _detect(
+            nodes,
+            belief_ids=check_ids,
+            model=model,
+            timeout=timeout,
+            output_path=output_path,
+            parallel=parallel,
+        )
 
     applied = 0
     applied_details = []
@@ -4905,14 +5775,15 @@ def detect_contradictions(
             try:
                 nogood_result = add_nogood(c["claims"], db_path=db_path)
                 applied += 1
-                applied_details.append({
-                    "id": c["id"],
-                    "nogood_id": nogood_result.get("nogood_id"),
-                    "changed": nogood_result.get("changed", []),
-                })
+                applied_details.append(
+                    {
+                        "id": c["id"],
+                        "nogood_id": nogood_result.get("nogood_id"),
+                        "changed": nogood_result.get("changed", []),
+                    }
+                )
             except Exception as e:
-                print(f"  WARN: failed to apply {c['id']}: {e}",
-                      file=sys.stderr)
+                print(f"  WARN: failed to apply {c['id']}: {e}", file=sys.stderr)
 
     return {
         "contradictions": contradictions,
@@ -4924,8 +5795,9 @@ def detect_contradictions(
     }
 
 
-def write_contradiction_plan(contradictions: list[dict], output_path: str,
-                             append: bool = False) -> str:
+def write_contradiction_plan(
+    contradictions: list[dict], output_path: str, append: bool = False
+) -> str:
     """Write (or append to) a contradiction plan file for human review.
 
     Format is parseable by parse_contradiction_plan(). Each nogood lists
@@ -4961,6 +5833,7 @@ def parse_contradiction_plan(plan_text: str) -> list[dict]:
     Returns list of {"id": str, "claims": list[str]} for APPLY-marked entries.
     """
     import re
+
     entries = []
     current_id = None
     current_claims = []
@@ -4976,8 +5849,9 @@ def parse_contradiction_plan(plan_text: str) -> list[dict]:
 
         if current_id and line.strip().startswith("- Claims:"):
             claims_str = line.split(":", 1)[1].strip()
-            current_claims = [c.strip().strip("`") for c in claims_str.split(",")
-                              if c.strip()]
+            current_claims = [
+                c.strip().strip("`") for c in claims_str.split(",") if c.strip()
+            ]
 
     if current_id and current_claims:
         entries.append({"id": current_id, "claims": current_claims})
@@ -5002,12 +5876,14 @@ def apply_contradiction_plan(
     for entry in plan:
         try:
             result = add_nogood(entry["claims"], db_path=db_path)
-            nogoods.append({
-                "id": entry["id"],
-                "nogood_id": result.get("nogood_id"),
-                "changed": result.get("changed", []),
-                "backtracked_to": result.get("backtracked_to"),
-            })
+            nogoods.append(
+                {
+                    "id": entry["id"],
+                    "nogood_id": result.get("nogood_id"),
+                    "changed": result.get("changed", []),
+                    "backtracked_to": result.get("backtracked_to"),
+                }
+            )
         except Exception as e:
             errors.append(f"Failed to apply {entry['id']}: {e}")
     return {"applied": len(nogoods), "nogoods": nogoods, "errors": errors}
@@ -5054,7 +5930,11 @@ def list_clusters(
             beliefs[nid] = n.text
 
     if not beliefs:
-        return {"clusters": [], "n_clusters": 0, "embedding_model": embedding_model or DEFAULT_MODEL}
+        return {
+            "clusters": [],
+            "n_clusters": 0,
+            "embedding_model": embedding_model or DEFAULT_MODEL,
+        }
 
     return _list_clusters(
         beliefs,
@@ -5085,7 +5965,7 @@ def deduplicate(
 
     Returns: {"clusters": list[dict], "retracted": list[str]}
     """
-    print('Starting dedup')
+    print("Starting dedup")
     if semantic:
         from .cluster import ClusterCache, DEFAULT_MODEL
         import numpy as np
@@ -5093,8 +5973,9 @@ def deduplicate(
         from .derive import _tokenize_id, _jaccard
 
     with _with_network(db_path, write=auto) as net:
-        in_nodes = [(nid, n) for nid, n in sorted(net.nodes.items())
-                    if n.truth_value == "IN"]
+        in_nodes = [
+            (nid, n) for nid, n in sorted(net.nodes.items()) if n.truth_value == "IN"
+        ]
 
         if not in_nodes:
             return {"clusters": [], "retracted": []}
@@ -5129,17 +6010,18 @@ def deduplicate(
                     if sim_matrix[i, j] >= threshold:
                         union(ids[i], ids[j])
         else:
-            print(f'Jaccard similarity {len(in_nodes)}')
+            print(f"Jaccard similarity {len(in_nodes)}")
             items = enumerate(in_nodes)
             if tqdm is not None:
                 items = tqdm(items, total=len(in_nodes))
             for i, (nid_a, _) in items:
-                for nid_b, _ in in_nodes[i + 1:]:
+                for nid_b, _ in in_nodes[i + 1 :]:
                     if _jaccard(tokens[nid_a], tokens[nid_b]) >= threshold:
                         union(nid_a, nid_b)
 
         # Collect clusters (only groups of 2+)
         from collections import defaultdict
+
         groups = defaultdict(list)
         for nid, _ in in_nodes:
             groups[find(nid)].append(nid)
@@ -5151,8 +6033,11 @@ def deduplicate(
                 continue
             cluster = {
                 "beliefs": [
-                    {"id": nid, "text": net.nodes[nid].text,
-                     "dependents": len(net.nodes[nid].dependents)}
+                    {
+                        "id": nid,
+                        "text": net.nodes[nid].text,
+                        "dependents": len(net.nodes[nid].dependents),
+                    }
                     for nid in sorted(members)
                 ],
                 "size": len(members),
@@ -5174,8 +6059,7 @@ def deduplicate(
 
 def _build_dedup_verify_prompt(cluster: dict) -> str:
     beliefs_text = "\n".join(
-        f"  - ID: {b['id']}\n    Text: {b['text']}"
-        for b in cluster["beliefs"]
+        f"  - ID: {b['id']}\n    Text: {b['text']}" for b in cluster["beliefs"]
     )
     return (
         "You are classifying a group of beliefs from a knowledge base that "
@@ -5262,14 +6146,18 @@ def verify_dedup_clusters(
                 prompt = _build_dedup_verify_prompt(cluster)
                 try:
                     async with sem:
-                        response = await asyncio.to_thread(invoke_model, prompt, model=model, timeout=timeout)
+                        response = await asyncio.to_thread(
+                            invoke_model, prompt, model=model, timeout=timeout
+                        )
                 except Exception as e:
                     logger.warning("LLM verification failed for cluster: %s", e)
                     async with results_lock:
                         rejected.append({**cluster, "verify_error": str(e)})
                         done_count += 1
-                        print(f"  Cluster {done_count}/{total} done (error)",
-                              file=sys.stderr)
+                        print(
+                            f"  Cluster {done_count}/{total} done (error)",
+                            file=sys.stderr,
+                        )
                     return
 
                 verdict, reason = _parse_dedup_verify_response(response)
@@ -5277,8 +6165,7 @@ def verify_dedup_clusters(
                 async with results_lock:
                     _classify(annotated)
                     done_count += 1
-                    print(f"  Cluster {done_count}/{total} done",
-                          file=sys.stderr)
+                    print(f"  Cluster {done_count}/{total} done", file=sys.stderr)
 
             tasks = [_verify_one(i, c) for i, c in enumerate(clusters)]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -5286,15 +6173,15 @@ def verify_dedup_clusters(
                 if isinstance(r, Exception):
                     print(f"  Cluster {i + 1} ERROR: {r}", file=sys.stderr)
 
-        print(f"  Verifying {total} clusters (parallel={parallel})...",
-              file=sys.stderr)
+        print(f"  Verifying {total} clusters (parallel={parallel})...", file=sys.stderr)
         asyncio.run(_verify_all())
     else:
         total_tokens = 0
 
         if tqdm is not None:
-            pbar = tqdm(clusters, desc="  Verifying clusters", unit="cluster",
-                        file=sys.stderr)
+            pbar = tqdm(
+                clusters, desc="  Verifying clusters", unit="cluster", file=sys.stderr
+            )
         else:
             pbar = None
 
@@ -5307,9 +6194,13 @@ def verify_dedup_clusters(
                 pbar.set_postfix(tokens=f"~{total_tokens:,}")
                 pbar.update(1)
             else:
-                print(f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
-                      f"~{total_tokens:,} cumulative)...",
-                      end="\r", file=sys.stderr, flush=True)
+                print(
+                    f"  Verifying cluster {i}/{total} (~{est:,} tokens, "
+                    f"~{total_tokens:,} cumulative)...",
+                    end="\r",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
             try:
                 response = invoke_model(prompt, model=model, timeout=timeout)
@@ -5325,10 +6216,12 @@ def verify_dedup_clusters(
         if pbar is not None:
             pbar.close()
 
-    print(f"  Verified {total} cluster(s): "
-          f"{len(verified)} same, {len(rejected)} different, "
-          f"{len(contradictions)} contradictions",
-          file=sys.stderr)
+    print(
+        f"  Verified {total} cluster(s): "
+        f"{len(verified)} same, {len(rejected)} different, "
+        f"{len(contradictions)} contradictions",
+        file=sys.stderr,
+    )
     return {
         "verified": verified,
         "rejected": rejected,
@@ -5371,6 +6264,7 @@ def parse_dedup_plan(plan_text: str) -> list[dict]:
     Returns list of {"keep": str, "retract": list[str]} dicts.
     """
     import re
+
     clusters = []
     current_keep = None
     current_retract = []

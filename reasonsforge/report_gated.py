@@ -7,7 +7,6 @@ uses an LLM to synthesize a narrative version.
 
 from datetime import date
 
-
 REPORT_GATED_PROMPT = """\
 You are generating a problems and open issues report for a belief network \
 (Truth Maintenance System).  The report should be a clear, professional \
@@ -39,8 +38,9 @@ Write the report now.
 """
 
 
-def _build_structured_report(in_count, out_count, gated_data, retracted_premises,
-                             blocker_details):
+def _build_structured_report(
+    in_count, out_count, gated_data, retracted_premises, blocker_details
+):
     """Generate a structured markdown report without an LLM."""
     lines = []
     lines.append("# Gated Beliefs Report")
@@ -65,9 +65,7 @@ def _build_structured_report(in_count, out_count, gated_data, retracted_premises
             impact = f"{dep} dependent(s)" if dep else "no dependents"
             text = rp["text"][:80].replace("|", "\\|")
             reason = rp["retract_reason"].replace("|", "\\|")
-            lines.append(
-                f"| `{rp['id']}` — {text} | {impact} | {reason} |"
-            )
+            lines.append(f"| `{rp['id']}` — {text} | {impact} | {reason} |")
         lines.append("")
 
     blockers = gated_data.get("blockers", {})
@@ -85,8 +83,7 @@ def _build_structured_report(in_count, out_count, gated_data, retracted_premises
             lines.append(bdata["text"])
             lines.append("")
             lines.append(
-                f"**Gates {len(gated)} belief(s)** "
-                f"| {dep_count} total dependent(s)"
+                f"**Gates {len(gated)} belief(s)** | {dep_count} total dependent(s)"
             )
             lines.append("")
             for g in sorted(gated, key=lambda g: g["id"]):
@@ -109,8 +106,9 @@ def _build_structured_report(in_count, out_count, gated_data, retracted_premises
     return "\n".join(lines)
 
 
-def _format_data_for_prompt(in_count, out_count, gated_data, retracted_premises,
-                            blocker_details):
+def _format_data_for_prompt(
+    in_count, out_count, gated_data, retracted_premises, blocker_details
+):
     """Format all gathered data into structured text for the LLM prompt."""
     lines = []
     lines.append(f"Total beliefs: {in_count} IN, {out_count} OUT")
@@ -135,9 +133,7 @@ def _format_data_for_prompt(in_count, out_count, gated_data, retracted_premises,
     if blockers:
         lines.append("### Active Blockers")
         lines.append("")
-        for bid, bdata in sorted(
-            blockers.items(), key=lambda kv: -len(kv[1]["gated"])
-        ):
+        for bid, bdata in sorted(blockers.items(), key=lambda kv: -len(kv[1]["gated"])):
             detail = blocker_details.get(bid, {})
             lines.append(f"Blocker ID: {bid}")
             lines.append(f"Blocker text: {bdata['text']}")
@@ -158,8 +154,15 @@ def generate_report(data_text, model, timeout):
     return invoke_model(prompt, model=model, timeout=timeout)
 
 
-def report_gated(gated_data, retracted_premises, blocker_details,
-                 in_count, out_count, model="", timeout=300):
+def report_gated(
+    gated_data,
+    retracted_premises,
+    blocker_details,
+    in_count,
+    out_count,
+    model="",
+    timeout=300,
+):
     """Generate a gated-beliefs report.
 
     Returns a markdown string — either structured (default) or
@@ -167,7 +170,10 @@ def report_gated(gated_data, retracted_premises, blocker_details,
     """
     if model:
         data_text = _format_data_for_prompt(
-            in_count, out_count, gated_data, retracted_premises,
+            in_count,
+            out_count,
+            gated_data,
+            retracted_premises,
             blocker_details,
         )
         content = generate_report(data_text, model, timeout)
@@ -184,6 +190,9 @@ def report_gated(gated_data, retracted_premises, blocker_details,
         return "\n".join(lines)
 
     return _build_structured_report(
-        in_count, out_count, gated_data, retracted_premises,
+        in_count,
+        out_count,
+        gated_data,
+        retracted_premises,
         blocker_details,
     )

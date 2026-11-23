@@ -20,7 +20,6 @@ import sys
 from . import api
 from .derive import parse_proposals
 
-
 TOOL_DEFINITIONS = """
 ## Available Tools
 
@@ -92,8 +91,8 @@ def parse_tool_calls(response):
     """
     calls = []
 
-    fenced = re.findall(r'```(?:json)?\s*\n(\{[^`]+?\})\s*\n```', response)
-    bare = re.findall(r'^(\{[^\n]+\})$', response, re.MULTILINE)
+    fenced = re.findall(r"```(?:json)?\s*\n(\{[^`]+?\})\s*\n```", response)
+    bare = re.findall(r"^(\{[^\n]+\})$", response, re.MULTILINE)
 
     seen = set()
     for candidate in fenced + bare:
@@ -245,8 +244,10 @@ def derive_with_tools(seed_prompt, model, db_path, max_rounds=3, timeout=600):
             print(f"    No tool calls — done", file=sys.stderr)
             break
 
-        print(f"    {len(calls)} tool call(s): "
-              f"{', '.join(c['tool'] for c in calls)}", file=sys.stderr)
+        print(
+            f"    {len(calls)} tool call(s): {', '.join(c['tool'] for c in calls)}",
+            file=sys.stderr,
+        )
 
         results = []
         for call in calls:
@@ -257,8 +258,9 @@ def derive_with_tools(seed_prompt, model, db_path, max_rounds=3, timeout=600):
 
         prior_section = ""
         if all_proposals:
-            lines = [f"- `{p['id']}`: {p['text'][:100]}"
-                     for p in all_proposals.values()]
+            lines = [
+                f"- `{p['id']}`: {p['text'][:100]}" for p in all_proposals.values()
+            ]
             prior_section = (
                 "## Prior Proposals\n\n"
                 "You have already proposed:\n"

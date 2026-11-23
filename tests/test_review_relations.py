@@ -8,7 +8,6 @@ from reasonsforge.review_relations import (
     parse_review_response,
 )
 
-
 SAMPLE_NODES = {
     "group-definition": {
         "truth_value": "IN",
@@ -30,16 +29,12 @@ SAMPLE_NODES = {
     "field-is-a-ring": {
         "truth_value": "IN",
         "text": "Every field is a ring with multiplicative inverses",
-        "justifications": [
-            {"antecedents": ["ring-definition"], "outlist": []}
-        ],
+        "justifications": [{"antecedents": ["ring-definition"], "outlist": []}],
     },
     "ring-enables-field": {
         "truth_value": "IN",
         "text": "Ring structure enables field construction",
-        "justifications": [
-            {"antecedents": ["ring-definition"], "outlist": []}
-        ],
+        "justifications": [{"antecedents": ["ring-definition"], "outlist": []}],
     },
     "retracted-relation": {
         "truth_value": "OUT",
@@ -162,7 +157,7 @@ def test_parse_review_response_missing_fields():
 
 
 def test_parse_review_response_redundant():
-    response = '''[{
+    response = """[{
         "id": "a-requires-c",
         "type_correct": true,
         "direction_correct": true,
@@ -171,14 +166,14 @@ def test_parse_review_response_redundant():
         "suggested_type": "",
         "suggested_direction": "",
         "comment": "Implied by a-requires-b and b-requires-c transitivity"
-    }]'''
+    }]"""
     results = parse_review_response(response)
     assert len(results) == 1
     assert results[0]["redundant"] is True
 
 
 def test_parse_review_response_wrong_direction():
-    response = '''[{
+    response = """[{
         "id": "a-enables-b",
         "type_correct": true,
         "direction_correct": false,
@@ -187,7 +182,7 @@ def test_parse_review_response_wrong_direction():
         "suggested_type": "",
         "suggested_direction": "reverse",
         "comment": "B actually enables A, not the other way"
-    }]'''
+    }]"""
     results = parse_review_response(response)
     assert len(results) == 1
     assert results[0]["direction_correct"] is False

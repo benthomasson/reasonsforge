@@ -26,9 +26,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -56,12 +58,14 @@ def _make_nodes():
         "derived-boil": {
             "text": "The water in the sample boiled, releasing steam",
             "truth_value": "IN",
-            "justifications": [{
-                "type": "SL",
-                "antecedents": ["premise-b", "premise-c"],
-                "outlist": [],
-                "label": "",
-            }],
+            "justifications": [
+                {
+                    "type": "SL",
+                    "antecedents": ["premise-b", "premise-c"],
+                    "outlist": [],
+                    "label": "",
+                }
+            ],
         },
     }
 
@@ -75,6 +79,7 @@ def _mock_search(results):
 
 
 # --- parse_triage_response ---
+
 
 class TestParseTriageResponse:
     def test_valid_search_and_link(self):
@@ -116,6 +121,7 @@ class TestParseTriageResponse:
 
 # --- parse_soften_response ---
 
+
 class TestParseSoftenResponse:
     def test_valid(self):
         resp = '{"softened_text": "weaker claim", "rationale": "removed absolute"}'
@@ -140,6 +146,7 @@ class TestParseSoftenResponse:
 
 # --- _compute_depth ---
 
+
 class TestComputeDepth:
     def test_premise_depth_zero(self):
         nodes = _make_nodes()
@@ -154,12 +161,14 @@ class TestComputeDepth:
         nodes["derived-deep"] = {
             "text": "deep",
             "truth_value": "IN",
-            "justifications": [{
-                "type": "SL",
-                "antecedents": ["derived-boil"],
-                "outlist": [],
-                "label": "",
-            }],
+            "justifications": [
+                {
+                    "type": "SL",
+                    "antecedents": ["derived-boil"],
+                    "outlist": [],
+                    "label": "",
+                }
+            ],
         }
         assert _compute_depth("derived-deep", nodes) == 2
 
@@ -169,19 +178,25 @@ class TestComputeDepth:
 
 # --- triage_belief ---
 
+
 class TestTriageBelief:
     def test_returns_pattern(self):
         resp = _mock_result('{"pattern": "soften", "rationale": "overstated"}')
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=resp):
-            result = triage_belief("belief context", "review comment",
-                                   depth=3, flagged_ancestors=1)
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=resp),
+        ):
+            result = triage_belief(
+                "belief context", "review comment", depth=3, flagged_ancestors=1
+            )
         assert result["pattern"] == "soften"
 
     def test_prompt_includes_depth(self):
         resp = _mock_result('{"pattern": "abandon", "rationale": "x"}')
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=resp) as mock_run:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=resp) as mock_run,
+        ):
             triage_belief("ctx", "cmt", depth=5, flagged_ancestors=3)
             prompt_sent = mock_run.call_args[1].get("input", "")
             assert "5" in prompt_sent
@@ -190,27 +205,39 @@ class TestTriageBelief:
 
 # --- soften_belief ---
 
+
 class TestSoftenBelief:
     def test_returns_softened_text(self):
         resp = _mock_result('{"softened_text": "weaker", "rationale": "toned down"}')
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=resp):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=resp),
+        ):
             result = soften_belief("strong claim", "- ant: evidence")
         assert result["softened_text"] == "weaker"
 
 
 # --- repair_beliefs ---
 
+
 class TestResearchBeliefs:
     def test_search_and_link(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False,
-            "comment": "missing antecedent",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "missing antecedent",
+            }
+        ]
         search_results = [
-            {"id": "premise-a", "text": "Water boils at 100C at sea level",
-             "truth_value": "IN", "source": "", "match": True},
+            {
+                "id": "premise-a",
+                "text": "Water boils at 100C at sea level",
+                "truth_value": "IN",
+                "source": "",
+                "match": True,
+            },
         ]
         triage_resp = _mock_result('{"pattern": "search_and_link", "rationale": "gap"}')
         extract_resp = _mock_result("Water boils at 100C")
@@ -218,13 +245,19 @@ class TestResearchBeliefs:
             '{"matched_ids": ["premise-a"], "rationale": "match"}'
         )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, extract_resp, match_resp]), \
-             patch("reasonsforge.api.add_justification"), \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, extract_resp, match_resp],
+            ),
+            patch("reasonsforge.api.add_justification"),
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search(search_results),
             )
 
@@ -233,27 +266,46 @@ class TestResearchBeliefs:
         assert results[0]["status"] == "linked"
         assert results[0]["matched_premises"] == ["premise-a"]
         mock_meta.assert_called_once_with(
-            "derived-boil", "repair_action", "search_and_link", db_path="test.db",
+            "derived-boil",
+            "repair_action",
+            "search_and_link",
+            db_path="test.db",
         )
 
     def test_soften(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "overstated",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "overstated",
+            }
+        ]
         triage_resp = _mock_result('{"pattern": "soften", "rationale": "too strong"}')
         soften_resp = _mock_result(
             '{"softened_text": "The water likely boiled", "rationale": "weakened"}'
         )
 
-        mock_sup_result = {"old_id": "derived-boil", "new_id": "derived-boil-v2", "changed": []}
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, soften_resp]), \
-             patch("reasonsforge.api.supersede_with_text", return_value=mock_sup_result) as mock_sup, \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        mock_sup_result = {
+            "old_id": "derived-boil",
+            "new_id": "derived-boil-v2",
+            "changed": [],
+        }
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, soften_resp],
+            ),
+            patch(
+                "reasonsforge.api.supersede_with_text", return_value=mock_sup_result
+            ) as mock_sup,
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -261,26 +313,38 @@ class TestResearchBeliefs:
         assert results[0]["status"] == "softened"
         assert results[0]["softened_text"] == "The water likely boiled"
         mock_sup.assert_called_once_with(
-            "derived-boil", "The water likely boiled", db_path="test.db",
+            "derived-boil",
+            "The water likely boiled",
+            db_path="test.db",
         )
         mock_meta.assert_called_once_with(
-            "derived-boil-v2", "repair_action", "softened", db_path="test.db",
+            "derived-boil-v2",
+            "repair_action",
+            "softened",
+            db_path="test.db",
         )
 
     def test_abandon(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "broken chain",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "broken chain",
+            }
+        ]
         triage_resp = _mock_result('{"pattern": "abandon", "rationale": "too deep"}')
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp]), \
-             patch("reasonsforge.api.retract_node") as mock_retract, \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[triage_resp]),
+            patch("reasonsforge.api.retract_node") as mock_retract,
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -289,22 +353,34 @@ class TestResearchBeliefs:
         mock_retract.assert_called_once()
         assert "abandoned" in mock_retract.call_args[1]["reason"]
         mock_meta.assert_called_once_with(
-            "derived-boil", "repair_action", "abandoned", db_path="test.db",
+            "derived-boil",
+            "repair_action",
+            "abandoned",
+            db_path="test.db",
         )
 
     def test_research_pattern(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "needs more evidence",
-        }]
-        triage_resp = _mock_result('{"pattern": "research", "rationale": "needs code review"}')
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "needs more evidence",
+            }
+        ]
+        triage_resp = _mock_result(
+            '{"pattern": "research", "rationale": "needs code review"}'
+        )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp]), \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[triage_resp]),
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -312,27 +388,41 @@ class TestResearchBeliefs:
         assert results[0]["status"] == "needs_research"
         assert mock_meta.call_count == 2
         mock_meta.assert_any_call(
-            "derived-boil", "repair_research", "needs code review",
+            "derived-boil",
+            "repair_research",
+            "needs code review",
             db_path="test.db",
         )
         mock_meta.assert_any_call(
-            "derived-boil", "repair_action", "research",
+            "derived-boil",
+            "repair_action",
+            "research",
             db_path="test.db",
         )
 
     def test_research_dry_run_no_metadata(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "needs more evidence",
-        }]
-        triage_resp = _mock_result('{"pattern": "research", "rationale": "needs investigation"}')
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "needs more evidence",
+            }
+        ]
+        triage_resp = _mock_result(
+            '{"pattern": "research", "rationale": "needs investigation"}'
+        )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp]), \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[triage_resp]),
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db", dry_run=True,
+                review_results,
+                nodes,
+                db_path="test.db",
+                dry_run=True,
                 search_fn=_mock_search([]),
             )
 
@@ -342,16 +432,23 @@ class TestResearchBeliefs:
 
     def test_triage_failed(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "unclear",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "unclear",
+            }
+        ]
         triage_resp = _mock_result("I cannot decide")
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[triage_resp]),
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -359,17 +456,27 @@ class TestResearchBeliefs:
 
     def test_soften_failed(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "overstated",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "overstated",
+            }
+        ]
         triage_resp = _mock_result('{"pattern": "soften", "rationale": "x"}')
         soften_resp = _mock_result('{"softened_text": "", "rationale": "cant"}')
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, soften_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, soften_resp],
+            ),
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -381,19 +488,24 @@ class TestResearchBeliefs:
             {"id": "derived-boil", "valid": False, "comment": "overstated"},
         ]
         triage_resp = _mock_result('{"pattern": "soften", "rationale": "x"}')
-        soften_resp = _mock_result(
-            '{"softened_text": "weaker", "rationale": "y"}'
-        )
+        soften_resp = _mock_result('{"softened_text": "weaker", "rationale": "y"}')
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, soften_resp]), \
-             patch("reasonsforge.api.update_node") as mock_update, \
-             patch("reasonsforge.api.retract_node") as mock_retract, \
-             patch("reasonsforge.api.add_justification") as mock_add, \
-             patch("reasonsforge.api.set_metadata") as mock_meta:
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, soften_resp],
+            ),
+            patch("reasonsforge.api.update_node") as mock_update,
+            patch("reasonsforge.api.retract_node") as mock_retract,
+            patch("reasonsforge.api.add_justification") as mock_add,
+            patch("reasonsforge.api.set_metadata") as mock_meta,
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db", dry_run=True,
+                review_results,
+                nodes,
+                db_path="test.db",
+                dry_run=True,
                 search_fn=_mock_search([]),
             )
 
@@ -406,17 +518,21 @@ class TestResearchBeliefs:
     def test_multiple_beliefs_different_patterns(self):
         nodes = _make_nodes()
         nodes["premise-d"] = {
-            "text": "Extra evidence", "truth_value": "IN", "justifications": [],
+            "text": "Extra evidence",
+            "truth_value": "IN",
+            "justifications": [],
         }
         nodes["derived-steam"] = {
             "text": "Steam was produced for sure",
             "truth_value": "IN",
-            "justifications": [{
-                "type": "SL",
-                "antecedents": ["premise-c"],
-                "outlist": [],
-                "label": "",
-            }],
+            "justifications": [
+                {
+                    "type": "SL",
+                    "antecedents": ["premise-c"],
+                    "outlist": [],
+                    "label": "",
+                }
+            ],
         }
         review_results = [
             {"id": "derived-boil", "valid": False, "comment": "overstated"},
@@ -426,15 +542,25 @@ class TestResearchBeliefs:
         soften1 = _mock_result('{"softened_text": "weaker", "rationale": "y"}')
         triage2 = _mock_result('{"pattern": "abandon", "rationale": "z"}')
 
-        mock_sup_result = {"old_id": "derived-boil", "new_id": "derived-boil-v2", "changed": []}
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage1, soften1, triage2]), \
-             patch("reasonsforge.api.supersede_with_text", return_value=mock_sup_result), \
-             patch("reasonsforge.api.retract_node"), \
-             patch("reasonsforge.api.set_metadata"):
+        mock_sup_result = {
+            "old_id": "derived-boil",
+            "new_id": "derived-boil-v2",
+            "changed": [],
+        }
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage1, soften1, triage2],
+            ),
+            patch("reasonsforge.api.supersede_with_text", return_value=mock_sup_result),
+            patch("reasonsforge.api.retract_node"),
+            patch("reasonsforge.api.set_metadata"),
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -444,12 +570,18 @@ class TestResearchBeliefs:
 
     def test_belief_not_found(self):
         nodes = _make_nodes()
-        review_results = [{
-            "id": "nonexistent", "valid": False, "comment": "x",
-        }]
+        review_results = [
+            {
+                "id": "nonexistent",
+                "valid": False,
+                "comment": "x",
+            }
+        ]
 
         results = repair_beliefs(
-            review_results, nodes, db_path="test.db",
+            review_results,
+            nodes,
+            db_path="test.db",
             search_fn=_mock_search([]),
         )
 
@@ -459,17 +591,27 @@ class TestResearchBeliefs:
     def test_search_and_link_extraction_failed(self):
         """When extract returns empty, status should be extraction_failed."""
         nodes = _make_nodes()
-        review_results = [{
-            "id": "derived-boil", "valid": False, "comment": "smuggled",
-        }]
+        review_results = [
+            {
+                "id": "derived-boil",
+                "valid": False,
+                "comment": "smuggled",
+            }
+        ]
         triage_resp = _mock_result('{"pattern": "search_and_link", "rationale": "gap"}')
         extract_resp = _mock_result("   ")
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, extract_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, extract_resp],
+            ),
+        ):
             results = repair_beliefs(
-                review_results, nodes, db_path="test.db",
+                review_results,
+                nodes,
+                db_path="test.db",
                 search_fn=_mock_search([]),
             )
 
@@ -483,7 +625,9 @@ class TestResearchBeliefs:
         ]
 
         results = repair_beliefs(
-            review_results, nodes, db_path="test.db",
+            review_results,
+            nodes,
+            db_path="test.db",
             search_fn=_mock_search([]),
         )
 
@@ -492,6 +636,7 @@ class TestResearchBeliefs:
 
 # --- API wrapper ---
 
+
 class TestApiResearch:
     def test_from_belief_ids(self, tmp_path):
         """Test the belief_ids input path through api.research."""
@@ -499,16 +644,29 @@ class TestApiResearch:
         api.add_node("premise-a", "A is true", db_path=db)
         api.add_node("derived-a", "A extended", sl="premise-a", db_path=db)
 
-        review_resp = _mock_result(json.dumps([{
-            "id": "derived-a", "valid": False, "sufficient": True,
-            "necessary": True, "unnecessary_antecedents": [],
-            "comment": "overstated",
-        }]))
+        review_resp = _mock_result(
+            json.dumps(
+                [
+                    {
+                        "id": "derived-a",
+                        "valid": False,
+                        "sufficient": True,
+                        "necessary": True,
+                        "unnecessary_antecedents": [],
+                        "comment": "overstated",
+                    }
+                ]
+            )
+        )
         triage_resp = _mock_result('{"pattern": "abandon", "rationale": "broken"}')
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[review_resp, triage_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[review_resp, triage_resp],
+            ),
+        ):
             result = api.research(
                 belief_ids=["derived-a"],
                 model="claude",
@@ -527,20 +685,30 @@ class TestApiResearch:
         api.add_node("derived-a", "A ext", sl="premise-a", db_path=db)
 
         review_file = tmp_path / "review.json"
-        review_file.write_text(json.dumps({
-            "results": [{
-                "id": "derived-a", "valid": False, "comment": "smuggled",
-            }],
-        }))
-
-        triage_resp = _mock_result(
-            '{"pattern": "search_and_link", "rationale": "gap"}'
+        review_file.write_text(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "id": "derived-a",
+                            "valid": False,
+                            "comment": "smuggled",
+                        }
+                    ],
+                }
+            )
         )
+
+        triage_resp = _mock_result('{"pattern": "search_and_link", "rationale": "gap"}')
         extract_resp = _mock_result("   ")
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, extract_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, extract_resp],
+            ),
+        ):
             result = api.research(
                 review_file=str(review_file),
                 model="claude",
@@ -548,8 +716,13 @@ class TestApiResearch:
                 db_path=db,
             )
 
-        total = (result["linked"] + result["softened"] + result["abandoned"]
-                 + result["failed"] + result["errors"])
+        total = (
+            result["linked"]
+            + result["softened"]
+            + result["abandoned"]
+            + result["failed"]
+            + result["errors"]
+        )
         assert total == result["total_invalid"]
         assert result["failed"] == 1
 
@@ -558,15 +731,25 @@ class TestApiResearch:
         api.add_node("premise-a", "A", db_path=db)
         api.add_node("derived-a", "A ext", sl="premise-a", db_path=db)
 
-        review_resp = _mock_result(json.dumps([{
-            "id": "derived-a", "valid": True, "sufficient": True,
-            "necessary": True, "unnecessary_antecedents": [],
-            "comment": "fine",
-        }]))
+        review_resp = _mock_result(
+            json.dumps(
+                [
+                    {
+                        "id": "derived-a",
+                        "valid": True,
+                        "sufficient": True,
+                        "necessary": True,
+                        "unnecessary_antecedents": [],
+                        "comment": "fine",
+                    }
+                ]
+            )
+        )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[review_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[review_resp]),
+        ):
             result = api.research(
                 belief_ids=["derived-a"],
                 model="claude",
@@ -578,6 +761,7 @@ class TestApiResearch:
 
 
 # --- CLI ---
+
 
 class TestCmdResearch:
     def test_help(self):
@@ -595,25 +779,36 @@ class TestCmdResearch:
         api.add_node("derived-a", "A extended", sl="premise-a", db_path=db)
 
         review_file = tmp_path / "review.json"
-        review_file.write_text(json.dumps({
-            "results": [{
-                "id": "derived-a",
-                "valid": False,
-                "comment": "overstated",
-            }],
-        }))
+        review_file.write_text(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "id": "derived-a",
+                            "valid": False,
+                            "comment": "overstated",
+                        }
+                    ],
+                }
+            )
+        )
 
         triage_resp = _mock_result('{"pattern": "soften", "rationale": "x"}')
         soften_resp = _mock_result(
             '{"softened_text": "A weakly extended", "rationale": "weakened"}'
         )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, soften_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, soften_resp],
+            ),
+        ):
             stdout, stderr, code = run_cli(
                 "research",
-                "--review-file", str(review_file),
+                "--review-file",
+                str(review_file),
                 db_path=db,
             )
 
@@ -626,22 +821,30 @@ class TestCmdResearch:
         api.add_node("derived-a", "A extended", sl="premise-a", db_path=db)
 
         review_file = tmp_path / "review.json"
-        review_file.write_text(json.dumps({
-            "results": [{
-                "id": "derived-a",
-                "valid": False,
-                "comment": "broken",
-            }],
-        }))
+        review_file.write_text(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "id": "derived-a",
+                            "valid": False,
+                            "comment": "broken",
+                        }
+                    ],
+                }
+            )
+        )
 
         triage_resp = _mock_result('{"pattern": "abandon", "rationale": "x"}')
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", side_effect=[triage_resp]),
+        ):
             stdout, stderr, code = run_cli(
                 "research",
-                "--review-file", str(review_file),
+                "--review-file",
+                str(review_file),
                 "--dry-run",
                 db_path=db,
             )
@@ -674,25 +877,36 @@ class TestCmdRepair:
         api.add_node("derived-a", "A extended", sl="premise-a", db_path=db)
 
         review_file = tmp_path / "review.json"
-        review_file.write_text(json.dumps({
-            "results": [{
-                "id": "derived-a",
-                "valid": False,
-                "comment": "overstated",
-            }],
-        }))
+        review_file.write_text(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "id": "derived-a",
+                            "valid": False,
+                            "comment": "overstated",
+                        }
+                    ],
+                }
+            )
+        )
 
         triage_resp = _mock_result('{"pattern": "soften", "rationale": "x"}')
         soften_resp = _mock_result(
             '{"softened_text": "A weakly extended", "rationale": "weakened"}'
         )
 
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=[triage_resp, soften_resp]):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=[triage_resp, soften_resp],
+            ),
+        ):
             stdout, stderr, code = run_cli(
                 "repair",
-                "--review-file", str(review_file),
+                "--review-file",
+                str(review_file),
                 db_path=db,
             )
 

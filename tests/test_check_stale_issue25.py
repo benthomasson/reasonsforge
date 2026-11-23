@@ -41,7 +41,14 @@ class TestSourceDeletedResult:
 
         results, *_ = check_stale(net, repos={"r": tmp_path})
 
-        required_keys = {"node_id", "old_hash", "new_hash", "source", "source_path", "reason"}
+        required_keys = {
+            "node_id",
+            "old_hash",
+            "new_hash",
+            "source",
+            "source_path",
+            "reason",
+        }
         assert set(results[0].keys()) == required_keys
 
     def test_content_changed_has_same_keys_as_source_deleted(self, tmp_path):
@@ -76,9 +83,15 @@ class TestMixedResults:
         stable_hash = _hash("stable content")
 
         net = Network()
-        net.add_node("changed", "Changed belief", source="r/changing.md", source_hash=old_hash)
-        net.add_node("deleted", "Deleted belief", source="r/gone.md", source_hash="somehash")
-        net.add_node("fresh", "Fresh belief", source="r/stable.md", source_hash=stable_hash)
+        net.add_node(
+            "changed", "Changed belief", source="r/changing.md", source_hash=old_hash
+        )
+        net.add_node(
+            "deleted", "Deleted belief", source="r/gone.md", source_hash="somehash"
+        )
+        net.add_node(
+            "fresh", "Fresh belief", source="r/stable.md", source_hash=stable_hash
+        )
 
         changing.write_text("new content")
 
@@ -144,7 +157,9 @@ class TestEdgeCases:
         empty_hash = _hash("")
 
         net = Network()
-        net.add_node("a", "From empty file", source="r/empty.md", source_hash=empty_hash)
+        net.add_node(
+            "a", "From empty file", source="r/empty.md", source_hash=empty_hash
+        )
 
         results, *_ = check_stale(net, repos={"r": tmp_path})
         assert results == []
@@ -154,7 +169,9 @@ class TestEdgeCases:
         f.write_text("")
 
         net = Network()
-        net.add_node("a", "From empty file", source="r/empty.md", source_hash="wronghash")
+        net.add_node(
+            "a", "From empty file", source="r/empty.md", source_hash="wronghash"
+        )
 
         results, *_ = check_stale(net, repos={"r": tmp_path})
         assert len(results) == 1
@@ -163,7 +180,9 @@ class TestEdgeCases:
 
     def test_no_repos_mapping_with_missing_file(self):
         net = Network()
-        net.add_node("a", "Belief", source="nonexistent-repo/file.md", source_hash="abc")
+        net.add_node(
+            "a", "Belief", source="nonexistent-repo/file.md", source_hash="abc"
+        )
 
         results, *_ = check_stale(net, repos=None)
         assert len(results) == 1

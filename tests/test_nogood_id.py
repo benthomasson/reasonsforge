@@ -22,7 +22,6 @@ def db(tmp_path):
 
 
 class TestContentBasedIds:
-
     def test_id_from_sorted_nodes(self):
         net = Network()
         net.add_node("b", "B")
@@ -60,7 +59,6 @@ class TestContentBasedIds:
 
 
 class TestPersistence:
-
     def test_id_survives_save_load(self, tmp_path):
         db_path = str(tmp_path / "reasons.db")
         storage = Storage(db_path)
@@ -78,7 +76,6 @@ class TestPersistence:
 
 
 class TestImportJson:
-
     def test_import_preserves_old_format_ids(self, db, tmp_path):
         api.add_node("a", "A", db_path=db)
         api.add_node("b", "B", db_path=db)
@@ -86,7 +83,12 @@ class TestImportJson:
         json_data = {
             "nodes": {},
             "nogoods": [
-                {"id": "nogood-005", "nodes": ["a", "b"], "discovered": "", "resolution": ""},
+                {
+                    "id": "nogood-005",
+                    "nodes": ["a", "b"],
+                    "discovered": "",
+                    "resolution": "",
+                },
             ],
             "repos": {},
         }
@@ -100,7 +102,6 @@ class TestImportJson:
 
 
 class TestImportBeliefs:
-
     def test_import_nogoods_preserves_old_format_ids(self, db, tmp_path):
         api.add_node("a", "A", db_path=db)
         api.add_node("b", "B", db_path=db)

@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from .llm import check_model_available, invoke_sync
 from . import PROJECT_DIR, REASONS_DB
 
-
 STAGE_NAMES = {
     1: "ingest",
     2: "summarize",
@@ -58,8 +57,7 @@ def _init_state(args, project_dir: str = PROJECT_DIR):
             "domain": getattr(args, "domain", None),
         },
         "stages": {
-            f"{n}_{name}": {"status": "pending"}
-            for n, name in STAGE_NAMES.items()
+            f"{n}_{name}": {"status": "pending"} for n, name in STAGE_NAMES.items()
         },
     }
     _save_state(state, project_dir)
@@ -73,8 +71,7 @@ def _load_state(project_dir: str = PROJECT_DIR):
     try:
         return json.loads(sf.read_text())
     except (json.JSONDecodeError, ValueError):
-        print(f"WARNING: corrupt state file {sf}, ignoring",
-              file=sys.stderr)
+        print(f"WARNING: corrupt state file {sf}, ignoring", file=sys.stderr)
         return None
 
 
@@ -111,6 +108,7 @@ def _stage_ingest(args):
     """Stage 1: Chunk PDFs into sources/."""
     if args.pdf:
         from .chunk_pdf import cmd_chunk_pdf
+
         for pdf_path in args.pdf:
             try:
                 chunk_args = SimpleNamespace(
@@ -121,14 +119,16 @@ def _stage_ingest(args):
                 )
                 cmd_chunk_pdf(chunk_args)
             except KeyboardInterrupt:
-                print(f"\n  Ending ingest early — partial results saved",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending ingest early — partial results saved", file=sys.stderr
+                )
                 break
 
 
 def _stage_summarize(args):
     """Stage 2: Generate entries from source documents."""
     from .summarize import cmd_summarize
+
     sum_args = SimpleNamespace(
         input_dir=args.sources_dir,
         limit=None,
@@ -159,13 +159,17 @@ def _stage_extract(args):
 
     if args.no_auto_accept:
         print("\nStopping after propose-beliefs (--no-auto-accept)", file=sys.stderr)
-        print("Review proposed-beliefs.md, mark entries as [ACCEPT], then run:", file=sys.stderr)
+        print(
+            "Review proposed-beliefs.md, mark entries as [ACCEPT], then run:",
+            file=sys.stderr,
+        )
         print("  reasonsforge forge accept-beliefs", file=sys.stderr)
         return False
 
     proposals_path = Path("proposed-beliefs.md")
     if proposals_path.exists():
         from .propose import auto_accept_proposals
+
         auto_accept_proposals(str(proposals_path))
         print("Auto-accepted all proposed beliefs", file=sys.stderr)
 
@@ -181,7 +185,12 @@ def _stage_derive(args, round_label=""):
     Returns (total_added, derived_ids) — count and list of IDs added this stage.
     """
     from reasonsforge.api import export_network
-    from reasonsforge.derive import build_prompt, parse_proposals, validate_proposals, apply_proposals
+    from reasonsforge.derive import (
+        build_prompt,
+        parse_proposals,
+        validate_proposals,
+        apply_proposals,
+    )
 
     total_added = 0
     all_derived_ids = []
@@ -190,8 +199,10 @@ def _stage_derive(args, round_label=""):
 
     try:
         for derive_round in range(1, args.max_derive_rounds + 1):
-            print(f"{prefix}Derive round {derive_round}/{args.max_derive_rounds}...",
-                  file=sys.stderr)
+            print(
+                f"{prefix}Derive round {derive_round}/{args.max_derive_rounds}...",
+                file=sys.stderr,
+            )
 
             data = export_network(db_path=REASONS_DB)
             nodes = data.get("nodes", {})
@@ -204,27 +215,34 @@ def _stage_derive(args, round_label=""):
                 if ns == "":
                     nodes = {k: v for k, v in nodes.items() if ":" not in k}
                 else:
-                    nodes = {k: v for k, v in nodes.items()
-                             if k.startswith(f"{ns}:")}
+                    nodes = {k: v for k, v in nodes.items() if k.startswith(f"{ns}:")}
 
             prompt, stats = build_prompt(nodes, domain=args.domain)
-            print(f"{prefix}  Network: {stats['total_in']} IN, "
-                  f"{stats['total_derived']} derived, depth {stats['max_depth']}",
-                  file=sys.stderr)
+            print(
+                f"{prefix}  Network: {stats['total_in']} IN, "
+                f"{stats['total_derived']} derived, depth {stats['max_depth']}",
+                file=sys.stderr,
+            )
 
             if search_rounds > 0:
                 from reasonsforge.derive_tools import derive_with_tools
+
                 try:
                     proposals = derive_with_tools(
-                        prompt, model=args.model, db_path=REASONS_DB,
-                        max_rounds=search_rounds, timeout=args.timeout,
+                        prompt,
+                        model=args.model,
+                        db_path=REASONS_DB,
+                        max_rounds=search_rounds,
+                        timeout=args.timeout,
                     )
                 except Exception as e:
                     print(f"{prefix}  Derive error: {e}", file=sys.stderr)
                     break
             else:
                 try:
-                    response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
+                    response = invoke_sync(
+                        prompt, model=args.model, timeout=args.timeout
+                    )
                 except Exception as e:
                     print(f"{prefix}  Derive error: {e}", file=sys.stderr)
                     break
@@ -248,8 +266,10 @@ def _stage_derive(args, round_label=""):
             all_derived_ids.extend(added_ids)
             print(f"{prefix}  Added {len(added_ids)} beliefs", file=sys.stderr)
     except KeyboardInterrupt:
-        print(f"\n{prefix}  Ending derive early — {total_added} beliefs saved",
-              file=sys.stderr)
+        print(
+            f"\n{prefix}  Ending derive early — {total_added} beliefs saved",
+            file=sys.stderr,
+        )
 
     return total_added, all_derived_ids
 
@@ -266,8 +286,10 @@ def _stage_review(args, round_label="", belief_ids=None):
 
     prefix = f"[{round_label}] " if round_label else ""
     if belief_ids:
-        print(f"{prefix}Reviewing {len(belief_ids)} beliefs from this round...",
-              file=sys.stderr)
+        print(
+            f"{prefix}Reviewing {len(belief_ids)} beliefs from this round...",
+            file=sys.stderr,
+        )
     else:
         print(f"{prefix}Reviewing beliefs...", file=sys.stderr)
 
@@ -322,25 +344,39 @@ def _stage_repair(args, review_result, round_label=""):
         )
     except KeyboardInterrupt:
         print(f"\n{prefix}  Ending repair early", file=sys.stderr)
-        return {"total_invalid": len(invalid_ids), "linked": 0,
-                "softened": 0, "abandoned": 0}
+        return {
+            "total_invalid": len(invalid_ids),
+            "linked": 0,
+            "softened": 0,
+            "abandoned": 0,
+        }
 
-    print(f"{prefix}  Linked: {result.get('linked', 0)}, "
-          f"Softened: {result.get('softened', 0)}, "
-          f"Abandoned: {result.get('abandoned', 0)}", file=sys.stderr)
+    print(
+        f"{prefix}  Linked: {result.get('linked', 0)}, "
+        f"Softened: {result.get('softened', 0)}, "
+        f"Abandoned: {result.get('abandoned', 0)}",
+        file=sys.stderr,
+    )
 
     return result
 
 
 def _stage_deduplicate(args, round_label=""):
     """Stage 7: Remove duplicate beliefs with optional LLM verification."""
-    from reasonsforge.api import deduplicate, verify_dedup_clusters, apply_dedup_plan, add_nogood
+    from reasonsforge.api import (
+        deduplicate,
+        verify_dedup_clusters,
+        apply_dedup_plan,
+        add_nogood,
+    )
 
     verify = getattr(args, "verify_dedup", True)
     model = getattr(args, "model", None) or "claude"
     prefix = f"[{round_label}] " if round_label else ""
-    print(f"{prefix}Deduplicating{' (with LLM verify)' if verify else ''}...",
-          file=sys.stderr)
+    print(
+        f"{prefix}Deduplicating{' (with LLM verify)' if verify else ''}...",
+        file=sys.stderr,
+    )
 
     try:
         result = deduplicate(auto=not verify, db_path=REASONS_DB)
@@ -356,12 +392,15 @@ def _stage_deduplicate(args, round_label=""):
     if not verify:
         retracted = result.get("retracted", [])
         if retracted:
-            print(f"{prefix}  {len(clusters)} clusters, retracted {len(retracted)}",
-                  file=sys.stderr)
+            print(
+                f"{prefix}  {len(clusters)} clusters, retracted {len(retracted)}",
+                file=sys.stderr,
+            )
         return result
 
-    print(f"{prefix}  {len(clusters)} candidate cluster(s), verifying...",
-          file=sys.stderr)
+    print(
+        f"{prefix}  {len(clusters)} candidate cluster(s), verifying...", file=sys.stderr
+    )
     try:
         vresult = verify_dedup_clusters(clusters, model=model)
     except KeyboardInterrupt:
@@ -370,21 +409,32 @@ def _stage_deduplicate(args, round_label=""):
 
     total_retracted = []
     if vresult["verified"]:
-        plan = [{"keep": c["kept"],
-                 "retract": [b["id"] for b in c["beliefs"] if b["id"] != c["kept"]]}
-                for c in vresult["verified"]]
+        plan = [
+            {
+                "keep": c["kept"],
+                "retract": [b["id"] for b in c["beliefs"] if b["id"] != c["kept"]],
+            }
+            for c in vresult["verified"]
+        ]
         apply_result = apply_dedup_plan(plan, db_path=REASONS_DB)
         total_retracted = apply_result.get("retracted", [])
-        print(f"{prefix}  Verified {len(vresult['verified'])} cluster(s), "
-              f"retracted {len(total_retracted)}", file=sys.stderr)
+        print(
+            f"{prefix}  Verified {len(vresult['verified'])} cluster(s), "
+            f"retracted {len(total_retracted)}",
+            file=sys.stderr,
+        )
 
     if vresult["rejected"]:
-        print(f"{prefix}  Rejected {len(vresult['rejected'])} false duplicate(s)",
-              file=sys.stderr)
+        print(
+            f"{prefix}  Rejected {len(vresult['rejected'])} false duplicate(s)",
+            file=sys.stderr,
+        )
 
     if vresult["contradictions"]:
-        print(f"{prefix}  Found {len(vresult['contradictions'])} contradiction(s)",
-              file=sys.stderr)
+        print(
+            f"{prefix}  Found {len(vresult['contradictions'])} contradiction(s)",
+            file=sys.stderr,
+        )
         for cluster in vresult["contradictions"]:
             node_ids = [b["id"] for b in cluster["beliefs"]]
             try:
@@ -466,29 +516,33 @@ def _stage_rederive_superseded(args, round_label=""):
                         for a in j.antecedents
                         if a != ant_id and a in node_map
                     ]
-                    casualties.append({
-                        "node_id": nid,
-                        "node_text": node.text,
-                        "old_ant_id": ant_id,
-                        "old_ant_text": old_node.text,
-                        "new_ant_id": new_id,
-                        "new_ant_text": new_node.text,
-                        "other_antecedents": other_ants,
-                    })
+                    casualties.append(
+                        {
+                            "node_id": nid,
+                            "node_text": node.text,
+                            "old_ant_id": ant_id,
+                            "old_ant_text": old_node.text,
+                            "new_ant_id": new_id,
+                            "new_ant_text": new_node.text,
+                            "other_antecedents": other_ants,
+                        }
+                    )
 
     if not casualties:
         print(f"{prefix}No supersession casualties found", file=sys.stderr)
         return {"rederived": 0}
 
-    print(f"{prefix}Found {len(casualties)} supersession casualties to evaluate",
-          file=sys.stderr)
+    print(
+        f"{prefix}Found {len(casualties)} supersession casualties to evaluate",
+        file=sys.stderr,
+    )
 
     total_rederived = 0
     batch_size = 10
     round_num = round_label.split("/")[0].replace("cycle ", "") if round_label else "1"
 
     for i in range(0, len(casualties), batch_size):
-        batch = casualties[i:i + batch_size]
+        batch = casualties[i : i + batch_size]
 
         batch_text = "\n\n".join(
             "{num}. Dependent: **{nid}**: {ntext}\n"
@@ -496,12 +550,16 @@ def _stage_rederive_superseded(args, round_label=""):
             "  New antecedent (replacement): **{newid}**: {newtext}\n"
             "  Other antecedents:\n{others}".format(
                 num=k + 1,
-                nid=c["node_id"], ntext=c["node_text"],
-                oid=c["old_ant_id"], otext=c["old_ant_text"],
-                newid=c["new_ant_id"], newtext=c["new_ant_text"],
+                nid=c["node_id"],
+                ntext=c["node_text"],
+                oid=c["old_ant_id"],
+                otext=c["old_ant_text"],
+                newid=c["new_ant_id"],
+                newtext=c["new_ant_text"],
                 others=(
                     "\n".join(f"    - {a}: {t}" for a, t in c["other_antecedents"])
-                    if c["other_antecedents"] else "    (none)"
+                    if c["other_antecedents"]
+                    else "    (none)"
                 ),
             )
             for k, c in enumerate(batch)
@@ -518,7 +576,7 @@ def _stage_rederive_superseded(args, round_label=""):
             "- **revise**: The conclusion needs rewording to follow from the new antecedent. "
             "Provide updated text and a new ID.\n"
             "- **drop**: The conclusion no longer follows from the new antecedent.\n\n"
-            'Respond with ONLY this JSON array:\n'
+            "Respond with ONLY this JSON array:\n"
             '[{"id": "<dependent-id>", "action": "rejustify|revise|drop", '
             '"new_id": "<kebab-case-id if revise>", '
             '"new_text": "<revised claim if revise>", '
@@ -562,8 +620,7 @@ def _stage_rederive_superseded(args, round_label=""):
                         label=f"re-derive-round-{round_num}",
                         db_path=REASONS_DB,
                     )
-                    print(f"{prefix}  rejustified {dep_id} ({reason})",
-                          file=sys.stderr)
+                    print(f"{prefix}  rejustified {dep_id} ({reason})", file=sys.stderr)
                     total_rederived += 1
 
             elif action == "revise":
@@ -576,8 +633,11 @@ def _stage_rederive_superseded(args, round_label=""):
                 check_net = check_store.load()
                 check_store.close()
                 if new_id in check_net.nodes:
-                    print(f"{prefix}  SKIP revise {dep_id} -> {new_id}: "
-                          f"node already exists", file=sys.stderr)
+                    print(
+                        f"{prefix}  SKIP revise {dep_id} -> {new_id}: "
+                        f"node already exists",
+                        file=sys.stderr,
+                    )
                     continue
 
                 new_ants = [casualty["new_ant_id"]]
@@ -607,8 +667,10 @@ def _stage_rederive_superseded(args, round_label=""):
                     store.save(updated_net)
                 store.close()
 
-                print(f"{prefix}  revised {dep_id} -> {new_id} ({reason})",
-                      file=sys.stderr)
+                print(
+                    f"{prefix}  revised {dep_id} -> {new_id} ({reason})",
+                    file=sys.stderr,
+                )
                 total_rederived += 1
 
             else:
@@ -636,8 +698,9 @@ def _stage_export(args):
     readme_path.write_text(card)
     print(f"Exported {readme_path}", file=sys.stderr)
 
-    in_count = sum(1 for n in data.get("nodes", {}).values()
-                   if n.get("truth_value") == "IN")
+    in_count = sum(
+        1 for n in data.get("nodes", {}).values() if n.get("truth_value") == "IN"
+    )
     total = len(data.get("nodes", {}))
     print(f"\nFinal: {in_count} IN / {total} total beliefs", file=sys.stderr)
 
@@ -675,8 +738,9 @@ def _stage_index(args):
         cmd_index_sources(idx_args)
 
 
-def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
-                          on_stage=None):
+def _run_convergence_loop(
+    args, rounds, start_cycle=1, total_rounds=None, on_stage=None
+):
     """Run derive -> review -> repair -> dedup until convergence.
 
     Args:
@@ -716,23 +780,28 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
         summary["total_derived"] += added
         print(f"  DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
-            on_stage(cycle, 4, "end", added=added,
-                     duration_seconds=round(elapsed, 2))
+            on_stage(cycle, 4, "end", added=added, duration_seconds=round(elapsed, 2))
 
         if on_stage:
             on_stage(cycle, 5, "start")
         t0 = time.monotonic()
-        review_result = _stage_review(args, round_label=label,
-                                      belief_ids=derived_ids or None)
+        review_result = _stage_review(
+            args, round_label=label, belief_ids=derived_ids or None
+        )
         elapsed = time.monotonic() - t0
         invalid_count = review_result.get("invalid", 0)
         summary["total_reviewed"] += review_result.get("reviewed", 0)
         summary["total_invalid"] += invalid_count
         print(f"  REVIEW took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
-            on_stage(cycle, 5, "end", reviewed=review_result.get("reviewed", 0),
-                     invalid=invalid_count,
-                     duration_seconds=round(elapsed, 2))
+            on_stage(
+                cycle,
+                5,
+                "end",
+                reviewed=review_result.get("reviewed", 0),
+                invalid=invalid_count,
+                duration_seconds=round(elapsed, 2),
+            )
 
         repair_result = None
         if invalid_count > 0:
@@ -741,17 +810,33 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
             t0 = time.monotonic()
             repair_result = _stage_repair(args, review_result, round_label=label)
             elapsed = time.monotonic() - t0
-            linked = repair_result.get("linked", 0) if isinstance(repair_result, dict) else 0
-            softened = repair_result.get("softened", 0) if isinstance(repair_result, dict) else 0
-            abandoned = repair_result.get("abandoned", 0) if isinstance(repair_result, dict) else 0
+            linked = (
+                repair_result.get("linked", 0) if isinstance(repair_result, dict) else 0
+            )
+            softened = (
+                repair_result.get("softened", 0)
+                if isinstance(repair_result, dict)
+                else 0
+            )
+            abandoned = (
+                repair_result.get("abandoned", 0)
+                if isinstance(repair_result, dict)
+                else 0
+            )
             summary["total_linked"] += linked
             summary["total_softened"] += softened
             summary["total_abandoned"] += abandoned
             print(f"  REPAIR took {_fmt_duration(elapsed)}", file=sys.stderr)
             if on_stage:
-                on_stage(cycle, 6, "end",
-                         linked=linked, softened=softened, abandoned=abandoned,
-                         duration_seconds=round(elapsed, 2))
+                on_stage(
+                    cycle,
+                    6,
+                    "end",
+                    linked=linked,
+                    softened=softened,
+                    abandoned=abandoned,
+                    duration_seconds=round(elapsed, 2),
+                )
         elif on_stage:
             on_stage(cycle, 6, "end", skipped=True)
 
@@ -762,8 +847,7 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
         elapsed = time.monotonic() - t0
         print(f"  DEDUPLICATE took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
-            on_stage(cycle, 7, "end",
-                     duration_seconds=round(elapsed, 2))
+            on_stage(cycle, 7, "end", duration_seconds=round(elapsed, 2))
 
         t0 = time.monotonic()
         rederive_result = _stage_rederive_superseded(args, round_label=label)
@@ -774,8 +858,11 @@ def _run_convergence_loop(args, rounds, start_cycle=1, total_rounds=None,
             print(f"  RE-DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
 
         if invalid_count == 0 and added == 0 and rederived == 0:
-            print(f"\nConverged after {cycle} cycles "
-                  f"(0 invalids, 0 new derivations, 0 re-derived)", file=sys.stderr)
+            print(
+                f"\nConverged after {cycle} cycles "
+                f"(0 invalids, 0 new derivations, 0 re-derived)",
+                file=sys.stderr,
+            )
             summary["converged"] = True
             break
 
@@ -786,6 +873,7 @@ def cmd_derive_review_repair(args):
     """Run derive/review/repair loop on existing belief network."""
     from .caffeinate import hold as _caffeinate
     from .report import Report
+
     _caffeinate()
 
     if not check_model_available(args.model):
@@ -794,8 +882,10 @@ def cmd_derive_review_repair(args):
 
     if not Path(REASONS_DB).exists():
         print(f"Reasons database not found: {REASONS_DB}", file=sys.stderr)
-        print("Run: reasonsforge forge pipeline or reasonsforge forge accept-beliefs first",
-              file=sys.stderr)
+        print(
+            "Run: reasonsforge forge pipeline or reasonsforge forge accept-beliefs first",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     rounds = getattr(args, "rounds", 1)
@@ -803,15 +893,16 @@ def cmd_derive_review_repair(args):
     print(f"=== Derive-Review-Repair ===", file=sys.stderr)
     print(f"Model: {args.model}", file=sys.stderr)
     print(f"Max rounds: {rounds}", file=sys.stderr)
-    print(f"Max derive rounds per cycle: {args.max_derive_rounds}",
-          file=sys.stderr)
+    print(f"Max derive rounds per cycle: {args.max_derive_rounds}", file=sys.stderr)
     if ns is not None:
         label = "non-namespaced" if ns == "" else f"{ns}:*"
         print(f"Namespace filter: {label}", file=sys.stderr)
     print(file=sys.stderr)
 
     step_names = [STAGE_NAMES[i] for i in range(4, 8)]
-    report = Report("document-derive-review-repair", step_names, project_dir=PROJECT_DIR)
+    report = Report(
+        "document-derive-review-repair", step_names, project_dir=PROJECT_DIR
+    )
 
     def _on_stage(cycle, stage_num, event, **kwargs):
         step_name = f"c{cycle}-{STAGE_NAMES[stage_num]}"
@@ -826,7 +917,9 @@ def cmd_derive_review_repair(args):
             if "reviewed" in kwargs:
                 counts["reviewed"] = kwargs["reviewed"]
                 counts["invalid"] = kwargs.get("invalid", 0)
-                detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+                detail_parts.append(
+                    f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}"
+                )
             if "linked" in kwargs:
                 counts["linked"] = kwargs["linked"]
                 counts["softened"] = kwargs["softened"]
@@ -865,6 +958,7 @@ def cmd_pipeline(args):
     """Run end-to-end EEM construction pipeline."""
     from .caffeinate import hold as _caffeinate
     from .report import Report
+
     _caffeinate()
 
     if not check_model_available(args.model):
@@ -875,12 +969,16 @@ def cmd_pipeline(args):
     if resume:
         state = _load_state()
         if not state:
-            print("No pipeline state to resume. Run without --resume first.",
-                  file=sys.stderr)
+            print(
+                "No pipeline state to resume. Run without --resume first.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         if state["status"] == "completed":
-            print("Pipeline already completed. Run without --resume to start fresh.",
-                  file=sys.stderr)
+            print(
+                "Pipeline already completed. Run without --resume to start fresh.",
+                file=sys.stderr,
+            )
             return
         print("Resuming pipeline from state file", file=sys.stderr)
         state["status"] = "running"
@@ -906,14 +1004,20 @@ def cmd_pipeline(args):
                 try:
                     _stage_ingest(args)
                     elapsed = time.monotonic() - t0
-                    _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
+                    _mark_stage(
+                        state, 1, "completed", duration_seconds=round(elapsed, 2)
+                    )
                     report.complete_step(f"ingested PDFs in {_fmt_duration(elapsed)}")
                     print(f"  INGEST took {_fmt_duration(elapsed)}", file=sys.stderr)
                 except KeyboardInterrupt:
                     elapsed = time.monotonic() - t0
-                    print(f"\n  Ending INGEST early — partial results saved ({_fmt_duration(elapsed)})",
-                          file=sys.stderr)
-                    _mark_stage(state, 1, "completed", duration_seconds=round(elapsed, 2))
+                    print(
+                        f"\n  Ending INGEST early — partial results saved ({_fmt_duration(elapsed)})",
+                        file=sys.stderr,
+                    )
+                    _mark_stage(
+                        state, 1, "completed", duration_seconds=round(elapsed, 2)
+                    )
                     report.complete_step(f"partial ingest in {_fmt_duration(elapsed)}")
             else:
                 print("No --pdf provided, skipping ingest", file=sys.stderr)
@@ -937,8 +1041,10 @@ def cmd_pipeline(args):
                 print(f"  SUMMARIZE took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
-                print(f"\n  Ending SUMMARIZE early — partial results saved ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending SUMMARIZE early — partial results saved ({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
                 _mark_stage(state, 2, "completed", duration_seconds=round(elapsed, 2))
                 report.complete_step(f"partial summarize in {_fmt_duration(elapsed)}")
         else:
@@ -962,8 +1068,10 @@ def cmd_pipeline(args):
                     return
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
-                print(f"\n  Ending EXTRACT early — partial results saved ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending EXTRACT early — partial results saved ({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
                 _mark_stage(state, 3, "completed", duration_seconds=round(elapsed, 2))
                 report.complete_step(f"partial extract in {_fmt_duration(elapsed)}")
         else:
@@ -981,13 +1089,15 @@ def cmd_pipeline(args):
                     if stage_num == 4:
                         state["current_cycle"] = cycle
                         _save_state(state)
-                    _banner(stage_num, total_stages,
-                            f"{STAGE_NAMES[stage_num].upper()} ({label})")
+                    _banner(
+                        stage_num,
+                        total_stages,
+                        f"{STAGE_NAMES[stage_num].upper()} ({label})",
+                    )
                     _mark_stage(state, stage_num, "running", cycle=cycle)
                     report.start_step(step_name)
                 else:
-                    _mark_stage(state, stage_num, "completed",
-                                cycle=cycle, **kwargs)
+                    _mark_stage(state, stage_num, "completed", cycle=cycle, **kwargs)
                     detail_parts = []
                     counts = {}
                     if "added" in kwargs:
@@ -996,7 +1106,9 @@ def cmd_pipeline(args):
                     if "reviewed" in kwargs:
                         counts["reviewed"] = kwargs["reviewed"]
                         counts["invalid"] = kwargs.get("invalid", 0)
-                        detail_parts.append(f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}")
+                        detail_parts.append(
+                            f"reviewed {kwargs['reviewed']}, invalid {kwargs.get('invalid', 0)}"
+                        )
                     if "linked" in kwargs:
                         counts["linked"] = kwargs["linked"]
                         counts["softened"] = kwargs["softened"]
@@ -1015,17 +1127,22 @@ def cmd_pipeline(args):
             t0 = time.monotonic()
             try:
                 _run_convergence_loop(
-                    args, remaining_rounds,
+                    args,
+                    remaining_rounds,
                     start_cycle=start_cycle,
                     total_rounds=args.rounds,
                     on_stage=_pipeline_on_stage,
                 )
                 elapsed = time.monotonic() - t0
-                print(f"  Convergence loop took {_fmt_duration(elapsed)}", file=sys.stderr)
+                print(
+                    f"  Convergence loop took {_fmt_duration(elapsed)}", file=sys.stderr
+                )
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
-                print(f"\n  Ending convergence loop early — partial results saved ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending convergence loop early — partial results saved ({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
 
             state["loop_completed"] = True
             _save_state(state)
@@ -1046,8 +1163,10 @@ def cmd_pipeline(args):
                 print(f"  EXPORT took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
-                print(f"\n  Ending EXPORT early — partial results saved ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending EXPORT early — partial results saved ({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
                 _mark_stage(state, 8, "completed", duration_seconds=round(elapsed, 2))
                 report.complete_step(f"partial export in {_fmt_duration(elapsed)}")
         else:
@@ -1067,8 +1186,10 @@ def cmd_pipeline(args):
                 print(f"  INDEX took {_fmt_duration(elapsed)}", file=sys.stderr)
             except KeyboardInterrupt:
                 elapsed = time.monotonic() - t0
-                print(f"\n  Ending INDEX early — partial results saved ({_fmt_duration(elapsed)})",
-                      file=sys.stderr)
+                print(
+                    f"\n  Ending INDEX early — partial results saved ({_fmt_duration(elapsed)})",
+                    file=sys.stderr,
+                )
                 _mark_stage(state, 9, "completed", duration_seconds=round(elapsed, 2))
                 report.complete_step(f"partial index in {_fmt_duration(elapsed)}")
         else:
@@ -1079,7 +1200,9 @@ def cmd_pipeline(args):
         state["total_duration_seconds"] = round(total_elapsed, 2)
         _save_state(state)
         report.complete(summary={"duration_seconds": round(total_elapsed, 2)})
-        print(f"\nPipeline complete in {_fmt_duration(total_elapsed)}.", file=sys.stderr)
+        print(
+            f"\nPipeline complete in {_fmt_duration(total_elapsed)}.", file=sys.stderr
+        )
 
     except Exception as e:
         state["status"] = "failed"

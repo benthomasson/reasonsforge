@@ -32,6 +32,7 @@ class LanguageProfile:
 
     def is_test_file(self, file_path: str) -> bool:
         from pathlib import PurePosixPath
+
         path = PurePosixPath(file_path)
         basename = path.name
         for glob in self.test_globs:
@@ -55,7 +56,7 @@ class LanguageProfile:
 
     def module_name_from_path(self, rel_path: str) -> str:
         if rel_path.endswith(self.primary_extension):
-            name = rel_path[:-len(self.primary_extension)]
+            name = rel_path[: -len(self.primary_extension)]
         else:
             name = os.path.splitext(rel_path)[0]
         if self.name == "python":
@@ -76,8 +77,13 @@ PYTHON = LanguageProfile(
     scope_style="indent",
     test_globs=["test_*.py", "*_test.py"],
     entry_point_candidates=[
-        "src/main.py", "main.py", "app.py", "src/app.py",
-        "manage.py", "setup.py", "cli.py",
+        "src/main.py",
+        "main.py",
+        "app.py",
+        "src/app.py",
+        "manage.py",
+        "setup.py",
+        "cli.py",
     ],
     config_files=["pyproject.toml", "setup.py", "setup.cfg"],
     primary_extension=".py",
@@ -100,8 +106,12 @@ CPP = LanguageProfile(
     scope_style="brace",
     test_globs=["test_*.cpp", "*_test.cpp", "test_*.cc", "*_test.cc"],
     entry_point_candidates=[
-        "src/main.cpp", "main.cpp", "src/main.cc", "main.cc",
-        "src/main.c", "main.c",
+        "src/main.cpp",
+        "main.cpp",
+        "src/main.cc",
+        "main.cc",
+        "src/main.c",
+        "main.c",
     ],
     config_files=["CMakeLists.txt", "meson.build"],
     primary_extension=".cpp",
@@ -126,7 +136,8 @@ RUST = LanguageProfile(
     scope_style="brace",
     test_globs=["*_test.rs", "test_*.rs"],
     entry_point_candidates=[
-        "src/main.rs", "src/lib.rs",
+        "src/main.rs",
+        "src/lib.rs",
     ],
     config_files=["Cargo.toml"],
     primary_extension=".rs",
@@ -149,7 +160,8 @@ GO = LanguageProfile(
     scope_style="brace",
     test_globs=["*_test.go"],
     entry_point_candidates=[
-        "main.go", "cmd/main.go",
+        "main.go",
+        "cmd/main.go",
     ],
     config_files=["go.mod"],
     primary_extension=".go",
@@ -217,7 +229,8 @@ TERRAFORM = LanguageProfile(
     scope_style="brace",
     test_globs=[],
     entry_point_candidates=[
-        "main.tf", "terraform/main.tf",
+        "main.tf",
+        "terraform/main.tf",
     ],
     config_files=["main.tf"],
     primary_extension=".tf",
@@ -288,7 +301,9 @@ for _lang in LANGUAGE_REGISTRY.values():
         _EXT_TO_LANGUAGE[_ext] = _lang
 
 
-def language_for_file(file_path: str, fallback: LanguageProfile | None = None) -> LanguageProfile:
+def language_for_file(
+    file_path: str, fallback: LanguageProfile | None = None
+) -> LanguageProfile:
     """Return the language profile matching a file's extension."""
     ext = os.path.splitext(file_path)[1].lower()
     return _EXT_TO_LANGUAGE.get(ext, fallback or PYTHON)
@@ -298,7 +313,9 @@ def get_grep_include_args(lang: LanguageProfile) -> list[str]:
     return [f"--include={g}" for g in lang.source_globs]
 
 
-def _extract_symbol_indent(file_path: str, symbol: str, lang: LanguageProfile) -> str | None:
+def _extract_symbol_indent(
+    file_path: str, symbol: str, lang: LanguageProfile
+) -> str | None:
     """Indent-based scope extraction (Python)."""
     from .git_utils import get_file_content
 
@@ -311,7 +328,9 @@ def _extract_symbol_indent(file_path: str, symbol: str, lang: LanguageProfile) -
     capturing = False
     base_indent = None
 
-    compiled = [re.compile(p.format(symbol=re.escape(symbol))) for p in lang.definition_patterns]
+    compiled = [
+        re.compile(p.format(symbol=re.escape(symbol))) for p in lang.definition_patterns
+    ]
 
     for line in lines:
         stripped = line.lstrip()
@@ -329,7 +348,11 @@ def _extract_symbol_indent(file_path: str, symbol: str, lang: LanguageProfile) -
                 continue
 
             current_indent = len(line) - len(stripped)
-            if current_indent <= base_indent and stripped and not stripped.startswith("#"):
+            if (
+                current_indent <= base_indent
+                and stripped
+                and not stripped.startswith("#")
+            ):
                 break
 
             result_lines.append(line)
@@ -339,7 +362,9 @@ def _extract_symbol_indent(file_path: str, symbol: str, lang: LanguageProfile) -
     return "\n".join(result_lines)
 
 
-def _extract_symbol_brace(file_path: str, symbol: str, lang: LanguageProfile) -> str | None:
+def _extract_symbol_brace(
+    file_path: str, symbol: str, lang: LanguageProfile
+) -> str | None:
     """Brace-counting scope extraction (C/C++/Java/JS/etc.)."""
     from .git_utils import get_file_content
 
@@ -348,7 +373,9 @@ def _extract_symbol_brace(file_path: str, symbol: str, lang: LanguageProfile) ->
         return None
 
     lines = content.split("\n")
-    compiled = [re.compile(p.format(symbol=re.escape(symbol))) for p in lang.definition_patterns]
+    compiled = [
+        re.compile(p.format(symbol=re.escape(symbol))) for p in lang.definition_patterns
+    ]
 
     start_idx = None
     for i, line in enumerate(lines):
@@ -372,16 +399,16 @@ def _extract_symbol_brace(file_path: str, symbol: str, lang: LanguageProfile) ->
         j = 0
         while j < len(line):
             if in_block_comment:
-                if line[j:j + 2] == "*/":
+                if line[j : j + 2] == "*/":
                     in_block_comment = False
                     j += 2
                     continue
                 j += 1
                 continue
 
-            if line[j:j + 2] == "//":
+            if line[j : j + 2] == "//":
                 break
-            if line[j:j + 2] == "/*":
+            if line[j : j + 2] == "/*":
                 in_block_comment = True
                 j += 2
                 continue
@@ -416,7 +443,9 @@ def _extract_symbol_brace(file_path: str, symbol: str, lang: LanguageProfile) ->
 
 
 def extract_symbol_with_profile(
-    file_path: str, symbol: str, lang: LanguageProfile | None = None,
+    file_path: str,
+    symbol: str,
+    lang: LanguageProfile | None = None,
 ) -> str | None:
     lang = lang or PYTHON
     if lang.scope_style == "indent":

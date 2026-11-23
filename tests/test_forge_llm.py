@@ -24,6 +24,7 @@ def clean_tracker():
 
 # --- _parse_cli_json ---
 
+
 def test_parse_claude_json():
     data = {
         "result": "The answer is 4.",
@@ -72,7 +73,11 @@ def test_parse_non_json_falls_back():
 
 
 def test_parse_claude_null_result_falls_back():
-    data = {"result": None, "total_cost_usd": 0.01, "usage": {"input_tokens": 10, "output_tokens": 0}}
+    data = {
+        "result": None,
+        "total_cost_usd": 0.01,
+        "usage": {"input_tokens": 10, "output_tokens": 0},
+    }
     raw = json.dumps(data)
     text = _parse_cli_json(raw, "claude")
     assert text == raw
@@ -110,6 +115,7 @@ def test_parse_gemini_multi_model():
 
 # --- cost accumulation ---
 
+
 def test_accumulates_across_calls():
     _record_cost("claude", 100, 10, 0.10)
     _record_cost("claude", 200, 20, 0.20)
@@ -140,6 +146,7 @@ def test_reset_clears_all():
 
 # --- format_cost_summary ---
 
+
 def test_format_no_calls():
     assert format_cost_summary() == ""
 
@@ -164,15 +171,18 @@ def test_format_without_cost():
 
 # --- Ollama API ---
 
+
 def test_invoke_ollama_returns_response():
     import asyncio
     from reasonsforge.forge.llm import _invoke_ollama
 
-    api_response = json.dumps({
-        "response": "Hello from ollama",
-        "prompt_eval_count": 50,
-        "eval_count": 20,
-    }).encode()
+    api_response = json.dumps(
+        {
+            "response": "Hello from ollama",
+            "prompt_eval_count": 50,
+            "eval_count": 20,
+        }
+    ).encode()
 
     mock_resp = MagicMock()
     mock_resp.read.return_value = api_response
@@ -194,8 +204,10 @@ def test_invoke_ollama_connection_error():
     import urllib.error
     from reasonsforge.forge.llm import _invoke_ollama
 
-    with patch("reasonsforge.forge.llm.urllib.request.urlopen",
-               side_effect=urllib.error.URLError("Connection refused")):
+    with patch(
+        "reasonsforge.forge.llm.urllib.request.urlopen",
+        side_effect=urllib.error.URLError("Connection refused"),
+    ):
         with pytest.raises(RuntimeError, match="Cannot connect to Ollama"):
             asyncio.run(_invoke_ollama("test", "ollama:qwen3:4b", 300))
 
@@ -205,7 +217,9 @@ def test_invoke_ollama_respects_ollama_host():
     import reasonsforge.forge.llm as llm_mod
     from reasonsforge.forge.llm import _invoke_ollama
 
-    api_response = json.dumps({"response": "ok", "prompt_eval_count": 0, "eval_count": 0}).encode()
+    api_response = json.dumps(
+        {"response": "ok", "prompt_eval_count": 0, "eval_count": 0}
+    ).encode()
     mock_resp = MagicMock()
     mock_resp.read.return_value = api_response
     mock_resp.__enter__ = lambda s: s
@@ -214,8 +228,12 @@ def test_invoke_ollama_respects_ollama_host():
     saved_hosts = llm_mod._ollama_hosts
     llm_mod._ollama_hosts = []
     try:
-        with patch("reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp) as mock_open, \
-             patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}):
+        with (
+            patch(
+                "reasonsforge.forge.llm.urllib.request.urlopen", return_value=mock_resp
+            ) as mock_open,
+            patch.dict("os.environ", {"OLLAMA_HOST": "http://remote:11434"}),
+        ):
             asyncio.run(_invoke_ollama("test", "ollama:model", 300))
     finally:
         llm_mod._ollama_hosts = saved_hosts

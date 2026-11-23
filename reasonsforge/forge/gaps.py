@@ -17,6 +17,7 @@ from . import REASONS_DB
 def cmd_gaps(args):
     """Analyze belief network for coverage gaps."""
     from .caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -54,8 +55,10 @@ def cmd_gaps(args):
     est_tokens = len(prompt) // 4
     if num_ctx:
         pct = est_tokens * 100 / num_ctx
-        print(f"Analyzing gaps (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)...",
-              file=sys.stderr)
+        print(
+            f"Analyzing gaps (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)...",
+            file=sys.stderr,
+        )
     else:
         print(f"Analyzing gaps (~{est_tokens:,} tokens)...", file=sys.stderr)
 
@@ -64,10 +67,13 @@ def cmd_gaps(args):
     gaps = extract_json(result)
     if not isinstance(gaps, list):
         try:
-            retry = asyncio.run(invoke(
-                prompt + "\n\n" + result + "\n\n" + RETRY_JSON,
-                model=model, timeout=timeout,
-            ))
+            retry = asyncio.run(
+                invoke(
+                    prompt + "\n\n" + result + "\n\n" + RETRY_JSON,
+                    model=model,
+                    timeout=timeout,
+                )
+            )
             gaps = extract_json(retry)
         except Exception:
             pass
@@ -83,6 +89,7 @@ def cmd_gaps(args):
     _print_gaps(gaps)
 
     from .llm import format_cost_summary
+
     cost = format_cost_summary()
     if cost:
         print(f"\n  {cost}", file=sys.stderr)
@@ -113,9 +120,9 @@ def _extract_keywords(gaps):
         if g.get("priority") not in ("high", "medium"):
             continue
         subject = g.get("subject", "").lower()
-        parts = re.split(r'\s+and\s+|,\s*|;\s*', subject)
+        parts = re.split(r"\s+and\s+|,\s*|;\s*", subject)
         for part in parts:
-            words = [w for w in re.findall(r'[a-z]+', part) if w not in _STOP_WORDS]
+            words = [w for w in re.findall(r"[a-z]+", part) if w not in _STOP_WORDS]
             if len(words) >= 2:
                 keywords.add(" ".join(words))
             elif len(words) == 1 and len(words[0]) >= 6:
@@ -147,8 +154,10 @@ def _print_gaps(gaps):
 def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
     """Run targeted extraction using gap list."""
     from .propose import (
-        _load_existing_beliefs, _build_dedup_context,
-        _has_embeddings, _get_belief_embeddings,
+        _load_existing_beliefs,
+        _build_dedup_context,
+        _has_embeddings,
+        _get_belief_embeddings,
     )
     from .llm import extract_json as _extract_json
     from . import PROJECT_DIR
@@ -191,9 +200,11 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
         if any(kw in content for kw in keywords):
             matched.append(entry)
 
-    print(f"\nTargeted extraction: {len(matched)}/{len(entries)} entries match gap keywords, "
-          f"looking for {len(gaps)} gaps...",
-          file=sys.stderr)
+    print(
+        f"\nTargeted extraction: {len(matched)}/{len(entries)} entries match gap keywords, "
+        f"looking for {len(gaps)} gaps...",
+        file=sys.stderr,
+    )
 
     if not matched:
         print("No entries contain gap-related keywords.", file=sys.stderr)
@@ -221,18 +232,25 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
 
     async def _extract_batch(i, batch_text):
         existing_context = _build_dedup_context(
-            existing_beliefs, batch_paths[i], batch_text,
+            existing_beliefs,
+            batch_paths[i],
+            batch_text,
             belief_vectors=belief_vectors,
         )
-        prompt = GAP_EXTRACT.format(
-            gap_list=gap_list,
-            entries=batch_text,
-        ) + existing_context
+        prompt = (
+            GAP_EXTRACT.format(
+                gap_list=gap_list,
+                entries=batch_text,
+            )
+            + existing_context
+        )
 
         est = len(prompt) // 4
         if num_ctx:
             pct = est * 100 / num_ctx
-            print(f"  Batch {i + 1}/{len(batches)} (~{est:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)...")
+            print(
+                f"  Batch {i + 1}/{len(batches)} (~{est:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)..."
+            )
         else:
             print(f"  Batch {i + 1}/{len(batches)} (~{est:,} tokens)...")
 
@@ -247,7 +265,8 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
             try:
                 retry = await invoke(
                     prompt + "\n\n" + result + "\n\n" + RETRY_JSON,
-                    model=model, timeout=timeout,
+                    model=model,
+                    timeout=timeout,
                 )
                 beliefs = _extract_json(retry)
             except Exception:
@@ -290,6 +309,8 @@ def _run_extract(args, gaps, input_dir, model, db_path, timeout, num_ctx):
                 f.write(f"- Source: {source}\n")
             f.write("\n")
 
-    print(f"\nFound {len(all_found)} new beliefs, wrote to {output_path}", file=sys.stderr)
+    print(
+        f"\nFound {len(all_found)} new beliefs, wrote to {output_path}", file=sys.stderr
+    )
     print("Review the proposals, then run:", file=sys.stderr)
     print(f"  reasonsforge forge accept-beliefs --file {output_path}", file=sys.stderr)

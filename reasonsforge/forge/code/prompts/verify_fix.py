@@ -1,6 +1,5 @@
 """Prompt templates for verifying that a fix addresses a blocker belief."""
 
-
 VERIFY_FIX_PROMPT = """\
 You are verifying whether a code change fixes the problem described by a belief.
 

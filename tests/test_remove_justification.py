@@ -12,7 +12,8 @@ class TestNetworkRemoveJustification:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a"], label="first"),
                 Justification(type="SL", antecedents=["b"], label="second"),
@@ -30,7 +31,8 @@ class TestNetworkRemoveJustification:
         net.add_node("b", "Premise B")
         net.retract("b")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a"]),
                 Justification(type="SL", antecedents=["b"]),
@@ -47,14 +49,16 @@ class TestNetworkRemoveJustification:
         net.add_node("b", "Premise B")
         net.retract("b")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a"]),
                 Justification(type="SL", antecedents=["b"]),
             ],
         )
         net.add_node(
-            "d", "Derived D",
+            "d",
+            "Derived D",
             justifications=[Justification(type="SL", antecedents=["c"])],
         )
         assert net.nodes["d"].truth_value == "IN"
@@ -67,7 +71,8 @@ class TestNetworkRemoveJustification:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a"]),
                 Justification(type="SL", antecedents=["b"]),
@@ -85,7 +90,8 @@ class TestNetworkRemoveJustification:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a", "b"]),
                 Justification(type="SL", antecedents=["a"]),
@@ -100,7 +106,8 @@ class TestNetworkRemoveJustification:
         net.add_node("blocker", "Blocker")
         net.retract("blocker")
         net.add_node(
-            "c", "Gated C",
+            "c",
+            "Gated C",
             justifications=[
                 Justification(type="SL", antecedents=["a"], outlist=["blocker"]),
                 Justification(type="SL", antecedents=["a"]),
@@ -120,7 +127,8 @@ class TestNetworkRemoveJustification:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         with pytest.raises(ValueError, match="only one justification"):
@@ -131,7 +139,8 @@ class TestNetworkRemoveJustification:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[
                 Justification(type="SL", antecedents=["a"]),
                 Justification(type="SL", antecedents=["b"]),
@@ -168,6 +177,7 @@ class TestApiRemoveJustification:
 class TestCliRemoveJustification:
     def test_cli_remove_justification(self, tmp_path):
         import subprocess
+
         db = str(tmp_path / "test.db")
         api.init_db(db_path=db)
         api.add_node("a", "Premise A", db_path=db)
@@ -177,7 +187,8 @@ class TestCliRemoveJustification:
 
         result = subprocess.run(
             ["uv", "run", "reasonsforge", "--db", db, "remove-justification", "c", "0"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         assert result.returncode == 0
         assert "Removed justification 0" in result.stdout

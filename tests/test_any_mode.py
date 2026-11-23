@@ -60,7 +60,9 @@ class TestAnyModeAdd:
         api.add_node("a", "A", db_path=db)
         api.add_node("b", "B", db_path=db)
         api.add_node("enemy", "Enemy", db_path=db)
-        api.add_node("x", "Conclusion", sl="a,b", unless="enemy", any_mode=True, db_path=db)
+        api.add_node(
+            "x", "Conclusion", sl="a,b", unless="enemy", any_mode=True, db_path=db
+        )
 
         node = api.show_node("x", db_path=db)
         assert len(node["justifications"]) == 2

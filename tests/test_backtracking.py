@@ -24,9 +24,13 @@ class TestTraceAssumptions:
     def test_derived_traces_to_premise(self):
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         result = net.trace_assumptions("b")
         assert result == ["a"]
 
@@ -34,12 +38,20 @@ class TestTraceAssumptions:
         """A → B → C traces back to A."""
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["b"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["b"]),
+            ],
+        )
         result = net.trace_assumptions("c")
         assert result == ["a"]
 
@@ -47,15 +59,27 @@ class TestTraceAssumptions:
         """A → B, A → C, B+C → D — all trace back to A."""
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("d", "Derived D", justifications=[
-            Justification(type="SL", antecedents=["b", "c"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "d",
+            "Derived D",
+            justifications=[
+                Justification(type="SL", antecedents=["b", "c"]),
+            ],
+        )
         result = net.trace_assumptions("d")
         assert result == ["a"]
 
@@ -64,9 +88,13 @@ class TestTraceAssumptions:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a", "b"]),
-        ])
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a", "b"]),
+            ],
+        )
         result = net.trace_assumptions("c")
         assert set(result) == {"a", "b"}
 
@@ -75,12 +103,20 @@ class TestTraceAssumptions:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("d", "Derived D", justifications=[
-            Justification(type="SL", antecedents=["b", "c"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "d",
+            "Derived D",
+            justifications=[
+                Justification(type="SL", antecedents=["b", "c"]),
+            ],
+        )
         result = net.trace_assumptions("d")
         assert set(result) == {"a", "c"}
 
@@ -107,9 +143,13 @@ class TestFindCulprits:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         culprits = net.find_culprits(["b", "c"])
         premise_ids = [c["premise"] for c in culprits]
         # Both a and b are culprits — a supports c, b is itself a premise
@@ -121,8 +161,12 @@ class TestFindCulprits:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         # Give A more dependents than B
-        net.add_node("x", "X", justifications=[Justification(type="SL", antecedents=["a"])])
-        net.add_node("y", "Y", justifications=[Justification(type="SL", antecedents=["a"])])
+        net.add_node(
+            "x", "X", justifications=[Justification(type="SL", antecedents=["a"])]
+        )
+        net.add_node(
+            "y", "Y", justifications=[Justification(type="SL", antecedents=["a"])]
+        )
         culprits = net.find_culprits(["a", "b"])
         # B has fewer dependents, should be first
         assert culprits[0]["premise"] == "b"
@@ -132,9 +176,13 @@ class TestFindCulprits:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         culprits = net.find_culprits(["b", "c"])
         a_culprit = [c for c in culprits if c["premise"] == "a"][0]
         assert "c" in a_culprit["would_resolve"]
@@ -148,9 +196,13 @@ class TestBacktrackingInNogood:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         changed = net.add_nogood(["b", "c"])
         # Should have retracted a premise (a or b), not c
         # B has fewer dependents than A, so B is the victim
@@ -163,12 +215,20 @@ class TestBacktrackingInNogood:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("d", "Premise D")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["b"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["b"]),
+            ],
+        )
         # D has 0 dependents, A has 1 (b). D should be retracted.
         changed = net.add_nogood(["c", "d"])
         assert net.nodes["d"].truth_value == "OUT"
@@ -189,12 +249,20 @@ class TestBacktrackingInNogood:
         """A → B, A → C. Nogood(B, C). Retracting A resolves both."""
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         changed = net.add_nogood(["b", "c"])
         # A is the only premise — retracting it resolves both
         assert net.nodes["a"].truth_value == "OUT"
@@ -220,11 +288,17 @@ class TestEntrenchment:
     def test_evidence_premise_more_entrenched_than_derived(self):
         """Evidence (premise) should be protected over speculation (derived)."""
         net = Network()
-        net.add_node("evidence", "Finite trees have gap closing ~1/N",
-                      source="physics-quantum-lattice:results.md")
+        net.add_node(
+            "evidence",
+            "Finite trees have gap closing ~1/N",
+            source="physics-quantum-lattice:results.md",
+        )
         net.add_node("basis", "W is a Bethe lattice")
-        net.add_node("speculation", "Tree is the genealogy",
-                      justifications=[Justification(type="SL", antecedents=["basis"])])
+        net.add_node(
+            "speculation",
+            "Tree is the genealogy",
+            justifications=[Justification(type="SL", antecedents=["basis"])],
+        )
 
         # Evidence is more entrenched (premise + has source)
         assert net._entrenchment("evidence") > net._entrenchment("basis")
@@ -233,14 +307,20 @@ class TestEntrenchment:
         """The physics-speculation bug: evidence should survive, speculation should die."""
         net = Network()
         # Evidence: a premise with source (simulation result)
-        net.add_node("finite-tree-gap-closes",
-                      "Finite trees have spectral gap closing ~1/N",
-                      source="physics-quantum-lattice:entries/2026/02/22/combined-laplacian-results.md")
+        net.add_node(
+            "finite-tree-gap-closes",
+            "Finite trees have spectral gap closing ~1/N",
+            source="physics-quantum-lattice:entries/2026/02/22/combined-laplacian-results.md",
+        )
         # Speculation: derived from another premise
         net.add_node("w-is-bethe-lattice", "W dimension is a Bethe lattice")
-        net.add_node("tree-as-genealogy",
-                      "Picture A: the tree is the duplication genealogy",
-                      justifications=[Justification(type="SL", antecedents=["w-is-bethe-lattice"])])
+        net.add_node(
+            "tree-as-genealogy",
+            "Picture A: the tree is the duplication genealogy",
+            justifications=[
+                Justification(type="SL", antecedents=["w-is-bethe-lattice"])
+            ],
+        )
 
         # These two contradict each other
         changed = net.add_nogood(["tree-as-genealogy", "finite-tree-gap-closes"])
@@ -248,8 +328,10 @@ class TestEntrenchment:
         # Evidence should survive — speculation's premise should be retracted
         assert net.nodes["finite-tree-gap-closes"].truth_value == "IN"
         # The speculation or its premise should be OUT
-        assert (net.nodes["tree-as-genealogy"].truth_value == "OUT" or
-                net.nodes["w-is-bethe-lattice"].truth_value == "OUT")
+        assert (
+            net.nodes["tree-as-genealogy"].truth_value == "OUT"
+            or net.nodes["w-is-bethe-lattice"].truth_value == "OUT"
+        )
 
     def test_sourced_premise_over_unsourced(self):
         """Premise with source is more entrenched than premise without."""
@@ -270,8 +352,16 @@ class TestEntrenchment:
         net = Network()
         net.add_node("popular", "Many depend on this")
         net.add_node("lonely", "Nothing depends on this")
-        net.add_node("d1", "Dep 1", justifications=[Justification(type="SL", antecedents=["popular"])])
-        net.add_node("d2", "Dep 2", justifications=[Justification(type="SL", antecedents=["popular"])])
+        net.add_node(
+            "d1",
+            "Dep 1",
+            justifications=[Justification(type="SL", antecedents=["popular"])],
+        )
+        net.add_node(
+            "d2",
+            "Dep 2",
+            justifications=[Justification(type="SL", antecedents=["popular"])],
+        )
         assert net._entrenchment("popular") > net._entrenchment("lonely")
 
 

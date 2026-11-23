@@ -13,7 +13,6 @@ from reasonsforge.import_beliefs import strip_frontmatter, import_into_network
 
 
 class TestBuildMeta:
-
     def test_basic_fields(self):
         meta = build_meta("my-project", node_count=42)
         assert meta["schema_version"] == "1.0"
@@ -33,7 +32,6 @@ class TestBuildMeta:
 
 
 class TestJsonExportMeta:
-
     def test_export_includes_meta(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.init_db(db_path=db)
@@ -58,7 +56,6 @@ class TestJsonExportMeta:
 
 
 class TestJsonImportMeta:
-
     def test_import_preserves_meta(self, tmp_path):
         db1 = str(tmp_path / "src.db")
         db2 = str(tmp_path / "dst.db")
@@ -104,7 +101,6 @@ class TestJsonImportMeta:
 
 
 class TestMarkdownExportMeta:
-
     def test_frontmatter_present(self):
         net = Network()
         net.add_node("a", "Premise A")
@@ -123,7 +119,6 @@ class TestMarkdownExportMeta:
 
 
 class TestStripFrontmatter:
-
     def test_no_frontmatter(self):
         text = "# Beliefs\n\nSome content"
         body, fm = strip_frontmatter(text)
@@ -145,7 +140,6 @@ class TestStripFrontmatter:
 
 
 class TestMarkdownRoundTrip:
-
     def test_export_import_preserves_beliefs(self, tmp_path):
         """Export to markdown with frontmatter, import back — beliefs survive."""
         db1 = str(tmp_path / "src.db")
@@ -169,8 +163,7 @@ class TestMarkdownRoundTrip:
         md_file = str(tmp_path / "old.md")
 
         Path(md_file).write_text(
-            "# Belief Registry\n\n## Claims\n\n"
-            "### a [IN] OBSERVATION\nPremise A\n"
+            "# Belief Registry\n\n## Claims\n\n### a [IN] OBSERVATION\nPremise A\n"
         )
 
         api.init_db(db_path=db)
@@ -179,12 +172,12 @@ class TestMarkdownRoundTrip:
 
 
 class TestSqliteMeta:
-
     def test_init_sets_metadata(self, tmp_path):
         db = str(tmp_path / "myproject.db")
         api.init_db(db_path=db)
 
         import sqlite3
+
         conn = sqlite3.connect(db)
         rows = dict(conn.execute("SELECT key, value FROM network_meta").fetchall())
         conn.close()
@@ -199,6 +192,7 @@ class TestSqliteMeta:
         api.init_db(db_path=db)
 
         import sqlite3
+
         conn = sqlite3.connect(db)
         rows1 = dict(conn.execute("SELECT key, value FROM network_meta").fetchall())
         conn.close()
@@ -216,6 +210,7 @@ class TestSqliteMeta:
         api.init_db(db_path=db, project_name="custom-name")
 
         import sqlite3
+
         conn = sqlite3.connect(db)
         rows = dict(conn.execute("SELECT key, value FROM network_meta").fetchall())
         conn.close()

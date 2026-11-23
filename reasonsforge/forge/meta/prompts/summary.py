@@ -16,13 +16,17 @@ def build_summary_prompt(
                      plus 'derived' and 'nogoods' keys.
         agent_names: List of agent names. If None, uses keys from agent_stats.
     """
-    names = agent_names or [k for k in sorted(agent_stats) if k not in ("derived", "nogoods")]
+    names = agent_names or [
+        k for k in sorted(agent_stats) if k not in ("derived", "nogoods")
+    ]
 
     stats_lines = []
     for name in names:
         count = agent_stats.get(name, 0)
         stats_lines.append(f"- {name.capitalize()} expert: {count} beliefs")
-    stats_lines.append(f"- Cross-domain derived: {agent_stats.get('derived', 0)} beliefs")
+    stats_lines.append(
+        f"- Cross-domain derived: {agent_stats.get('derived', 0)} beliefs"
+    )
     stats_lines.append(f"- Contradictions (nogoods): {agent_stats.get('nogoods', 0)}")
     stats_section = "\n".join(stats_lines)
 

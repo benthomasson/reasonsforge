@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 
 from reasonsforge.network import Network
-from reasonsforge.import_beliefs import parse_beliefs, parse_nogoods, import_into_network
-
+from reasonsforge.import_beliefs import (
+    parse_beliefs,
+    parse_nogoods,
+    import_into_network,
+)
 
 SAMPLE_BELIEFS = """\
 # Belief Registry
@@ -68,7 +71,6 @@ SAMPLE_NOGOODS = """\
 
 
 class TestParseBeliefs:
-
     def test_parses_all_claims(self):
         claims = parse_beliefs(SAMPLE_BELIEFS)
         assert len(claims) == 5
@@ -125,7 +127,6 @@ A gated belief
 
 
 class TestParseNogoods:
-
     def test_parses_all_nogoods(self):
         nogoods = parse_nogoods(SAMPLE_NOGOODS)
         assert len(nogoods) == 2
@@ -145,7 +146,6 @@ class TestParseNogoods:
 
 
 class TestImportIntoNetwork:
-
     def test_imports_premises(self):
         net = Network()
         result = import_into_network(net, SAMPLE_BELIEFS)
@@ -171,7 +171,9 @@ class TestImportIntoNetwork:
     def test_stale_metadata_preserved(self):
         net = Network()
         import_into_network(net, SAMPLE_BELIEFS)
-        assert net.nodes["stale-d"].metadata["stale_reason"] == "New data invalidated this"
+        assert (
+            net.nodes["stale-d"].metadata["stale_reason"] == "New data invalidated this"
+        )
         assert net.nodes["stale-d"].metadata["superseded_by"] == "derived-c"
 
     def test_dependency_chain(self):

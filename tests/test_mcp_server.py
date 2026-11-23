@@ -18,15 +18,15 @@ def db(tmp_path):
     api.init_db(db_path=db_path)
     api.add_node("premise-a", "A is true", db_path=db_path)
     api.add_node("premise-b", "B is true", db_path=db_path)
-    api.add_node("derived-c", "C follows from A and B",
-                 sl="premise-a,premise-b", db_path=db_path)
+    api.add_node(
+        "derived-c", "C follows from A and B", sl="premise-a,premise-b", db_path=db_path
+    )
     mcp_server._db = db_path
     yield db_path
     mcp_server._db = None
 
 
 class TestFindDb:
-
     def test_env_var_takes_precedence(self, tmp_path):
         custom = str(tmp_path / "custom.db")
         with patch.dict(os.environ, {"REASONSFORGE_DB": custom}):
@@ -37,28 +37,33 @@ class TestFindDb:
         db_path.touch()
         subdir = tmp_path / "sub" / "deep"
         subdir.mkdir(parents=True)
-        with patch("os.getcwd", return_value=str(subdir)), \
-             patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("os.getcwd", return_value=str(subdir)),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             os.environ.pop("REASONSFORGE_DB", None)
             result = mcp_server._find_db()
             assert result == str(db_path)
 
     def test_falls_back_to_default(self, tmp_path):
-        with patch("os.getcwd", return_value=str(tmp_path)), \
-             patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("os.getcwd", return_value=str(tmp_path)),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             os.environ.pop("REASONSFORGE_DB", None)
             result = mcp_server._find_db()
             assert result == api.DEFAULT_DB
 
 
 class TestGetDb:
-
     def test_lazy_discovery(self, tmp_path):
         db_path = tmp_path / "reasons.db"
         db_path.touch()
         mcp_server._db = None
-        with patch("os.getcwd", return_value=str(tmp_path)), \
-             patch.dict(os.environ, {}, clear=True):
+        with (
+            patch("os.getcwd", return_value=str(tmp_path)),
+            patch.dict(os.environ, {}, clear=True),
+        ):
             os.environ.pop("REASONSFORGE_DB", None)
             result = mcp_server._get_db()
             assert result == str(db_path)
@@ -71,7 +76,6 @@ class TestGetDb:
 
 
 class TestSearchTool:
-
     def test_search_returns_results(self, db):
         result = mcp_server.search("true")
         assert "premise-a" in result or "premise-b" in result
@@ -83,7 +87,6 @@ class TestSearchTool:
 
 
 class TestShowTool:
-
     def test_show_existing(self, db):
         result = json.loads(mcp_server.show("premise-a"))
         assert result["text"] == "A is true"
@@ -95,7 +98,6 @@ class TestShowTool:
 
 
 class TestExplainTool:
-
     def test_explain_existing(self, db):
         result = json.loads(mcp_server.explain("derived-c"))
         assert "steps" in result
@@ -106,7 +108,6 @@ class TestExplainTool:
 
 
 class TestListBeliefsTool:
-
     def test_list_all(self, db):
         result = json.loads(mcp_server.list_beliefs())
         assert len(result["nodes"]) == 3
@@ -128,7 +129,6 @@ class TestListBeliefsTool:
 
 
 class TestAddTool:
-
     def test_add_premise(self, db):
         result = json.loads(mcp_server.add("new-premise", "Something new"))
         assert result["node_id"] == "new-premise"
@@ -136,19 +136,18 @@ class TestAddTool:
         assert node["text"] == "Something new"
 
     def test_add_derived(self, db):
-        result = json.loads(mcp_server.add("new-derived", "Derived thing",
-                                           sl="premise-a"))
+        result = json.loads(
+            mcp_server.add("new-derived", "Derived thing", sl="premise-a")
+        )
         assert result["node_id"] == "new-derived"
 
     def test_add_with_missing_sl_creates_out(self, db):
-        result = json.loads(mcp_server.add("bad-derived", "Bad",
-                                           sl="nonexistent-node"))
+        result = json.loads(mcp_server.add("bad-derived", "Bad", sl="nonexistent-node"))
         assert result["node_id"] == "bad-derived"
         assert result["truth_value"] == "OUT"
 
 
 class TestRetractTool:
-
     def test_retract(self, db):
         result = json.loads(mcp_server.retract("premise-a", reason="testing"))
         assert "premise-a" in result["changed"]
@@ -161,7 +160,6 @@ class TestRetractTool:
 
 
 class TestAssertBeliefTool:
-
     def test_assert_retracted(self, db):
         api.retract_node("premise-a", db_path=db)
         result = json.loads(mcp_server.assert_belief("premise-a"))
@@ -175,7 +173,6 @@ class TestAssertBeliefTool:
 
 
 class TestWhatIfTool:
-
     def test_what_if_retract(self, db):
         result = json.loads(mcp_server.what_if("premise-a", action="retract"))
         assert result["node_id"] == "premise-a"
@@ -194,20 +191,18 @@ class TestWhatIfTool:
 
 
 class TestAddJustificationTool:
-
     def test_add_justification(self, db):
-        result = json.loads(mcp_server.add_justification(
-            "derived-c", sl="premise-a", label="extra"))
+        result = json.loads(
+            mcp_server.add_justification("derived-c", sl="premise-a", label="extra")
+        )
         assert result["node_id"] == "derived-c"
 
     def test_add_justification_missing_sl(self, db):
-        result = json.loads(mcp_server.add_justification(
-            "derived-c", sl="nonexistent"))
+        result = json.loads(mcp_server.add_justification("derived-c", sl="nonexistent"))
         assert result["node_id"] == "derived-c"
 
 
 class TestNogoodTool:
-
     def test_nogood(self, db):
         result = json.loads(mcp_server.nogood(["premise-a", "premise-b"]))
         assert "nogood_id" in result
@@ -218,7 +213,6 @@ class TestNogoodTool:
 
 
 class TestTraceTool:
-
     def test_trace_derived(self, db):
         result = json.loads(mcp_server.trace("derived-c"))
         assert result["node_id"] == "derived-c"
@@ -230,7 +224,6 @@ class TestTraceTool:
 
 
 class TestCompactTool:
-
     def test_compact(self, db):
         result = mcp_server.compact(budget=500)
         assert isinstance(result, str)
@@ -238,7 +231,6 @@ class TestCompactTool:
 
 
 class TestStatusTool:
-
     def test_status(self, db):
         result = json.loads(mcp_server.status())
         assert "nodes" in result
@@ -247,14 +239,12 @@ class TestStatusTool:
 
 
 class TestListGatedTool:
-
     def test_list_gated(self, db):
         result = json.loads(mcp_server.list_gated())
         assert "gated_count" in result
 
 
 class TestExportMarkdownTool:
-
     def test_export_markdown(self, db):
         result = mcp_server.export_markdown()
         assert isinstance(result, str)
@@ -262,14 +252,12 @@ class TestExportMarkdownTool:
 
 
 class TestTopicsTool:
-
     def test_topics(self, db):
         result = json.loads(mcp_server.topics(limit=10))
         assert "topics" in result
 
 
 class TestNamesOnlyFormat:
-
     def test_search_names_only(self, db):
         result = mcp_server.search("true", output_format="names-only")
         lines = result.strip().split("\n")
@@ -295,8 +283,13 @@ class TestNamesOnlyFormat:
 
     def test_list_gated_names_only(self, db):
         api.add_node("blocker", "Blocks things", db_path=db)
-        api.add_node("gated-node", "Gated by blocker",
-                     sl="premise-a", unless="blocker", db_path=db)
+        api.add_node(
+            "gated-node",
+            "Gated by blocker",
+            sl="premise-a",
+            unless="blocker",
+            db_path=db,
+        )
         result = mcp_server.list_gated(output_format="names-only")
         lines = result.strip().split("\n")
         assert "blocker" in lines

@@ -102,6 +102,7 @@ def cmd_status(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=routing_db)
         nodes = network.get("nodes", {})
     except Exception:

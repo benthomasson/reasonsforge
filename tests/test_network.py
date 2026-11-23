@@ -19,7 +19,8 @@ class TestAddNode:
         net = Network()
         net.add_node("a", "Premise A")
         node = net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         assert node.truth_value == "IN"
@@ -29,7 +30,8 @@ class TestAddNode:
         net.add_node("a", "Premise A")
         net.retract("a")
         node = net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         assert node.truth_value == "OUT"
@@ -44,7 +46,8 @@ class TestAddNode:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         assert "b" in net.nodes["a"].dependents
@@ -65,7 +68,8 @@ class TestRetraction:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         changed = net.retract("a")
@@ -77,11 +81,13 @@ class TestRetraction:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["b"])],
         )
         changed = net.retract("a")
@@ -107,7 +113,8 @@ class TestRetraction:
         net.add_node("a", "Premise A")
         net.add_node("c", "Premise C")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[
                 Justification(type="SL", antecedents=["a"]),
                 Justification(type="SL", antecedents=["c"]),
@@ -116,7 +123,6 @@ class TestRetraction:
         changed = net.retract("a")
         assert net.nodes["b"].truth_value == "IN"
         assert "b" not in changed
-
 
     def test_retract_already_out_pins_retracted(self):
         """Retracting an already-OUT node should still set _retracted.
@@ -127,7 +133,8 @@ class TestRetraction:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
 
@@ -157,7 +164,8 @@ class TestRestoration:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
@@ -173,11 +181,13 @@ class TestRestoration:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["b"])],
         )
         net.retract("a")
@@ -209,7 +219,8 @@ class TestMultipleAntecedents:
         net.add_node("b", "Premise B")
         net.add_node("c", "Premise C")
         net.add_node(
-            "d", "Derived D",
+            "d",
+            "Derived D",
             justifications=[Justification(type="SL", antecedents=["a", "b", "c"])],
         )
         assert net.nodes["d"].truth_value == "IN"
@@ -281,8 +292,11 @@ class TestExplain:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
-            justifications=[Justification(type="SL", antecedents=["a"], label="A supports B")],
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"], label="A supports B")
+            ],
         )
         steps = net.explain("b")
         assert steps[0]["node"] == "b"
@@ -296,11 +310,13 @@ class TestExplain:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["b"])],
         )
         steps = net.explain("c")
@@ -314,7 +330,8 @@ class TestExplain:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
@@ -336,7 +353,8 @@ class TestBeliefSet:
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         assert set(net.get_belief_set()) == {"a", "b", "c"}
@@ -357,7 +375,8 @@ class TestLog:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
@@ -373,15 +392,18 @@ class TestDiamondDependency:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "d", "Derived D",
+            "d",
+            "Derived D",
             justifications=[Justification(type="SL", antecedents=["b", "c"])],
         )
         assert net.nodes["d"].truth_value == "IN"
@@ -405,15 +427,18 @@ class TestDiamondDependency:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "c", "Derived C",
+            "c",
+            "Derived C",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.add_node(
-            "d", "Derived D",
+            "d",
+            "Derived D",
             justifications=[Justification(type="SL", antecedents=["b", "c"])],
         )
 

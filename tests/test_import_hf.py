@@ -12,14 +12,27 @@ import pytest
 from reasonsforge import api
 from reasonsforge.hf import _parse_repo_id, _resolve_token, download_network
 
-
 SAMPLE_NETWORK = {
     "meta": {"schema_version": "1.0", "project_name": "test-eem"},
     "nodes": {
-        "a": {"text": "Node A", "truth_value": "IN", "justifications": [],
-               "source": "", "source_hash": "", "date": "", "metadata": {}},
-        "b": {"text": "Node B", "truth_value": "IN", "justifications": [],
-               "source": "", "source_hash": "", "date": "", "metadata": {}},
+        "a": {
+            "text": "Node A",
+            "truth_value": "IN",
+            "justifications": [],
+            "source": "",
+            "source_hash": "",
+            "date": "",
+            "metadata": {},
+        },
+        "b": {
+            "text": "Node B",
+            "truth_value": "IN",
+            "justifications": [],
+            "source": "",
+            "source_hash": "",
+            "date": "",
+            "metadata": {},
+        },
     },
     "nogoods": [],
     "repos": {},
@@ -37,7 +50,6 @@ def _mock_response(data):
 
 
 class TestParseRepoId:
-
     def test_simple_repo_id(self):
         assert _parse_repo_id("user/repo") == "user/repo"
 
@@ -56,7 +68,6 @@ class TestParseRepoId:
 
 
 class TestResolveToken:
-
     def test_explicit_token_wins(self):
         assert _resolve_token("my-token") == "my-token"
 
@@ -83,7 +94,6 @@ class TestResolveToken:
 
 
 class TestDownloadNetwork:
-
     @patch("reasonsforge.hf.urlopen")
     def test_success(self, mock_urlopen):
         mock_urlopen.return_value = _mock_response(SAMPLE_NETWORK)
@@ -96,7 +106,10 @@ class TestDownloadNetwork:
         mock_urlopen.return_value = _mock_response(SAMPLE_NETWORK)
         download_network("user/my-eem", token="tok")
         req = mock_urlopen.call_args[0][0]
-        assert req.full_url == "https://huggingface.co/user/my-eem/resolve/main/network.json"
+        assert (
+            req.full_url
+            == "https://huggingface.co/user/my-eem/resolve/main/network.json"
+        )
 
     @patch("reasonsforge.hf.urlopen")
     def test_auth_header_present(self, mock_urlopen):
@@ -116,14 +129,14 @@ class TestDownloadNetwork:
     @patch("reasonsforge.hf.urlopen")
     def test_401_raises_auth_error(self, mock_urlopen):
         mock_urlopen.side_effect = HTTPError(
-            "url", 401, "Unauthorized", {}, BytesIO(b""))
+            "url", 401, "Unauthorized", {}, BytesIO(b"")
+        )
         with pytest.raises(RuntimeError, match="Authentication required"):
             download_network("user/private-repo")
 
     @patch("reasonsforge.hf.urlopen")
     def test_404_raises_not_found(self, mock_urlopen):
-        mock_urlopen.side_effect = HTTPError(
-            "url", 404, "Not Found", {}, BytesIO(b""))
+        mock_urlopen.side_effect = HTTPError("url", 404, "Not Found", {}, BytesIO(b""))
         with pytest.raises(RuntimeError, match="not found"):
             download_network("user/missing-repo")
 
@@ -132,11 +145,12 @@ class TestDownloadNetwork:
         mock_urlopen.return_value = _mock_response(SAMPLE_NETWORK)
         download_network("https://huggingface.co/user/repo", token="tok")
         req = mock_urlopen.call_args[0][0]
-        assert req.full_url == "https://huggingface.co/user/repo/resolve/main/network.json"
+        assert (
+            req.full_url == "https://huggingface.co/user/repo/resolve/main/network.json"
+        )
 
 
 class TestImportHfApi:
-
     @patch("reasonsforge.hf.urlopen")
     def test_import_with_init(self, mock_urlopen, tmp_path):
         mock_urlopen.return_value = _mock_response(SAMPLE_NETWORK)
@@ -177,6 +191,7 @@ class TestImportHfApi:
         mock_urlopen.return_value = _mock_response(SAMPLE_NETWORK)
         db = str(tmp_path / "test.db")
         result = api.import_hf(
-            "https://huggingface.co/user/repo", init=True, token="tok", db_path=db)
+            "https://huggingface.co/user/repo", init=True, token="tok", db_path=db
+        )
         assert result["nodes_imported"] == 2
         assert result["repo_id"] == "user/repo"

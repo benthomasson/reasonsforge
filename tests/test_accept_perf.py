@@ -58,12 +58,15 @@ def test_accept_empty_db(tmp_path, count):
     print(f"    total:    {add_elapsed + save_elapsed:.2f}s")
 
 
-@pytest.mark.parametrize("existing,new", [
-    (1000, 1000),
-    (5000, 1000),
-    (10000, 1000),
-    (10000, 5000),
-])
+@pytest.mark.parametrize(
+    "existing,new",
+    [
+        (1000, 1000),
+        (5000, 1000),
+        (10000, 1000),
+        (10000, 5000),
+    ],
+)
 def test_accept_with_existing(tmp_path, existing, new):
     """Measure accept performance with a pre-populated database."""
     db_path = str(tmp_path / "reasons.db")

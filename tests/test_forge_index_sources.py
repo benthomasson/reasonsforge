@@ -24,8 +24,14 @@ def work_dir(tmp_path, monkeypatch):
     return wd
 
 
-def make_args(input_dir, db="rag_fts.db", rebuild=False, recursive=False,
-              chunk_type="source", chunk_size=2000):
+def make_args(
+    input_dir,
+    db="rag_fts.db",
+    rebuild=False,
+    recursive=False,
+    chunk_type="source",
+    chunk_size=2000,
+):
     return types.SimpleNamespace(
         input_dir=str(input_dir),
         db=db,
@@ -37,6 +43,7 @@ def make_args(input_dir, db="rag_fts.db", rebuild=False, recursive=False,
 
 
 # --- _init_db ---
+
 
 def test_init_db_creates_tables(tmp_path):
     db_path = str(tmp_path / "test.db")
@@ -62,6 +69,7 @@ def test_init_db_rebuild_clears_data(tmp_path):
 
 
 # --- cmd_index_sources ---
+
 
 def test_indexes_markdown_files(source_dir, work_dir):
     (source_dir / "doc.md").write_text("# Hello\nSome content about testing.")
@@ -162,7 +170,9 @@ def test_chunk_type_stored(source_dir, work_dir):
 
 
 def test_fts5_search_works(source_dir, work_dir):
-    (source_dir / "doc.md").write_text("# Kubernetes\nPod scheduling and node affinity rules.")
+    (source_dir / "doc.md").write_text(
+        "# Kubernetes\nPod scheduling and node affinity rules."
+    )
     db_path = str(work_dir / "test.db")
     args = make_args(source_dir, db=db_path)
     cmd_index_sources(args)

@@ -197,24 +197,32 @@ def parse_review_response(response):
         for item in items:
             if not isinstance(item, dict) or "id" not in item:
                 continue
-            results.append({
-                "id": item["id"],
-                "valid": item.get("valid", True),
-                "sufficient": item.get("sufficient", True),
-                "necessary": item.get("necessary", True),
-                "unnecessary_antecedents": item.get("unnecessary_antecedents", []),
-                "comment": item.get("comment", ""),
-                "scope_findings": item.get("scope_findings", []),
-                "missing_property": item.get("missing_property", ""),
-                "defeat_reason_type": item.get("defeat_reason_type", ""),
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "valid": item.get("valid", True),
+                    "sufficient": item.get("sufficient", True),
+                    "necessary": item.get("necessary", True),
+                    "unnecessary_antecedents": item.get("unnecessary_antecedents", []),
+                    "comment": item.get("comment", ""),
+                    "scope_findings": item.get("scope_findings", []),
+                    "missing_property": item.get("missing_property", ""),
+                    "defeat_reason_type": item.get("defeat_reason_type", ""),
+                }
+            )
         if results:
             return results
     return []
 
 
-def review_beliefs(nodes, belief_ids=None, model="claude", timeout=300,
-                   batch_size=REVIEW_BATCH_SIZE, on_batch=None):
+def review_beliefs(
+    nodes,
+    belief_ids=None,
+    model="claude",
+    timeout=300,
+    batch_size=REVIEW_BATCH_SIZE,
+    on_batch=None,
+):
     """Review derived beliefs for validity, sufficiency, and necessity.
 
     Args:
@@ -229,14 +237,16 @@ def review_beliefs(nodes, belief_ids=None, model="claude", timeout=300,
     """
     if belief_ids is None:
         belief_ids = [
-            nid for nid, node in sorted(nodes.items())
+            nid
+            for nid, node in sorted(nodes.items())
             if node.get("truth_value") == "IN"
             and node.get("justifications")
             and len(node["justifications"]) > 0
         ]
     else:
         belief_ids = [
-            nid for nid in belief_ids
+            nid
+            for nid in belief_ids
             if nid in nodes
             and nodes[nid].get("justifications")
             and len(nodes[nid]["justifications"]) > 0
@@ -249,10 +259,12 @@ def review_beliefs(nodes, belief_ids=None, model="claude", timeout=300,
     total_batches = (len(belief_ids) + batch_size - 1) // batch_size
 
     for i in range(0, len(belief_ids), batch_size):
-        batch = belief_ids[i:i + batch_size]
+        batch = belief_ids[i : i + batch_size]
         batch_num = i // batch_size + 1
-        print(f"  Reviewing batch {batch_num}/{total_batches} "
-              f"({len(batch)} beliefs)...", file=sys.stderr)
+        print(
+            f"  Reviewing batch {batch_num}/{total_batches} ({len(batch)} beliefs)...",
+            file=sys.stderr,
+        )
 
         beliefs_text = "\n\n".join(
             format_belief_for_review(nid, nodes) for nid in batch

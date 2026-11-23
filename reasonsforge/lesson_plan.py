@@ -12,14 +12,16 @@ from typing import Optional
 
 from .relations import extract_all_relations, Relation
 
-
 ORDERING_RELATIONS = {"requires", "extends"}
 GROUPING_RELATIONS = {"contains", "is-a"}
 MOTIVATION_RELATIONS = {"enables"}
 EXAMPLE_RELATIONS = {"implements"}
 CROSSREF_RELATIONS = {"maps-to"}
 
-def _classify_modules(concepts: set[str], triples: list[tuple[str, Relation]]) -> dict[str, str]:
+
+def _classify_modules(
+    concepts: set[str], triples: list[tuple[str, Relation]]
+) -> dict[str, str]:
     """Classify concepts into modules using the relation graph.
 
     Strategy:
@@ -108,9 +110,16 @@ def build_lesson_plan(nodes: dict) -> dict:
     implements_map: dict[str, list[str]] = defaultdict(list)
     maps_to_map: dict[str, list[str]] = defaultdict(list)
 
-    in_node_ids = {nid for nid, n in nodes.items()
-                   if (n.get("truth_value") if isinstance(n, dict)
-                       else getattr(n, "truth_value", "IN")) == "IN"}
+    in_node_ids = {
+        nid
+        for nid, n in nodes.items()
+        if (
+            n.get("truth_value")
+            if isinstance(n, dict)
+            else getattr(n, "truth_value", "IN")
+        )
+        == "IN"
+    }
 
     def _is_concept(name: str) -> bool:
         """Filter out data points that aren't teachable concepts."""
@@ -230,13 +239,14 @@ def format_lesson_plan_markdown(plan: dict, title: Optional[str] = None) -> str:
     lines.append("")
 
     stats = plan["stats"]
-    lines.append(f"**{stats['total_lessons']} lessons** across "
-                 f"**{stats['total_modules']} modules** from "
-                 f"**{stats['total_relations']} relations**")
+    lines.append(
+        f"**{stats['total_lessons']} lessons** across "
+        f"**{stats['total_modules']} modules** from "
+        f"**{stats['total_relations']} relations**"
+    )
     lines.append("")
 
-    module_sizes = sorted(plan["modules"].items(),
-                          key=lambda x: (-len(x[1]), x[0]))
+    module_sizes = sorted(plan["modules"].items(), key=lambda x: (-len(x[1]), x[0]))
     for module_name, module_lessons in module_sizes:
         _format_module(lines, module_name, module_lessons)
 
@@ -323,16 +333,12 @@ def build_lesson_prompt(
 
     if lesson.get("cross_references"):
         xref_names = [x.replace("-", " ").title() for x in lesson["cross_references"]]
-        parts.append(
-            f"Where relevant, connect to: {', '.join(xref_names)}."
-        )
+        parts.append(f"Where relevant, connect to: {', '.join(xref_names)}.")
         parts.append("")
 
     if lesson.get("examples"):
         ex_names = [e.replace("-", " ").title() for e in lesson["examples"]]
-        parts.append(
-            f"Include concrete examples related to: {', '.join(ex_names)}."
-        )
+        parts.append(f"Include concrete examples related to: {', '.join(ex_names)}.")
         parts.append("")
 
     parts.append(
@@ -379,7 +385,14 @@ def select_beliefs_for_lesson(
             if concept_readable in text_lower:
                 overlap = 0.5
         if overlap > 0:
-            is_relational = any(f"-{r}-" in node_id for r in ORDERING_RELATIONS | MOTIVATION_RELATIONS | EXAMPLE_RELATIONS | CROSSREF_RELATIONS | GROUPING_RELATIONS)
+            is_relational = any(
+                f"-{r}-" in node_id
+                for r in ORDERING_RELATIONS
+                | MOTIVATION_RELATIONS
+                | EXAMPLE_RELATIONS
+                | CROSSREF_RELATIONS
+                | GROUPING_RELATIONS
+            )
             priority = overlap + (0 if is_relational else 0.1)
             scored.append((priority, node_id))
 
@@ -515,12 +528,17 @@ def generate_lesson(
         return None
 
     if survey and lesson.get("subtopics"):
-        prompt = build_survey_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
+        prompt = build_survey_lesson_prompt(
+            lesson, beliefs, domain=domain, completed=completed
+        )
     else:
-        prompt = build_lesson_prompt(lesson, beliefs, domain=domain, completed=completed)
+        prompt = build_lesson_prompt(
+            lesson, beliefs, domain=domain, completed=completed
+        )
 
     if invoke_fn is None:
         from .llm import invoke_model
+
         result = invoke_model(prompt, model=model, timeout=timeout)
     else:
         result = invoke_fn(prompt, model)
@@ -544,15 +562,17 @@ def _parse_lesson_response(content: str) -> dict:
     body_start = 0
     for i, line in enumerate(lines):
         if line.startswith("TITLE:"):
-            title = line[len("TITLE:"):].strip()
+            title = line[len("TITLE:") :].strip()
             body_start = i + 1
             break
 
     body_end = len(lines)
     for i in range(len(lines) - 1, -1, -1):
         if lines[i].startswith("BELIEFS:"):
-            beliefs_str = lines[i][len("BELIEFS:"):].strip()
-            beliefs = [b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()]
+            beliefs_str = lines[i][len("BELIEFS:") :].strip()
+            beliefs = [
+                b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()
+            ]
             body_end = i
             break
 
@@ -584,10 +604,16 @@ def _identify_standalone_lessons(plan: dict) -> tuple[list[dict], list[dict]]:
         for x in l["cross_references"]:
             mentioned_in_crossrefs.add(x)
 
-    connected_concepts = (has_prereqs | is_prereq_of | has_motivation |
-                          has_examples | has_crossrefs |
-                          mentioned_in_motivation | mentioned_in_examples |
-                          mentioned_in_crossrefs)
+    connected_concepts = (
+        has_prereqs
+        | is_prereq_of
+        | has_motivation
+        | has_examples
+        | has_crossrefs
+        | mentioned_in_motivation
+        | mentioned_in_examples
+        | mentioned_in_crossrefs
+    )
 
     standalone = []
     connected = []
@@ -622,7 +648,8 @@ def _parse_consolidation_response(content: str) -> list[dict]:
     """Parse LLM response into list of groups."""
     import json as _json
     import re
-    match = re.search(r'\[.*\]', content, re.DOTALL)
+
+    match = re.search(r"\[.*\]", content, re.DOTALL)
     if not match:
         return []
     try:
@@ -658,24 +685,29 @@ def consolidate_lessons(
 
     if invoke_fn is None:
         from .llm import invoke_model
-        invoke_fn = lambda prompt, model: invoke_model(prompt, model=model, timeout=timeout)
+
+        invoke_fn = lambda prompt, model: invoke_model(
+            prompt, model=model, timeout=timeout
+        )
 
     all_groups: list[dict] = []
     standalone_concepts = [l["concept"] for l in standalone]
 
     for i in range(0, len(standalone_concepts), batch_size):
-        batch = standalone_concepts[i:i + batch_size]
+        batch = standalone_concepts[i : i + batch_size]
         prompt = _build_consolidation_prompt(batch, batch_num=i // batch_size + 1)
         response = invoke_fn(prompt, model)
         groups = _parse_consolidation_response(response)
         if groups:
             all_groups.extend(groups)
         else:
-            all_groups.append({
-                "title": "Ungrouped",
-                "concepts": batch,
-                "rationale": "LLM grouping failed for this batch",
-            })
+            all_groups.append(
+                {
+                    "title": "Ungrouped",
+                    "concepts": batch,
+                    "rationale": "LLM grouping failed for this batch",
+                }
+            )
 
     standalone_by_concept = {l["concept"]: l for l in standalone}
 
@@ -683,11 +715,13 @@ def consolidate_lessons(
     lesson_num = 1
 
     for lesson in connected:
-        consolidated_lessons.append({
-            **lesson,
-            "number": lesson_num,
-            "subtopics": [],
-        })
+        consolidated_lessons.append(
+            {
+                **lesson,
+                "number": lesson_num,
+                "subtopics": [],
+            }
+        )
         lesson_num += 1
 
     for group in all_groups:
@@ -699,17 +733,19 @@ def consolidate_lessons(
         if not subtopics:
             continue
 
-        consolidated_lessons.append({
-            "number": lesson_num,
-            "concept": group["title"].lower().replace(" ", "-"),
-            "module": "consolidated",
-            "prerequisites": [],
-            "motivation": group.get("rationale"),
-            "examples": [],
-            "cross_references": [],
-            "subtopics": [s["concept"] for s in subtopics],
-            "title": group["title"],
-        })
+        consolidated_lessons.append(
+            {
+                "number": lesson_num,
+                "concept": group["title"].lower().replace(" ", "-"),
+                "module": "consolidated",
+                "prerequisites": [],
+                "motivation": group.get("rationale"),
+                "examples": [],
+                "cross_references": [],
+                "subtopics": [s["concept"] for s in subtopics],
+                "title": group["title"],
+            }
+        )
         lesson_num += 1
 
     modules: dict[str, list[dict]] = defaultdict(list)
@@ -748,8 +784,7 @@ def format_consolidated_markdown(plan: dict, title: Optional[str] = None) -> str
     lines.append(summary)
     lines.append("")
 
-    module_sizes = sorted(plan["modules"].items(),
-                          key=lambda x: (-len(x[1]), x[0]))
+    module_sizes = sorted(plan["modules"].items(), key=lambda x: (-len(x[1]), x[0]))
     for module_name, module_lessons in module_sizes:
         display = module_name.replace("-", " ").title()
         lines.append(f"## {display}")
@@ -757,10 +792,14 @@ def format_consolidated_markdown(plan: dict, title: Optional[str] = None) -> str
         lines.append("")
 
         for lesson in module_lessons:
-            concept_display = lesson.get("title", lesson["concept"].replace("-", " ").title())
+            concept_display = lesson.get(
+                "title", lesson["concept"].replace("-", " ").title()
+            )
             lines.append(f"### Lesson {lesson['number']}: {concept_display}")
             if lesson.get("prerequisites"):
-                lines.append(f"- **Prerequisites**: {', '.join(lesson['prerequisites'])}")
+                lines.append(
+                    f"- **Prerequisites**: {', '.join(lesson['prerequisites'])}"
+                )
             if lesson.get("motivation"):
                 lines.append(f"- **Motivation**: {lesson['motivation']}")
             if lesson.get("subtopics"):
@@ -801,7 +840,8 @@ def _parse_survey_response(content: str) -> list[dict]:
     """Parse LLM response into ordered list of survey groups."""
     import json as _json
     import re
-    match = re.search(r'\[.*\]', content, re.DOTALL)
+
+    match = re.search(r"\[.*\]", content, re.DOTALL)
     if not match:
         return []
     try:
@@ -834,39 +874,46 @@ def survey_lessons(
 
     if invoke_fn is None:
         from .llm import invoke_model
-        invoke_fn = lambda prompt, model: invoke_model(prompt, model=model, timeout=timeout)
+
+        invoke_fn = lambda prompt, model: invoke_model(
+            prompt, model=model, timeout=timeout
+        )
 
     all_concepts = [l["concept"] for l in plan["lessons"]]
     all_groups: list[dict] = []
 
     for i in range(0, len(all_concepts), batch_size):
-        batch = all_concepts[i:i + batch_size]
+        batch = all_concepts[i : i + batch_size]
         prompt = _build_survey_prompt(batch, target_lessons=target_lessons)
         response = invoke_fn(prompt, model)
         groups = _parse_survey_response(response)
         if groups:
             all_groups.extend(groups)
         else:
-            all_groups.append({
-                "title": "Survey",
-                "concepts": batch,
-                "summary": "LLM grouping failed",
-                "order": 1,
-            })
+            all_groups.append(
+                {
+                    "title": "Survey",
+                    "concepts": batch,
+                    "summary": "LLM grouping failed",
+                    "order": 1,
+                }
+            )
 
     lessons = []
     for i, group in enumerate(all_groups, 1):
-        lessons.append({
-            "number": i,
-            "concept": group["title"].lower().replace(" ", "-"),
-            "module": "survey",
-            "prerequisites": [],
-            "motivation": group.get("summary"),
-            "examples": [],
-            "cross_references": [],
-            "subtopics": group["concepts"],
-            "title": group["title"],
-        })
+        lessons.append(
+            {
+                "number": i,
+                "concept": group["title"].lower().replace(" ", "-"),
+                "module": "survey",
+                "prerequisites": [],
+                "motivation": group.get("summary"),
+                "examples": [],
+                "cross_references": [],
+                "subtopics": group["concepts"],
+                "title": group["title"],
+            }
+        )
 
     stats = {
         "total_lessons": len(lessons),

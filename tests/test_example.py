@@ -11,14 +11,17 @@ from reasonsforge import api
 
 def run_cli(*args, db_path=None):
     from reasonsforge.cli import main
+
     argv = ["reasons"]
     if db_path:
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
             code = 0
@@ -43,8 +46,9 @@ class TestAddNodeExample:
 
     def test_add_example_with_access_tags(self, tmp_path):
         db = str(tmp_path / "test.db")
-        api.add_node("n1", "Node one", example="print('hi')",
-                     access_tags=["tag1"], db_path=db)
+        api.add_node(
+            "n1", "Node one", example="print('hi')", access_tags=["tag1"], db_path=db
+        )
         node = api.show_node("n1", db_path=db)
         assert node["metadata"]["example"] == "print('hi')"
         assert node["metadata"]["access_tags"] == ["tag1"]
@@ -87,7 +91,11 @@ class TestCmdAddExample:
     def test_cli_add_with_example(self, tmp_path):
         db = str(tmp_path / "test.db")
         stdout, stderr, code = run_cli(
-            "add", "n1", "A belief", "--example", "reasons add n1 'A belief'",
+            "add",
+            "n1",
+            "A belief",
+            "--example",
+            "reasons add n1 'A belief'",
             db_path=db,
         )
         assert code == 0

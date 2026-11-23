@@ -30,9 +30,11 @@ def _count_beliefs():
     """Count active beliefs in the database."""
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=REASONS_DB)
-        return sum(1 for n in network.get("nodes", {}).values()
-                   if n.get("truth_value") == "IN")
+        return sum(
+            1 for n in network.get("nodes", {}).values() if n.get("truth_value") == "IN"
+        )
     except Exception:
         return 0
 
@@ -41,7 +43,7 @@ def _count_proposals(filepath):
     """Count [ACCEPT] markers in a proposals file."""
     try:
         text = Path(filepath).read_text()
-        return len(re.findall(r'### \[?ACCEPT\]?', text))
+        return len(re.findall(r"### \[?ACCEPT\]?", text))
     except Exception:
         return 0
 
@@ -59,7 +61,9 @@ def cmd_update(args):
     output_file = getattr(args, "proposals_output", "proposed-beliefs.md")
 
     project_dir = _get_project_dir(args)
-    report = Report("diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=project_dir)
+    report = Report(
+        "diary-update", ["propose-beliefs", "accept-beliefs"], project_dir=project_dir
+    )
 
     if not Path(input_dir).exists():
         print(f"No {input_dir}/ directory found. Write some entries first.")
@@ -138,12 +142,14 @@ def cmd_update(args):
         report.fail(str(e))
         raise
 
-    report.complete(summary={
-        "entries": len(entries),
-        "proposed": _count_proposals(output_file),
-        "accepted": _count_beliefs() - before_count,
-        "total_beliefs": _count_beliefs(),
-    })
+    report.complete(
+        summary={
+            "entries": len(entries),
+            "proposed": _count_proposals(output_file),
+            "accepted": _count_beliefs() - before_count,
+            "total_beliefs": _count_beliefs(),
+        }
+    )
 
 
 def cmd_accept(args):
@@ -159,6 +165,7 @@ def cmd_accept(args):
 def cmd_status(args):
     """Show diary forge status."""
     from ..propose import _load_processed
+
     input_dir = getattr(args, "input_dir", "entries")
     input_path = Path(input_dir)
 
@@ -171,6 +178,7 @@ def cmd_status(args):
     processed = _load_processed(processed_path)
 
     from ..propose import _rel_key
+
     processed_count = sum(1 for e in entries if _rel_key(e) in processed)
     unprocessed = len(entries) - processed_count
 
@@ -179,9 +187,11 @@ def cmd_status(args):
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network
+
             network = export_network(db_path=db_path)
             belief_count = sum(
-                1 for n in network.get("nodes", {}).values()
+                1
+                for n in network.get("nodes", {}).values()
                 if n.get("truth_value") == "IN"
             )
         except Exception:
@@ -194,4 +204,6 @@ def cmd_status(args):
     print(f"  Unprocessed:       {unprocessed}")
     print(f"  Active beliefs:    {belief_count}")
     if unprocessed:
-        print(f"\nRun 'reasonsforge forge diary update' to process {unprocessed} new entries.")
+        print(
+            f"\nRun 'reasonsforge forge diary update' to process {unprocessed} new entries."
+        )

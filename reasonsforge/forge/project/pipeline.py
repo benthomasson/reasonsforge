@@ -54,7 +54,9 @@ def _run_step(name, func, args, errors):
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"{name} exited with code {e.code}")
-            print(f"WARN: {name} failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: {name} failed (exit {e.code}), continuing...", file=sys.stderr
+            )
     except Exception as e:
         errors.append(f"{name}: {e}")
         print(f"WARN: {name} failed: {e}, continuing...", file=sys.stderr)
@@ -66,6 +68,7 @@ def cmd_analyze(args):
     Pipeline: init -> scan -> explore -> propose -> review -> accept -> derive
     """
     from ..caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     errors = []
@@ -92,13 +95,19 @@ def cmd_analyze(args):
     explore_args.pick = None
     explore_args.parallel = getattr(args, "parallel", 1)
     with step_log(logs_dir, "project-analyze", "explore"):
-        print(f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n", file=sys.stderr)
+        print(
+            f"\n=== Step 3: Explore (up to {explore_limit} topics) ===\n",
+            file=sys.stderr,
+        )
         try:
             cmd_explore(explore_args)
         except SystemExit as e:
             if e.code and e.code != 0:
                 errors.append(f"explore exited with code {e.code}")
-                print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
+                print(
+                    f"WARN: explore failed (exit {e.code}), continuing...",
+                    file=sys.stderr,
+                )
         except Exception as e:
             errors.append(f"explore: {e}")
             print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
@@ -106,6 +115,7 @@ def cmd_analyze(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         pre_run_ids = set(network.get("nodes", {}).keys())
     except Exception:
@@ -127,6 +137,7 @@ def cmd_analyze(args):
     _write_step_cost_report(args, "project-analyze", "review-proposals")
 
     from .commands import cmd_accept_beliefs
+
     with step_log(logs_dir, "project-analyze", "accept"):
         _run_step("Step 6: Accept beliefs", cmd_accept_beliefs, args, errors)
     _write_step_cost_report(args, "project-analyze", "accept")
@@ -143,6 +154,7 @@ def cmd_analyze(args):
 
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         post_run_ids = set(network.get("nodes", {}).keys())
     except Exception:
@@ -164,11 +176,17 @@ def cmd_analyze(args):
     print(f"Analyze checkpoint saved to {checkpoint_path}", file=sys.stderr)
 
     print("\n=== Analysis complete ===\n", file=sys.stderr)
-    print(f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
-          f"(+{len(post_run_ids - pre_run_ids)})", file=sys.stderr)
+    print(
+        f"Beliefs: {len(pre_run_ids)} → {len(post_run_ids)} "
+        f"(+{len(post_run_ids - pre_run_ids)})",
+        file=sys.stderr,
+    )
     remaining = pending_count(project_dir)
     if remaining:
-        print(f"Topics remaining: {remaining} (use explore --loop to continue)", file=sys.stderr)
+        print(
+            f"Topics remaining: {remaining} (use explore --loop to continue)",
+            file=sys.stderr,
+        )
     if errors:
         print(f"Completed with {len(errors)} warning(s):", file=sys.stderr)
         for err in errors:

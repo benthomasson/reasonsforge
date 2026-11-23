@@ -6,7 +6,6 @@ from reasonsforge.compact import compact, estimate_tokens
 
 
 class TestEstimateTokens:
-
     def test_uses_char_count_not_word_count(self):
         text = "a longish sentence with several words in it here"
         assert estimate_tokens(text) == len(text) // 4
@@ -22,7 +21,6 @@ class TestEstimateTokens:
 
 
 class TestCompact:
-
     def test_empty_network(self):
         net = Network()
         result = compact(net)
@@ -115,9 +113,11 @@ class TestCompact:
         net = Network()
         net.add_node("root", "Root premise")
         net.add_node("leaf", "Leaf node")
-        net.add_node("dep", "Depends on root", justifications=[
-            Justification(type="SL", antecedents=["root"])
-        ])
+        net.add_node(
+            "dep",
+            "Depends on root",
+            justifications=[Justification(type="SL", antecedents=["root"])],
+        )
         result = compact(net, budget=5000)
         # root has 1 dependent (dep), leaf has 0
         root_pos = result.index("root:")
@@ -127,21 +127,27 @@ class TestCompact:
     def test_shows_dependencies(self):
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"])
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[Justification(type="SL", antecedents=["a"])],
+        )
         result = compact(net, budget=5000)
         assert "<- a" in result
 
     def test_shows_dependent_count(self):
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"])
-        ])
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a"])
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[Justification(type="SL", antecedents=["a"])],
+        )
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[Justification(type="SL", antecedents=["a"])],
+        )
         result = compact(net, budget=5000)
         assert "(2 dependents)" in result
 

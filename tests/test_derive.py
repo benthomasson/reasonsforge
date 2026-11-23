@@ -36,8 +36,13 @@ def simple_network(db):
     api.add_node("fact-a", "Alpha is true", db_path=db)
     api.add_node("fact-b", "Beta is true", db_path=db)
     api.add_node("fact-c", "Gamma is a bug", db_path=db)
-    api.add_node("derived-ab", "Alpha and Beta combined",
-                 sl="fact-a,fact-b", label="test", db_path=db)
+    api.add_node(
+        "derived-ab",
+        "Alpha and Beta combined",
+        sl="fact-a,fact-b",
+        label="test",
+        db_path=db,
+    )
     return db
 
 
@@ -46,17 +51,29 @@ def agent_network(db):
     """A network with two imported agents."""
     # Simulate agent imports by adding namespaced nodes
     api.add_node("agent-a:active", "Agent A is trusted", db_path=db)
-    api.add_node("agent-a:knows-auth", "Agent A knows about auth",
-                 sl="agent-a:active", label="imported from agent: agent-a",
-                 db_path=db)
-    api.add_node("agent-a:knows-routing", "Agent A knows about routing",
-                 sl="agent-a:active", label="imported from agent: agent-a",
-                 db_path=db)
+    api.add_node(
+        "agent-a:knows-auth",
+        "Agent A knows about auth",
+        sl="agent-a:active",
+        label="imported from agent: agent-a",
+        db_path=db,
+    )
+    api.add_node(
+        "agent-a:knows-routing",
+        "Agent A knows about routing",
+        sl="agent-a:active",
+        label="imported from agent: agent-a",
+        db_path=db,
+    )
 
     api.add_node("agent-b:active", "Agent B is trusted", db_path=db)
-    api.add_node("agent-b:knows-gateway", "Agent B knows about the gateway",
-                 sl="agent-b:active", label="imported from agent: agent-b",
-                 db_path=db)
+    api.add_node(
+        "agent-b:knows-gateway",
+        "Agent B knows about the gateway",
+        sl="agent-b:active",
+        label="imported from agent: agent-b",
+        db_path=db,
+    )
     return db
 
 
@@ -144,8 +161,12 @@ def test_build_prompt_max_depth(simple_network):
 
 def test_build_prompt_depth_range(db):
     api.add_node("zz-premise-node", "A premise", db_path=db)
-    api.add_node("zz-mid-node", "Middle derived", sl="zz-premise-node", label="test", db_path=db)
-    api.add_node("zz-top-node", "Top derived", sl="zz-mid-node", label="test", db_path=db)
+    api.add_node(
+        "zz-mid-node", "Middle derived", sl="zz-premise-node", label="test", db_path=db
+    )
+    api.add_node(
+        "zz-top-node", "Top derived", sl="zz-mid-node", label="test", db_path=db
+    )
 
     data = api.export_network(db_path=db)
     _, stats = build_prompt(data["nodes"], min_depth=1, max_depth_filter=1)
@@ -279,17 +300,32 @@ Production readiness is cross-validated
     assert len(proposals) == 1
     p = proposals[0]
     assert p["id"] == "cross-validated-readiness"
-    assert p["antecedents"] == ["product:production-readiness", "code:full-stack-reliability"]
+    assert p["antecedents"] == [
+        "product:production-readiness",
+        "code:full-stack-reliability",
+    ]
     assert p["unless"] == ["blocker:critical-bug"]
 
 
 def test_validate_proposals_missing_antecedent():
     nodes = {"fact-a": {}, "fact-b": {}}
     proposals = [
-        {"id": "new-1", "antecedents": ["fact-a", "fact-b"], "unless": [],
-         "text": "ok", "kind": "derive", "label": "test"},
-        {"id": "new-2", "antecedents": ["fact-a", "nonexistent"], "unless": [],
-         "text": "bad", "kind": "derive", "label": "test"},
+        {
+            "id": "new-1",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "text": "ok",
+            "kind": "derive",
+            "label": "test",
+        },
+        {
+            "id": "new-2",
+            "antecedents": ["fact-a", "nonexistent"],
+            "unless": [],
+            "text": "bad",
+            "kind": "derive",
+            "label": "test",
+        },
     ]
     valid, skipped = validate_proposals(proposals, nodes)
     assert len(valid) == 1
@@ -301,8 +337,14 @@ def test_validate_proposals_missing_antecedent():
 def test_validate_proposals_already_exists():
     nodes = {"fact-a": {}, "fact-b": {}, "existing": {}}
     proposals = [
-        {"id": "existing", "antecedents": ["fact-a", "fact-b"], "unless": [],
-         "text": "dup", "kind": "derive", "label": "test"},
+        {
+            "id": "existing",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "text": "dup",
+            "kind": "derive",
+            "label": "test",
+        },
     ]
     valid, skipped = validate_proposals(proposals, nodes)
     assert len(valid) == 0
@@ -311,9 +353,14 @@ def test_validate_proposals_already_exists():
 
 def test_apply_proposals(simple_network):
     proposals = [
-        {"id": "new-derived", "text": "New conclusion from a and c",
-         "antecedents": ["fact-a", "fact-c"], "unless": [],
-         "kind": "derive", "label": "test apply"},
+        {
+            "id": "new-derived",
+            "text": "New conclusion from a and c",
+            "antecedents": ["fact-a", "fact-c"],
+            "unless": [],
+            "kind": "derive",
+            "label": "test apply",
+        },
     ]
     results = apply_proposals(proposals, db_path=simple_network)
     assert len(results) == 1
@@ -329,9 +376,14 @@ def test_apply_proposals(simple_network):
 
 def test_apply_proposals_with_gate(simple_network):
     proposals = [
-        {"id": "gated-belief", "text": "A is good unless C is true",
-         "antecedents": ["fact-a"], "unless": ["fact-c"],
-         "kind": "gate", "label": "test gate"},
+        {
+            "id": "gated-belief",
+            "text": "A is good unless C is true",
+            "antecedents": ["fact-a"],
+            "unless": ["fact-c"],
+            "kind": "gate",
+            "label": "test gate",
+        },
     ]
     results = apply_proposals(proposals, db_path=simple_network)
     p, result = results[0]
@@ -346,9 +398,15 @@ def test_apply_proposals_with_gate(simple_network):
 
 def test_apply_proposals_any_mode(simple_network):
     proposals = [
-        {"id": "any-derived", "text": "Supported by either a or c",
-         "antecedents": ["fact-a", "fact-c"], "unless": [],
-         "kind": "derive", "label": "convergent", "mode": "any"},
+        {
+            "id": "any-derived",
+            "text": "Supported by either a or c",
+            "antecedents": ["fact-a", "fact-c"],
+            "unless": [],
+            "kind": "derive",
+            "label": "convergent",
+            "mode": "any",
+        },
     ]
     results = apply_proposals(proposals, db_path=simple_network)
     p, result = results[0]
@@ -364,6 +422,7 @@ def test_apply_proposals_any_mode(simple_network):
 
 
 # --- Topic filter tests ---
+
 
 def test_filter_by_topic():
     nodes = {
@@ -417,6 +476,7 @@ def test_build_prompt_with_topic(agent_network):
 
 # --- Budget tests ---
 
+
 def test_build_prompt_with_budget(simple_network):
     data = api.export_network(db_path=simple_network)
     prompt_small, stats_small = build_prompt(data["nodes"], budget=2)
@@ -464,6 +524,7 @@ def test_build_derived_section_under_cap():
 
 # --- Sampling tests ---
 
+
 def test_sample_beliefs_under_budget():
     ids = ["a", "b", "c"]
     result = _sample_beliefs(ids, budget=10)
@@ -479,6 +540,7 @@ def test_sample_beliefs_over_budget():
 
 def test_sample_beliefs_reproducible():
     import random
+
     ids = [f"belief-{i}" for i in range(100)]
     r1 = _sample_beliefs(ids, budget=10, rng=random.Random(42))
     r2 = _sample_beliefs(ids, budget=10, rng=random.Random(42))
@@ -495,6 +557,7 @@ def test_build_prompt_with_sample(agent_network):
 
 
 # --- Accept (write + re-parse round-trip) tests ---
+
 
 def test_parse_proposals_old_format():
     """Parse the v0.9 format with backtick IDs and bold field names."""
@@ -537,12 +600,24 @@ Feature X is production-ready
 def test_write_proposals_file_roundtrip(tmp_path):
     """Proposals file can be parsed back by parse_proposals."""
     proposals = [
-        {"id": "derived-1", "text": "First conclusion", "kind": "derive",
-         "antecedents": ["fact-a", "fact-b"], "unless": [], "label": "test",
-         "mode": "all"},
-        {"id": "gated-1", "text": "Gated conclusion", "kind": "gate",
-         "antecedents": ["fact-a"], "unless": ["fact-c"], "label": "test gate",
-         "mode": "any"},
+        {
+            "id": "derived-1",
+            "text": "First conclusion",
+            "kind": "derive",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "label": "test",
+            "mode": "all",
+        },
+        {
+            "id": "gated-1",
+            "text": "Gated conclusion",
+            "kind": "gate",
+            "antecedents": ["fact-a"],
+            "unless": ["fact-c"],
+            "label": "test gate",
+            "mode": "any",
+        },
     ]
     out = tmp_path / "proposals.md"
     write_proposals_file(proposals, out)
@@ -561,9 +636,14 @@ def test_write_proposals_file_roundtrip(tmp_path):
 def test_accept_applies_proposals(simple_network, tmp_path):
     """Full accept flow: write proposals, parse, apply."""
     proposals = [
-        {"id": "accepted-belief", "text": "Accepted from file",
-         "antecedents": ["fact-a", "fact-b"], "unless": [],
-         "kind": "derive", "label": "accepted"},
+        {
+            "id": "accepted-belief",
+            "text": "Accepted from file",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "kind": "derive",
+            "label": "accepted",
+        },
     ]
     out = tmp_path / "proposals.md"
     write_proposals_file(proposals, out)
@@ -586,15 +666,22 @@ def test_accept_applies_proposals(simple_network, tmp_path):
 
 # --- Duplicate detection tests ---
 
+
 def test_tokenize_id():
     assert _tokenize_id("gl108-response-validation-disabled") == {
-        "gl108", "response", "validation", "disabled",
+        "gl108",
+        "response",
+        "validation",
+        "disabled",
     }
 
 
 def test_tokenize_id_with_namespace():
     assert _tokenize_id("agent-a:gl108-disabled") == {
-        "agent", "a", "gl108", "disabled",
+        "agent",
+        "a",
+        "gl108",
+        "disabled",
     }
 
 
@@ -617,7 +704,8 @@ def test_jaccard_empty():
 def test_find_similar_out_catches_variant_ids():
     nodes = {
         "gl108-safety-validation-disabled": {
-            "truth_value": "OUT", "text": "GL-108 safety validation is disabled",
+            "truth_value": "OUT",
+            "text": "GL-108 safety validation is disabled",
         },
         "fact-a": {"truth_value": "IN", "text": "Alpha"},
     }
@@ -630,7 +718,8 @@ def test_find_similar_out_catches_variant_ids():
 def test_find_similar_out_ignores_in_beliefs():
     nodes = {
         "gl108-safety-validation-disabled": {
-            "truth_value": "IN", "text": "GL-108 safety validation is disabled",
+            "truth_value": "IN",
+            "text": "GL-108 safety validation is disabled",
         },
     }
     matches = find_similar_out("gl108-response-validation-disabled", nodes)
@@ -640,7 +729,8 @@ def test_find_similar_out_ignores_in_beliefs():
 def test_find_similar_out_no_match():
     nodes = {
         "unrelated-network-config": {
-            "truth_value": "OUT", "text": "Network config is old",
+            "truth_value": "OUT",
+            "text": "Network config is old",
         },
     }
     matches = find_similar_out("gl108-response-validation-disabled", nodes)
@@ -658,10 +748,14 @@ def test_validate_proposals_skips_similar_to_retracted():
         },
     }
     proposals = [
-        {"id": "gl108-response-validation-disabled",
-         "antecedents": ["fact-a", "fact-b"], "unless": [],
-         "text": "GL-108 response validation is disabled",
-         "kind": "derive", "label": "test"},
+        {
+            "id": "gl108-response-validation-disabled",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "text": "GL-108 response validation is disabled",
+            "kind": "derive",
+            "label": "test",
+        },
     ]
     valid, skipped = validate_proposals(proposals, nodes)
     assert len(valid) == 0
@@ -681,10 +775,14 @@ def test_validate_proposals_allows_unrelated():
         },
     }
     proposals = [
-        {"id": "auth-token-rotation-needed",
-         "antecedents": ["fact-a", "fact-b"], "unless": [],
-         "text": "Auth tokens need rotation",
-         "kind": "derive", "label": "test"},
+        {
+            "id": "auth-token-rotation-needed",
+            "antecedents": ["fact-a", "fact-b"],
+            "unless": [],
+            "text": "Auth tokens need rotation",
+            "kind": "derive",
+            "label": "test",
+        },
     ]
     valid, skipped = validate_proposals(proposals, nodes)
     assert len(valid) == 1
@@ -693,10 +791,19 @@ def test_validate_proposals_allows_unrelated():
 
 # --- Deduplicate tests ---
 
+
 def test_deduplicate_finds_clusters(db):
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
-    api.add_node("gl108-response-validation-disabled", "GL-108 response validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
+    api.add_node(
+        "gl108-response-validation-disabled",
+        "GL-108 response validation disabled",
+        db_path=db,
+    )
     api.add_node("unrelated-auth-config", "Auth config is fine", db_path=db)
 
     result = api.deduplicate(db_path=db)
@@ -716,8 +823,16 @@ def test_deduplicate_no_clusters(db):
 
 def test_deduplicate_auto_retracts(db):
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
-    api.add_node("gl108-response-validation-disabled", "GL-108 response validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
+    api.add_node(
+        "gl108-response-validation-disabled",
+        "GL-108 response validation disabled",
+        db_path=db,
+    )
 
     result = api.deduplicate(auto=True, db_path=db)
     assert len(result["clusters"]) == 1
@@ -733,15 +848,34 @@ def test_deduplicate_auto_retracts(db):
 def test_deduplicate_rewrites_dependents(db):
     """Derived beliefs that depended on a retracted duplicate survive via rewrite."""
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
     # Give the first node 2 dependents so it's kept (most dependents wins)
-    api.add_node("other-derived", "Other conclusion",
-                 sl="gl108-validation-disabled", label="filler", db_path=db)
-    api.add_node("another-derived", "Another conclusion",
-                 sl="gl108-validation-disabled", label="filler", db_path=db)
+    api.add_node(
+        "other-derived",
+        "Other conclusion",
+        sl="gl108-validation-disabled",
+        label="filler",
+        db_path=db,
+    )
+    api.add_node(
+        "another-derived",
+        "Another conclusion",
+        sl="gl108-validation-disabled",
+        label="filler",
+        db_path=db,
+    )
     # This derived belief depends on the node that will be RETRACTED
-    api.add_node("safety-pipeline-broken", "Safety pipeline is broken",
-                 sl="gl108-safety-validation-disabled", label="derived", db_path=db)
+    api.add_node(
+        "safety-pipeline-broken",
+        "Safety pipeline is broken",
+        sl="gl108-safety-validation-disabled",
+        label="derived",
+        db_path=db,
+    )
 
     result = api.deduplicate(auto=True, db_path=db)
     kept = result["clusters"][0]["kept"]
@@ -753,21 +887,43 @@ def test_deduplicate_rewrites_dependents(db):
     assert node["truth_value"] == "IN"
     # Its justification should now point at the kept belief, not the retracted one
     assert kept in node["justifications"][0]["antecedents"]
-    assert "gl108-safety-validation-disabled" not in node["justifications"][0]["antecedents"]
+    assert (
+        "gl108-safety-validation-disabled"
+        not in node["justifications"][0]["antecedents"]
+    )
 
 
 def test_deduplicate_rewrites_outlist(db):
     """Outlist references to retracted duplicates are rewritten."""
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
     # Give the first node 2 dependents so it's kept
-    api.add_node("other-derived", "Other conclusion",
-                 sl="gl108-validation-disabled", label="filler", db_path=db)
-    api.add_node("another-derived", "Another conclusion",
-                 sl="gl108-validation-disabled", label="filler", db_path=db)
+    api.add_node(
+        "other-derived",
+        "Other conclusion",
+        sl="gl108-validation-disabled",
+        label="filler",
+        db_path=db,
+    )
+    api.add_node(
+        "another-derived",
+        "Another conclusion",
+        sl="gl108-validation-disabled",
+        label="filler",
+        db_path=db,
+    )
     # Gated belief: IN unless the retracted duplicate is IN
-    api.add_node("safe-to-deploy", "Safe to deploy",
-                 unless="gl108-safety-validation-disabled", label="gated", db_path=db)
+    api.add_node(
+        "safe-to-deploy",
+        "Safe to deploy",
+        unless="gl108-safety-validation-disabled",
+        label="gated",
+        db_path=db,
+    )
 
     result = api.deduplicate(auto=True, db_path=db)
     kept = result["clusters"][0]["kept"]
@@ -776,18 +932,29 @@ def test_deduplicate_rewrites_outlist(db):
     # The gated belief's outlist should now reference the kept belief
     node = api.show_node("safe-to-deploy", db_path=db)
     assert kept in node["justifications"][0]["outlist"]
-    assert "gl108-safety-validation-disabled" not in node["justifications"][0]["outlist"]
+    assert (
+        "gl108-safety-validation-disabled" not in node["justifications"][0]["outlist"]
+    )
 
 
 # --- Dedup plan workflow tests ---
+
 
 def test_write_and_parse_dedup_plan(tmp_path):
     """Plan file round-trips through write and parse."""
     clusters = [
         {
             "beliefs": [
-                {"id": "gl108-validation-disabled", "text": "GL-108 validation disabled", "dependents": 2},
-                {"id": "gl108-safety-validation-disabled", "text": "GL-108 safety validation disabled", "dependents": 0},
+                {
+                    "id": "gl108-validation-disabled",
+                    "text": "GL-108 validation disabled",
+                    "dependents": 2,
+                },
+                {
+                    "id": "gl108-safety-validation-disabled",
+                    "text": "GL-108 safety validation disabled",
+                    "dependents": 0,
+                },
             ],
             "size": 2,
             "kept": "gl108-validation-disabled",
@@ -806,7 +973,11 @@ def test_write_and_parse_dedup_plan(tmp_path):
 def test_dedup_plan_end_to_end(db, tmp_path):
     """Full workflow: deduplicate(auto=False) -> write plan -> parse -> apply."""
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
 
     # Step 1: find clusters (no auto)
     result = api.deduplicate(auto=False, db_path=db)
@@ -834,15 +1005,32 @@ def test_dedup_plan_end_to_end(db, tmp_path):
 def test_apply_dedup_plan(db):
     """Apply a dedup plan: rewrites justifications and retracts."""
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
     # Derived belief depends on the one that will be retracted
-    api.add_node("other-dep", "Filler", sl="gl108-validation-disabled", label="f", db_path=db)
-    api.add_node("another-dep", "Filler 2", sl="gl108-validation-disabled", label="f", db_path=db)
-    api.add_node("safety-broken", "Safety broken",
-                 sl="gl108-safety-validation-disabled", label="d", db_path=db)
+    api.add_node(
+        "other-dep", "Filler", sl="gl108-validation-disabled", label="f", db_path=db
+    )
+    api.add_node(
+        "another-dep", "Filler 2", sl="gl108-validation-disabled", label="f", db_path=db
+    )
+    api.add_node(
+        "safety-broken",
+        "Safety broken",
+        sl="gl108-safety-validation-disabled",
+        label="d",
+        db_path=db,
+    )
 
-    plan = [{"keep": "gl108-validation-disabled",
-             "retract": ["gl108-safety-validation-disabled"]}]
+    plan = [
+        {
+            "keep": "gl108-validation-disabled",
+            "retract": ["gl108-safety-validation-disabled"],
+        }
+    ]
     result = api.apply_dedup_plan(plan, db_path=db)
     assert result["retracted"] == ["gl108-safety-validation-disabled"]
     assert result["errors"] == []
@@ -865,11 +1053,19 @@ def test_apply_dedup_plan_missing_node(db):
 def test_dedup_plan_user_can_edit_kept(db):
     """User can change which belief is KEEP in the plan."""
     api.add_node("gl108-validation-disabled", "GL-108 validation disabled", db_path=db)
-    api.add_node("gl108-safety-validation-disabled", "GL-108 safety validation disabled", db_path=db)
+    api.add_node(
+        "gl108-safety-validation-disabled",
+        "GL-108 safety validation disabled",
+        db_path=db,
+    )
 
     # User edits the plan to keep the other one
-    plan = [{"keep": "gl108-safety-validation-disabled",
-             "retract": ["gl108-validation-disabled"]}]
+    plan = [
+        {
+            "keep": "gl108-safety-validation-disabled",
+            "retract": ["gl108-validation-disabled"],
+        }
+    ]
     result = api.apply_dedup_plan(plan, db_path=db)
     assert result["retracted"] == ["gl108-validation-disabled"]
 
@@ -895,9 +1091,11 @@ def _run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -922,18 +1120,26 @@ def _mock_derive_response(proposals):
 
 def test_derive_report_written(simple_network, tmp_path):
     report_dir = str(tmp_path / "reports")
-    mock_result = _mock_derive_response([
-        {"id": "new-belief", "text": "A new derived belief",
-         "antecedents": ["fact-a", "fact-b"]},
-    ])
-    with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-         patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+    mock_result = _mock_derive_response(
+        [
+            {
+                "id": "new-belief",
+                "text": "A new derived belief",
+                "antecedents": ["fact-a", "fact-b"],
+            },
+        ]
+    )
+    with (
+        patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+        patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+    ):
         stdout, stderr, code = _run_cli(
-            "derive", "--auto", "--report-dir", report_dir,
-            db_path=simple_network)
+            "derive", "--auto", "--report-dir", report_dir, db_path=simple_network
+        )
 
     assert code == 0
     import os
+
     reports = [f for f in os.listdir(report_dir) if f.startswith("derive-")]
     assert len(reports) == 1
 
@@ -949,19 +1155,28 @@ def test_derive_report_written(simple_network, tmp_path):
 
 def test_derive_no_report_flag(simple_network, tmp_path):
     report_dir = str(tmp_path / "reports")
-    mock_result = _mock_derive_response([
-        {"id": "new-belief-2", "text": "Another belief",
-         "antecedents": ["fact-a"]},
-    ])
-    with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-         patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+    mock_result = _mock_derive_response(
+        [
+            {"id": "new-belief-2", "text": "Another belief", "antecedents": ["fact-a"]},
+        ]
+    )
+    with (
+        patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+        patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+    ):
         stdout, stderr, code = _run_cli(
-            "derive", "--auto", "--no-report", "--report-dir", report_dir,
-            db_path=simple_network)
+            "derive",
+            "--auto",
+            "--no-report",
+            "--report-dir",
+            report_dir,
+            db_path=simple_network,
+        )
 
     assert code == 0
     assert "Report:" not in stdout
     import os
+
     assert not os.path.exists(report_dir)
 
 
@@ -972,21 +1187,31 @@ def test_derive_exhaust_report_has_rounds(simple_network, tmp_path):
     def mock_run(*a, **kw):
         call_count[0] += 1
         if call_count[0] == 1:
-            return _mock_derive_response([
-                {"id": "round1-belief", "text": "From round 1",
-                 "antecedents": ["fact-a"]},
-            ])
+            return _mock_derive_response(
+                [
+                    {
+                        "id": "round1-belief",
+                        "text": "From round 1",
+                        "antecedents": ["fact-a"],
+                    },
+                ]
+            )
         # Second round: no proposals (saturated)
-        return type("R", (), {"returncode": 0, "stdout": "No proposals.", "stderr": ""})()
+        return type(
+            "R", (), {"returncode": 0, "stdout": "No proposals.", "stderr": ""}
+        )()
 
-    with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-         patch("reasonsforge.llm.subprocess.run", side_effect=mock_run):
+    with (
+        patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+        patch("reasonsforge.llm.subprocess.run", side_effect=mock_run),
+    ):
         stdout, stderr, code = _run_cli(
-            "derive", "--exhaust", "--report-dir", report_dir,
-            db_path=simple_network)
+            "derive", "--exhaust", "--report-dir", report_dir, db_path=simple_network
+        )
 
     assert code == 0
     import os
+
     reports = [f for f in os.listdir(report_dir) if f.startswith("derive-")]
     assert len(reports) == 1
 
@@ -1007,8 +1232,7 @@ except ImportError:
     HAS_CLUSTER_DEPS = False
 
 skip_no_cluster = pytest.mark.skipif(
-    not HAS_CLUSTER_DEPS,
-    reason="sentence-transformers and scikit-learn not installed"
+    not HAS_CLUSTER_DEPS, reason="sentence-transformers and scikit-learn not installed"
 )
 
 
@@ -1046,6 +1270,7 @@ def test_build_prompt_with_intra_cluster(simple_network):
 @skip_no_cluster
 def test_intra_cluster_rotation():
     from reasonsforge.cluster import cluster_beliefs_intra
+
     beliefs = {f"b-{i}": f"Belief about topic {i % 3}" for i in range(30)}
     ids_r0, stats_r0 = cluster_beliefs_intra(beliefs, budget=5, round_num=0, seed=42)
     ids_r1, stats_r1 = cluster_beliefs_intra(beliefs, budget=5, round_num=1, seed=42)
@@ -1112,7 +1337,11 @@ class TestFilterBySourcePath:
 
     def test_matches_metadata_source_file(self):
         nodes = {
-            "n1": {"text": "a", "status": "IN", "metadata": {"source_file": "src/auth/z.py"}},
+            "n1": {
+                "text": "a",
+                "status": "IN",
+                "metadata": {"source_file": "src/auth/z.py"},
+            },
             "n2": {"text": "b", "status": "IN", "metadata": {}},
         }
         result = _filter_by_source_path(nodes, "src/auth")
@@ -1155,18 +1384,21 @@ class TestFilterBySourcePath:
 
 class TestBuildPromptSourcePath:
     def test_source_path_filters_beliefs(self, db):
-        api.add_node("src/auth/login", "login flow", db_path=db,
-                     source="src/auth/login.py")
-        api.add_node("src/db/pool", "connection pool", db_path=db,
-                     source="src/db/pool.py")
+        api.add_node(
+            "src/auth/login", "login flow", db_path=db, source="src/auth/login.py"
+        )
+        api.add_node(
+            "src/db/pool", "connection pool", db_path=db, source="src/db/pool.py"
+        )
         data = api.export_network(db_path=db)
         prompt, stats = build_prompt(data["nodes"], source_path="src/auth")
         assert "login flow" in prompt
         assert "connection pool" not in prompt
 
     def test_source_path_context_line(self, db):
-        api.add_node("src/auth/login", "login flow", db_path=db,
-                     source="src/auth/login.py")
+        api.add_node(
+            "src/auth/login", "login flow", db_path=db, source="src/auth/login.py"
+        )
         data = api.export_network(db_path=db)
         prompt, _stats = build_prompt(data["nodes"], source_path="src/auth")
         assert "Filtered to beliefs from source path: src/auth" in prompt

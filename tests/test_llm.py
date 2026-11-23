@@ -22,21 +22,46 @@ from reasonsforge.llm import (
 
 
 class TestResolveModelCmd:
-
     def test_resolve_claude(self):
-        assert resolve_model_cmd("claude") == ["claude", "-p", "--output-format", "json"]
+        assert resolve_model_cmd("claude") == [
+            "claude",
+            "-p",
+            "--output-format",
+            "json",
+        ]
 
     def test_resolve_gemini(self):
-        assert resolve_model_cmd("gemini") == ["gemini", "--skip-trust", "-o", "json", "-p", ""]
+        assert resolve_model_cmd("gemini") == [
+            "gemini",
+            "--skip-trust",
+            "-o",
+            "json",
+            "-p",
+            "",
+        ]
 
     def test_resolve_gemini_submodel(self):
         assert resolve_model_cmd("gemini:gemini-2.5-flash") == [
-            "gemini", "--skip-trust", "-m", "gemini-2.5-flash", "-o", "json", "-p", ""
+            "gemini",
+            "--skip-trust",
+            "-m",
+            "gemini-2.5-flash",
+            "-o",
+            "json",
+            "-p",
+            "",
         ]
 
     def test_resolve_gemini_submodel_short(self):
         assert resolve_model_cmd("gemini:flash") == [
-            "gemini", "--skip-trust", "-m", "flash", "-o", "json", "-p", ""
+            "gemini",
+            "--skip-trust",
+            "-m",
+            "flash",
+            "-o",
+            "json",
+            "-p",
+            "",
         ]
 
     def test_resolve_ollama_raises(self):
@@ -44,10 +69,24 @@ class TestResolveModelCmd:
             resolve_model_cmd("ollama:gemma3:4b")
 
     def test_resolve_claude_submodel(self):
-        assert resolve_model_cmd("claude:sonnet") == ["claude", "-p", "--model", "sonnet", "--output-format", "json"]
+        assert resolve_model_cmd("claude:sonnet") == [
+            "claude",
+            "-p",
+            "--model",
+            "sonnet",
+            "--output-format",
+            "json",
+        ]
 
     def test_resolve_claude_submodel_full_name(self):
-        assert resolve_model_cmd("claude:claude-sonnet-4-6") == ["claude", "-p", "--model", "claude-sonnet-4-6", "--output-format", "json"]
+        assert resolve_model_cmd("claude:claude-sonnet-4-6") == [
+            "claude",
+            "-p",
+            "--model",
+            "claude-sonnet-4-6",
+            "--output-format",
+            "json",
+        ]
 
     def test_resolve_unknown_raises(self):
         with pytest.raises(ValueError, match="Unknown model"):
@@ -55,17 +94,24 @@ class TestResolveModelCmd:
 
 
 class TestInvokeModel:
-
     def test_missing_binary_raises(self):
         with patch("reasonsforge.llm.shutil.which", return_value=None):
             with pytest.raises(FileNotFoundError, match="not found in PATH"):
                 invoke_model("hello", model="claude")
 
     def test_invokes_subprocess(self):
-        json_out = json.dumps({"result": "response", "usage": {}, "total_cost_usd": 0.0})
-        mock_result = type("Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
+        json_out = json.dumps(
+            {"result": "response", "usage": {}, "total_cost_usd": 0.0}
+        )
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
             result = invoke_model("hello", model="claude", timeout=60)
             assert result == "response"
             mock_run.assert_called_once()
@@ -75,14 +121,20 @@ class TestInvokeModel:
             assert args[1]["timeout"] == 60
 
     def test_nonzero_exit_raises(self):
-        mock_result = type("Result", (), {"returncode": 1, "stdout": "", "stderr": "error msg"})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        mock_result = type(
+            "Result", (), {"returncode": 1, "stdout": "", "stderr": "error msg"}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             with pytest.raises(RuntimeError, match="claude failed"):
                 invoke_model("hello", model="claude")
 
     def test_ollama_uses_http_api(self):
-        with patch("reasonsforge.llm._invoke_ollama", return_value="ollama response") as mock:
+        with patch(
+            "reasonsforge.llm._invoke_ollama", return_value="ollama response"
+        ) as mock:
             result = invoke_model("hello", model="ollama:gemma3:4b")
             assert result == "ollama response"
             mock.assert_called_once_with("hello", "ollama:gemma3:4b", 300)
@@ -90,18 +142,28 @@ class TestInvokeModel:
     def test_claude_does_not_strip_thinking(self):
         output = "Thinking...\nsome reasoning\n...done thinking.\nAnswer."
         json_out = json.dumps({"result": output, "usage": {}, "total_cost_usd": 0.0})
-        mock_result = type("Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             result = invoke_model("hello", model="claude")
             assert result == output
 
     def test_strips_claudecode_env(self):
         json_out = json.dumps({"result": "ok", "usage": {}, "total_cost_usd": 0.0})
-        mock_result = type("Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run, \
-             patch.dict("os.environ", {"CLAUDECODE": "1", "HOME": "/home/test"}):
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+            patch.dict("os.environ", {"CLAUDECODE": "1", "HOME": "/home/test"}),
+        ):
             invoke_model("hello", model="claude")
             env = mock_run.call_args[1]["env"]
             assert "CLAUDECODE" not in env
@@ -109,7 +171,6 @@ class TestInvokeModel:
 
 
 class TestResolveModelCmdApiModels:
-
     def test_api_prefix_not_in_resolve(self):
         with pytest.raises(ValueError, match="Unknown model"):
             resolve_model_cmd("api:claude-sonnet-4-20250514")
@@ -126,7 +187,6 @@ class TestResolveModelCmdApiModels:
 
 
 class TestInvokeModelApiDispatch:
-
     def test_api_prefix_dispatches(self):
         with patch("reasonsforge.llm._invoke_api", return_value="api response") as mock:
             result = invoke_model("hello", model="api:claude-sonnet-4-20250514")
@@ -134,36 +194,51 @@ class TestInvokeModelApiDispatch:
             mock.assert_called_once_with("hello", "api:claude-sonnet-4-20250514", 300)
 
     def test_vertex_prefix_dispatches(self):
-        with patch("reasonsforge.llm._invoke_api", return_value="vertex response") as mock:
-            result = invoke_model("hello", model="vertex:claude-sonnet-4-20250514", timeout=60)
+        with patch(
+            "reasonsforge.llm._invoke_api", return_value="vertex response"
+        ) as mock:
+            result = invoke_model(
+                "hello", model="vertex:claude-sonnet-4-20250514", timeout=60
+            )
             assert result == "vertex response"
             mock.assert_called_once_with("hello", "vertex:claude-sonnet-4-20250514", 60)
 
     def test_claude_still_uses_subprocess(self):
-        json_out = json.dumps({"result": "cli response", "usage": {}, "total_cost_usd": 0.0})
-        mock_result = type("Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""})()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        json_out = json.dumps(
+            {"result": "cli response", "usage": {}, "total_cost_usd": 0.0}
+        )
+        mock_result = type(
+            "Result", (), {"returncode": 0, "stdout": json_out, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             result = invoke_model("hello", model="claude")
             assert result == "cli response"
 
 
 class TestInvokeApi:
-
     def test_api_invokes_chat_anthropic(self):
         mock_response = MagicMock()
         mock_response.content = "test response"
         mock_model = MagicMock()
         mock_model.invoke.return_value = mock_response
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True), \
-             patch.object(llm_module, "ChatAnthropic", return_value=mock_model) as MockChat, \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", None):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True),
+            patch.object(
+                llm_module, "ChatAnthropic", return_value=mock_model
+            ) as MockChat,
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", None),
+        ):
             result = _invoke_api("hello", "api:claude-sonnet-4-20250514", timeout=120)
 
         assert result == "test response"
-        MockChat.assert_called_once_with(model="claude-sonnet-4-20250514", timeout=120.0)
+        MockChat.assert_called_once_with(
+            model="claude-sonnet-4-20250514", timeout=120.0
+        )
         mock_model.invoke.assert_called_once_with("hello", config={})
 
     def test_vertex_invokes_chat_anthropic_vertex(self):
@@ -172,17 +247,25 @@ class TestInvokeApi:
         mock_model = MagicMock()
         mock_model.invoke.return_value = mock_response
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True), \
-             patch.object(llm_module, "ChatAnthropicVertex", return_value=mock_model) as MockChat, \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", None), \
-             patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "my-proj", "GOOGLE_CLOUD_REGION": "us-west1"}):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True),
+            patch.object(
+                llm_module, "ChatAnthropicVertex", return_value=mock_model
+            ) as MockChat,
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", None),
+            patch.dict(
+                "os.environ",
+                {"GOOGLE_CLOUD_PROJECT": "my-proj", "GOOGLE_CLOUD_REGION": "us-west1"},
+            ),
+        ):
             result = _invoke_api("hello", "vertex:claude-sonnet-4-20250514", timeout=60)
 
         assert result == "vertex response"
         MockChat.assert_called_once_with(
             model_name="claude-sonnet-4-20250514",
-            project="my-proj", location="us-west1",
+            project="my-proj",
+            location="us-west1",
             request_timeout=60.0,
         )
 
@@ -192,11 +275,15 @@ class TestInvokeApi:
         mock_model = MagicMock()
         mock_model.invoke.return_value = mock_response
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True), \
-             patch.object(llm_module, "ChatAnthropicVertex", return_value=mock_model) as MockChat, \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", None), \
-             patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "my-proj"}, clear=False):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True),
+            patch.object(
+                llm_module, "ChatAnthropicVertex", return_value=mock_model
+            ) as MockChat,
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", None),
+            patch.dict("os.environ", {"GOOGLE_CLOUD_PROJECT": "my-proj"}, clear=False),
+        ):
             os_env = dict(**os.environ)
             os_env.pop("GOOGLE_CLOUD_REGION", None)
             with patch.dict("os.environ", os_env, clear=True):
@@ -215,8 +302,10 @@ class TestInvokeApi:
                 _invoke_api("hello", "vertex:claude-sonnet-4-20250514")
 
     def test_vertex_missing_project_raises(self):
-        with patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True), \
-             patch.dict("os.environ", {}, clear=True):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_VERTEX", True),
+            patch.dict("os.environ", {}, clear=True),
+        ):
             with pytest.raises(RuntimeError, match="GOOGLE_CLOUD_PROJECT"):
                 _invoke_api("hello", "vertex:claude-sonnet-4-20250514")
 
@@ -224,10 +313,12 @@ class TestInvokeApi:
         mock_model = MagicMock()
         mock_model.invoke.side_effect = Exception("Request timed out timeout")
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True), \
-             patch.object(llm_module, "ChatAnthropic", return_value=mock_model), \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", None):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True),
+            patch.object(llm_module, "ChatAnthropic", return_value=mock_model),
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", None),
+        ):
             with pytest.raises(subprocess.TimeoutExpired):
                 _invoke_api("hello", "api:claude-sonnet-4-20250514", timeout=30)
 
@@ -235,11 +326,15 @@ class TestInvokeApi:
         mock_model = MagicMock()
         mock_model.invoke.side_effect = Exception("Authentication failed")
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True), \
-             patch.object(llm_module, "ChatAnthropic", return_value=mock_model), \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", None):
-            with pytest.raises(RuntimeError, match="api:claude-sonnet-4-20250514 failed"):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True),
+            patch.object(llm_module, "ChatAnthropic", return_value=mock_model),
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", None),
+        ):
+            with pytest.raises(
+                RuntimeError, match="api:claude-sonnet-4-20250514 failed"
+            ):
                 _invoke_api("hello", "api:claude-sonnet-4-20250514")
 
     def test_unknown_prefix_raises(self):
@@ -248,7 +343,6 @@ class TestInvokeApi:
 
 
 class TestLangfuseHandler:
-
     def setup_method(self):
         llm_module._langfuse_handler = None
         llm_module._langfuse_checked = False
@@ -259,29 +353,41 @@ class TestLangfuseHandler:
 
     def test_handler_created_when_env_set(self):
         mock_handler = MagicMock()
-        with patch.object(llm_module, "_HAS_LANGFUSE", True), \
-             patch.object(llm_module, "LangfuseCallbackHandler", return_value=mock_handler), \
-             patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}):
+        with (
+            patch.object(llm_module, "_HAS_LANGFUSE", True),
+            patch.object(
+                llm_module, "LangfuseCallbackHandler", return_value=mock_handler
+            ),
+            patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}),
+        ):
             result = _get_langfuse_handler()
             assert result is mock_handler
 
     def test_handler_none_when_env_missing(self):
-        with patch.object(llm_module, "_HAS_LANGFUSE", True), \
-             patch.dict("os.environ", {}, clear=True):
+        with (
+            patch.object(llm_module, "_HAS_LANGFUSE", True),
+            patch.dict("os.environ", {}, clear=True),
+        ):
             result = _get_langfuse_handler()
             assert result is None
 
     def test_handler_none_when_dep_missing(self):
-        with patch.object(llm_module, "_HAS_LANGFUSE", False), \
-             patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}):
+        with (
+            patch.object(llm_module, "_HAS_LANGFUSE", False),
+            patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}),
+        ):
             result = _get_langfuse_handler()
             assert result is None
 
     def test_handler_singleton(self):
         mock_handler = MagicMock()
-        with patch.object(llm_module, "_HAS_LANGFUSE", True), \
-             patch.object(llm_module, "LangfuseCallbackHandler", return_value=mock_handler) as MockCB, \
-             patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}):
+        with (
+            patch.object(llm_module, "_HAS_LANGFUSE", True),
+            patch.object(
+                llm_module, "LangfuseCallbackHandler", return_value=mock_handler
+            ) as MockCB,
+            patch.dict("os.environ", {"LANGFUSE_PUBLIC_KEY": "pk-test"}),
+        ):
             first = _get_langfuse_handler()
             second = _get_langfuse_handler()
             assert first is second
@@ -294,10 +400,12 @@ class TestLangfuseHandler:
         mock_model = MagicMock()
         mock_model.invoke.return_value = mock_response
 
-        with patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True), \
-             patch.object(llm_module, "ChatAnthropic", return_value=mock_model), \
-             patch.object(llm_module, "_langfuse_checked", True), \
-             patch.object(llm_module, "_langfuse_handler", mock_handler):
+        with (
+            patch.object(llm_module, "_HAS_LANGCHAIN_ANTHROPIC", True),
+            patch.object(llm_module, "ChatAnthropic", return_value=mock_model),
+            patch.object(llm_module, "_langfuse_checked", True),
+            patch.object(llm_module, "_langfuse_handler", mock_handler),
+        ):
             result = _invoke_api("hello", "api:claude-sonnet-4-20250514")
 
         assert result == "traced response"
@@ -306,7 +414,6 @@ class TestLangfuseHandler:
 
 
 class TestParseCliJson:
-
     def test_claude_json(self):
         data = {
             "result": "The answer is 42.",
@@ -344,9 +451,7 @@ class TestParseCliJson:
             "response": "Gemini says hi.",
             "stats": {
                 "models": {
-                    "gemini-2.5-flash": {
-                        "tokens": {"input": 80, "candidates": 40}
-                    }
+                    "gemini-2.5-flash": {"tokens": {"input": 80, "candidates": 40}}
                 }
             },
         }
@@ -390,7 +495,6 @@ class TestParseCliJson:
 
 
 class TestCostTracker:
-
     def setup_method(self):
         reset_cost_tracker()
 

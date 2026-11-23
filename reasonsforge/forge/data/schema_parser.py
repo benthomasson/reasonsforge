@@ -68,9 +68,7 @@ _CREATE_TABLE_RE = re.compile(
 )
 
 _COLUMN_RE = re.compile(
-    r"^\s*[`\"']?(\w+)[`\"']?\s+"
-    r"(\w+(?:\([^)]*\))?)"
-    r"(.*?)$",
+    r"^\s*[`\"']?(\w+)[`\"']?\s+" r"(\w+(?:\([^)]*\))?)" r"(.*?)$",
     re.IGNORECASE,
 )
 
@@ -200,7 +198,7 @@ def _split_create_tables(sql: str) -> list[tuple[str, str]]:
             elif sql[i] == ")":
                 depth -= 1
             i += 1
-        body = sql[start:i - 1]
+        body = sql[start : i - 1]
         results.append((table_name, body))
     return results
 
@@ -215,7 +213,8 @@ def _extract_paren_list(text: str) -> list[str]:
 def _parse_fk_constraint(line: str) -> ForeignKey | None:
     m = re.search(
         r"FOREIGN\s+KEY\s*\(([^)]+)\)\s*REFERENCES\s+[`\"']?(\w+)[`\"']?\s*\(([^)]+)\)",
-        line, re.IGNORECASE,
+        line,
+        re.IGNORECASE,
     )
     if not m:
         return None
@@ -257,14 +256,15 @@ def parse_csv(path: str | Path, source: str | None = None) -> Schema:
     for col_idx, header in enumerate(headers):
         col_type = _infer_csv_type(sample_rows, col_idx)
         has_nulls = any(
-            col_idx >= len(row) or row[col_idx].strip() == ""
-            for row in sample_rows
+            col_idx >= len(row) or row[col_idx].strip() == "" for row in sample_rows
         )
-        columns.append(Column(
-            name=header.strip(),
-            type=col_type,
-            nullable=has_nulls,
-        ))
+        columns.append(
+            Column(
+                name=header.strip(),
+                type=col_type,
+                nullable=has_nulls,
+            )
+        )
 
     table_name = path.stem.replace("-", "_").replace(" ", "_")
     table = Table(name=table_name, columns=columns)
@@ -305,8 +305,10 @@ def parse_parquet(path: str | Path, source: str | None = None) -> Schema:
     try:
         import pyarrow.parquet as pq
     except ImportError:
-        print("pyarrow is required for Parquet support: pip install pyarrow",
-              file=sys.stderr)
+        print(
+            "pyarrow is required for Parquet support: pip install pyarrow",
+            file=sys.stderr,
+        )
         raise
 
     path = Path(path)
@@ -317,11 +319,13 @@ def parse_parquet(path: str | Path, source: str | None = None) -> Schema:
     columns = []
     for i in range(len(arrow_schema)):
         field = arrow_schema.field(i)
-        columns.append(Column(
-            name=field.name,
-            type=str(field.type),
-            nullable=field.nullable,
-        ))
+        columns.append(
+            Column(
+                name=field.name,
+                type=str(field.type),
+                nullable=field.nullable,
+            )
+        )
 
     table_name = path.stem.replace("-", "_").replace(" ", "_")
     table = Table(name=table_name, columns=columns)
@@ -338,12 +342,16 @@ def introspect_database(connection_url: str, source: str | None = None) -> Schem
     try:
         from sqlalchemy import create_engine, inspect
     except ImportError:
-        print("sqlalchemy is required for database introspection: pip install sqlalchemy",
-              file=sys.stderr)
+        print(
+            "sqlalchemy is required for database introspection: pip install sqlalchemy",
+            file=sys.stderr,
+        )
         raise
 
     if source is None:
-        source = connection_url.split("@")[-1] if "@" in connection_url else connection_url
+        source = (
+            connection_url.split("@")[-1] if "@" in connection_url else connection_url
+        )
     engine = create_engine(connection_url)
     inspector = inspect(engine)
 
@@ -353,13 +361,15 @@ def introspect_database(connection_url: str, source: str | None = None) -> Schem
         table = Table(name=table_name)
 
         for col in inspector.get_columns(table_name):
-            table.columns.append(Column(
-                name=col["name"],
-                type=str(col["type"]),
-                nullable=col.get("nullable", True),
-                default=str(col["default"]) if col.get("default") else None,
-                comment=col.get("comment"),
-            ))
+            table.columns.append(
+                Column(
+                    name=col["name"],
+                    type=str(col["type"]),
+                    nullable=col.get("nullable", True),
+                    default=str(col["default"]) if col.get("default") else None,
+                    comment=col.get("comment"),
+                )
+            )
 
         pk = inspector.get_pk_constraint(table_name)
         if pk and pk.get("constrained_columns"):
@@ -369,11 +379,13 @@ def introspect_database(connection_url: str, source: str | None = None) -> Schem
                     col.primary_key = True
 
         for fk in inspector.get_foreign_keys(table_name):
-            table.foreign_keys.append(ForeignKey(
-                columns=fk["constrained_columns"],
-                ref_table=fk["referred_table"],
-                ref_columns=fk["referred_columns"],
-            ))
+            table.foreign_keys.append(
+                ForeignKey(
+                    columns=fk["constrained_columns"],
+                    ref_table=fk["referred_table"],
+                    ref_columns=fk["referred_columns"],
+                )
+            )
 
         for uc in inspector.get_unique_constraints(table_name):
             table.unique_constraints.append(uc["column_names"])

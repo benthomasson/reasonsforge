@@ -22,6 +22,7 @@ import urllib.error
 
 try:
     from langchain_anthropic import ChatAnthropic
+
     _HAS_LANGCHAIN_ANTHROPIC = True
 except ImportError:
     ChatAnthropic = None
@@ -29,6 +30,7 @@ except ImportError:
 
 try:
     from langchain_google_vertexai.model_garden import ChatAnthropicVertex
+
     _HAS_LANGCHAIN_VERTEX = True
 except ImportError:
     ChatAnthropicVertex = None
@@ -36,6 +38,7 @@ except ImportError:
 
 try:
     from langfuse.langchain import CallbackHandler as LangfuseCallbackHandler
+
     _HAS_LANGFUSE = True
 except ImportError:
     LangfuseCallbackHandler = None
@@ -43,6 +46,7 @@ except ImportError:
 
 try:
     import openai as _openai_mod
+
     _HAS_OPENAI = True
 except ImportError:
     _openai_mod = None
@@ -83,6 +87,7 @@ def reset_cost_tracker():
 def get_cost_summary() -> dict:
     """Return accumulated cost/token stats across all LLM calls."""
     import copy
+
     with _cost_lock:
         return copy.deepcopy(_cost_tracker)
 
@@ -96,7 +101,9 @@ def format_cost_summary() -> str:
         parts = []
         if s["total_cost_usd"] > 0:
             parts.append(f"${s['total_cost_usd']:.4f}")
-        parts.append(f"{s['input_tokens']:,} input + {s['output_tokens']:,} output tokens")
+        parts.append(
+            f"{s['input_tokens']:,} input + {s['output_tokens']:,} output tokens"
+        )
         parts.append(f"{s['calls']} call(s)")
         if s["elapsed_seconds"] > 0:
             parts.append(f"{s['elapsed_seconds']:.1f}s")
@@ -113,8 +120,11 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
 
         if model not in _cost_tracker["by_model"]:
             _cost_tracker["by_model"][model] = {
-                "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "total_cost_usd": 0.0, "elapsed_seconds": 0.0,
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_cost_usd": 0.0,
+                "elapsed_seconds": 0.0,
             }
         m = _cost_tracker["by_model"][model]
         m["calls"] += 1
@@ -132,11 +142,13 @@ def _invoke_ollama(prompt: str, model: str, timeout: int = 300) -> str:
     """Invoke an Ollama model via the HTTP API."""
     ollama_model = model.split(":", 1)[1]
     url = f"{_ollama_base_url()}/api/generate"
-    payload = json.dumps({
-        "model": ollama_model,
-        "prompt": prompt,
-        "stream": False,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": ollama_model,
+            "prompt": prompt,
+            "stream": False,
+        }
+    ).encode()
     req = urllib.request.Request(
         url,
         data=payload,
@@ -171,8 +183,15 @@ def _invoke_cursor(prompt: str, model: str, timeout: int = 300) -> str:
             "Install from: https://docs.cursor.com/agent"
         )
     cmd = [
-        binary, "--print", "--output-format", "json",
-        "--trust", "--mode", "ask", "--model", cursor_model,
+        binary,
+        "--print",
+        "--output-format",
+        "json",
+        "--trust",
+        "--mode",
+        "ask",
+        "--model",
+        cursor_model,
     ]
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     result = subprocess.run(
@@ -224,7 +243,11 @@ def _parse_cli_json(output: str, model: str) -> str:
 
     text = data.get("result", output)
     usage = data.get("usage", {})
-    input_tokens = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
+    input_tokens = (
+        usage.get("input_tokens", 0)
+        + usage.get("cache_creation_input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
+    )
     output_tokens = usage.get("output_tokens", 0)
     cost_usd = data.get("total_cost_usd", 0.0)
     _record_cost(model, input_tokens, output_tokens, cost_usd)
@@ -269,11 +292,15 @@ def resolve_model_cmd(model: str) -> list[str]:
         raise ValueError(f"OpenAI models use the API directly: {model}")
     if model.startswith("cursor:"):
         raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
-    available = (
-        list(MODEL_COMMANDS)
-        + ["claude:<model>", "gemini:<model>", "ollama:<model>",
-           "openai:<model>", "cursor:<model>", "api:<model>", "vertex:<model>"]
-    )
+    available = list(MODEL_COMMANDS) + [
+        "claude:<model>",
+        "gemini:<model>",
+        "ollama:<model>",
+        "openai:<model>",
+        "cursor:<model>",
+        "api:<model>",
+        "vertex:<model>",
+    ]
     raise ValueError(f"Unknown model: {model}. Available: {available}")
 
 
@@ -302,7 +329,9 @@ def _invoke_api(prompt: str, model: str, timeout: int = 300) -> str:
             )
         location = os.environ.get("GOOGLE_CLOUD_REGION", "us-east5")
         llm = ChatAnthropicVertex(
-            model_name=name, project=project, location=location,
+            model_name=name,
+            project=project,
+            location=location,
             request_timeout=float(timeout),
         )
     else:
@@ -363,6 +392,7 @@ def invoke_model(prompt: str, model: str = "claude", timeout: int = 300) -> str:
     Raises subprocess.TimeoutExpired on timeout.
     """
     import time
+
     t0 = time.monotonic()
     try:
         if model.startswith("api:") or model.startswith("vertex:"):

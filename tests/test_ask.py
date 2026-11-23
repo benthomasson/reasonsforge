@@ -9,8 +9,14 @@ from unittest.mock import patch
 import pytest
 
 from reasonsforge.ask import (
-    extract_tool_call, build_ask_prompt, build_final_prompt, build_simple_prompt,
-    ask, _invoke_claude, _strip_belief_metadata, _search_source_chunks,
+    extract_tool_call,
+    build_ask_prompt,
+    build_final_prompt,
+    build_simple_prompt,
+    ask,
+    _invoke_claude,
+    _strip_belief_metadata,
+    _search_source_chunks,
     NO_BELIEFS_MSG,
 )
 from reasonsforge.cli import main
@@ -27,9 +33,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -38,7 +46,6 @@ def run_cli(*args, db_path=None):
 
 
 class TestExtractToolCall:
-
     def test_valid_tool_call(self):
         text = 'Some preamble text\n{"tool": "search_beliefs", "query": "propagation"}\nMore text'
         result = extract_tool_call(text)
@@ -75,7 +82,6 @@ class TestExtractToolCall:
 
 
 class TestBuildAskPrompt:
-
     def test_contains_question_and_context(self):
         prompt = build_ask_prompt("What is BFS?", "Some belief context")
         assert "What is BFS?" in prompt
@@ -87,8 +93,14 @@ class TestBuildAskPrompt:
 
     def test_with_tool_history(self):
         history = [
-            {"tool_label": 'search_beliefs("propagation")', "result": "Found: propagation-is-bfs"},
-            {"tool_label": 'search_beliefs("retraction")', "result": "Found: retraction-cascades"},
+            {
+                "tool_label": 'search_beliefs("propagation")',
+                "result": "Found: propagation-is-bfs",
+            },
+            {
+                "tool_label": 'search_beliefs("retraction")',
+                "result": "Found: retraction-cascades",
+            },
         ]
         prompt = build_ask_prompt("question", "context", tool_history=history)
         assert "Additional search results" in prompt
@@ -109,10 +121,11 @@ class TestBuildAskPrompt:
 
 
 class TestAskNoSynth:
-
     def test_no_synth_defaults_to_compact(self, db_path):
         run_cli("init", db_path=db_path)
-        run_cli("add", "prop-bfs", "Propagation uses breadth-first search", db_path=db_path)
+        run_cli(
+            "add", "prop-bfs", "Propagation uses breadth-first search", db_path=db_path
+        )
 
         result = ask("propagation", db_path=db_path, no_synth=True)
         assert "[IN] prop-bfs" in result
@@ -144,31 +157,43 @@ class TestAskNoSynth:
 
 
 class TestCmdAskNoSynth:
-
     def test_cli_ask_no_synth_compact(self, db_path):
         run_cli("init", db_path=db_path)
-        run_cli("add", "test-belief", "The system uses BFS for propagation", db_path=db_path)
-        out, err, code = run_cli("ask", "BFS propagation", "--no-synth", db_path=db_path)
+        run_cli(
+            "add", "test-belief", "The system uses BFS for propagation", db_path=db_path
+        )
+        out, err, code = run_cli(
+            "ask", "BFS propagation", "--no-synth", db_path=db_path
+        )
         assert code == 0
         assert "[IN] test-belief" in out
 
     def test_cli_ask_no_synth_markdown(self, db_path):
         run_cli("init", db_path=db_path)
-        run_cli("add", "test-belief", "The system uses BFS for propagation", db_path=db_path)
-        out, err, code = run_cli("ask", "BFS propagation", "--no-synth",
-                                 "--format", "markdown", db_path=db_path)
+        run_cli(
+            "add", "test-belief", "The system uses BFS for propagation", db_path=db_path
+        )
+        out, err, code = run_cli(
+            "ask",
+            "BFS propagation",
+            "--no-synth",
+            "--format",
+            "markdown",
+            db_path=db_path,
+        )
         assert code == 0
         assert "test-belief" in out
 
     def test_cli_ask_no_synth_no_results(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("ask", "nothing matches", "--no-synth", db_path=db_path)
+        out, err, code = run_cli(
+            "ask", "nothing matches", "--no-synth", db_path=db_path
+        )
         assert code == 0
         assert "No results" in out
 
 
 class TestInvokeClaude:
-
     def test_claude_not_in_path(self):
         with patch("reasonsforge.llm.shutil.which", return_value=None):
             with pytest.raises(FileNotFoundError, match="claude"):
@@ -176,7 +201,6 @@ class TestInvokeClaude:
 
 
 class TestAskNoBeliefs:
-
     def test_empty_network_llm_declines(self, db_path):
         run_cli("init", db_path=db_path)
         refusal = "I don't have enough beliefs in the network to answer this question."
@@ -194,15 +218,18 @@ class TestAskNoBeliefs:
 
     def test_timeout_on_empty_returns_no_beliefs_message(self, db_path):
         run_cli("init", db_path=db_path)
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=subprocess.TimeoutExpired("claude", 300)):
+        with patch(
+            "reasonsforge.ask.invoke_model",
+            side_effect=subprocess.TimeoutExpired("claude", 300),
+        ):
             result = ask("nothing matches", db_path=db_path)
         assert result == NO_BELIEFS_MSG
 
     def test_error_on_empty_returns_no_beliefs_message(self, db_path):
         run_cli("init", db_path=db_path)
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=RuntimeError("claude crashed")):
+        with patch(
+            "reasonsforge.ask.invoke_model", side_effect=RuntimeError("claude crashed")
+        ):
             result = ask("nothing matches", db_path=db_path)
         assert result == NO_BELIEFS_MSG
 
@@ -242,12 +269,13 @@ class TestAskNoBeliefs:
 
 
 class TestAskWithMockedLLM:
-
     def test_direct_answer(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model", return_value="The answer is alpha."):
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="The answer is alpha."
+        ):
             result = ask("what is alpha?", db_path=db_path)
         assert result == "The answer is alpha."
 
@@ -294,8 +322,10 @@ class TestAskWithMockedLLM:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=subprocess.TimeoutExpired("claude", 300)):
+        with patch(
+            "reasonsforge.ask.invoke_model",
+            side_effect=subprocess.TimeoutExpired("claude", 300),
+        ):
             result = ask("alpha", db_path=db_path)
         assert "a" in result
 
@@ -303,8 +333,9 @@ class TestAskWithMockedLLM:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=RuntimeError("claude crashed")):
+        with patch(
+            "reasonsforge.ask.invoke_model", side_effect=RuntimeError("claude crashed")
+        ):
             result = ask("alpha", db_path=db_path)
         assert "a" in result
 
@@ -312,8 +343,10 @@ class TestAskWithMockedLLM:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value='{"tool": "unknown_tool", "query": "x"}'):
+        with patch(
+            "reasonsforge.ask.invoke_model",
+            return_value='{"tool": "unknown_tool", "query": "x"}',
+        ):
             result = ask("question", db_path=db_path)
         assert "unknown_tool" in result
 
@@ -339,15 +372,16 @@ class TestAskWithMockedLLM:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value='{"tool": "search_beliefs", "query": "more"}'):
+        with patch(
+            "reasonsforge.ask.invoke_model",
+            return_value='{"tool": "search_beliefs", "query": "more"}',
+        ):
             result = ask("alpha", db_path=db_path)
         assert "search_beliefs" not in result
         assert "Alpha" in result or result == NO_BELIEFS_MSG
 
 
 class TestAskSourcesPreserved:
-
     @pytest.fixture
     def sources_db(self, tmp_path):
         db = str(tmp_path / "sources.db")
@@ -400,8 +434,12 @@ class TestAskSourcesPreserved:
             calls[0] += 1
             if calls[0] == 1:
                 return '{"tool": "search_beliefs", "query": "retraction"}'
-            assert "**Status:**" not in prompt, "Status metadata leaked into natural prompt"
-            assert "**Source:**" not in prompt, "Source metadata leaked into natural prompt"
+            assert "**Status:**" not in prompt, (
+                "Status metadata leaked into natural prompt"
+            )
+            assert "**Source:**" not in prompt, (
+                "Source metadata leaked into natural prompt"
+            )
             return "Natural answer about retraction."
 
         with patch("reasonsforge.ask.invoke_model", side_effect=mock_invoke):
@@ -411,7 +449,6 @@ class TestAskSourcesPreserved:
 
 
 class TestBuildSimplePrompt:
-
     def test_contains_question_and_context(self):
         prompt = build_simple_prompt("What is BFS?", "Some belief context")
         assert "What is BFS?" in prompt
@@ -433,13 +470,13 @@ class TestBuildSimplePrompt:
 
 
 class TestAskSimple:
-
     def test_simple_direct_answer(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief about propagation", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Propagation uses BFS [a].") as mock_llm:
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Propagation uses BFS [a]."
+        ) as mock_llm:
             result = ask("propagation", db_path=db_path, simple=True)
         assert result == "Propagation uses BFS [a]."
         assert mock_llm.call_count == 1
@@ -453,8 +490,10 @@ class TestAskSimple:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=subprocess.TimeoutExpired("claude", 300)):
+        with patch(
+            "reasonsforge.ask.invoke_model",
+            side_effect=subprocess.TimeoutExpired("claude", 300),
+        ):
             result = ask("alpha", db_path=db_path, simple=True)
         assert "Alpha" in result
 
@@ -462,8 +501,9 @@ class TestAskSimple:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    side_effect=RuntimeError("model crashed")):
+        with patch(
+            "reasonsforge.ask.invoke_model", side_effect=RuntimeError("model crashed")
+        ):
             result = ask("alpha", db_path=db_path, simple=True)
         assert "Alpha" in result
 
@@ -471,8 +511,7 @@ class TestAskSimple:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Answer.") as mock_llm:
+        with patch("reasonsforge.ask.invoke_model", return_value="Answer.") as mock_llm:
             ask("alpha", db_path=db_path, simple=True)
         prompt = mock_llm.call_args[0][0]
         assert "search_beliefs" not in prompt
@@ -480,7 +519,6 @@ class TestAskSimple:
 
 
 class TestStripBeliefMetadata:
-
     def test_strips_header_lines(self):
         context = "### my-belief\n**Status:** IN\nThe actual belief text.\n"
         result = _strip_belief_metadata(context)
@@ -590,7 +628,6 @@ class TestStripBeliefMetadata:
 
 
 class TestSearchSourceChunks:
-
     @pytest.fixture
     def sources_db(self, tmp_path):
         db = str(tmp_path / "sources.db")
@@ -665,13 +702,13 @@ class TestSearchSourceChunks:
 
 
 class TestAskNatural:
-
     def test_natural_strips_metadata(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief about propagation", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Natural answer.") as mock_llm:
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Natural answer."
+        ) as mock_llm:
             result = ask("propagation", db_path=db_path, simple=True, natural=True)
         prompt = mock_llm.call_args[0][0]
         assert "**Status:**" not in prompt
@@ -682,8 +719,9 @@ class TestAskNatural:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Natural answer.") as mock_llm:
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Natural answer."
+        ) as mock_llm:
             ask("alpha", db_path=db_path, simple=True, natural=True)
         prompt = mock_llm.call_args[0][0]
         assert "Cite belief IDs" not in prompt
@@ -693,8 +731,7 @@ class TestAskNatural:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Answer.") as mock_llm:
+        with patch("reasonsforge.ask.invoke_model", return_value="Answer.") as mock_llm:
             ask("alpha", db_path=db_path, simple=True, natural=False)
         prompt = mock_llm.call_args[0][0]
         assert "Cite belief IDs in [brackets]" in prompt
@@ -703,8 +740,9 @@ class TestAskNatural:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Answer from full mode.") as mock_llm:
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Answer from full mode."
+        ) as mock_llm:
             result = ask("alpha", db_path=db_path, natural=True)
         prompt = mock_llm.call_args[0][0]
         assert "**Status:**" not in prompt
@@ -714,7 +752,6 @@ class TestAskNatural:
 
 
 class TestAskWithSources:
-
     @pytest.fixture
     def sources_db(self, tmp_path):
         db = str(tmp_path / "sources.db")
@@ -740,10 +777,10 @@ class TestAskWithSources:
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Summit info belief", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Answer with sources.") as mock_llm:
-            result = ask("Summit", db_path=db_path, simple=True,
-                         sources_db=sources_db)
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Answer with sources."
+        ) as mock_llm:
+            result = ask("Summit", db_path=db_path, simple=True, sources_db=sources_db)
         prompt = mock_llm.call_args[0][0]
         assert "Source Documents" in prompt
         assert "Summit is in June 2025" in prompt
@@ -752,22 +789,22 @@ class TestAskWithSources:
     def test_sources_only_when_beliefs_empty(self, db_path, sources_db):
         run_cli("init", db_path=db_path)
 
-        with patch("reasonsforge.ask.invoke_model",
-                    return_value="Answer from sources only.") as mock_llm:
-            result = ask("Summit", db_path=db_path, simple=True,
-                         sources_db=sources_db)
+        with patch(
+            "reasonsforge.ask.invoke_model", return_value="Answer from sources only."
+        ) as mock_llm:
+            result = ask("Summit", db_path=db_path, simple=True, sources_db=sources_db)
         assert result == "Answer from sources only."
 
     def test_no_sources_match_returns_no_beliefs(self, db_path, sources_db):
         run_cli("init", db_path=db_path)
 
-        result = ask("zzzznonexistent", db_path=db_path, simple=True,
-                     sources_db=sources_db)
+        result = ask(
+            "zzzznonexistent", db_path=db_path, simple=True, sources_db=sources_db
+        )
         assert result == NO_BELIEFS_MSG
 
 
 class TestAskDual:
-
     @pytest.fixture
     def sources_db(self, tmp_path):
         db = str(tmp_path / "sources.db")
@@ -805,8 +842,9 @@ class TestAskDual:
                 return "Merged: alpha is described in both sources."
 
         with patch("reasonsforge.ask.invoke_model", side_effect=mock_invoke):
-            result = ask("alpha", db_path=db_path, simple=True, dual=True,
-                         sources_db=sources_db)
+            result = ask(
+                "alpha", db_path=db_path, simple=True, dual=True, sources_db=sources_db
+            )
         assert calls[0] == 3
         assert "Merged" in result
 
@@ -834,6 +872,12 @@ class TestAskDual:
                 return "Merged answer."
 
         with patch("reasonsforge.ask.invoke_model", side_effect=mock_invoke):
-            result = ask("alpha", db_path=db_path, simple=True, dual=True,
-                         sources_db=sources_db, natural=True)
+            result = ask(
+                "alpha",
+                db_path=db_path,
+                simple=True,
+                dual=True,
+                sources_db=sources_db,
+                natural=True,
+            )
         assert calls[0] == 3

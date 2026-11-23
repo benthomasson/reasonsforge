@@ -15,7 +15,6 @@ def db_path(tmp_path):
 
 
 class TestInitDb:
-
     def test_creates_db(self, tmp_path):
         p = str(tmp_path / "new.db")
         result = api.init_db(db_path=p)
@@ -31,7 +30,6 @@ class TestInitDb:
 
 
 class TestAddNode:
-
     def test_add_premise(self, db_path):
         result = api.add_node("a", "Premise A", db_path=db_path)
         assert result["node_id"] == "a"
@@ -51,7 +49,6 @@ class TestAddNode:
 
 
 class TestRetractNode:
-
     def test_retract(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         result = api.retract_node("a", db_path=db_path)
@@ -75,7 +72,6 @@ class TestRetractNode:
 
 
 class TestAssertNode:
-
     def test_assert_restores(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         api.add_node("b", "Derived B", sl="a", db_path=db_path)
@@ -90,7 +86,6 @@ class TestAssertNode:
 
 
 class TestPropagate:
-
     def test_no_changes(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         result = api.propagate(db_path=db_path)
@@ -103,6 +98,7 @@ class TestPropagate:
         api.retract_node("a", reason="test", db_path=db_path)
         api.assert_node("a", db_path=db_path)
         from reasonsforge.storage import Storage
+
         store = Storage(db_path)
         net = store.load()
         net.nodes["b"].truth_value = "OUT"
@@ -114,7 +110,6 @@ class TestPropagate:
 
 
 class TestGetStats:
-
     def test_empty(self, db_path):
         result = api.get_stats(db_path=db_path)
         assert result["total"] == 0
@@ -169,7 +164,6 @@ class TestGetStats:
 
 
 class TestGetStatus:
-
     def test_empty(self, db_path):
         result = api.get_status(db_path=db_path)
         assert result["nodes"] == []
@@ -186,7 +180,6 @@ class TestGetStatus:
 
 
 class TestShowNode:
-
     def test_show(self, db_path):
         api.add_node("a", "Premise A", source="repo:file.py", db_path=db_path)
         result = api.show_node("a", db_path=db_path)
@@ -202,7 +195,6 @@ class TestShowNode:
 
 
 class TestExplainNode:
-
     def test_explain_premise(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         result = api.explain_node("a", db_path=db_path)
@@ -215,7 +207,6 @@ class TestExplainNode:
         nodes_in_trace = [s["node"] for s in result["steps"]]
         assert "b" in nodes_in_trace
         assert "a" in nodes_in_trace
-
 
     def test_explain_circular_dependency(self, db_path):
         api.add_node("p", "Premise", db_path=db_path)
@@ -238,7 +229,6 @@ class TestExplainNode:
 
 
 class TestAddNogood:
-
     def test_nogood(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         api.add_node("b", "Premise B", db_path=db_path)
@@ -249,7 +239,6 @@ class TestAddNogood:
 
 
 class TestGetBeliefSet:
-
     def test_belief_set(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         api.add_node("b", "Premise B", db_path=db_path)
@@ -259,7 +248,6 @@ class TestGetBeliefSet:
 
 
 class TestGetLog:
-
     def test_log(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         result = api.get_log(db_path=db_path)
@@ -273,7 +261,6 @@ class TestGetLog:
 
 
 class TestExportNetwork:
-
     def test_export(self, db_path):
         api.add_node("a", "Premise A", db_path=db_path)
         result = api.export_network(db_path=db_path)
@@ -309,7 +296,6 @@ class TestEndToEnd:
 
 
 class TestListNodesDepth:
-
     def test_list_min_depth(self, db_path):
         api.add_node("p1", "premise", db_path=db_path)
         api.add_node("d1", "derived", sl="p1", label="t", db_path=db_path)
@@ -364,14 +350,16 @@ class TestListNodesDepth:
 
 
 class TestFtsSearch:
-
     def test_porter_stemming(self, db_path):
-        api.add_node("a", "sandbox access is auto-deactivated after 21 days", db_path=db_path)
+        api.add_node(
+            "a", "sandbox access is auto-deactivated after 21 days", db_path=db_path
+        )
         result = api.search("deactivation", db_path=db_path)
         assert "a" in result
 
     def test_porter_stemming_plural(self, db_path):
         from reasonsforge.api import _fts_search
+
         api.add_node("a", "max 250 jobs per pipeline", db_path=db_path)
         results = _fts_search("job", db_path)
         assert "a" in results
@@ -388,35 +376,44 @@ class TestFtsSearch:
 
     def test_no_false_positives(self, db_path):
         api.add_node("a", "the quick brown fox", db_path=db_path)
-        result = api.search("quantum computing blockchain", db_path=db_path, format="compact")
+        result = api.search(
+            "quantum computing blockchain", db_path=db_path, format="compact"
+        )
         assert "a" not in result
 
     def test_stop_words_filtered(self, db_path):
         from reasonsforge.api import _fts_search
+
         api.add_node("a", "propagation uses BFS algorithm", db_path=db_path)
         results = _fts_search("What is the propagation algorithm?", db_path)
         assert "a" in results
 
     def test_all_stop_words_falls_back_to_raw(self, db_path):
         from reasonsforge.api import _fts_search
+
         api.add_node("a", "the system is working", db_path=db_path)
         results = _fts_search("what is the", db_path)
         assert "a" in results
 
     def test_single_char_words_only_returns_empty(self, db_path):
         from reasonsforge.api import _fts_search
+
         api.add_node("a", "some content", db_path=db_path)
         results = _fts_search("a b c", db_path)
         assert results == []
 
     def test_natural_language_question(self, db_path):
-        api.add_node("a", "retraction cascades through dependent nodes", db_path=db_path)
-        result = api.search("How does retraction work in the system?",
-                            db_path=db_path, format="compact")
+        api.add_node(
+            "a", "retraction cascades through dependent nodes", db_path=db_path
+        )
+        result = api.search(
+            "How does retraction work in the system?", db_path=db_path, format="compact"
+        )
         assert "a" in result
 
     def test_punctuation_in_query(self, db_path):
         from reasonsforge.api import _fts_search
+
         api.add_node("a", "propagation uses BFS", db_path=db_path)
         results = _fts_search("propagation? (BFS)", db_path)
         assert "a" in results
@@ -424,6 +421,7 @@ class TestFtsSearch:
     def test_long_query_does_not_explode(self, db_path):
         from reasonsforge.api import _fts_search, _fts_query
         from unittest.mock import patch as mock_patch
+
         api.add_node("a", "alpha beta gamma delta", db_path=db_path)
         query = " ".join(f"term{i}" for i in range(20))
         call_count = [0]
@@ -461,7 +459,6 @@ class TestFtsSearch:
 
 
 class TestListGated:
-
     def test_no_gates(self, db_path):
         api.add_node("a", "Alpha", db_path=db_path)
         result = api.list_gated(db_path=db_path)
@@ -471,7 +468,13 @@ class TestListGated:
     def test_active_gate(self, db_path):
         api.add_node("premise", "Supporting premise", db_path=db_path)
         api.add_node("blocker", "Defect premise", db_path=db_path)
-        api.add_node("gated", "Conclusion unless blocker", sl="premise", unless="blocker", db_path=db_path)
+        api.add_node(
+            "gated",
+            "Conclusion unless blocker",
+            sl="premise",
+            unless="blocker",
+            db_path=db_path,
+        )
         result = api.list_gated(db_path=db_path)
         assert result["blocker_count"] == 1
         assert result["gated_count"] == 1
@@ -481,7 +484,13 @@ class TestListGated:
     def test_satisfied_gate(self, db_path):
         api.add_node("premise", "Supporting premise", db_path=db_path)
         api.add_node("blocker", "Defect premise", db_path=db_path)
-        api.add_node("gated", "Conclusion unless blocker", sl="premise", unless="blocker", db_path=db_path)
+        api.add_node(
+            "gated",
+            "Conclusion unless blocker",
+            sl="premise",
+            unless="blocker",
+            db_path=db_path,
+        )
         api.retract_node("blocker", db_path=db_path)
         result = api.list_gated(db_path=db_path)
         assert result["blockers"] == {}
@@ -501,7 +510,9 @@ class TestListGated:
     def test_superseded_excluded(self, db_path):
         api.add_node("premise", "Supporting premise", db_path=db_path)
         api.add_node("blocker", "Defect", db_path=db_path)
-        api.add_node("old", "Old conclusion", sl="premise", unless="blocker", db_path=db_path)
+        api.add_node(
+            "old", "Old conclusion", sl="premise", unless="blocker", db_path=db_path
+        )
         api.add_node("new", "New conclusion", sl="premise", db_path=db_path)
         api.supersede("old", "new", db_path=db_path)
         result = api.list_gated(db_path=db_path)
@@ -510,13 +521,16 @@ class TestListGated:
     def test_blocker_text_included(self, db_path):
         api.add_node("premise", "Supporting premise", db_path=db_path)
         api.add_node("bug-123", "File X has a null check missing", db_path=db_path)
-        api.add_node("gated", "X is safe", sl="premise", unless="bug-123", db_path=db_path)
+        api.add_node(
+            "gated", "X is safe", sl="premise", unless="bug-123", db_path=db_path
+        )
         result = api.list_gated(db_path=db_path)
-        assert result["blockers"]["bug-123"]["text"] == "File X has a null check missing"
+        assert (
+            result["blockers"]["bug-123"]["text"] == "File X has a null check missing"
+        )
 
 
 class TestListNegative:
-
     def test_empty_db(self, db_path):
         with patch("reasonsforge.llm.invoke_model") as mock_llm:
             result = api.list_negative(db_path=db_path)
@@ -547,7 +561,7 @@ class TestListNegative:
     def test_llm_filters_all(self, db_path):
         api.add_node("a", "Error handling is comprehensive", db_path=db_path)
         api.add_node("b", "Failure modes are well documented", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", return_value='[]'):
+        with patch("reasonsforge.llm.invoke_model", return_value="[]"):
             result = api.list_negative(db_path=db_path)
             assert result["count"] == 0
             assert result["candidates"] == 2
@@ -563,13 +577,18 @@ class TestListNegative:
 
     def test_malformed_llm_response(self, db_path):
         api.add_node("a", "There is a critical bug here", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", return_value="Sorry, I cannot do that."):
+        with patch(
+            "reasonsforge.llm.invoke_model", return_value="Sorry, I cannot do that."
+        ):
             result = api.list_negative(db_path=db_path)
             assert result["count"] == 0
 
     def test_llm_returns_unknown_ids(self, db_path):
         api.add_node("a", "There is a critical bug here", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", return_value='["a", "nonexistent", "also-fake"]'):
+        with patch(
+            "reasonsforge.llm.invoke_model",
+            return_value='["a", "nonexistent", "also-fake"]',
+        ):
             result = api.list_negative(db_path=db_path)
             assert result["count"] == 1
             assert result["negative"][0]["id"] == "a"
@@ -584,12 +603,17 @@ class TestListNegative:
 
     def test_claude_not_found_propagates(self, db_path):
         api.add_node("a", "There is a critical bug here", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", side_effect=FileNotFoundError("'claude' CLI not found in PATH")):
+        with patch(
+            "reasonsforge.llm.invoke_model",
+            side_effect=FileNotFoundError("'claude' CLI not found in PATH"),
+        ):
             with pytest.raises(FileNotFoundError):
                 api.list_negative(db_path=db_path)
 
     def test_visible_to(self, db_path):
-        api.add_node("a", "Auth has a critical bug", access_tags=["internal"], db_path=db_path)
+        api.add_node(
+            "a", "Auth has a critical bug", access_tags=["internal"], db_path=db_path
+        )
         api.add_node("b", "API has a missing validation", db_path=db_path)
         with patch("reasonsforge.llm.invoke_model", return_value='["b"]') as mock_llm:
             result = api.list_negative(visible_to=["public"], db_path=db_path)
@@ -602,14 +626,18 @@ class TestListNegative:
     def test_single_batch_calls_llm_once(self, db_path):
         for i in range(5):
             api.add_node(f"bug-{i}", f"There is a bug in module {i}", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", return_value='["bug-0"]') as mock_llm:
+        with patch(
+            "reasonsforge.llm.invoke_model", return_value='["bug-0"]'
+        ) as mock_llm:
             result = api.list_negative(db_path=db_path)
             assert mock_llm.call_count == 1
             assert result["count"] == 1
 
     def test_batching_large_set(self, db_path):
         for i in range(120):
-            api.add_node(f"bug-{i:03d}", f"There is a bug in module {i}", db_path=db_path)
+            api.add_node(
+                f"bug-{i:03d}", f"There is a bug in module {i}", db_path=db_path
+            )
 
         call_count = [0]
 
@@ -620,7 +648,7 @@ class TestListNegative:
             elif call_count[0] == 2:
                 return '["bug-060"]'
             else:
-                return '[]'
+                return "[]"
 
         with patch("reasonsforge.llm.invoke_model", side_effect=mock_invoke):
             result = api.list_negative(db_path=db_path)
@@ -631,7 +659,9 @@ class TestListNegative:
         assert found_ids == {"bug-010", "bug-020", "bug-060"}
 
     def test_expanded_terms_match(self, db_path):
-        api.add_node("a", "The migration is stalled due to schema conflicts", db_path=db_path)
+        api.add_node(
+            "a", "The migration is stalled due to schema conflicts", db_path=db_path
+        )
         api.add_node("b", "There is a regression in the auth flow", db_path=db_path)
         api.add_node("c", "The API docs are undocumented for v2", db_path=db_path)
         api.add_node("d", "Everything works fine", db_path=db_path)
@@ -641,9 +671,15 @@ class TestListNegative:
             assert result["total"] == 4
 
     def test_issue_false_positive_excluded(self, db_path):
-        api.add_node("jira-ref", "The child issue was closed last sprint", db_path=db_path)
-        api.add_node("real-neg", "There is a known issue in the auth module", db_path=db_path)
-        with patch("reasonsforge.llm.invoke_model", return_value='["real-neg"]') as mock_llm:
+        api.add_node(
+            "jira-ref", "The child issue was closed last sprint", db_path=db_path
+        )
+        api.add_node(
+            "real-neg", "There is a known issue in the auth module", db_path=db_path
+        )
+        with patch(
+            "reasonsforge.llm.invoke_model", return_value='["real-neg"]'
+        ) as mock_llm:
             result = api.list_negative(db_path=db_path)
             assert result["candidates"] == 1
             assert result["negative"][0]["id"] == "real-neg"
@@ -660,14 +696,14 @@ class TestListNegative:
 
 
 class TestUpdateNode:
-
     @pytest.fixture
     def db_path(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.add_node("a", "Original text", db_path=db)
         api.add_node("b", "Premise B", db_path=db)
-        api.add_node("derived-ab", "AB combined", sl="a,b",
-                      label="combined", db_path=db)
+        api.add_node(
+            "derived-ab", "AB combined", sl="a,b", label="combined", db_path=db
+        )
         return db
 
     def test_rejects_text_mutation(self, db_path):
@@ -699,15 +735,15 @@ class TestUpdateNode:
         assert new["truth_value"] == "IN"
 
     def test_supersede_with_text_custom_id(self, db_path):
-        result = api.supersede_with_text("a", "New text", new_id="a-fixed",
-                                          db_path=db_path)
+        result = api.supersede_with_text(
+            "a", "New text", new_id="a-fixed", db_path=db_path
+        )
         assert result["new_id"] == "a-fixed"
         node = api.show_node("a-fixed", db_path=db_path)
         assert node["text"] == "New text"
 
 
 class TestSetMetadata:
-
     def test_sets_key(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.add_node("a", "A belief", db_path=db)
@@ -731,7 +767,6 @@ class TestSetMetadata:
 
 
 class TestListClusters:
-
     @pytest.fixture
     def db_with_beliefs(self, tmp_path):
         db = str(tmp_path / "test.db")
@@ -744,16 +779,28 @@ class TestListClusters:
         return db
 
     def test_filters_by_status(self, db_with_beliefs):
-        mock_result = {"clusters": [{"id": 0, "beliefs": []}], "n_clusters": 1, "embedding_model": "test"}
-        with patch("reasonsforge.cluster.list_clusters", return_value=mock_result) as mock_lc:
+        mock_result = {
+            "clusters": [{"id": 0, "beliefs": []}],
+            "n_clusters": 1,
+            "embedding_model": "test",
+        }
+        with patch(
+            "reasonsforge.cluster.list_clusters", return_value=mock_result
+        ) as mock_lc:
             api.list_clusters(status="IN", db_path=db_with_beliefs)
             beliefs_arg = mock_lc.call_args[0][0]
             assert all(k.startswith("in-") for k in beliefs_arg)
             assert len(beliefs_arg) == 10
 
     def test_filters_out_status(self, db_with_beliefs):
-        mock_result = {"clusters": [{"id": 0, "beliefs": []}], "n_clusters": 1, "embedding_model": "test"}
-        with patch("reasonsforge.cluster.list_clusters", return_value=mock_result) as mock_lc:
+        mock_result = {
+            "clusters": [{"id": 0, "beliefs": []}],
+            "n_clusters": 1,
+            "embedding_model": "test",
+        }
+        with patch(
+            "reasonsforge.cluster.list_clusters", return_value=mock_result
+        ) as mock_lc:
             api.list_clusters(status="OUT", db_path=db_with_beliefs)
             beliefs_arg = mock_lc.call_args[0][0]
             assert all(k.startswith("out-") for k in beliefs_arg)
@@ -768,13 +815,17 @@ class TestListClusters:
 
     def test_passes_seed(self, db_with_beliefs):
         mock_result = {"clusters": [], "n_clusters": 0, "embedding_model": "test"}
-        with patch("reasonsforge.cluster.list_clusters", return_value=mock_result) as mock_lc:
+        with patch(
+            "reasonsforge.cluster.list_clusters", return_value=mock_result
+        ) as mock_lc:
             api.list_clusters(seed=42, db_path=db_with_beliefs)
             assert mock_lc.call_args[1]["seed"] == 42
 
     def test_passes_n_clusters(self, db_with_beliefs):
         mock_result = {"clusters": [], "n_clusters": 0, "embedding_model": "test"}
-        with patch("reasonsforge.cluster.list_clusters", return_value=mock_result) as mock_lc:
+        with patch(
+            "reasonsforge.cluster.list_clusters", return_value=mock_result
+        ) as mock_lc:
             api.list_clusters(n_clusters=3, db_path=db_with_beliefs)
             assert mock_lc.call_args[1]["n_clusters"] == 3
 
@@ -785,27 +836,31 @@ except ImportError:
     HAS_CLUSTER_DEPS = False
 
 skip_no_cluster = pytest.mark.skipif(
-    not HAS_CLUSTER_DEPS,
-    reason="sentence-transformers and scikit-learn not installed"
+    not HAS_CLUSTER_DEPS, reason="sentence-transformers and scikit-learn not installed"
 )
 
 
 @skip_no_cluster
 class TestDeduplicateSemantic:
-
     @pytest.fixture
     def db_with_similar(self, tmp_path):
         db = str(tmp_path / "sim.db")
         api.init_db(db_path=db)
-        api.add_node("input-validation-at-boundaries",
-                      "The system validates all inputs at system boundaries",
-                      db_path=db)
-        api.add_node("boundary-input-checking",
-                      "Input validation occurs at system edges and boundaries",
-                      db_path=db)
-        api.add_node("database-query-performance",
-                      "Database queries are optimized for read-heavy workloads",
-                      db_path=db)
+        api.add_node(
+            "input-validation-at-boundaries",
+            "The system validates all inputs at system boundaries",
+            db_path=db,
+        )
+        api.add_node(
+            "boundary-input-checking",
+            "Input validation occurs at system edges and boundaries",
+            db_path=db,
+        )
+        api.add_node(
+            "database-query-performance",
+            "Database queries are optimized for read-heavy workloads",
+            db_path=db,
+        )
         return db
 
     def test_semantic_finds_similar_text(self, db_with_similar):
@@ -819,11 +874,14 @@ class TestDeduplicateSemantic:
         result = api.deduplicate(threshold=0.8, semantic=True, db_path=db_with_similar)
         for cluster in result["clusters"]:
             ids = {b["id"] for b in cluster["beliefs"]}
-            assert not ({"input-validation-at-boundaries", "database-query-performance"} <= ids)
+            assert not (
+                {"input-validation-at-boundaries", "database-query-performance"} <= ids
+            )
 
     def test_semantic_auto_retracts(self, db_with_similar):
-        result = api.deduplicate(threshold=0.5, semantic=True, auto=True,
-                                  db_path=db_with_similar)
+        result = api.deduplicate(
+            threshold=0.5, semantic=True, auto=True, db_path=db_with_similar
+        )
         retracted_set = set(result["retracted"])
         similar_pair = {"input-validation-at-boundaries", "boundary-input-checking"}
         assert len(retracted_set & similar_pair) == 1
@@ -842,7 +900,6 @@ class TestDeduplicateSemantic:
 
 
 class TestLifecycleTimestamps:
-
     def test_add_node_sets_created_at(self, db_path):
         api.add_node("ts-a", "Timestamped node", db_path=db_path)
         node = api.show_node("ts-a", db_path=db_path)
@@ -874,7 +931,13 @@ class TestLifecycleTimestamps:
     def test_show_node_includes_all_timestamps(self, db_path):
         api.add_node("ts-e", "Full timestamps", db_path=db_path)
         node = api.show_node("ts-e", db_path=db_path)
-        for key in ("created_at", "updated_at", "reviewed_at", "verified_at", "retracted_at"):
+        for key in (
+            "created_at",
+            "updated_at",
+            "reviewed_at",
+            "verified_at",
+            "retracted_at",
+        ):
             assert key in node
 
     def test_export_includes_timestamps(self, db_path):
@@ -890,6 +953,7 @@ class TestLifecycleTimestamps:
         export = api.export_network(db_path=db_path)
 
         import json
+
         json_path = str(tmp_path / "export.json")
         with open(json_path, "w") as f:
             json.dump(export, f)
@@ -928,10 +992,12 @@ class TestLifecycleTimestamps:
 
     def test_verified_at_preserved_through_export_import(self, tmp_path, db_path):
         from datetime import datetime, timezone
+
         api.add_node("ts-ver", "Verified node", db_path=db_path)
 
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         from reasonsforge.storage import Storage
+
         store = Storage(db_path)
         net = store.load()
         net.nodes["ts-ver"].verified_at = now
@@ -942,6 +1008,7 @@ class TestLifecycleTimestamps:
         assert export["nodes"]["ts-ver"]["verified_at"] == now
 
         import json
+
         json_path = str(tmp_path / "verified.json")
         with open(json_path, "w") as f:
             json.dump(export, f)
@@ -954,7 +1021,6 @@ class TestLifecycleTimestamps:
 
 
 class TestNamesOnlyFormat:
-
     def test_search_names_only(self, db_path):
         api.add_node("alpha", "Alpha belief", db_path=db_path)
         api.add_node("beta", "Beta belief", db_path=db_path)

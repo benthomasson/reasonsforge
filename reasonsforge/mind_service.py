@@ -38,19 +38,20 @@ def fetch_export(url: str, agent_id: str, api_key: str) -> str:
             return resp.read().decode("utf-8")
     except HTTPError as e:
         if e.code == 401:
-            raise RuntimeError(
-                "Authentication failed. Check your MIND_API_KEY."
-            ) from e
+            raise RuntimeError("Authentication failed. Check your MIND_API_KEY.") from e
         if e.code == 404:
-            raise RuntimeError(
-                f"Agent not found: {agent_id}"
-            ) from e
+            raise RuntimeError(f"Agent not found: {agent_id}") from e
         raise
 
 
 def push_belief(
-    url: str, agent_id: str, api_key: str,
-    node_id: str, text: str, sl: str = "", source: str = "",
+    url: str,
+    agent_id: str,
+    api_key: str,
+    node_id: str,
+    text: str,
+    sl: str = "",
+    source: str = "",
 ) -> dict:
     """POST /api/agents/{agent_id}/beliefs — push one belief."""
     endpoint = f"{url}/api/agents/{agent_id}/beliefs"
@@ -75,7 +76,5 @@ def push_belief(
             return json.loads(resp.read().decode("utf-8"))
     except HTTPError as e:
         if e.code == 401:
-            raise RuntimeError(
-                "Authentication failed. Check your MIND_API_KEY."
-            ) from e
+            raise RuntimeError("Authentication failed. Check your MIND_API_KEY.") from e
         raise

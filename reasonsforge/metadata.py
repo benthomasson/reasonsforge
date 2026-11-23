@@ -7,7 +7,6 @@ and the generator string.
 
 from datetime import datetime, timezone
 
-
 SCHEMA_VERSION = "1.0"
 
 
@@ -15,6 +14,7 @@ def _get_generator() -> str:
     """Return the generator string, e.g. 'reasonsforge/0.40.0'."""
     try:
         from importlib.metadata import version
+
         v = version("reasonsforge")
     except Exception:
         v = "unknown"

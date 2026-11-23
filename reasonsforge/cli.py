@@ -35,7 +35,9 @@ def cmd_init(args):
 def _warn_multi_premise(premise_count, any_mode):
     """Print a tip when an SL has 3+ premises and --any was not used."""
     if premise_count >= 3 and not any_mode:
-        print(f"  Tip: This SL requires ALL {premise_count} premises to be IN. If any single")
+        print(
+            f"  Tip: This SL requires ALL {premise_count} premises to be IN. If any single"
+        )
         print(f"  premise is sufficient, use --any to create separate justifications.")
 
 
@@ -81,7 +83,9 @@ def cmd_add_justification(args):
             **_backend_kwargs(args),
         )
         print(f"Added justification to {result['node_id']}")
-        print(f"  Truth value: {result['old_truth_value']} → {result['new_truth_value']}")
+        print(
+            f"  Truth value: {result['old_truth_value']} → {result['new_truth_value']}"
+        )
         if result["changed"]:
             print(f"  Cascade: {', '.join(result['changed'])}")
         _warn_multi_premise(result.get("premise_count", 0), getattr(args, "any", False))
@@ -102,7 +106,9 @@ def cmd_remove_justification(args):
         label = f" [{removed['label']}]" if removed["label"] else ""
         print(f"Removed justification {args.index} from {result['node_id']}")
         print(f"  Was: {removed['type']}({ants}){label}")
-        print(f"  Truth value: {result['old_truth_value']} → {result['new_truth_value']}")
+        print(
+            f"  Truth value: {result['old_truth_value']} → {result['new_truth_value']}"
+        )
         print(f"  Remaining justifications: {result['remaining']}")
         if result["changed"]:
             print(f"  Cascade: {', '.join(result['changed'])}")
@@ -129,16 +135,22 @@ def _print_restoration_hints(hints):
     """Print hints when multi-premise SL nodes go OUT with surviving premises."""
     for hint in hints:
         surviving = ", ".join(hint["surviving_premises"])
-        print(f"  Note: {hint['node_id']} went OUT because its justification required ALL of")
+        print(
+            f"  Note: {hint['node_id']} went OUT because its justification required ALL of"
+        )
         print(f"    {hint['all_premises']}")
         print(f"    Surviving premises still IN: {surviving}")
         print(f"    If any single premise is sufficient, restore with:")
-        print(f"      reasons add-justification {hint['node_id']} --sl {surviving} --any")
+        print(
+            f"      reasons add-justification {hint['node_id']} --sl {surviving} --any"
+        )
 
 
 def cmd_retract(args):
     try:
-        result = api.retract_node(args.node_id, reason=args.reason or "", **_backend_kwargs(args))
+        result = api.retract_node(
+            args.node_id, reason=args.reason or "", **_backend_kwargs(args)
+        )
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -154,7 +166,10 @@ def cmd_retract(args):
 
 def cmd_mark_duplicate(args):
     if getattr(args, "pg", None) or os.environ.get("REASONSFORGE_PG_CONNINFO"):
-        print("Error: mark-duplicate is not supported with --pg (no PgApi implementation)", file=sys.stderr)
+        print(
+            "Error: mark-duplicate is not supported with --pg (no PgApi implementation)",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         result = api.mark_duplicate(
@@ -176,7 +191,10 @@ def cmd_mark_duplicate(args):
 
 def cmd_mark_superseded(args):
     if getattr(args, "pg", None) or os.environ.get("REASONSFORGE_PG_CONNINFO"):
-        print("Error: mark-superseded is not supported with --pg (no PgApi implementation)", file=sys.stderr)
+        print(
+            "Error: mark-superseded is not supported with --pg (no PgApi implementation)",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         result = api.mark_superseded(
@@ -198,7 +216,10 @@ def cmd_mark_superseded(args):
 
 def cmd_defeat_justification(args):
     if getattr(args, "pg", None) or os.environ.get("REASONSFORGE_PG_CONNINFO"):
-        print("Error: defeat-justification is not supported with --pg (no PgApi implementation)", file=sys.stderr)
+        print(
+            "Error: defeat-justification is not supported with --pg (no PgApi implementation)",
+            file=sys.stderr,
+        )
         sys.exit(1)
     try:
         result = api.defeat_justification(
@@ -214,10 +235,12 @@ def cmd_defeat_justification(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    dtype = result['defeater_type']
-    rtype = result.get('defeat_reason_type', '')
+    dtype = result["defeater_type"]
+    rtype = result.get("defeat_reason_type", "")
     label = f"{dtype}, {rtype}" if rtype else dtype
-    print(f"Defeated justification {result['justification_index']} of {result['node_id']}")
+    print(
+        f"Defeated justification {result['justification_index']} of {result['node_id']}"
+    )
     print(f"  Defeater: {result['defeater_id']} ({label})")
     if result["changed"]:
         went_out = [nid for nid in result["changed"] if nid != result["node_id"]]
@@ -233,6 +256,7 @@ def cmd_defeat_with_scope(args):
         sys.exit(1)
 
     import json as json_mod
+
     scope_path = Path(args.scope_file)
     if not scope_path.exists():
         print(f"Error: file not found: {args.scope_file}", file=sys.stderr)
@@ -249,7 +273,9 @@ def cmd_defeat_with_scope(args):
         print("Error: missing_property is empty in the provided file", file=sys.stderr)
         sys.exit(1)
 
-    reason_type = getattr(args, "reason_type", None) or data.get("defeat_reason_type", "")
+    reason_type = getattr(args, "reason_type", None) or data.get(
+        "defeat_reason_type", ""
+    )
 
     try:
         result = api.defeat_with_scope(
@@ -266,9 +292,11 @@ def cmd_defeat_with_scope(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Defeated justification {result['justification_index']} of {result['node_id']}")
-    dtype = result['defeater_type']
-    rtype = result.get('defeat_reason_type', '')
+    print(
+        f"Defeated justification {result['justification_index']} of {result['node_id']}"
+    )
+    dtype = result["defeater_type"]
+    rtype = result.get("defeat_reason_type", "")
     label = f"{dtype}, {rtype}" if rtype else dtype
     print(f"  Defeater: {result['defeater_id']} ({label})")
     print(f"  Scope beliefs: {len(result['scope_belief_ids'])}")
@@ -284,14 +312,19 @@ def cmd_defeat_with_scope(args):
 
 def cmd_migrate_defeaters(args):
     if getattr(args, "pg", None) or os.environ.get("REASONSFORGE_PG_CONNINFO"):
-        print("Error: migrate-defeaters is not supported with --pg (no PgApi implementation)", file=sys.stderr)
+        print(
+            "Error: migrate-defeaters is not supported with --pg (no PgApi implementation)",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     node_ids = getattr(args, "node_ids", None) or None
     dry_run = not args.apply
 
     result = api.migrate_retract_to_defeaters(
-        node_ids=node_ids, dry_run=dry_run, db_path=args.db,
+        node_ids=node_ids,
+        dry_run=dry_run,
+        db_path=args.db,
     )
 
     if dry_run:
@@ -299,9 +332,14 @@ def cmd_migrate_defeaters(args):
         print()
 
     if result["migrated"]:
-        print(f"{'Would migrate' if dry_run else 'Migrated'}: {len(result['migrated'])}")
+        print(
+            f"{'Would migrate' if dry_run else 'Migrated'}: {len(result['migrated'])}"
+        )
         for m in result["migrated"]:
-            defeater = m.get("defeater_id", f"migrated-retraction-{m['id']}-j{m['justification_index']}")
+            defeater = m.get(
+                "defeater_id",
+                f"migrated-retraction-{m['id']}-j{m['justification_index']}",
+            )
             print(f"  {m['id']} j{m['justification_index']} -> {defeater}")
             print(f"    Reason: {m['retract_reason']}")
 
@@ -338,7 +376,9 @@ def cmd_classify_defeaters(args):
         print()
 
     if result["classified"]:
-        print(f"{'Would classify' if dry_run else 'Classified'}: {len(result['classified'])}")
+        print(
+            f"{'Would classify' if dry_run else 'Classified'}: {len(result['classified'])}"
+        )
         for c in result["classified"]:
             print(f"  {c['id']}: {c['defeat_reason_type']}")
 
@@ -459,7 +499,9 @@ def cmd_status(args):
         return
 
     # Summary header (always shown)
-    print(f"Beliefs: {result['in_count']} IN / {result['out_count']} OUT / {result['total']} total")
+    print(
+        f"Beliefs: {result['in_count']} IN / {result['out_count']} OUT / {result['total']} total"
+    )
     print(f"  Premises: {result['premise_count']}  Derived: {result['derived_count']}")
     if result["challenged_count"]:
         print(f"  Challenged: {result['challenged_count']}")
@@ -468,8 +510,9 @@ def cmd_status(args):
 
     if result["by_namespace"]:
         print(f"\nNamespaces ({len(result['by_namespace'])}):")
-        for ns in sorted(result["by_namespace"],
-                         key=lambda k: -result["by_namespace"][k]["total"]):
+        for ns in sorted(
+            result["by_namespace"], key=lambda k: -result["by_namespace"][k]["total"]
+        ):
             stats = result["by_namespace"][ns]
             print(f"  {ns:40s} {stats['in']:4d} IN / {stats['total']} total")
 
@@ -479,22 +522,32 @@ def cmd_status(args):
         if not shown:
             print("\nNo matching nodes.")
             return
-        print(f"\nNodes ({len(shown)}" +
-              (f" of {result['total']}" if limit else "") + "):")
+        print(
+            f"\nNodes ({len(shown)}"
+            + (f" of {result['total']}" if limit else "")
+            + "):"
+        )
         for node in shown:
             marker = "+" if node["truth_value"] == "IN" else "-"
             jcount = node["justification_count"]
-            jinfo = f"  ({jcount} justification{'s' if jcount != 1 else ''})" if jcount else "  (premise)"
+            jinfo = (
+                f"  ({jcount} justification{'s' if jcount != 1 else ''})"
+                if jcount
+                else "  (premise)"
+            )
             print(f"  [{marker}] {node['id']}: {node['text']}{jinfo}")
 
 
 def cmd_stats(args):
     import json as _json
+
     result = api.get_stats(**_backend_kwargs(args))
     if getattr(args, "json", False):
         print(_json.dumps(result, indent=2))
         return
-    print(f"Beliefs:        {result['in_count']} IN, {result['out_count']} OUT ({result['total']} total)")
+    print(
+        f"Beliefs:        {result['in_count']} IN, {result['out_count']} OUT ({result['total']} total)"
+    )
     print(f"  Premises:     {result['premise_count']}")
     print(f"  Derived:      {result['derived_count']}")
     print(f"  Blocked:      {result['blocked_count']}")
@@ -505,7 +558,9 @@ def cmd_stats(args):
 def cmd_show(args):
     visible_to = _parse_visible_to(args)
     try:
-        node = api.show_node(args.node_id, visible_to=visible_to, **_backend_kwargs(args))
+        node = api.show_node(
+            args.node_id, visible_to=visible_to, **_backend_kwargs(args)
+        )
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -549,7 +604,13 @@ def cmd_show(args):
         print(f"\nExample:\n  {indented}")
 
     timestamps = []
-    for ts_key in ("created_at", "updated_at", "reviewed_at", "verified_at", "retracted_at"):
+    for ts_key in (
+        "created_at",
+        "updated_at",
+        "reviewed_at",
+        "verified_at",
+        "retracted_at",
+    ):
         ts_val = node.get(ts_key, "")
         if ts_val:
             label = ts_key.replace("_", " ").title().replace(" At", "")
@@ -566,7 +627,9 @@ def cmd_show(args):
 def cmd_explain(args):
     fmt = getattr(args, "format", "full")
     try:
-        result = api.explain_node(args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args))
+        result = api.explain_node(
+            args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args)
+        )
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -605,7 +668,9 @@ def cmd_convert_to_premise(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Converted {result['node_id']} to premise (stripped {result['old_justifications']} justification(s))")
+    print(
+        f"Converted {result['node_id']} to premise (stripped {result['old_justifications']} justification(s))"
+    )
     if result["changed"]:
         print(f"Changed: {', '.join(result['changed'])}")
 
@@ -614,7 +679,9 @@ def cmd_summarize(args):
     over = [n.strip() for n in args.over.split(",")]
     try:
         result = api.summarize(
-            args.summary_id, args.text, over,
+            args.summary_id,
+            args.text,
+            over,
             source=args.source or "",
             **_backend_kwargs(args),
         )
@@ -622,7 +689,9 @@ def cmd_summarize(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Created summary {result['summary_id']} [{result['truth_value']}] over {len(result['over'])} nodes")
+    print(
+        f"Created summary {result['summary_id']} [{result['truth_value']}] over {len(result['over'])} nodes"
+    )
 
 
 def cmd_supersede(args):
@@ -642,12 +711,16 @@ def cmd_supersede(args):
     try:
         if text:
             result = api.supersede_with_text(
-                args.old_id, text, new_id=custom_id, db_path=args.db,
+                args.old_id,
+                text,
+                new_id=custom_id,
+                db_path=args.db,
                 transitive=transitive,
             )
         else:
-            result = api.supersede(args.old_id, new_id, transitive=transitive,
-                                   **_backend_kwargs(args))
+            result = api.supersede(
+                args.old_id, new_id, transitive=transitive, **_backend_kwargs(args)
+            )
     except (KeyError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -660,7 +733,9 @@ def cmd_supersede(args):
 def cmd_set_metadata(args):
     try:
         result = api.set_metadata(
-            args.node_id, args.key, args.value,
+            args.node_id,
+            args.key,
+            args.value,
             **_backend_kwargs(args),
         )
     except KeyError as e:
@@ -692,7 +767,8 @@ def cmd_get_metadata(args):
 def cmd_challenge(args):
     try:
         result = api.challenge(
-            args.target_id, args.reason,
+            args.target_id,
+            args.reason,
             challenge_id=args.id,
             **_backend_kwargs(args),
         )
@@ -708,7 +784,9 @@ def cmd_challenge(args):
 def cmd_defend(args):
     try:
         result = api.defend(
-            args.target_id, args.challenge_id, args.reason,
+            args.target_id,
+            args.challenge_id,
+            args.reason,
             defense_id=args.id,
             **_backend_kwargs(args),
         )
@@ -716,7 +794,9 @@ def cmd_defend(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Defended {result['target_id']} against {result['challenge_id']} with {result['defense_id']}")
+    print(
+        f"Defended {result['target_id']} against {result['challenge_id']} with {result['defense_id']}"
+    )
     if result["changed"]:
         print(f"Changed: {', '.join(result['changed'])}")
 
@@ -752,8 +832,9 @@ def cmd_list_nogoods(args):
 
 def cmd_trace_access_tags(args):
     try:
-        result = api.trace_access_tags(args.node_id, visible_to=_parse_visible_to(args),
-                                        **_backend_kwargs(args))
+        result = api.trace_access_tags(
+            args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args)
+        )
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -762,7 +843,9 @@ def cmd_trace_access_tags(args):
         sys.exit(1)
 
     if not result["access_tags"]:
-        print(f"{args.node_id} has no access tags in its dependency chain (unrestricted).")
+        print(
+            f"{args.node_id} has no access tags in its dependency chain (unrestricted)."
+        )
         return
 
     print(f"{args.node_id} depends on data tagged: {', '.join(result['access_tags'])}")
@@ -771,7 +854,9 @@ def cmd_trace_access_tags(args):
 def cmd_trace(args):
     fmt = getattr(args, "format", "full")
     try:
-        result = api.trace_assumptions(args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args))
+        result = api.trace_assumptions(
+            args.node_id, visible_to=_parse_visible_to(args), **_backend_kwargs(args)
+        )
     except KeyError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -813,7 +898,9 @@ def cmd_log(args):
         return
 
     for entry in result["entries"]:
-        print(f"  {entry['timestamp']}  {entry['action']:10s}  {entry['target']:20s}  {entry['value']}")
+        print(
+            f"  {entry['timestamp']}  {entry['action']:10s}  {entry['target']:20s}  {entry['value']}"
+        )
 
 
 def cmd_add_repo(args):
@@ -845,18 +932,18 @@ def cmd_import_agent(args):
         sys.exit(1)
 
     print(f"Agent '{result['agent']}' imported:")
-    if result['created_premise']:
+    if result["created_premise"]:
         print(f"  Created premise: {result['active_node']}")
     else:
         print(f"  Premise exists:  {result['active_node']}")
     print(f"  Imported:  {result['claims_imported']} beliefs (as {result['prefix']}*)")
-    if result['claims_skipped']:
+    if result["claims_skipped"]:
         print(f"  Skipped:   {result['claims_skipped']} (already in network)")
-    if result['claims_retracted']:
+    if result["claims_retracted"]:
         print(f"  Retracted: {result['claims_retracted']} (STALE/OUT in source)")
-    if result.get('claims_propagated'):
+    if result.get("claims_propagated"):
         print(f"  Propagated: {result['claims_propagated']} (truth values recomputed)")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"  Nogoods:   {result['nogoods_imported']}")
     print(f"\n  To revoke all: reasons retract {result['active_node']}")
 
@@ -875,21 +962,21 @@ def cmd_sync_agent(args):
         sys.exit(1)
 
     print(f"Agent '{result['agent']}' synced:")
-    if result['created_premise']:
+    if result["created_premise"]:
         print(f"  Created premise: {result['active_node']}")
-    if result['beliefs_added']:
+    if result["beliefs_added"]:
         print(f"  Added:     {result['beliefs_added']} new beliefs")
-    if result['beliefs_updated']:
+    if result["beliefs_updated"]:
         print(f"  Updated:   {result['beliefs_updated']} beliefs")
-    if result['beliefs_removed']:
+    if result["beliefs_removed"]:
         print(f"  Removed:   {result['beliefs_removed']} beliefs (retracted)")
-    if result['beliefs_retracted']:
+    if result["beliefs_retracted"]:
         print(f"  Retracted: {result['beliefs_retracted']} (OUT/STALE in source)")
-    if result['beliefs_unchanged']:
+    if result["beliefs_unchanged"]:
         print(f"  Unchanged: {result['beliefs_unchanged']}")
-    if result.get('beliefs_propagated'):
+    if result.get("beliefs_propagated"):
         print(f"  Propagated: {result['beliefs_propagated']} (truth values recomputed)")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"  Nogoods:   {result['nogoods_imported']}")
 
 
@@ -904,26 +991,32 @@ def cmd_import_beliefs(args):
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Imported {result['claims_imported']} claims ({result['claims_retracted']} retracted)")
-    if result['claims_skipped']:
+    print(
+        f"Imported {result['claims_imported']} claims ({result['claims_retracted']} retracted)"
+    )
+    if result["claims_skipped"]:
         print(f"Skipped {result['claims_skipped']} (already in network)")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
 
 def cmd_import_json(args):
     try:
-        result = api.import_json(args.json_file, only_new=getattr(args, 'only_new', False), **_backend_kwargs(args))
+        result = api.import_json(
+            args.json_file,
+            only_new=getattr(args, "only_new", False),
+            **_backend_kwargs(args),
+        )
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     print(f"Imported {result['nodes_imported']} nodes")
-    if result.get('nodes_updated'):
+    if result.get("nodes_updated"):
         print(f"Updated {result['nodes_updated']} existing nodes")
-    if result.get('nodes_skipped'):
+    if result.get("nodes_skipped"):
         print(f"Skipped {result['nodes_skipped']} existing nodes")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
 
@@ -940,7 +1033,7 @@ def cmd_import_hf(args):
         sys.exit(1)
 
     print(f"Imported {result['nodes_imported']} nodes from {result['repo_id']}")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
 
@@ -984,7 +1077,7 @@ def cmd_import_api(args):
         sys.exit(1)
 
     print(f"Imported {result['nodes_imported']} nodes")
-    if result['nogoods_imported']:
+    if result["nogoods_imported"]:
         print(f"Imported {result['nogoods_imported']} nogoods")
 
 
@@ -1001,7 +1094,7 @@ def cmd_export_api(args):
         sys.exit(1)
 
     print(f"Exported {result['nodes_exported']} nodes")
-    if result['errors']:
+    if result["errors"]:
         print(f"Errors: {result['errors']}")
 
 
@@ -1028,21 +1121,33 @@ def cmd_push(args):
 
     if "network" in result:
         net = result["network"]
-        print(f"Network: {net.get('added', 0)} added, {net.get('updated', 0)} updated"
-              f" ({net.get('total_in_file', '?')} in file)")
+        print(
+            f"Network: {net.get('added', 0)} added, {net.get('updated', 0)} updated"
+            f" ({net.get('total_in_file', '?')} in file)"
+        )
     if "sources" in result:
         src = result["sources"]
-        print(f"Sources: {src.get('imported', 0)} imported, {src.get('skipped', 0)} skipped"
-              + (f" ({src['note']})" if src.get("note") else ""))
+        print(
+            f"Sources: {src.get('imported', 0)} imported, {src.get('skipped', 0)} skipped"
+            + (f" ({src['note']})" if src.get("note") else "")
+        )
     if "summaries" in result:
         s = result["summaries"]
-        print(f"Summaries: {s.get('imported', 0)} imported, {s.get('skipped', 0)} skipped"
-              + (f" ({s['note']})" if s.get("note") else ""))
+        print(
+            f"Summaries: {s.get('imported', 0)} imported, {s.get('skipped', 0)} skipped"
+            + (f" ({s['note']})" if s.get("note") else "")
+        )
     if "topics" in result:
         t = result["topics"]
-        print(f"Topics: {t.get('imported', 0)} imported"
-              + (f", {t['deleted_stale']} stale removed" if t.get("deleted_stale") else "")
-              + (f" ({t['note']})" if t.get("note") else ""))
+        print(
+            f"Topics: {t.get('imported', 0)} imported"
+            + (
+                f", {t['deleted_stale']} stale removed"
+                if t.get("deleted_stale")
+                else ""
+            )
+            + (f" ({t['note']})" if t.get("note") else "")
+        )
 
 
 def _compute_sync_diff(db_nodes, disk_nodes):
@@ -1068,7 +1173,9 @@ def _compute_sync_diff(db_nodes, disk_nodes):
                 changed.append((nid, "truth_value"))
             elif db_node.get("metadata") != file_node.get("metadata"):
                 changed.append((nid, "metadata"))
-            elif json.dumps(db_node, sort_keys=True) != json.dumps(file_node, sort_keys=True):
+            elif json.dumps(db_node, sort_keys=True) != json.dumps(
+                file_node, sort_keys=True
+            ):
                 changed.append((nid, "other"))
 
     return only_in_db, only_in_file, changed
@@ -1107,8 +1214,13 @@ def cmd_sync_status(args):
             },
         }
         if not short:
-            result["new_in_db"] = [{"id": nid, "text": db_nodes[nid].get("text", "")} for nid in only_in_db]
-            result["only_in_file"] = [{"id": nid, "text": disk_nodes[nid].get("text", "")} for nid in only_in_file]
+            result["new_in_db"] = [
+                {"id": nid, "text": db_nodes[nid].get("text", "")} for nid in only_in_db
+            ]
+            result["only_in_file"] = [
+                {"id": nid, "text": disk_nodes[nid].get("text", "")}
+                for nid in only_in_file
+            ]
             result["changed"] = [{"id": nid, "field": field} for nid, field in changed]
         print(json.dumps(result, indent=2))
         return
@@ -1138,14 +1250,20 @@ def cmd_sync_status(args):
                 print(f"  ~ {nid} ({field})")
             print()
 
-    print(f"Summary: +{len(only_in_db)} new, -{len(only_in_file)} removed, ~{len(changed)} changed")
+    print(
+        f"Summary: +{len(only_in_db)} new, -{len(only_in_file)} removed, ~{len(changed)} changed"
+    )
     if not short:
         if only_in_db and only_in_file or changed:
-            print(f"Run `reasonsforge merge {network_file} --strategy newest` to reconcile both sides")
+            print(
+                f"Run `reasonsforge merge {network_file} --strategy newest` to reconcile both sides"
+            )
         if only_in_db and not only_in_file and not changed:
             print("Run `reasonsforge export` to update network.json")
         if only_in_file and not only_in_db and not changed:
-            print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
+            print(
+                f"Run `reasonsforge import-json {network_file}` to import upstream changes"
+            )
 
 
 def cmd_merge(args):
@@ -1171,7 +1289,9 @@ def cmd_merge(args):
 
     if result["conflicts"]:
         if result["resolved"]:
-            print(f"\nConflicts: {result['conflicts']} total, {result['resolved']} resolved")
+            print(
+                f"\nConflicts: {result['conflicts']} total, {result['resolved']} resolved"
+            )
             if result["kept_ours"]:
                 print(f"  Kept ours: {result['kept_ours']}")
             if result["kept_theirs"]:
@@ -1188,7 +1308,9 @@ def cmd_merge(args):
                         print(f"    text ours:   {c['ours_text']}")
                         print(f"    text theirs: {c['theirs_text']}")
                     elif field == "truth_value":
-                        print(f"    truth ours: {c['ours_truth']}  theirs: {c['theirs_truth']}")
+                        print(
+                            f"    truth ours: {c['ours_truth']}  theirs: {c['theirs_truth']}"
+                        )
                     else:
                         print(f"    {field} differs")
             if not args.dry_run:
@@ -1201,7 +1323,9 @@ def cmd_merge(args):
 
 
 def cmd_export(args):
-    data = api.export_network(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
+    data = api.export_network(
+        visible_to=_parse_visible_to(args), **_backend_kwargs(args)
+    )
     if args.output == "-":
         print(json.dumps(data, indent=2))
     else:
@@ -1210,7 +1334,8 @@ def cmd_export(args):
             try:
                 existing = json.loads(out_path.read_text())
                 only_in_db, only_in_file, changed = _compute_sync_diff(
-                    data.get("nodes", {}), existing.get("nodes", {}))
+                    data.get("nodes", {}), existing.get("nodes", {})
+                )
                 if not only_in_db and not only_in_file and not changed:
                     print(f"No changes — {args.output} not updated")
                     return
@@ -1221,7 +1346,9 @@ def cmd_export(args):
 
 
 def cmd_export_markdown(args):
-    md = api.export_markdown(visible_to=_parse_visible_to(args), **_backend_kwargs(args))
+    md = api.export_markdown(
+        visible_to=_parse_visible_to(args), **_backend_kwargs(args)
+    )
     if args.output == "-":
         print(md)
     else:
@@ -1249,7 +1376,9 @@ def cmd_hash_sources(args):
     result = api.hash_sources(force=args.force, **_backend_kwargs(args))
 
     if not result["hashed"]:
-        print("No nodes to hash (all sources already have hashes, or source files not found).")
+        print(
+            "No nodes to hash (all sources already have hashes, or source files not found)."
+        )
         if not args.force:
             print("Use --force to re-hash nodes that already have hashes.")
         return
@@ -1269,9 +1398,11 @@ def cmd_hash_sources(args):
 
 
 def cmd_check_stale(args):
-    result = api.check_stale(upgrade_hashes=args.upgrade_hashes,
-                             git_aware=getattr(args, "git", False),
-                             **_backend_kwargs(args))
+    result = api.check_stale(
+        upgrade_hashes=args.upgrade_hashes,
+        git_aware=getattr(args, "git", False),
+        **_backend_kwargs(args),
+    )
 
     if result.get("upgraded"):
         print(f"Upgraded {result['upgraded']} truncated hash(es) to full length.")
@@ -1318,11 +1449,15 @@ def cmd_check_integrity(args):
     if result["chain_mutations"]:
         print(f"Chain mutations: {len(result['chain_mutations'])}")
         for f in result["chain_mutations"]:
-            print(f"  {f['node_id']} j{f['justification_index']}: antecedent text changed")
+            print(
+                f"  {f['node_id']} j{f['justification_index']}: antecedent text changed"
+            )
         print()
 
     if result["missing_hashes"]:
-        print(f"Missing hashes: {result['missing_hashes']} (run 'reasons backfill-hashes' to compute)")
+        print(
+            f"Missing hashes: {result['missing_hashes']} (run 'reasons backfill-hashes' to compute)"
+        )
         print()
 
     total = len(result["text_mutations"]) + len(result["chain_mutations"])
@@ -1349,14 +1484,18 @@ def cmd_pin_sources(args):
     )
 
     if not result["pinned"]:
-        print("No nodes to pin (all sources already pinned, or source files not in git).")
+        print(
+            "No nodes to pin (all sources already pinned, or source files not in git)."
+        )
         if not args.force:
             print("Use --force to re-pin nodes that already have a pinned_sha.")
         return
 
     for item in result["pinned"]:
         action = "pinned" if item["was_empty"] else "re-pinned"
-        print(f"  {action}  {item['node_id']}  {item['pinned_sha'][:12]}  ({item['source']})")
+        print(
+            f"  {action}  {item['node_id']}  {item['pinned_sha'][:12]}  ({item['source']})"
+        )
 
     new = sum(1 for p in result["pinned"] if p["was_empty"])
     re = result["count"] - new
@@ -1376,7 +1515,7 @@ def cmd_pin_update(args):
         if "error" in item:
             print(f"  ERROR  {item['node_id']}: {item['error']}")
         else:
-            old = item['old_sha'][:12] if item['old_sha'] else "(none)"
+            old = item["old_sha"][:12] if item["old_sha"] else "(none)"
             print(f"  UPDATED  {item['node_id']}  {old} -> {item['new_sha'][:12]}")
 
     if result["errors"]:
@@ -1447,6 +1586,7 @@ def _write_cost_report(args, operation, cost_summary, **kwargs):
     if tokens == 0:
         return None
     from .cost_report import write_cost_report
+
     elapsed = cost_summary.get("elapsed_seconds")
     return write_cost_report(
         costs_dir=costs_dir,
@@ -1469,23 +1609,34 @@ def cmd_search(args):
     include_out = getattr(args, "show_out", False)
     sort = getattr(args, "sort", "relevance")
     namespace = getattr(args, "namespace", None)
-    result = api.search(args.query, visible_to=_parse_visible_to(args), format=fmt,
-                        include_out=include_out, sort=sort, namespace=namespace,
-                        **_backend_kwargs(args))
+    result = api.search(
+        args.query,
+        visible_to=_parse_visible_to(args),
+        format=fmt,
+        include_out=include_out,
+        sort=sort,
+        namespace=namespace,
+        **_backend_kwargs(args),
+    )
     print(result)
 
 
 def cmd_lookup(args):
     include_out = getattr(args, "show_out", False)
     fmt = getattr(args, "format", "full")
-    result = api.lookup(args.query, visible_to=_parse_visible_to(args),
-                        include_out=include_out, format=fmt,
-                        **_backend_kwargs(args))
+    result = api.lookup(
+        args.query,
+        visible_to=_parse_visible_to(args),
+        include_out=include_out,
+        format=fmt,
+        **_backend_kwargs(args),
+    )
     print(result)
 
 
 def cmd_search_sources(args):
     from .ask import search_source_chunks
+
     results = search_source_chunks(args.query, args.db, top_k=args.top_k)
     if not results:
         print("No matching chunks found.")
@@ -1514,7 +1665,10 @@ def cmd_ask(args):
     if args.elevate or args.elevate_only:
         print(f"Original question: {question}", file=sys.stderr)
         question, searches = elevate_prompt(
-            question, db_path=args.db, model=model, timeout=args.timeout,
+            question,
+            db_path=args.db,
+            model=model,
+            timeout=args.timeout,
         )
         if searches > 0:
             print(f"Elevated question: {question}", file=sys.stderr)
@@ -1526,6 +1680,7 @@ def cmd_ask(args):
     try:
         if args.mcp:
             from .mcp_client import McpBridge
+
             for cmd in args.mcp:
                 bridge = McpBridge(cmd)
                 bridge.connect()
@@ -1591,7 +1746,7 @@ def cmd_cluster_list(args):
         for b in cluster["beliefs"]:
             marker = "+" if args.status == "IN" else "-"
             print(f"  [{marker}] {b['id']}")
-            text = b['text'][:100] + "..." if len(b['text']) > 100 else b['text']
+            text = b["text"][:100] + "..." if len(b["text"]) > 100 else b["text"]
             print(f"      {text}")
 
     print(f"\n{result['n_clusters']} cluster(s), {total} beliefs")
@@ -1613,8 +1768,10 @@ def cmd_deduplicate(args):
         for err in result["errors"]:
             print(f"  ERROR: {err}", file=sys.stderr)
         if result["retracted"]:
-            print(f"Retracted {len(result['retracted'])} duplicates "
-                  f"(from {result['applied']} cluster(s)).")
+            print(
+                f"Retracted {len(result['retracted'])} duplicates "
+                f"(from {result['applied']} cluster(s))."
+            )
             for nid in result["retracted"]:
                 print(f"  RETRACTED {nid}")
         else:
@@ -1634,8 +1791,10 @@ def cmd_deduplicate(args):
         return
 
     if args.verify:
-        print(f"Found {len(result['clusters'])} candidate cluster(s). "
-              "Running LLM verification...")
+        print(
+            f"Found {len(result['clusters'])} candidate cluster(s). "
+            "Running LLM verification..."
+        )
         vresult = api.verify_dedup_clusters(
             result["clusters"],
             model=args.model or "claude",
@@ -1645,8 +1804,10 @@ def cmd_deduplicate(args):
         if vresult["verified"]:
             print(f"\nVerified duplicates ({len(vresult['verified'])} clusters):")
             for i, cluster in enumerate(vresult["verified"], 1):
-                print(f"\n  Cluster {i} ({cluster['size']} beliefs) "
-                      f"[SAME_CLAIM]: {cluster.get('reason', '')}")
+                print(
+                    f"\n  Cluster {i} ({cluster['size']} beliefs) "
+                    f"[SAME_CLAIM]: {cluster.get('reason', '')}"
+                )
                 for b in cluster["beliefs"]:
                     kept = "  <- kept" if cluster.get("kept") == b["id"] else ""
                     print(f"    {b['id']}{kept}")
@@ -1660,7 +1821,9 @@ def cmd_deduplicate(args):
                 print(f"  [{ids}] {reason}")
 
         if vresult["contradictions"]:
-            print(f"\nContradictions found: {len(vresult['contradictions'])} cluster(s)")
+            print(
+                f"\nContradictions found: {len(vresult['contradictions'])} cluster(s)"
+            )
             for cluster in vresult["contradictions"]:
                 print(f"  {cluster.get('reason', '')}")
                 node_ids = [b["id"] for b in cluster["beliefs"]]
@@ -1687,7 +1850,9 @@ def cmd_deduplicate(args):
             for err in apply_result["errors"]:
                 print(f"  ERROR: {err}", file=sys.stderr)
             if apply_result["retracted"]:
-                print(f"\nRetracted {len(apply_result['retracted'])} verified duplicates.")
+                print(
+                    f"\nRetracted {len(apply_result['retracted'])} verified duplicates."
+                )
                 for nid in apply_result["retracted"]:
                     print(f"  RETRACTED {nid}")
         elif vresult["verified"] and not args.auto:
@@ -1706,8 +1871,10 @@ def cmd_deduplicate(args):
             print(f"  {b['id']}{deps}{kept}{retracted}")
             print(f"    {b['text'][:100]}")
 
-    print(f"\n{len(result['clusters'])} cluster(s), "
-          f"{sum(c['size'] for c in result['clusters'])} beliefs involved")
+    print(
+        f"\n{len(result['clusters'])} cluster(s), "
+        f"{sum(c['size'] for c in result['clusters'])} beliefs involved"
+    )
     if result["retracted"]:
         print(f"Retracted {len(result['retracted'])} duplicates.")
     elif not args.auto:
@@ -1717,8 +1884,9 @@ def cmd_deduplicate(args):
         print(f"  reasons deduplicate --accept {output}")
 
 
-def _derive_one_round(args, round_num=None, report_state=None,
-                      cluster_cache=None, prompt_template=None):
+def _derive_one_round(
+    args, round_num=None, report_state=None, cluster_cache=None, prompt_template=None
+):
     """Run a single derive round. Returns number of beliefs added (0 = saturated).
 
     Used by cmd_derive for both single-round and --exhaust mode.
@@ -1749,21 +1917,32 @@ def _derive_one_round(args, round_num=None, report_state=None,
         return -1
 
     prompt, stats = build_prompt(
-        nodes, domain=args.domain, topic=args.topic,
+        nodes,
+        domain=args.domain,
+        topic=args.topic,
         source_path=getattr(args, "source_path", None),
-        budget=args.budget, sample=args.sample, seed=args.seed,
-        min_depth=args.min_depth, max_depth_filter=args.max_depth,
-        premises_only=args.premises, has_dependents=args.has_dependents,
-        cluster=args.cluster, intra_cluster=args.intra_cluster,
-        round_num=round_num or 0, cluster_cache=cluster_cache,
-        embedding_model=args.embedding_model, n_clusters=args.n_clusters,
+        budget=args.budget,
+        sample=args.sample,
+        seed=args.seed,
+        min_depth=args.min_depth,
+        max_depth_filter=args.max_depth,
+        premises_only=args.premises,
+        has_dependents=args.has_dependents,
+        cluster=args.cluster,
+        intra_cluster=args.intra_cluster,
+        round_num=round_num or 0,
+        cluster_cache=cluster_cache,
+        embedding_model=args.embedding_model,
+        n_clusters=args.n_clusters,
         prompt_template=prompt_template,
         mode=getattr(args, "mode", None),
     )
 
-    print(f"{prefix}Network: {stats['total_in']} IN beliefs, "
-          f"{stats['total_derived']} derived, max depth {stats['max_depth']}",
-          file=sys.stderr)
+    print(
+        f"{prefix}Network: {stats['total_in']} IN beliefs, "
+        f"{stats['total_derived']} derived, max depth {stats['max_depth']}",
+        file=sys.stderr,
+    )
     if stats.get("topic"):
         print(f"{prefix}Topic filter: {stats['topic']}", file=sys.stderr)
     if stats.get("min_depth") is not None or stats.get("max_depth_filter") is not None:
@@ -1772,8 +1951,11 @@ def _derive_one_round(args, round_num=None, report_state=None,
         print(f"{prefix}Depth filter: {lo}–{hi}", file=sys.stderr)
     if stats.get("cluster"):
         cluster_mode = "intra" if stats.get("intra_cluster") else "inter"
-        print(f"{prefix}Clustering ({cluster_mode}): {stats['n_clusters']} clusters, "
-              f"model={stats['embedding_model']}", file=sys.stderr)
+        print(
+            f"{prefix}Clustering ({cluster_mode}): {stats['n_clusters']} clusters, "
+            f"model={stats['embedding_model']}",
+            file=sys.stderr,
+        )
         if stats.get("focus_cluster") is not None:
             print(f"{prefix}Focus: cluster {stats['focus_cluster']}", file=sys.stderr)
     elif stats.get("sample"):
@@ -1796,6 +1978,7 @@ def _derive_one_round(args, round_num=None, report_state=None,
     print(f"{prefix}Deriving with {model}...", file=sys.stderr)
 
     from .llm import invoke_model
+
     try:
         response = invoke_model(prompt, model=model, timeout=args.timeout)
     except FileNotFoundError as e:
@@ -1814,12 +1997,17 @@ def _derive_one_round(args, round_num=None, report_state=None,
     if not proposals:
         print(f"{prefix}No new proposals — network saturated.", file=sys.stderr)
         if report_state is not None:
-            report_state["rounds"].append({
-                "round": round_num or 1,
-                "network_stats": stats,
-                "proposals_found": 0, "valid": 0,
-                "skipped": [], "applied": [], "added": 0,
-            })
+            report_state["rounds"].append(
+                {
+                    "round": round_num or 1,
+                    "network_stats": stats,
+                    "proposals_found": 0,
+                    "valid": 0,
+                    "skipped": [],
+                    "applied": [],
+                    "added": 0,
+                }
+            )
             _write_derive_report(report_state, "partial")
         return 0
 
@@ -1828,8 +2016,10 @@ def _derive_one_round(args, round_num=None, report_state=None,
     for p, reason in skipped:
         print(f"  SKIP {p['id']}: {reason}", file=sys.stderr)
 
-    print(f"\n{prefix}{len(valid)} valid proposals "
-          f"({len(skipped)} skipped)", file=sys.stderr)
+    print(
+        f"\n{prefix}{len(valid)} valid proposals ({len(skipped)} skipped)",
+        file=sys.stderr,
+    )
 
     round_result = {
         "round": round_num or 1,
@@ -1853,9 +2043,12 @@ def _derive_one_round(args, round_num=None, report_state=None,
         for p, result in results:
             if isinstance(result, dict):
                 print(f"  Added {p['id']} [{result['truth_value']}]")
-                round_result["applied"].append({
-                    "id": p["id"], "truth_value": result["truth_value"],
-                })
+                round_result["applied"].append(
+                    {
+                        "id": p["id"],
+                        "truth_value": result["truth_value"],
+                    }
+                )
                 added += 1
             else:
                 print(f"  FAIL {p['id']}: {result}", file=sys.stderr)
@@ -1881,6 +2074,7 @@ def _derive_one_round(args, round_num=None, report_state=None,
 def _write_derive_report(report_state, status):
     """Write derive JSON report to disk."""
     import json
+
     if report_state.get("report_path") is None:
         return
     total = sum(r["added"] for r in report_state["rounds"])
@@ -1901,31 +2095,36 @@ def cmd_derive(args):
     _require_sqlite(args, "derive")
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     prompt_template = None
     if args.prompt_file:
         prompt_path = Path(args.prompt_file)
         if not prompt_path.exists():
-            print(f"Error: prompt file not found: {prompt_path}",
-                  file=sys.stderr)
+            print(f"Error: prompt file not found: {prompt_path}", file=sys.stderr)
             sys.exit(1)
         prompt_template = prompt_path.read_text()
 
     if (args.cluster or args.intra_cluster) and args.sample:
-        print("Error: --cluster/--intra-cluster and --sample are mutually exclusive.",
-              file=sys.stderr)
+        print(
+            "Error: --cluster/--intra-cluster and --sample are mutually exclusive.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if args.cluster and args.intra_cluster:
-        print("Error: --cluster and --intra-cluster are mutually exclusive.",
-              file=sys.stderr)
+        print(
+            "Error: --cluster and --intra-cluster are mutually exclusive.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     cluster_cache = None
     if args.cluster or args.intra_cluster:
         try:
             from .cluster import ClusterCache
+
             print("Loading embedding model...", file=sys.stderr)
             cluster_cache = ClusterCache(
                 model_name=args.embedding_model or "all-MiniLM-L6-v2"
@@ -1972,26 +2171,39 @@ def cmd_derive(args):
             print(f"\n{'=' * 40}", file=sys.stderr)
             print(f"Round {round_num}/{max_rounds}", file=sys.stderr)
             print(f"{'=' * 40}", file=sys.stderr)
-            added = _derive_one_round(args, round_num=round_num,
-                                      report_state=report_state,
-                                      cluster_cache=cluster_cache,
-                                      prompt_template=prompt_template)
+            added = _derive_one_round(
+                args,
+                round_num=round_num,
+                report_state=report_state,
+                cluster_cache=cluster_cache,
+                prompt_template=prompt_template,
+            )
             if added < 0:
-                print(f"\nExhaust stopped: error in round {round_num}.",
-                      file=sys.stderr)
+                print(
+                    f"\nExhaust stopped: error in round {round_num}.", file=sys.stderr
+                )
                 sys.exit(1)
             if added == 0:
-                print(f"\nExhaust complete: saturated after {round_num} rounds. "
-                      f"Total added: {total_added}.", file=sys.stderr)
+                print(
+                    f"\nExhaust complete: saturated after {round_num} rounds. "
+                    f"Total added: {total_added}.",
+                    file=sys.stderr,
+                )
                 break
             total_added += added
         else:
-            print(f"\nExhaust complete: hit max rounds ({max_rounds}). "
-                  f"Total added: {total_added}.", file=sys.stderr)
+            print(
+                f"\nExhaust complete: hit max rounds ({max_rounds}). "
+                f"Total added: {total_added}.",
+                file=sys.stderr,
+            )
     else:
-        added = _derive_one_round(args, report_state=report_state,
-                                  cluster_cache=cluster_cache,
-                                  prompt_template=prompt_template)
+        added = _derive_one_round(
+            args,
+            report_state=report_state,
+            cluster_cache=cluster_cache,
+            prompt_template=prompt_template,
+        )
         if added < 0:
             sys.exit(1)
         total_added = max(added, 0)
@@ -2007,8 +2219,11 @@ def cmd_derive(args):
     cost_summary = get_cost_summary()
     if cost_summary["calls"] > 0:
         cost_path = _write_cost_report(
-            args, "derive", cost_summary,
-            domain=args.domain, model=args.model or "claude",
+            args,
+            "derive",
+            cost_summary,
+            domain=args.domain,
+            model=args.model or "claude",
             beliefs_added=total_added,
         )
         if cost_path:
@@ -2053,8 +2268,10 @@ def cmd_accept(args):
         else:
             print(f"  FAIL {p['id']}: {result}", file=sys.stderr)
 
-    print(f"\nAccepted {added} of {len(proposals)} proposals "
-          f"({len(skipped)} skipped).", file=sys.stderr)
+    print(
+        f"\nAccepted {added} of {len(proposals)} proposals ({len(skipped)} skipped).",
+        file=sys.stderr,
+    )
 
 
 def cmd_list(args):
@@ -2079,8 +2296,10 @@ def cmd_list(args):
     )
 
     if args.never_reviewed and args.not_reviewed_since is not None:
-        print("Warning: --never-reviewed makes --not-reviewed-since a no-op",
-              file=sys.stderr)
+        print(
+            "Warning: --never-reviewed makes --not-reviewed-since a no-op",
+            file=sys.stderr,
+        )
 
     if not result["nodes"]:
         print("No matching nodes.")
@@ -2096,8 +2315,16 @@ def cmd_list(args):
     show_timestamp = sort in ("created", "updated")
     for node in result["nodes"]:
         marker = "+" if node["truth_value"] == "IN" else "-"
-        jinfo = f"  ({node['justification_count']} justification{'s' if node['justification_count'] != 1 else ''})" if node["justification_count"] else "  (premise)"
-        deps = f"  [{node['dependent_count']} dependents]" if node["dependent_count"] else ""
+        jinfo = (
+            f"  ({node['justification_count']} justification{'s' if node['justification_count'] != 1 else ''})"
+            if node["justification_count"]
+            else "  (premise)"
+        )
+        deps = (
+            f"  [{node['dependent_count']} dependents]"
+            if node["dependent_count"]
+            else ""
+        )
         stype = f"  <{node['source_type']}>" if node.get("source_type") else ""
         review_info = ""
         if show_review:
@@ -2139,13 +2366,16 @@ def cmd_list_gated(args):
             print(f"    ⊢ {gated['id']}: {gated['text']}")
         print()
 
-    print(f"{result['blocker_count']} blocker(s) gating {result['gated_count']} belief(s)")
+    print(
+        f"{result['blocker_count']} blocker(s) gating {result['gated_count']} belief(s)"
+    )
 
 
 def cmd_report_gated(args):
     model = getattr(args, "model", None) or ""
     if model:
         from .llm import reset_cost_tracker
+
         reset_cost_tracker()
 
     result = api.report_gated(
@@ -2173,6 +2403,7 @@ def cmd_report_gated(args):
 
     if model:
         from .llm import format_cost_summary, get_cost_summary
+
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
@@ -2185,6 +2416,7 @@ def cmd_report(args):
     model = getattr(args, "model", None) or ""
     if model:
         from .llm import reset_cost_tracker
+
         reset_cost_tracker()
 
     result = api.report_belief(
@@ -2211,6 +2443,7 @@ def cmd_report(args):
 
     if model:
         from .llm import format_cost_summary, get_cost_summary
+
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
@@ -2221,6 +2454,7 @@ def cmd_report(args):
 
 def cmd_verify(args):
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     result = api.verify_belief(
@@ -2243,8 +2477,10 @@ def cmd_verify(args):
         return
 
     markers = {
-        "CONFIRMED": "+", "STALE": "-",
-        "PARTIAL": "~", "INCONCLUSIVE": "?",
+        "CONFIRMED": "+",
+        "STALE": "-",
+        "PARTIAL": "~",
+        "INCONCLUSIVE": "?",
     }
     verdicts = result["results"]
 
@@ -2274,17 +2510,27 @@ def cmd_verify(args):
 
     if result["is_derived"] and getattr(args, "trace", False):
         total = len(beliefs)
-        print(f"\n  Antecedent summary: {len(confirmed)}/{total} confirmed, "
-              f"{len(stale)} stale, {len(partial)} partial, "
-              f"{len(inconclusive)} inconclusive")
+        print(
+            f"\n  Antecedent summary: {len(confirmed)}/{total} confirmed, "
+            f"{len(stale)} stale, {len(partial)} partial, "
+            f"{len(inconclusive)} inconclusive"
+        )
 
     if result.get("retract_failed"):
-        print(f"\n  WARNING: failed to retract: {', '.join(result['retract_failed'])}", file=sys.stderr)
+        print(
+            f"\n  WARNING: failed to retract: {', '.join(result['retract_failed'])}",
+            file=sys.stderr,
+        )
     if result.get("stamp_failed"):
-        print(f"\n  WARNING: failed to stamp verified_at: {', '.join(result['stamp_failed'])}", file=sys.stderr)
+        print(
+            f"\n  WARNING: failed to stamp verified_at: {', '.join(result['stamp_failed'])}",
+            file=sys.stderr,
+        )
 
-    print(f"\nResults: {len(confirmed)} confirmed, {len(stale)} stale, "
-          f"{len(partial)} partial, {len(inconclusive)} inconclusive")
+    print(
+        f"\nResults: {len(confirmed)} confirmed, {len(stale)} stale, "
+        f"{len(partial)} partial, {len(inconclusive)} inconclusive"
+    )
 
     cost = format_cost_summary()
     if cost:
@@ -2310,8 +2556,10 @@ def cmd_list_negative(args):
     for item in result["negative"]:
         print(f"  [-] {item['id']}: {item['text']}")
 
-    print(f"\n{result['count']} negative belief(s) "
-          f"({result['candidates']} candidates from {result['total']} IN nodes)")
+    print(
+        f"\n{result['count']} negative belief(s) "
+        f"({result['candidates']} candidates from {result['total']} IN nodes)"
+    )
 
 
 def cmd_topics(args):
@@ -2321,6 +2569,7 @@ def cmd_topics(args):
     )
     if getattr(args, "json", False):
         import json
+
         print(json.dumps(result, indent=2))
         return
     if not result["topics"]:
@@ -2336,6 +2585,7 @@ def cmd_build_wiki(args):
     model = getattr(args, "model", None) or ""
     if model:
         from .llm import reset_cost_tracker
+
         reset_cost_tracker()
     result = api.build_wiki(
         output_dir=args.output,
@@ -2358,6 +2608,7 @@ def cmd_build_wiki(args):
     print(f"  {result['total_nodes']} beliefs across {result['pages']} pages")
     if model:
         from .llm import format_cost_summary, get_cost_summary
+
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
@@ -2371,6 +2622,7 @@ def cmd_review_beliefs(args):
     import json
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2415,7 +2667,9 @@ def cmd_review_beliefs(args):
         if report_path is not None:
             report_path.write_text(json.dumps(_build_report(results, status), indent=2))
 
-    on_batch = (lambda results: _write_report(results, "partial")) if write_report else None
+    on_batch = (
+        (lambda results: _write_report(results, "partial")) if write_report else None
+    )
 
     result = api.review_beliefs(
         belief_ids=args.ids or None,
@@ -2465,9 +2719,13 @@ def cmd_review_beliefs(args):
             if r.get("comment"):
                 print(f"    {r['comment']}")
 
-    print(f"\nReviewed {result['reviewed']} of {result['total_derived']} derived beliefs")
-    print(f"  Invalid: {result['invalid']}  Insufficient: {result['insufficient']}"
-          f"  Unnecessary: {result['unnecessary']}")
+    print(
+        f"\nReviewed {result['reviewed']} of {result['total_derived']} derived beliefs"
+    )
+    print(
+        f"  Invalid: {result['invalid']}  Insufficient: {result['insufficient']}"
+        f"  Unnecessary: {result['unnecessary']}"
+    )
 
     if report_path is not None:
         report = _build_report(reviews, "complete")
@@ -2485,7 +2743,9 @@ def cmd_review_beliefs(args):
                 f.write(f"### {r['id']}\n")
                 f.write(f"- Valid: {v}\n- Sufficient: {s}\n- Necessary: {n}\n")
                 if r.get("unnecessary_antecedents"):
-                    f.write(f"- Unnecessary antecedents: {', '.join(r['unnecessary_antecedents'])}\n")
+                    f.write(
+                        f"- Unnecessary antecedents: {', '.join(r['unnecessary_antecedents'])}\n"
+                    )
                 if r.get("comment"):
                     f.write(f"- Comment: {r['comment']}\n")
                 f.write("\n")
@@ -2496,7 +2756,9 @@ def cmd_review_beliefs(args):
         for r in invalid:
             reason = f"review-beliefs: {r.get('comment', 'invalid')}"
             try:
-                node_data = api.export_network(db_path=args.db)["nodes"].get(r["id"], {})
+                node_data = api.export_network(db_path=args.db)["nodes"].get(
+                    r["id"], {}
+                )
                 if node_data.get("truth_value") == "OUT":
                     api.set_metadata(r["id"], "retract_reason", reason, db_path=args.db)
                     print(f"  UPDATED reason for {r['id']}")
@@ -2515,18 +2777,31 @@ def cmd_review_beliefs(args):
             try:
                 if scope_findings:
                     result = api.defeat_with_scope(
-                        r["id"], 0, scope_findings, missing_property,
+                        r["id"],
+                        0,
+                        scope_findings,
+                        missing_property,
                         defeater_type="invalid-inference",
-                        defeat_reason_type=reason_type, db_path=args.db)
+                        defeat_reason_type=reason_type,
+                        db_path=args.db,
+                    )
                     rt = f" [{reason_type}]" if reason_type else ""
-                    print(f"  DEFEATED {r['id']} with {len(result['scope_belief_ids'])} scope belief(s){rt}")
+                    print(
+                        f"  DEFEATED {r['id']} with {len(result['scope_belief_ids'])} scope belief(s){rt}"
+                    )
                 else:
                     api.defeat_justification(
-                        r["id"], 0, r.get("comment", "invalid"),
+                        r["id"],
+                        0,
+                        r.get("comment", "invalid"),
                         defeater_type="invalid-inference",
-                        defeat_reason_type=reason_type, db_path=args.db)
+                        defeat_reason_type=reason_type,
+                        db_path=args.db,
+                    )
                     rt = f" [{reason_type}]" if reason_type else ""
-                    print(f"  DEFEATED {r['id']} (bare defeater, no scope findings){rt}")
+                    print(
+                        f"  DEFEATED {r['id']} (bare defeater, no scope findings){rt}"
+                    )
             except Exception as e:
                 print(f"  ERROR defeating {r['id']}: {e}", file=sys.stderr)
 
@@ -2536,14 +2811,18 @@ def cmd_review_beliefs(args):
     cost_summary = get_cost_summary()
     if cost_summary["calls"] > 0:
         _write_cost_report(
-            args, "review-beliefs", cost_summary,
-            model=model, beliefs_retracted=len(invalid) if args.auto_retract else 0,
+            args,
+            "review-beliefs",
+            cost_summary,
+            model=model,
+            beliefs_retracted=len(invalid) if args.auto_retract else 0,
         )
 
 
 def cmd_review_justifications(args):
     _require_sqlite(args, "review-justifications")
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2572,7 +2851,9 @@ def cmd_review_justifications(args):
                 indep = r.get("independent_antecedents", [])
                 if indep:
                     sl = ",".join(indep)
-                    print(f"    Fix: reasons add-justification {r['id']} --sl {sl} --any")
+                    print(
+                        f"    Fix: reasons add-justification {r['id']} --sl {sl} --any"
+                    )
             elif cls == "MIXED":
                 req = r.get("required_antecedents", [])
                 indep = r.get("independent_antecedents", [])
@@ -2582,8 +2863,10 @@ def cmd_review_justifications(args):
                     print(f"    Independent: {', '.join(indep)}")
 
     print(f"\nReviewed {result['reviewed']} justifications")
-    print(f"  Keep ALL: {result['keep_all']}  Convert ANY: {result['convert_any']}"
-          f"  Mixed: {result['convert_mixed']}")
+    print(
+        f"  Keep ALL: {result['keep_all']}  Convert ANY: {result['convert_any']}"
+        f"  Mixed: {result['convert_mixed']}"
+    )
 
     if args.output:
         with open(args.output, "w") as f:
@@ -2595,7 +2878,9 @@ def cmd_review_justifications(args):
                 if r.get("required_antecedents"):
                     f.write(f"- Required: {', '.join(r['required_antecedents'])}\n")
                 if r.get("independent_antecedents"):
-                    f.write(f"- Independent: {', '.join(r['independent_antecedents'])}\n")
+                    f.write(
+                        f"- Independent: {', '.join(r['independent_antecedents'])}\n"
+                    )
                 if r.get("comment"):
                     f.write(f"- Comment: {r['comment']}\n")
                 f.write("\n")
@@ -2614,6 +2899,7 @@ def cmd_review_premises(args):
     import json
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2628,8 +2914,11 @@ def cmd_review_premises(args):
 
     def _build_report(results, status, total_premises=None, skipped=0):
         inaccurate = sum(1 for r in results if not r.get("accurate", True))
-        overgeneralized = sum(1 for r in results
-                             if r.get("accurate", True) and not r.get("well_scoped", True))
+        overgeneralized = sum(
+            1
+            for r in results
+            if r.get("accurate", True) and not r.get("well_scoped", True)
+        )
         return {
             "timestamp": ts,
             "status": status,
@@ -2655,7 +2944,9 @@ def cmd_review_premises(args):
         if report_path is not None:
             report_path.write_text(json.dumps(_build_report(results, status), indent=2))
 
-    on_batch = (lambda results: _write_report(results, "partial")) if write_report else None
+    on_batch = (
+        (lambda results: _write_report(results, "partial")) if write_report else None
+    )
 
     result = api.review_premises(
         belief_ids=args.ids or None,
@@ -2681,8 +2972,9 @@ def cmd_review_premises(args):
         return
 
     inaccurate = [r for r in reviews if not r.get("accurate", True)]
-    overgeneralized = [r for r in reviews
-                       if r.get("accurate", True) and not r.get("well_scoped", True)]
+    overgeneralized = [
+        r for r in reviews if r.get("accurate", True) and not r.get("well_scoped", True)
+    ]
 
     for r in reviews:
         flags = []
@@ -2697,14 +2989,21 @@ def cmd_review_premises(args):
             if r.get("comment"):
                 print(f"    {r['comment']}")
 
-    print(f"\nReviewed {result['reviewed']} of {result['total_premises']} premises"
-          f" ({result['skipped_no_source']} skipped, no source)")
-    print(f"  Inaccurate: {result['inaccurate']}  Overgeneralized: {result['overgeneralized']}")
+    print(
+        f"\nReviewed {result['reviewed']} of {result['total_premises']} premises"
+        f" ({result['skipped_no_source']} skipped, no source)"
+    )
+    print(
+        f"  Inaccurate: {result['inaccurate']}  Overgeneralized: {result['overgeneralized']}"
+    )
 
     if report_path is not None:
-        report = _build_report(reviews, "complete",
-                               total_premises=result["total_premises"],
-                               skipped=result["skipped_no_source"])
+        report = _build_report(
+            reviews,
+            "complete",
+            total_premises=result["total_premises"],
+            skipped=result["skipped_no_source"],
+        )
         report_path.write_text(json.dumps(report, indent=2))
         print(f"  Report: {report_path}")
 
@@ -2712,9 +3011,11 @@ def cmd_review_premises(args):
         print(f"\nRetracting {len(inaccurate)} inaccurate premise(s)...")
         for r in inaccurate:
             try:
-                api.retract_node(r["id"],
-                                 reason=f"review-premises: {r.get('error_type', 'inaccurate')}: {r.get('comment', '')}",
-                                 db_path=args.db)
+                api.retract_node(
+                    r["id"],
+                    reason=f"review-premises: {r.get('error_type', 'inaccurate')}: {r.get('comment', '')}",
+                    db_path=args.db,
+                )
                 print(f"  RETRACTED {r['id']}")
             except Exception as e:
                 print(f"  ERROR retracting {r['id']}: {e}", file=sys.stderr)
@@ -2732,6 +3033,7 @@ def cmd_repair_premises(args):
     import json
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2762,7 +3064,9 @@ def cmd_repair_premises(args):
             }
             report_path.write_text(json.dumps(report, indent=2))
 
-    on_result = (lambda results: _write_report(results, "partial")) if write_report else None
+    on_result = (
+        (lambda results: _write_report(results, "partial")) if write_report else None
+    )
 
     result = api.repair_premises(
         review_file=review_file,
@@ -2803,9 +3107,13 @@ def cmd_repair_premises(args):
                 text += "..."
             print(f"    -> {text}")
 
-    print(f"\nRepaired {len(repairs)} of {result['total_inaccurate']} inaccurate premises")
-    print(f"  Rewritten: {result['rewritten']}  Retracted: {result['retracted']}"
-          f"  Failed: {result['failed']}")
+    print(
+        f"\nRepaired {len(repairs)} of {result['total_inaccurate']} inaccurate premises"
+    )
+    print(
+        f"  Rewritten: {result['rewritten']}  Retracted: {result['retracted']}"
+        f"  Failed: {result['failed']}"
+    )
 
     if report_path is not None:
         _write_report(repairs, "complete")
@@ -2824,6 +3132,7 @@ def cmd_propose_update(args):
     import json as _json
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     from .propose_update import format_proposals_file
@@ -2841,12 +3150,17 @@ def cmd_propose_update(args):
 
     def on_batch(results):
         if report_path is not None:
-            report_path.write_text(_json.dumps({
-                "timestamp": ts,
-                "status": "partial",
-                "model": model,
-                "proposals": results,
-            }, indent=2))
+            report_path.write_text(
+                _json.dumps(
+                    {
+                        "timestamp": ts,
+                        "status": "partial",
+                        "model": model,
+                        "proposals": results,
+                    },
+                    indent=2,
+                )
+            )
 
     result = api.propose_update(
         belief_ids=args.ids or None,
@@ -2880,7 +3194,9 @@ def cmd_propose_update(args):
         if p.get("comment"):
             print(f"    {p['comment']}")
 
-    print(f"\nReviewed {result['reviewed']} beliefs, {len(proposals)} update(s) proposed")
+    print(
+        f"\nReviewed {result['reviewed']} beliefs, {len(proposals)} update(s) proposed"
+    )
 
     if output_format == "markdown":
         net_result = api.export_network(db_path=args.db)
@@ -2891,23 +3207,33 @@ def cmd_propose_update(args):
         print(f"\nWrote proposals to {output_file}")
     else:
         output_file = args.output or "proposed-updates.json"
-        Path(output_file).write_text(_json.dumps({
-            "timestamp": ts,
-            "model": model,
-            "reviewed": result["reviewed"],
-            "proposals": proposals,
-            "cascades": {k: v for k, v in cascades.items()},
-        }, indent=2))
+        Path(output_file).write_text(
+            _json.dumps(
+                {
+                    "timestamp": ts,
+                    "model": model,
+                    "reviewed": result["reviewed"],
+                    "proposals": proposals,
+                    "cascades": {k: v for k, v in cascades.items()},
+                },
+                indent=2,
+            )
+        )
         print(f"\nWrote proposals to {output_file}")
 
     if write_report and report_path is not None:
-        report_path.write_text(_json.dumps({
-            "timestamp": ts,
-            "status": "complete",
-            "model": model,
-            "reviewed": result["reviewed"],
-            "proposals": proposals,
-        }, indent=2))
+        report_path.write_text(
+            _json.dumps(
+                {
+                    "timestamp": ts,
+                    "status": "complete",
+                    "model": model,
+                    "reviewed": result["reviewed"],
+                    "proposals": proposals,
+                },
+                indent=2,
+            )
+        )
         print(f"  Report: {report_path}")
 
     cost = format_cost_summary()
@@ -2952,9 +3278,11 @@ def cmd_repair_smuggled(args):
             print(f"    Error: {r['error']}")
 
     print(f"\nTotal invalid: {result['total_invalid']}")
-    print(f"  Repaired: {result['repaired']}  No candidates: {result['no_candidates']}"
-          f"  No match: {result['no_match']}  Extract failed: {result['extraction_failed']}"
-          f"  Errors: {result['errors']}")
+    print(
+        f"  Repaired: {result['repaired']}  No candidates: {result['no_candidates']}"
+        f"  No match: {result['no_match']}  Extract failed: {result['extraction_failed']}"
+        f"  Errors: {result['errors']}"
+    )
 
     if args.dry_run:
         print("\n  (dry run -- no changes applied)")
@@ -2963,6 +3291,7 @@ def cmd_repair_smuggled(args):
 def cmd_repair(args):
     _require_sqlite(args, "repair")
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -2998,9 +3327,11 @@ def cmd_repair(args):
             print(f"    Error: {r['error']}")
 
     print(f"\nTotal invalid: {result['total_invalid']}")
-    print(f"  Linked: {result['linked']}  Softened: {result['softened']}"
-          f"  Abandoned: {result['abandoned']}  Research: {result['needs_research']}"
-          f"  Failed: {result['failed']}  Errors: {result['errors']}")
+    print(
+        f"  Linked: {result['linked']}  Softened: {result['softened']}"
+        f"  Abandoned: {result['abandoned']}  Research: {result['needs_research']}"
+        f"  Failed: {result['failed']}  Errors: {result['errors']}"
+    )
 
     if args.dry_run:
         print("\n  (dry run -- no changes applied)")
@@ -3032,13 +3363,16 @@ def cmd_contradictions(args):
             print(f"Applied {result['applied']} nogood(s):")
             for n in result["nogoods"]:
                 changed = n.get("changed", [])
-                print(f"  {n['id']}: nogood={n.get('nogood_id', '?')}, "
-                      f"changed {len(changed)} node(s)")
+                print(
+                    f"  {n['id']}: nogood={n.get('nogood_id', '?')}, "
+                    f"changed {len(changed)} node(s)"
+                )
         else:
             print("No nogoods to apply.")
         return
 
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
     model = getattr(args, "model", None) or "claude"
@@ -3082,8 +3416,10 @@ def cmd_contradictions(args):
         print(f"\nApplied {result['applied']} nogood(s):")
         for d in result["applied_details"]:
             changed = d.get("changed", [])
-            print(f"  {d.get('id', '?')}: nogood={d.get('nogood_id', '?')}, "
-                  f"changed {len(changed)} node(s)")
+            print(
+                f"  {d.get('id', '?')}: nogood={d.get('nogood_id', '?')}, "
+                f"changed {len(changed)} node(s)"
+            )
     elif not args.auto_apply:
         print(f"\nWrote {output} — review, then run:")
         print(f"  reasons contradictions --accept {output}")
@@ -3108,6 +3444,7 @@ def cmd_relations(args):
     )
 
     from .storage import Storage
+
     store = Storage(args.db)
     network = store.load()
 
@@ -3117,7 +3454,9 @@ def cmd_relations(args):
         print(f"Stored {count} relation entries across node metadata")
         stats = relation_stats(network)
         print(f"  {stats['total_relations']} unique outgoing relations")
-        print(f"  {stats['nodes_with_relations']}/{stats['total_nodes']} nodes have relations ({stats['coverage_pct']}%)")
+        print(
+            f"  {stats['nodes_with_relations']}/{stats['total_nodes']} nodes have relations ({stats['coverage_pct']}%)"
+        )
         return
 
     if args.closure:
@@ -3159,9 +3498,12 @@ def cmd_relations(args):
         fmt = getattr(args, "format", "text")
         if fmt == "json":
             import json as _json
+
             print(_json.dumps(stats, indent=2))
             return
-        print(f"Relations: {stats['total_relations']} across {stats['nodes_with_relations']}/{stats['total_nodes']} nodes ({stats['coverage_pct']}%)")
+        print(
+            f"Relations: {stats['total_relations']} across {stats['nodes_with_relations']}/{stats['total_nodes']} nodes ({stats['coverage_pct']}%)"
+        )
         print(f"\n{'Relation':<14} {'Count':>6}")
         print("-" * 22)
         for rel, count in stats["by_type"].items():
@@ -3186,7 +3528,16 @@ def cmd_relations(args):
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         import json as _json
-        out = [{"id": bid, "subject": r.subject, "relation": r.relation, "object": r.object} for bid, r in triples]
+
+        out = [
+            {
+                "id": bid,
+                "subject": r.subject,
+                "relation": r.relation,
+                "object": r.object,
+            }
+            for bid, r in triples
+        ]
         print(_json.dumps(out, indent=2))
         return
 
@@ -3200,6 +3551,7 @@ def cmd_relations(args):
 def cmd_derive_relations(args):
     _require_sqlite(args, "derive-relations")
     from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+
     reset_cost_tracker()
 
     from .derive_relations import (
@@ -3228,29 +3580,43 @@ def cmd_derive_relations(args):
     if args.topic:
         keywords = args.topic.lower().split()
         in_nodes = {
-            k: v for k, v in in_nodes.items()
+            k: v
+            for k, v in in_nodes.items()
             if any(kw in f"{k} {v.get('text', '')}".lower() for kw in keywords)
         }
 
     belief_ids = sorted(in_nodes.keys())
     if len(belief_ids) > args.sample_budget:
         import random
+
         rng = random.Random(args.seed)
         belief_ids = rng.sample(belief_ids, args.sample_budget)
 
-    pairs = _sample_pairs(belief_ids, args.budget, seed=args.seed, strategy=args.strategy,
-                          nodes=nodes, embedding_model=getattr(args, "embedding_model", None))
+    pairs = _sample_pairs(
+        belief_ids,
+        args.budget,
+        seed=args.seed,
+        strategy=args.strategy,
+        nodes=nodes,
+        embedding_model=getattr(args, "embedding_model", None),
+    )
     pairs = _filter_existing_relations(pairs, nodes)
 
     print(f"Network: {len(in_nodes)} IN beliefs", file=sys.stderr)
-    print(f"Sampled {len(belief_ids)} beliefs, {len(pairs)} pairs to analyze", file=sys.stderr)
+    print(
+        f"Sampled {len(belief_ids)} beliefs, {len(pairs)} pairs to analyze",
+        file=sys.stderr,
+    )
 
     if not pairs:
-        print("No pairs to analyze after filtering existing relations.", file=sys.stderr)
+        print(
+            "No pairs to analyze after filtering existing relations.", file=sys.stderr
+        )
         return
 
     prompt = build_prompt(
-        nodes, pairs,
+        nodes,
+        pairs,
         domain=args.domain,
         use_case=args.use_case,
     )
@@ -3266,6 +3632,7 @@ def cmd_derive_relations(args):
     print(f"Deriving relations with {model}...", file=sys.stderr)
 
     import subprocess
+
     try:
         response = invoke_model(prompt, model=model, timeout=args.timeout)
     except FileNotFoundError as e:
@@ -3311,6 +3678,7 @@ def cmd_derive_relations(args):
             print(f"\nAdded {added} relational beliefs.", file=sys.stderr)
     else:
         from pathlib import Path
+
         output_path = Path(args.output)
         write_proposals_file(valid, output_path)
         print(f"\nWrote {output_path} ({len(valid)} proposals)")
@@ -3325,9 +3693,14 @@ def cmd_review_relations(args):
     import json as json_mod
     from datetime import datetime
     from .llm import reset_cost_tracker, format_cost_summary, get_cost_summary
+
     reset_cost_tracker()
 
-    from .review_relations import review_relations, find_relational_beliefs, fix_relations
+    from .review_relations import (
+        review_relations,
+        find_relational_beliefs,
+        fix_relations,
+    )
 
     model = getattr(args, "model", None) or "claude"
     ts = datetime.now().isoformat(timespec="seconds")
@@ -3353,12 +3726,14 @@ def cmd_review_relations(args):
     belief_ids = args.ids or None
     if belief_ids is None:
         belief_ids = find_relational_beliefs(
-            nodes, topic=args.topic,
+            nodes,
+            topic=args.topic,
             relation_type=args.relation_type,
         )
 
     if args.sample and len(belief_ids) > args.sample:
         import random
+
         rng = random.Random(42)
         belief_ids = rng.sample(belief_ids, args.sample)
 
@@ -3370,7 +3745,9 @@ def cmd_review_relations(args):
 
     def _build_report(results, status):
         incorrect_type = sum(1 for r in results if not r.get("type_correct", True))
-        wrong_direction = sum(1 for r in results if not r.get("direction_correct", True))
+        wrong_direction = sum(
+            1 for r in results if not r.get("direction_correct", True)
+        )
         ungrounded = sum(1 for r in results if not r.get("grounded", True))
         redundant = sum(1 for r in results if r.get("redundant", False))
         return {
@@ -3397,13 +3774,19 @@ def cmd_review_relations(args):
 
     def _write_report(results, status):
         if report_path is not None:
-            report_path.write_text(json_mod.dumps(_build_report(results, status), indent=2))
+            report_path.write_text(
+                json_mod.dumps(_build_report(results, status), indent=2)
+            )
 
-    on_batch = (lambda results: _write_report(results, "partial")) if write_report else None
+    on_batch = (
+        (lambda results: _write_report(results, "partial")) if write_report else None
+    )
 
     reviews = review_relations(
-        nodes, belief_ids=belief_ids,
-        model=model, timeout=args.timeout,
+        nodes,
+        belief_ids=belief_ids,
+        model=model,
+        timeout=args.timeout,
         on_batch=on_batch,
     )
 
@@ -3441,9 +3824,11 @@ def cmd_review_relations(args):
     passed = len(reviews) - len(issues)
 
     print(f"\nReviewed {len(reviews)} relational beliefs")
-    print(f"  Passed: {passed}  Wrong type: {incorrect_type}  "
-          f"Wrong direction: {wrong_direction}  Ungrounded: {ungrounded}  "
-          f"Redundant: {redundant}")
+    print(
+        f"  Passed: {passed}  Wrong type: {incorrect_type}  "
+        f"Wrong direction: {wrong_direction}  Ungrounded: {ungrounded}  "
+        f"Redundant: {redundant}"
+    )
 
     if report_path is not None:
         report = _build_report(reviews, "complete")
@@ -3470,9 +3855,11 @@ def cmd_review_relations(args):
                 f.write("\n")
         print(f"\nWrote findings to {args.output}")
 
-    retract_candidates = [r for r in reviews
-                          if not r.get("grounded", True)
-                          or not r.get("direction_correct", True)]
+    retract_candidates = [
+        r
+        for r in reviews
+        if not r.get("grounded", True) or not r.get("direction_correct", True)
+    ]
 
     retracted_count = 0
     if args.auto_retract and not args.dry_run and retract_candidates:
@@ -3481,7 +3868,11 @@ def cmd_review_relations(args):
             reason = f"review-relations: {r.get('comment', 'incorrect relation')}"
             try:
                 node_data = nodes.get(r["id"], {})
-                tv = node_data.get("truth_value", "IN") if isinstance(node_data, dict) else getattr(node_data, "truth_value", "IN")
+                tv = (
+                    node_data.get("truth_value", "IN")
+                    if isinstance(node_data, dict)
+                    else getattr(node_data, "truth_value", "IN")
+                )
                 if tv == "OUT":
                     api.set_metadata(r["id"], "retract_reason", reason, db_path=args.db)
                     print(f"  UPDATED reason for {r['id']}")
@@ -3494,9 +3885,12 @@ def cmd_review_relations(args):
 
     fixed_count = 0
     if getattr(args, "auto_fix", False) and not args.dry_run:
-        fixable = [r for r in reviews
-                   if (not r.get("type_correct", True) and r.get("suggested_type"))
-                   or not r.get("direction_correct", True)]
+        fixable = [
+            r
+            for r in reviews
+            if (not r.get("type_correct", True) and r.get("suggested_type"))
+            or not r.get("direction_correct", True)
+        ]
         if fixable:
             print(f"\nFixing {len(fixable)} relation(s)...")
             fix_results = fix_relations(fixable, nodes, db_path=args.db)
@@ -3515,7 +3909,9 @@ def cmd_review_relations(args):
     cost_summary = get_cost_summary()
     if cost_summary["calls"] > 0:
         _write_cost_report(
-            args, "review-relations", cost_summary,
+            args,
+            "review-relations",
+            cost_summary,
             model=model,
             beliefs_retracted=retracted_count,
             beliefs_added=fixed_count,
@@ -3540,12 +3936,16 @@ def cmd_lesson_plan(args):
     plan = build_lesson_plan(nodes)
 
     if not plan["lessons"]:
-        print("No relational beliefs found — cannot generate lesson plan.", file=sys.stderr)
+        print(
+            "No relational beliefs found — cannot generate lesson plan.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         import json as _json
+
         output = _json.dumps(plan, indent=2)
     else:
         output = format_lesson_plan_markdown(plan, title=args.title)
@@ -3556,9 +3956,12 @@ def cmd_lesson_plan(args):
             if not output.endswith("\n"):
                 f.write("\n")
         print(f"Wrote lesson plan to {args.output}", file=sys.stderr)
-        print(f"  {plan['stats']['total_lessons']} lessons, "
-              f"{plan['stats']['total_modules']} modules, "
-              f"{plan['stats']['total_relations']} relations", file=sys.stderr)
+        print(
+            f"  {plan['stats']['total_lessons']} lessons, "
+            f"{plan['stats']['total_modules']} modules, "
+            f"{plan['stats']['total_relations']} relations",
+            file=sys.stderr,
+        )
     else:
         print(output)
 
@@ -3566,6 +3969,7 @@ def cmd_lesson_plan(args):
 def cmd_generate_lesson(args):
     _require_sqlite(args, "generate-lesson")
     from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+
     reset_cost_tracker()
     from .lesson_plan import (
         build_lesson_plan,
@@ -3594,6 +3998,7 @@ def cmd_generate_lesson(args):
 
     if from_plan:
         import json as _json
+
         try:
             with open(from_plan) as f:
                 plan = _json.load(f)
@@ -3603,26 +4008,36 @@ def cmd_generate_lesson(args):
         has_subtopics = any(l.get("subtopics") for l in plan.get("lessons", []))
         if has_subtopics:
             use_survey = True
-        print(f"Loaded plan from {from_plan}: {len(plan['lessons'])} lessons.",
-              file=sys.stderr)
+        print(
+            f"Loaded plan from {from_plan}: {len(plan['lessons'])} lessons.",
+            file=sys.stderr,
+        )
     else:
         base_plan = build_lesson_plan(nodes)
         if not base_plan["lessons"]:
-            print("No relational beliefs found — cannot generate lessons.", file=sys.stderr)
+            print(
+                "No relational beliefs found — cannot generate lessons.",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
         if use_survey:
             print("Building survey plan...", file=sys.stderr)
             plan = survey_lessons(base_plan, model=model, timeout=args.timeout)
-            print(f"Survey: {len(plan['lessons'])} lessons covering "
-                  f"{base_plan['stats']['concepts']} concepts.", file=sys.stderr)
+            print(
+                f"Survey: {len(plan['lessons'])} lessons covering "
+                f"{base_plan['stats']['concepts']} concepts.",
+                file=sys.stderr,
+            )
         else:
             plan = base_plan
 
     if args.concept:
         targets = [l for l in plan["lessons"] if l["concept"] == args.concept]
         if not targets:
-            print(f"Concept '{args.concept}' not found in lesson plan.", file=sys.stderr)
+            print(
+                f"Concept '{args.concept}' not found in lesson plan.", file=sys.stderr
+            )
             concepts = [l["concept"] for l in plan["lessons"]]
             close = [c for c in concepts if args.concept in c]
             if close:
@@ -3631,7 +4046,7 @@ def cmd_generate_lesson(args):
     elif getattr(args, "all", False):
         targets = plan["lessons"]
     elif args.count:
-        targets = plan["lessons"][:args.count]
+        targets = plan["lessons"][: args.count]
     else:
         targets = plan["lessons"][:1]
 
@@ -3654,12 +4069,18 @@ def cmd_generate_lesson(args):
             if use_survey and subtopics:
                 beliefs = select_beliefs_for_survey_lesson(lesson, nodes)
                 prompt = build_survey_lesson_prompt(
-                    lesson, beliefs, domain=args.domain, completed=completed,
+                    lesson,
+                    beliefs,
+                    domain=args.domain,
+                    completed=completed,
                 )
             else:
                 beliefs = select_beliefs_for_lesson(lesson, nodes)
                 prompt = build_lesson_prompt(
-                    lesson, beliefs, domain=args.domain, completed=completed,
+                    lesson,
+                    beliefs,
+                    domain=args.domain,
+                    completed=completed,
                 )
             print(prompt)
             print(f"\n({len(beliefs)} beliefs selected)", file=sys.stderr)
@@ -3667,8 +4088,12 @@ def cmd_generate_lesson(args):
             continue
 
         result = generate_lesson(
-            lesson, nodes, model=model, domain=args.domain,
-            completed=completed, timeout=args.timeout,
+            lesson,
+            nodes,
+            model=model,
+            domain=args.domain,
+            completed=completed,
+            timeout=args.timeout,
             survey=use_survey,
         )
 
@@ -3729,8 +4154,10 @@ def cmd_consolidate_lessons(args):
         sys.exit(1)
 
     connected, standalone = _identify_standalone_lessons(plan)
-    print(f"Found {len(connected)} connected + {len(standalone)} standalone lessons.",
-          file=sys.stderr)
+    print(
+        f"Found {len(connected)} connected + {len(standalone)} standalone lessons.",
+        file=sys.stderr,
+    )
 
     if args.dry_run:
         print(f"\nStandalone concepts ({len(standalone)}):")
@@ -3743,13 +4170,16 @@ def cmd_consolidate_lessons(args):
 
     reset_cost_tracker()
     consolidated = consolidate_lessons(
-        plan, model=model, timeout=args.timeout,
+        plan,
+        model=model,
+        timeout=args.timeout,
         batch_size=getattr(args, "batch_size", 80),
     )
 
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         import json as _json
+
         output = _json.dumps(consolidated, indent=2)
     else:
         output = format_consolidated_markdown(consolidated, title=args.title)
@@ -3764,9 +4194,11 @@ def cmd_consolidate_lessons(args):
         print(output)
 
     stats = consolidated["stats"]
-    print(f"\n  {stats['consolidated_from']} → {stats['total_lessons']} lessons "
-          f"({stats['standalone_grouped']} standalone → {stats['groups_created']} groups)",
-          file=sys.stderr)
+    print(
+        f"\n  {stats['consolidated_from']} → {stats['total_lessons']} lessons "
+        f"({stats['standalone_grouped']} standalone → {stats['groups_created']} groups)",
+        file=sys.stderr,
+    )
 
     cost = format_cost_summary()
     if cost:
@@ -3800,8 +4232,11 @@ def cmd_survey_lessons(args):
         print("No relational beliefs found — cannot create survey.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Building survey from {len(plan['lessons'])} concepts "
-          f"(target: {args.target_lessons} lessons).", file=sys.stderr)
+    print(
+        f"Building survey from {len(plan['lessons'])} concepts "
+        f"(target: {args.target_lessons} lessons).",
+        file=sys.stderr,
+    )
 
     if args.dry_run:
         print(f"\nAll concepts ({len(plan['lessons'])}):")
@@ -3811,13 +4246,16 @@ def cmd_survey_lessons(args):
 
     reset_cost_tracker()
     survey = survey_lessons(
-        plan, model=model, timeout=args.timeout,
+        plan,
+        model=model,
+        timeout=args.timeout,
         target_lessons=args.target_lessons,
     )
 
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         import json as _json
+
         output = _json.dumps(survey, indent=2)
     else:
         output = format_survey_markdown(survey, title=args.title)
@@ -3832,8 +4270,10 @@ def cmd_survey_lessons(args):
         print(output)
 
     stats = survey["stats"]
-    print(f"\n  {stats['survey_from']} concepts → {stats['total_lessons']} survey lessons",
-          file=sys.stderr)
+    print(
+        f"\n  {stats['survey_from']} concepts → {stats['total_lessons']} survey lessons",
+        file=sys.stderr,
+    )
 
     cost = format_cost_summary()
     if cost:
@@ -3883,7 +4323,7 @@ def cmd_import_lessons(args):
         for i, line in enumerate(lines):
             if line.startswith("# "):
                 title = line[2:].strip()
-                body = "\n".join(lines[i + 1:]).strip()
+                body = "\n".join(lines[i + 1 :]).strip()
                 break
 
         # Extract trailing BELIEFS: line if present
@@ -3891,12 +4331,14 @@ def cmd_import_lessons(args):
         for i in range(len(body_lines) - 1, -1, -1):
             if body_lines[i].startswith("BELIEFS:"):
                 beliefs_str = body_lines[i][8:].strip()
-                beliefs = [b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()]
+                beliefs = [
+                    b.strip().strip("[]") for b in beliefs_str.split(",") if b.strip()
+                ]
                 body = "\n".join(body_lines[:i]).strip()
                 break
 
         # Also extract inline [belief-id] references from body
-        inline_refs = re.findall(r'\[([a-z0-9][\w-]*(?:-[\w-]+)+)\]', body)
+        inline_refs = re.findall(r"\[([a-z0-9][\w-]*(?:-[\w-]+)+)\]", body)
         for ref in inline_refs:
             if ref not in beliefs:
                 beliefs.append(ref)
@@ -3922,12 +4364,15 @@ def cmd_import_lessons(args):
         conn.commit()
     conn.close()
 
-    print(f"{'Would import' if args.dry_run else 'Imported'} {imported if not args.dry_run else len(files)} lesson(s) from {lesson_dir}",
-          file=sys.stderr)
+    print(
+        f"{'Would import' if args.dry_run else 'Imported'} {imported if not args.dry_run else len(files)} lesson(s) from {lesson_dir}",
+        file=sys.stderr,
+    )
 
 
 def cmd_costs(args):
     from .cost_report import load_cost_reports, summarize_costs
+
     costs_dir = args.costs_dir
     reports = load_cost_reports(costs_dir)
     if not reports:
@@ -3937,6 +4382,7 @@ def cmd_costs(args):
     fmt = getattr(args, "format", "text")
     if fmt == "json":
         import json as _json
+
         summary = summarize_costs(reports)
         print(_json.dumps(summary, indent=2))
         return
@@ -3946,41 +4392,58 @@ def cmd_costs(args):
 
     print(f"Cost Summary ({t['reports']} reports from {costs_dir})")
     print(f"  Total cost: ${t['cost_dollars']:.4f}")
-    print(f"  Total tokens: {t['input_tokens']:,} input + {t['output_tokens']:,} output")
+    print(
+        f"  Total tokens: {t['input_tokens']:,} input + {t['output_tokens']:,} output"
+    )
     print(f"  Total calls: {t['calls']}")
     print(f"  Beliefs added: {t['beliefs_added']}  Retracted: {t['beliefs_retracted']}")
 
     if summary["by_operation"]:
         print("\nBy Operation:")
-        for op, s in sorted(summary["by_operation"].items(),
-                            key=lambda x: x[1]["cost_dollars"], reverse=True):
-            print(f"  {op:25s} ${s['cost_dollars']:.4f}  "
-                  f"{s['input_tokens']:>10,} in + {s['output_tokens']:>10,} out  "
-                  f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
-                  f"{s['reports']} report(s)")
+        for op, s in sorted(
+            summary["by_operation"].items(),
+            key=lambda x: x[1]["cost_dollars"],
+            reverse=True,
+        ):
+            print(
+                f"  {op:25s} ${s['cost_dollars']:.4f}  "
+                f"{s['input_tokens']:>10,} in + {s['output_tokens']:>10,} out  "
+                f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
+                f"{s['reports']} report(s)"
+            )
 
     if summary["by_domain"]:
         print("\nBy Domain:")
-        for dom, s in sorted(summary["by_domain"].items(),
-                             key=lambda x: x[1]["cost_dollars"], reverse=True):
-            print(f"  {dom:25s} ${s['cost_dollars']:.4f}  "
-                  f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
-                  f"{s['reports']} report(s)")
+        for dom, s in sorted(
+            summary["by_domain"].items(),
+            key=lambda x: x[1]["cost_dollars"],
+            reverse=True,
+        ):
+            print(
+                f"  {dom:25s} ${s['cost_dollars']:.4f}  "
+                f"+{s['beliefs_added']} -{s['beliefs_retracted']}  "
+                f"{s['reports']} report(s)"
+            )
 
 
 def cmd_namespaces(args):
     result = api.list_namespaces(**_backend_kwargs(args))
     if not result["namespaces"]:
-        print("No namespaces found. Use --namespace/-n with 'add' or 'import-agent' to create one.")
+        print(
+            "No namespaces found. Use --namespace/-n with 'add' or 'import-agent' to create one."
+        )
         return
     for ns in result["namespaces"]:
         status = "ACTIVE" if ns["active"] else "INACTIVE"
-        print(f"  {ns['namespace']:30s} {status:8s} {ns['in_beliefs']:3d} IN / {ns['total_beliefs']} total")
+        print(
+            f"  {ns['namespace']:30s} {status:8s} {ns['in_beliefs']:3d} IN / {ns['total_beliefs']} total"
+        )
     print(f"\n{len(result['namespaces'])} namespace(s)")
 
 
 def main():
     import signal
+
     if hasattr(signal, "SIGPIPE"):
         signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
@@ -3991,79 +4454,160 @@ def main():
         prog="reasonsforge",
         description="Reasons — automatic belief retraction and dependency-directed backtracking",
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {_pkg_version('reasonsforge')}")
-    parser.add_argument("--db", default=api.DEFAULT_DB, help="Path to database (default: reasons.db)")
-    parser.add_argument("--pg", default=None, metavar="CONNINFO",
-                        help="PostgreSQL connection string (or set REASONSFORGE_PG_CONNINFO)")
-    parser.add_argument("--project-id", default=None,
-                        help="Project ID for PostgreSQL (or set REASONSFORGE_PROJECT_ID)")
-    parser.add_argument("--costs-dir", default="costs/",
-                        help="Directory for JSON cost reports (default: costs/)")
-    parser.add_argument("--no-costs", action="store_true",
-                        help="Suppress JSON cost report generation")
-    parser.add_argument("--logs-dir", default="logs/",
-                        help="Directory for per-phase log files (default: logs/)")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_pkg_version('reasonsforge')}",
+    )
+    parser.add_argument(
+        "--db", default=api.DEFAULT_DB, help="Path to database (default: reasons.db)"
+    )
+    parser.add_argument(
+        "--pg",
+        default=None,
+        metavar="CONNINFO",
+        help="PostgreSQL connection string (or set REASONSFORGE_PG_CONNINFO)",
+    )
+    parser.add_argument(
+        "--project-id",
+        default=None,
+        help="Project ID for PostgreSQL (or set REASONSFORGE_PROJECT_ID)",
+    )
+    parser.add_argument(
+        "--costs-dir",
+        default="costs/",
+        help="Directory for JSON cost reports (default: costs/)",
+    )
+    parser.add_argument(
+        "--no-costs", action="store_true", help="Suppress JSON cost report generation"
+    )
+    parser.add_argument(
+        "--logs-dir",
+        default="logs/",
+        help="Directory for per-phase log files (default: logs/)",
+    )
     sub = parser.add_subparsers(dest="command")
 
     # Register forge subcommands
     from .forge.cli import register_forge_commands, register_forge_type_commands
+
     _forge_commands = register_forge_commands(sub)
     _forge_type_commands = register_forge_type_commands(sub)
 
     # worker
-    p = sub.add_parser("worker",
-                       help="Run as a remote forge worker, pulling tasks from reasons-service-edge")
-    p.add_argument("--url", default=None,
-                   help="Service URL (or REASONS_SERVICE_URL env var)")
-    p.add_argument("--token", default=None,
-                   help="Service account token (or REASONS_SERVICE_TOKEN env var)")
-    p.add_argument("--model", default="claude",
-                   help="LLM model to use (default: claude)")
-    p.add_argument("--poll-interval", type=int, default=30,
-                   help="Seconds between task polls (default: 30)")
-    p.add_argument("--once", action="store_true",
-                   help="Process one task and exit (for CI/cron)")
-    p.add_argument("--scope", choices=["tenant", "global"], default="tenant",
-                   help="Worker scope: tenant (default) or global (cross-tenant)")
+    p = sub.add_parser(
+        "worker",
+        help="Run as a remote forge worker, pulling tasks from reasons-service-edge",
+    )
+    p.add_argument(
+        "--url", default=None, help="Service URL (or REASONS_SERVICE_URL env var)"
+    )
+    p.add_argument(
+        "--token",
+        default=None,
+        help="Service account token (or REASONS_SERVICE_TOKEN env var)",
+    )
+    p.add_argument(
+        "--model", default="claude", help="LLM model to use (default: claude)"
+    )
+    p.add_argument(
+        "--poll-interval",
+        type=int,
+        default=30,
+        help="Seconds between task polls (default: 30)",
+    )
+    p.add_argument(
+        "--once", action="store_true", help="Process one task and exit (for CI/cron)"
+    )
+    p.add_argument(
+        "--scope",
+        choices=["tenant", "global"],
+        default="tenant",
+        help="Worker scope: tenant (default) or global (cross-tenant)",
+    )
 
     # init
     p = sub.add_parser("init", help="Initialize a new RMS database")
     p.add_argument("--force", action="store_true", help="Overwrite existing database")
-    p.add_argument("--project-name", default="", help="Name for this belief network (defaults to DB filename stem)")
+    p.add_argument(
+        "--project-name",
+        default="",
+        help="Name for this belief network (defaults to DB filename stem)",
+    )
 
     # add
     p = sub.add_parser("add", help="Add a node")
     p.add_argument("node_id", help="Node identifier")
     p.add_argument("text", help="Node text")
-    p.add_argument("--sl", metavar="A,B", help="SL justification: comma-separated antecedent IDs")
-    p.add_argument("--cp", metavar="A,B", help="CP justification: comma-separated antecedent IDs")
-    p.add_argument("--unless", metavar="X,Y", help="Outlist: comma-separated node IDs that must be OUT")
-    p.add_argument("--any", action="store_true", help="Expand SL into one justification per premise (OR instead of AND)")
+    p.add_argument(
+        "--sl", metavar="A,B", help="SL justification: comma-separated antecedent IDs"
+    )
+    p.add_argument(
+        "--cp", metavar="A,B", help="CP justification: comma-separated antecedent IDs"
+    )
+    p.add_argument(
+        "--unless",
+        metavar="X,Y",
+        help="Outlist: comma-separated node IDs that must be OUT",
+    )
+    p.add_argument(
+        "--any",
+        action="store_true",
+        help="Expand SL into one justification per premise (OR instead of AND)",
+    )
     p.add_argument("--label", help="Justification label")
     p.add_argument("--source", help="Provenance (repo:path)")
     p.add_argument("--source-url", help="URL for the source document")
-    p.add_argument("-n", "--namespace", help="Namespace prefix (auto-creates ns:active premise)")
-    p.add_argument("--access-tags", metavar="TAG,TAG", help="Data source provenance tags (comma-separated)")
-    p.add_argument("--example", default=None, help="Code example demonstrating the belief")
-    p.add_argument("--source-type", choices=["code", "document", "self-description", "derived"],
-                   help="Epistemic source type (code, document, self-description, derived)")
-    p.add_argument("--accepted-pr", default=None,
-                   help="URL of the PR that accepted this belief")
+    p.add_argument(
+        "-n", "--namespace", help="Namespace prefix (auto-creates ns:active premise)"
+    )
+    p.add_argument(
+        "--access-tags",
+        metavar="TAG,TAG",
+        help="Data source provenance tags (comma-separated)",
+    )
+    p.add_argument(
+        "--example", default=None, help="Code example demonstrating the belief"
+    )
+    p.add_argument(
+        "--source-type",
+        choices=["code", "document", "self-description", "derived"],
+        help="Epistemic source type (code, document, self-description, derived)",
+    )
+    p.add_argument(
+        "--accepted-pr", default=None, help="URL of the PR that accepted this belief"
+    )
 
     # add-justification
-    p = sub.add_parser("add-justification", help="Add a justification to an existing node")
+    p = sub.add_parser(
+        "add-justification", help="Add a justification to an existing node"
+    )
     p.add_argument("node_id", help="Node to add justification to")
-    p.add_argument("--sl", metavar="A,B", help="SL justification: comma-separated antecedent IDs")
-    p.add_argument("--cp", metavar="A,B", help="CP justification: comma-separated antecedent IDs")
-    p.add_argument("--unless", metavar="X,Y", help="Outlist: comma-separated node IDs that must be OUT")
-    p.add_argument("--any", action="store_true", help="Expand SL into one justification per premise (OR instead of AND)")
+    p.add_argument(
+        "--sl", metavar="A,B", help="SL justification: comma-separated antecedent IDs"
+    )
+    p.add_argument(
+        "--cp", metavar="A,B", help="CP justification: comma-separated antecedent IDs"
+    )
+    p.add_argument(
+        "--unless",
+        metavar="X,Y",
+        help="Outlist: comma-separated node IDs that must be OUT",
+    )
+    p.add_argument(
+        "--any",
+        action="store_true",
+        help="Expand SL into one justification per premise (OR instead of AND)",
+    )
     p.add_argument("--label", help="Justification label")
     p.add_argument("-n", "--namespace", help="Namespace prefix")
 
     # remove-justification
     p = sub.add_parser("remove-justification", help="Remove a justification by index")
     p.add_argument("node_id", help="Node to remove justification from")
-    p.add_argument("index", type=int, help="0-based justification index (see 'show' output)")
+    p.add_argument(
+        "index", type=int, help="0-based justification index (see 'show' output)"
+    )
 
     # retract
     p = sub.add_parser("retract", help="Retract a node (mark OUT + cascade)")
@@ -4075,58 +4619,128 @@ def main():
     p.add_argument("node_id", help="Node to assert")
 
     # mark-duplicate
-    p = sub.add_parser("mark-duplicate", help="Mark a node as duplicate of a canonical version")
+    p = sub.add_parser(
+        "mark-duplicate", help="Mark a node as duplicate of a canonical version"
+    )
     p.add_argument("source_id", help="Duplicate node to retract")
     p.add_argument("--of", dest="canonical_id", required=True, help="Canonical node ID")
 
     # mark-superseded
-    p = sub.add_parser("mark-superseded", help="Retract a node as superseded with metadata (hard retract; see 'supersede' for outlist-based)")
+    p = sub.add_parser(
+        "mark-superseded",
+        help="Retract a node as superseded with metadata (hard retract; see 'supersede' for outlist-based)",
+    )
     p.add_argument("old_id", help="Obsolete node to retract")
     p.add_argument("--by", dest="new_id", required=True, help="Replacement node ID")
 
     # defeat-justification
-    p = sub.add_parser("defeat-justification", help="Defeat a justification by adding a defeater to its outlist")
+    p = sub.add_parser(
+        "defeat-justification",
+        help="Defeat a justification by adding a defeater to its outlist",
+    )
     p.add_argument("node_id", help="Node whose justification to defeat")
-    p.add_argument("justification_index", type=int, help="Justification index (0-based)")
+    p.add_argument(
+        "justification_index", type=int, help="Justification index (0-based)"
+    )
     p.add_argument("reason", help="Why this justification is invalid")
-    p.add_argument("--type", choices=["invalid-inference", "over-generalizes", "duplicate-of", "superseded-by"],
-                   help="Type of defeater (default: invalid-inference)")
-    p.add_argument("--reason-type", dest="reason_type",
-                   choices=["unsupported-conjunct", "over-generalizes", "false-causal-claim",
-                            "internal-contradiction", "circular-reasoning", "missing-bridge",
-                            "scope-mismatch"],
-                   help="Logical failure mode classification")
+    p.add_argument(
+        "--type",
+        choices=[
+            "invalid-inference",
+            "over-generalizes",
+            "duplicate-of",
+            "superseded-by",
+        ],
+        help="Type of defeater (default: invalid-inference)",
+    )
+    p.add_argument(
+        "--reason-type",
+        dest="reason_type",
+        choices=[
+            "unsupported-conjunct",
+            "over-generalizes",
+            "false-causal-claim",
+            "internal-contradiction",
+            "circular-reasoning",
+            "missing-bridge",
+            "scope-mismatch",
+        ],
+        help="Logical failure mode classification",
+    )
     p.add_argument("--defeater-id", help="Custom defeater belief ID")
 
     # defeat-with-scope
-    p = sub.add_parser("defeat-with-scope", help="Defeat a justification with scope beliefs as antecedents")
+    p = sub.add_parser(
+        "defeat-with-scope",
+        help="Defeat a justification with scope beliefs as antecedents",
+    )
     p.add_argument("node_id", help="Node whose justification to defeat")
-    p.add_argument("justification_index", type=int, help="Justification index (0-based)")
-    p.add_argument("--scope-file", required=True,
-                   help="JSON file with scope_findings and missing_property")
-    p.add_argument("--type", choices=["invalid-inference", "over-generalizes", "duplicate-of", "superseded-by"],
-                   help="Type of defeater (default: invalid-inference)")
-    p.add_argument("--reason-type", dest="reason_type",
-                   choices=["unsupported-conjunct", "over-generalizes", "false-causal-claim",
-                            "internal-contradiction", "circular-reasoning", "missing-bridge",
-                            "scope-mismatch"],
-                   help="Logical failure mode classification")
+    p.add_argument(
+        "justification_index", type=int, help="Justification index (0-based)"
+    )
+    p.add_argument(
+        "--scope-file",
+        required=True,
+        help="JSON file with scope_findings and missing_property",
+    )
+    p.add_argument(
+        "--type",
+        choices=[
+            "invalid-inference",
+            "over-generalizes",
+            "duplicate-of",
+            "superseded-by",
+        ],
+        help="Type of defeater (default: invalid-inference)",
+    )
+    p.add_argument(
+        "--reason-type",
+        dest="reason_type",
+        choices=[
+            "unsupported-conjunct",
+            "over-generalizes",
+            "false-causal-claim",
+            "internal-contradiction",
+            "circular-reasoning",
+            "missing-bridge",
+            "scope-mismatch",
+        ],
+        help="Logical failure mode classification",
+    )
     p.add_argument("--defeater-id", help="Custom defeater belief ID")
 
     # migrate-defeaters
-    p = sub.add_parser("migrate-defeaters", help="Convert string-based retract_reason to graph-native defeaters")
-    p.add_argument("node_ids", nargs="*", help="Specific nodes to migrate (default: all candidates)")
-    p.add_argument("--apply", action="store_true", help="Apply changes (default is dry-run)")
+    p = sub.add_parser(
+        "migrate-defeaters",
+        help="Convert string-based retract_reason to graph-native defeaters",
+    )
+    p.add_argument(
+        "node_ids",
+        nargs="*",
+        help="Specific nodes to migrate (default: all candidates)",
+    )
+    p.add_argument(
+        "--apply", action="store_true", help="Apply changes (default is dry-run)"
+    )
 
     # classify-defeaters
-    p = sub.add_parser("classify-defeaters", help="Classify unclassified defeaters by logical failure mode via LLM")
+    p = sub.add_parser(
+        "classify-defeaters",
+        help="Classify unclassified defeaters by logical failure mode via LLM",
+    )
     p.add_argument("--model", "-m", required=True, help="LLM model for classification")
-    p.add_argument("--apply", action="store_true", help="Apply changes (default is dry-run)")
+    p.add_argument(
+        "--apply", action="store_true", help="Apply changes (default is dry-run)"
+    )
     p.add_argument("--type", help="Only classify defeaters with this defeater_type")
-    p.add_argument("--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)")
+    p.add_argument(
+        "--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)"
+    )
 
     # what-if
-    p = sub.add_parser("what-if", help="Simulate retracting or asserting a node (read-only)")
+    p = sub.add_parser(
+        "what-if", help="Simulate retracting or asserting a node (read-only)"
+    )
     p.add_argument("action", choices=["retract", "assert"], help="Action to simulate")
     p.add_argument("node_id", help="Node to simulate")
 
@@ -4135,47 +4749,97 @@ def main():
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # status (deprecated — use stats or list)
-    p = sub.add_parser("status", help="(Deprecated: use 'stats' or 'list') Show network summary")
-    p.add_argument("--all", action="store_true", help="Show all nodes (default: summary only)")
+    p = sub.add_parser(
+        "status", help="(Deprecated: use 'stats' or 'list') Show network summary"
+    )
+    p.add_argument(
+        "--all", action="store_true", help="Show all nodes (default: summary only)"
+    )
     p.add_argument("-n", "--namespace", help="Filter to a namespace")
-    p.add_argument("--status", choices=["IN", "OUT"], default=None, help="Filter by truth value")
+    p.add_argument(
+        "--status", choices=["IN", "OUT"], default=None, help="Filter by truth value"
+    )
     p.add_argument("--premises", action="store_true", help="Show only premises")
     p.add_argument("--limit", type=int, default=None, help="Max nodes to show")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
 
     # show
     p = sub.add_parser("show", help="Show node details")
     p.add_argument("node_id", help="Node to show")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show if access_tags are a subset of these tags")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show if access_tags are a subset of these tags",
+    )
 
     # explain
     p = sub.add_parser("explain", help="Explain why a node is IN or OUT")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
     p.add_argument("node_id", help="Node to explain")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show if access_tags are a subset of these tags")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show if access_tags are a subset of these tags",
+    )
 
     # convert-to-premise
-    p = sub.add_parser("convert-to-premise", help="Strip justifications, make a node a premise")
+    p = sub.add_parser(
+        "convert-to-premise", help="Strip justifications, make a node a premise"
+    )
     p.add_argument("node_id", help="Node to convert")
 
     # summarize
     p = sub.add_parser("summarize", help="Create a summary node over a group of nodes")
     p.add_argument("summary_id", help="Summary node ID")
     p.add_argument("text", help="High-level summary text")
-    p.add_argument("--over", required=True, metavar="A,B,C", help="Comma-separated node IDs to summarize")
+    p.add_argument(
+        "--over",
+        required=True,
+        metavar="A,B,C",
+        help="Comma-separated node IDs to summarize",
+    )
     p.add_argument("--source", help="Provenance (repo:path)")
 
     # supersede
-    p = sub.add_parser("supersede", help="Reversible supersession via outlist (old comes back if new is retracted)")
+    p = sub.add_parser(
+        "supersede",
+        help="Reversible supersession via outlist (old comes back if new is retracted)",
+    )
     p.add_argument("old_id", help="Belief being superseded")
-    p.add_argument("new_id", nargs="?", default=None, help="Belief that supersedes it (omit when using --text)")
-    p.add_argument("--text", default=None, help="Create a successor node with this text and supersede")
-    p.add_argument("--id", default=None, help="Custom ID for the successor node (used with --text)")
-    p.add_argument("--transitive", action="store_true",
-                   help="Also defeat all ancestors in the supersession chain (version chain semantics)")
+    p.add_argument(
+        "new_id",
+        nargs="?",
+        default=None,
+        help="Belief that supersedes it (omit when using --text)",
+    )
+    p.add_argument(
+        "--text",
+        default=None,
+        help="Create a successor node with this text and supersede",
+    )
+    p.add_argument(
+        "--id", default=None, help="Custom ID for the successor node (used with --text)"
+    )
+    p.add_argument(
+        "--transitive",
+        action="store_true",
+        help="Also defeat all ancestors in the supersession chain (version chain semantics)",
+    )
 
     # set-metadata
     p = sub.add_parser("set-metadata", help="Set a metadata key on a belief")
@@ -4186,7 +4850,9 @@ def main():
     # get-metadata
     p = sub.add_parser("get-metadata", help="Show metadata for a belief")
     p.add_argument("node_id", help="Belief to inspect")
-    p.add_argument("key", nargs="?", default=None, help="Specific key to show (default: all)")
+    p.add_argument(
+        "key", nargs="?", default=None, help="Specific key to show (default: all)"
+    )
 
     # challenge
     p = sub.add_parser("challenge", help="Challenge a node — target goes OUT")
@@ -4209,15 +4875,29 @@ def main():
     p = sub.add_parser("list-nogoods", help="List all recorded nogoods")
 
     # trace
-    p = sub.add_parser("trace-access-tags", help="Trace all access tags in a node's dependency chain")
+    p = sub.add_parser(
+        "trace-access-tags", help="Trace all access tags in a node's dependency chain"
+    )
     p.add_argument("node_id", help="Node to trace")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only allow if access_tags are a subset of these tags")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only allow if access_tags are a subset of these tags",
+    )
 
     p = sub.add_parser("trace", help="Trace backward to find premises a node rests on")
     p.add_argument("node_id", help="Node to trace")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show premises whose access_tags are a subset of these tags")
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show premises whose access_tags are a subset of these tags",
+    )
 
     # propagate
     sub.add_parser("propagate", help="Recompute all truth values")
@@ -4235,122 +4915,251 @@ def main():
     sub.add_parser("repos", help="List registered repos")
 
     # derive
-    p = sub.add_parser("derive", help="Derive deeper reasoning chains from existing beliefs")
-    p.add_argument("-o", "--output", default="proposed-derivations.md",
-                   help="Output file for proposals (default: proposed-derivations.md)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--auto", action="store_true",
-                   help="Automatically add proposals (no review step)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show prompt without invoking the model")
-    p.add_argument("--domain", default=None,
-                   help="Domain description for context (auto-detected from agents)")
-    p.add_argument("--topic", default=None,
-                   help="Keyword filter — only include beliefs matching these keywords")
-    p.add_argument("--source-path", default=None, dest="source_path",
-                   help="Source path prefix filter — only include beliefs from this path")
-    p.add_argument("--mode", default=None,
-                   choices=["discover", "security", "performance"],
-                   help="Analysis mode — shifts derive focus (default: neutral discovery)")
-    p.add_argument("--budget", type=int, default=300,
-                   help="Maximum number of beliefs in prompt (default: 300)")
-    p.add_argument("--sample", action="store_true",
-                   help="Randomly sample beliefs instead of alphabetical truncation")
-    p.add_argument("--seed", type=int, default=None,
-                   help="Random seed for reproducible sampling")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="Model timeout in seconds (default: 600)")
-    p.add_argument("--premises", action="store_true",
-                   help="Only include premises (no justifications)")
-    p.add_argument("--has-dependents", action="store_true",
-                   help="Only include nodes that others depend on")
-    p.add_argument("--min-depth", type=int, default=None,
-                   help="Only include beliefs at this depth or deeper (0=premises)")
-    p.add_argument("--max-depth", type=int, default=None,
-                   help="Only include beliefs at this depth or shallower")
-    p.add_argument("--exhaust", action="store_true",
-                   help="Repeat derive until no new proposals (implies --auto)")
-    p.add_argument("--max-rounds", type=int, default=10,
-                   help="Maximum rounds for --exhaust (default: 10)")
-    p.add_argument("--report-dir", default="reviews/",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Suppress JSON report generation")
-    p.add_argument("--cluster", action="store_true",
-                   help="Use semantic clustering to sample across domains")
-    p.add_argument("--intra-cluster", action="store_true",
-                   help="Focus on one cluster per round (rotate in --exhaust mode)")
-    p.add_argument("--embedding-model", default=None,
-                   help="Sentence-transformers model for --cluster/--intra-cluster "
-                        "(default: all-MiniLM-L6-v2)")
-    p.add_argument("--n-clusters", type=int, default=None,
-                   help="Override automatic cluster count for --cluster/--intra-cluster")
-    p.add_argument("--prompt-file", default=None,
-                   help="Custom prompt template file (overrides built-in DERIVE_PROMPT)")
+    p = sub.add_parser(
+        "derive", help="Derive deeper reasoning chains from existing beliefs"
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default="proposed-derivations.md",
+        help="Output file for proposals (default: proposed-derivations.md)",
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--auto",
+        action="store_true",
+        help="Automatically add proposals (no review step)",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show prompt without invoking the model"
+    )
+    p.add_argument(
+        "--domain",
+        default=None,
+        help="Domain description for context (auto-detected from agents)",
+    )
+    p.add_argument(
+        "--topic",
+        default=None,
+        help="Keyword filter — only include beliefs matching these keywords",
+    )
+    p.add_argument(
+        "--source-path",
+        default=None,
+        dest="source_path",
+        help="Source path prefix filter — only include beliefs from this path",
+    )
+    p.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode — shifts derive focus (default: neutral discovery)",
+    )
+    p.add_argument(
+        "--budget",
+        type=int,
+        default=300,
+        help="Maximum number of beliefs in prompt (default: 300)",
+    )
+    p.add_argument(
+        "--sample",
+        action="store_true",
+        help="Randomly sample beliefs instead of alphabetical truncation",
+    )
+    p.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducible sampling"
+    )
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Model timeout in seconds (default: 600)",
+    )
+    p.add_argument(
+        "--premises",
+        action="store_true",
+        help="Only include premises (no justifications)",
+    )
+    p.add_argument(
+        "--has-dependents",
+        action="store_true",
+        help="Only include nodes that others depend on",
+    )
+    p.add_argument(
+        "--min-depth",
+        type=int,
+        default=None,
+        help="Only include beliefs at this depth or deeper (0=premises)",
+    )
+    p.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+        help="Only include beliefs at this depth or shallower",
+    )
+    p.add_argument(
+        "--exhaust",
+        action="store_true",
+        help="Repeat derive until no new proposals (implies --auto)",
+    )
+    p.add_argument(
+        "--max-rounds",
+        type=int,
+        default=10,
+        help="Maximum rounds for --exhaust (default: 10)",
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews/",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Suppress JSON report generation"
+    )
+    p.add_argument(
+        "--cluster",
+        action="store_true",
+        help="Use semantic clustering to sample across domains",
+    )
+    p.add_argument(
+        "--intra-cluster",
+        action="store_true",
+        help="Focus on one cluster per round (rotate in --exhaust mode)",
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model for --cluster/--intra-cluster "
+        "(default: all-MiniLM-L6-v2)",
+    )
+    p.add_argument(
+        "--n-clusters",
+        type=int,
+        default=None,
+        help="Override automatic cluster count for --cluster/--intra-cluster",
+    )
+    p.add_argument(
+        "--prompt-file",
+        default=None,
+        help="Custom prompt template file (overrides built-in DERIVE_PROMPT)",
+    )
 
     # accept
     p = sub.add_parser("accept", help="Accept proposals from a derive proposals file")
-    p.add_argument("file", nargs="?", default="proposed-derivations.md",
-                   help="Proposals file (default: proposed-derivations.md)")
+    p.add_argument(
+        "file",
+        nargs="?",
+        default="proposed-derivations.md",
+        help="Proposals file (default: proposed-derivations.md)",
+    )
 
     # import-agent
-    p = sub.add_parser("import-agent", help="Import another agent's beliefs with namespacing")
+    p = sub.add_parser(
+        "import-agent", help="Import another agent's beliefs with namespacing"
+    )
     p.add_argument("agent_name", help="Agent name (used as namespace prefix)")
-    p.add_argument("beliefs_file", help="Path to the agent's beliefs.md or network.json")
-    p.add_argument("--nogoods", dest="nogoods_file", help="Path to nogoods.md (auto-detected if next to beliefs.md)")
-    p.add_argument("--only-in", action="store_true", help="Only import beliefs with status IN")
+    p.add_argument(
+        "beliefs_file", help="Path to the agent's beliefs.md or network.json"
+    )
+    p.add_argument(
+        "--nogoods",
+        dest="nogoods_file",
+        help="Path to nogoods.md (auto-detected if next to beliefs.md)",
+    )
+    p.add_argument(
+        "--only-in", action="store_true", help="Only import beliefs with status IN"
+    )
 
     # sync-agent
     p = sub.add_parser("sync-agent", help="Sync another agent's beliefs (remote wins)")
     p.add_argument("agent_name", help="Agent name (must match previous import)")
-    p.add_argument("beliefs_file", help="Path to the agent's beliefs.md or network.json")
-    p.add_argument("--nogoods", dest="nogoods_file", help="Path to nogoods.md (auto-detected if next to beliefs.md)")
-    p.add_argument("--only-in", action="store_true", help="Only sync beliefs with status IN")
+    p.add_argument(
+        "beliefs_file", help="Path to the agent's beliefs.md or network.json"
+    )
+    p.add_argument(
+        "--nogoods",
+        dest="nogoods_file",
+        help="Path to nogoods.md (auto-detected if next to beliefs.md)",
+    )
+    p.add_argument(
+        "--only-in", action="store_true", help="Only sync beliefs with status IN"
+    )
 
     # import-beliefs
     p = sub.add_parser("import-beliefs", help="Import a beliefs.md registry")
     p.add_argument("beliefs_file", help="Path to beliefs.md")
-    p.add_argument("--nogoods", dest="nogoods_file", help="Path to nogoods.md (auto-detected if next to beliefs.md)")
+    p.add_argument(
+        "--nogoods",
+        dest="nogoods_file",
+        help="Path to nogoods.md (auto-detected if next to beliefs.md)",
+    )
 
     # import-json
-    p = sub.add_parser("import-json", help="Import network from JSON (produced by export)")
+    p = sub.add_parser(
+        "import-json", help="Import network from JSON (produced by export)"
+    )
     p.add_argument("json_file", help="Path to JSON file")
-    p.add_argument("--only-new", action="store_true",
-                   help="Only import nodes not already in the database (skip updates to existing nodes)")
+    p.add_argument(
+        "--only-new",
+        action="store_true",
+        help="Only import nodes not already in the database (skip updates to existing nodes)",
+    )
 
     # import-hf
     p = sub.add_parser("import-hf", help="Import network from HuggingFace repo")
     p.add_argument("repo_id", help="HuggingFace repo (bare name, user/repo, or URL)")
-    p.add_argument("--init", action="store_true",
-                   help="Initialize reasons.db if it doesn't exist")
-    p.add_argument("--token", help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)")
+    p.add_argument(
+        "--init", action="store_true", help="Initialize reasons.db if it doesn't exist"
+    )
+    p.add_argument(
+        "--token",
+        help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)",
+    )
 
     # pull (alias for import-hf with default org)
     p = sub.add_parser("pull", help="Pull EEM from HuggingFace (default org: EEM-Hub)")
     p.add_argument("repo_id", help="EEM name (bare name defaults to EEM-Hub/name)")
-    p.add_argument("--init", action="store_true",
-                   help="Initialize reasons.db if it doesn't exist")
-    p.add_argument("--token", help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)")
+    p.add_argument(
+        "--init", action="store_true", help="Initialize reasons.db if it doesn't exist"
+    )
+    p.add_argument(
+        "--token",
+        help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)",
+    )
 
     # publish
-    p = sub.add_parser("publish", help="Publish EEM to HuggingFace (default org: EEM-Hub)")
+    p = sub.add_parser(
+        "publish", help="Publish EEM to HuggingFace (default org: EEM-Hub)"
+    )
     p.add_argument("repo_id", help="EEM name (bare name defaults to EEM-Hub/name)")
-    p.add_argument("--token", help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)")
+    p.add_argument(
+        "--token",
+        help="HuggingFace token (default: from HF_TOKEN or ~/.cache/huggingface/token)",
+    )
     p.add_argument("--private", action="store_true", help="Create a private repo")
     p.add_argument("--domain", nargs="*", help="Domain tags (e.g. kubernetes devops)")
     p.add_argument("--license", default="mit", help="License identifier (default: mit)")
     p.add_argument("--base-network", help="Parent EEM this was derived from")
     p.add_argument("--source-repos", nargs="*", help="Source repository identifiers")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only publish nodes whose access_tags are a subset of these tags")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only publish nodes whose access_tags are a subset of these tags",
+    )
 
     # import-api
     p = sub.add_parser("import-api", help="Import beliefs from agentic-mind-service")
     p.add_argument("--url", help="Service URL (default: MIND_SERVICE_URL env)")
     p.add_argument("--agent-id", help="Agent UUID (default: MIND_AGENT_ID env)")
     p.add_argument("--api-key", help="API key (default: MIND_API_KEY env)")
-    p.add_argument("--init", action="store_true",
-                   help="Initialize reasons.db if it doesn't exist")
+    p.add_argument(
+        "--init", action="store_true", help="Initialize reasons.db if it doesn't exist"
+    )
 
     # export-api
     p = sub.add_parser("export-api", help="Export beliefs to agentic-mind-service")
@@ -4362,77 +5171,171 @@ def main():
     p = sub.add_parser("push", help="Push forge artifacts to reasons-service")
     p.add_argument("--url", help="Service URL (default: REASONS_SERVICE_URL env)")
     p.add_argument("--api-key", help="API key (default: REASONS_SERVICE_API_KEY env)")
-    p.add_argument("--domain-id", help="Target domain UUID (default: REASONS_SERVICE_DOMAIN_ID env)")
-    p.add_argument("--domain-name", help="Target domain name (looked up via API, alternative to --domain-id)")
-    p.add_argument("--sources-dir", default="sources", help="Sources directory (default: sources)")
-    p.add_argument("--summaries-dir", default="summaries", help="Summaries directory (default: summaries)")
-    p.add_argument("--no-network", action="store_true", help="Skip pushing the belief network")
-    p.add_argument("--no-sources", action="store_true", help="Skip pushing source documents")
+    p.add_argument(
+        "--domain-id",
+        help="Target domain UUID (default: REASONS_SERVICE_DOMAIN_ID env)",
+    )
+    p.add_argument(
+        "--domain-name",
+        help="Target domain name (looked up via API, alternative to --domain-id)",
+    )
+    p.add_argument(
+        "--sources-dir", default="sources", help="Sources directory (default: sources)"
+    )
+    p.add_argument(
+        "--summaries-dir",
+        default="summaries",
+        help="Summaries directory (default: summaries)",
+    )
+    p.add_argument(
+        "--no-network", action="store_true", help="Skip pushing the belief network"
+    )
+    p.add_argument(
+        "--no-sources", action="store_true", help="Skip pushing source documents"
+    )
     p.add_argument("--no-summaries", action="store_true", help="Skip pushing summaries")
     p.add_argument("--no-topics", action="store_true", help="Skip pushing topics")
-    p.add_argument("--chunk-size", type=int, default=50, help="Items per chunk for sources/summaries (default: 50)")
-    p.add_argument("--progress", action="store_true", help="Show tqdm progress bar for chunked uploads")
+    p.add_argument(
+        "--chunk-size",
+        type=int,
+        default=50,
+        help="Items per chunk for sources/summaries (default: 50)",
+    )
+    p.add_argument(
+        "--progress",
+        action="store_true",
+        help="Show tqdm progress bar for chunked uploads",
+    )
 
     # export
     p = sub.add_parser("sync-status", help="Compare reasons.db against network.json")
-    p.add_argument("network_file", nargs="?", default="network.json",
-                   help="Path to network.json (default: network.json)")
-    p.add_argument("--json", action="store_true", help="Output as JSON for programmatic use")
+    p.add_argument(
+        "network_file",
+        nargs="?",
+        default="network.json",
+        help="Path to network.json (default: network.json)",
+    )
+    p.add_argument(
+        "--json", action="store_true", help="Output as JSON for programmatic use"
+    )
     p.add_argument("--short", action="store_true", help="Show only the summary line")
 
     # merge
-    p = sub.add_parser("merge", help="Merge a remote network.json into local reasons.db")
+    p = sub.add_parser(
+        "merge", help="Merge a remote network.json into local reasons.db"
+    )
     p.add_argument("theirs_file", help="Path to remote network.json to merge in")
-    p.add_argument("--strategy", choices=["ours", "theirs", "newest", "interactive"],
-                   default="interactive",
-                   help="Conflict resolution strategy (default: interactive)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show what would change without applying")
+    p.add_argument(
+        "--strategy",
+        choices=["ours", "theirs", "newest", "interactive"],
+        default="interactive",
+        help="Conflict resolution strategy (default: interactive)",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show what would change without applying"
+    )
 
     p = sub.add_parser("export", help="Export network as JSON")
-    p.add_argument("-o", "--output", default="network.json", nargs="?", const="network.json",
-                   help="Output file (default: network.json). Use --output=- for stdout")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only export nodes whose access_tags are a subset of these tags")
+    p.add_argument(
+        "-o",
+        "--output",
+        default="network.json",
+        nargs="?",
+        const="network.json",
+        help="Output file (default: network.json). Use --output=- for stdout",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only export nodes whose access_tags are a subset of these tags",
+    )
 
     # export-markdown
-    p = sub.add_parser("export-markdown", help="Export network as beliefs.md-compatible markdown")
-    p.add_argument("-o", "--output", default="beliefs.md", nargs="?", const="beliefs.md",
-                   help="Output file (default: beliefs.md). Use --output=- for stdout")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only export nodes whose access_tags are a subset of these tags")
+    p = sub.add_parser(
+        "export-markdown", help="Export network as beliefs.md-compatible markdown"
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default="beliefs.md",
+        nargs="?",
+        const="beliefs.md",
+        help="Output file (default: beliefs.md). Use --output=- for stdout",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only export nodes whose access_tags are a subset of these tags",
+    )
 
     # export-card
-    p = sub.add_parser("export-card", help="Export network as HuggingFace EEM card (README.md)")
-    p.add_argument("-o", "--output", default="README.md", nargs="?", const="README.md",
-                   help="Output file (default: README.md). Use --output=- for stdout")
+    p = sub.add_parser(
+        "export-card", help="Export network as HuggingFace EEM card (README.md)"
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default="README.md",
+        nargs="?",
+        const="README.md",
+        help="Output file (default: README.md). Use --output=- for stdout",
+    )
     p.add_argument("--domain", nargs="*", help="Domain tags (e.g. kubernetes devops)")
     p.add_argument("--license", default="mit", help="License identifier (default: mit)")
     p.add_argument("--base-network", help="Parent EEM this was derived from")
     p.add_argument("--source-repos", nargs="*", help="Source repository identifiers")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only export nodes whose access_tags are a subset of these tags")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only export nodes whose access_tags are a subset of these tags",
+    )
 
     # hash-sources
-    p = sub.add_parser("hash-sources", help="Backfill source hashes for nodes without them")
-    p.add_argument("--force", action="store_true", help="Re-hash all nodes, even those with existing hashes")
+    p = sub.add_parser(
+        "hash-sources", help="Backfill source hashes for nodes without them"
+    )
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-hash all nodes, even those with existing hashes",
+    )
 
     # check-stale
     p = sub.add_parser("check-stale", help="Check IN nodes for source file staleness")
-    p.add_argument("--upgrade-hashes", action="store_true",
-                   help="Upgrade truncated hashes to full length in place")
-    p.add_argument("--git", action="store_true",
-                   help="Use git commit SHA for faster staleness detection")
+    p.add_argument(
+        "--upgrade-hashes",
+        action="store_true",
+        help="Upgrade truncated hashes to full length in place",
+    )
+    p.add_argument(
+        "--git",
+        action="store_true",
+        help="Use git commit SHA for faster staleness detection",
+    )
 
     # check-integrity
-    p = sub.add_parser("check-integrity", help="Verify Merkle hashes for text mutation detection")
+    p = sub.add_parser(
+        "check-integrity", help="Verify Merkle hashes for text mutation detection"
+    )
 
     # backfill-hashes
-    p = sub.add_parser("backfill-hashes", help="Compute Merkle hashes for nodes/justifications missing them")
+    p = sub.add_parser(
+        "backfill-hashes",
+        help="Compute Merkle hashes for nodes/justifications missing them",
+    )
 
     # pin-sources
     p = sub.add_parser("pin-sources", help="Pin source links to git commit SHA")
-    p.add_argument("--force", action="store_true",
-                   help="Re-pin even nodes that already have a pinned_sha")
-    p.add_argument("--pin-urls", action="store_true",
-                   help="Rewrite source_url from branch URLs to SHA-pinned URLs")
+    p.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-pin even nodes that already have a pinned_sha",
+    )
+    p.add_argument(
+        "--pin-urls",
+        action="store_true",
+        help="Rewrite source_url from branch URLs to SHA-pinned URLs",
+    )
 
     # pin-update
     p = sub.add_parser("pin-update", help="Bump pinned_sha to current HEAD for beliefs")
@@ -4446,534 +5349,1137 @@ def main():
 
     # compact
     p = sub.add_parser("compact", help="Token-budgeted belief state summary")
-    p.add_argument("--budget", type=int, default=500, help="Token budget (default: 500)")
+    p.add_argument(
+        "--budget", type=int, default=500, help="Token budget (default: 500)"
+    )
     p.add_argument("--no-truncate", action="store_true", help="Show full node text")
-    p.add_argument("--format", choices=["default", "names-only"], default="default",
-                   help="Output format (default: standard compact)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only include nodes whose access_tags are a subset of these tags")
-    p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in summary")
+    p.add_argument(
+        "--format",
+        choices=["default", "names-only"],
+        default="default",
+        help="Output format (default: standard compact)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only include nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--show-out",
+        action="store_true",
+        help="Include OUT (retracted) beliefs in summary",
+    )
 
     # search
-    p = sub.add_parser("search", help="Search nodes using full-text search with neighbor expansion")
+    p = sub.add_parser(
+        "search", help="Search nodes using full-text search with neighbor expansion"
+    )
     p.add_argument("query", help="Search terms (FTS5 all-terms matching)")
-    p.add_argument("--format", choices=["markdown", "json", "minimal", "names-only"], default="markdown",
-                   help="Output format (default: markdown)")
-    p.add_argument("--sort", choices=["relevance", "newest", "oldest"], default="relevance",
-                   help="Result ordering (default: relevance)")
+    p.add_argument(
+        "--format",
+        choices=["markdown", "json", "minimal", "names-only"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    p.add_argument(
+        "--sort",
+        choices=["relevance", "newest", "oldest"],
+        default="relevance",
+        help="Result ordering (default: relevance)",
+    )
     p.add_argument("-n", "--namespace", help="Filter results to a namespace")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
-    p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in results")
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--show-out",
+        action="store_true",
+        help="Include OUT (retracted) beliefs in results",
+    )
 
     # lookup
-    p = sub.add_parser("lookup", help="Simple keyword search over beliefs (no neighbor expansion)")
+    p = sub.add_parser(
+        "lookup", help="Simple keyword search over beliefs (no neighbor expansion)"
+    )
     p.add_argument("query", help="Search terms (all must match, case-insensitive)")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
-    p.add_argument("--show-out", action="store_true", help="Include OUT (retracted) beliefs in results")
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--show-out",
+        action="store_true",
+        help="Include OUT (retracted) beliefs in results",
+    )
 
     # ask
-    p = sub.add_parser("ask", help="Ask a question about beliefs (FTS5 search + LLM synthesis)")
+    p = sub.add_parser(
+        "ask", help="Ask a question about beliefs (FTS5 search + LLM synthesis)"
+    )
     p.add_argument("question", help="Natural language question")
-    p.add_argument("--no-synth", action="store_true",
-                   help="Show belief matches only, no LLM synthesis")
-    p.add_argument("--format", choices=["compact", "markdown", "json", "minimal"],
-                   default=None,
-                   help="Output format for --no-synth (default: compact)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--simple", action="store_true",
-                   help="Single-pass synthesis with pre-retrieved beliefs (better for smaller models)")
-    p.add_argument("--full-sources", default=None, metavar="FTS_DB",
-                   help="Also search source document chunks from FTS5 index (e.g. rag_fts.db)")
-    p.add_argument("--natural", action="store_true",
-                   help="Strip belief IDs, status, and justification metadata from context")
-    p.add_argument("--dual", action="store_true",
-                   help="Run TMS and FTS RAG separately, then merge (requires --full-sources)")
-    p.add_argument("--mcp", action="append", default=None,
-                   help="MCP server command as data source (repeatable, e.g. --mcp snowflake-mcp)")
-    p.add_argument("--elevate", action="store_true",
-                   help="Elevate the question using EEM beliefs before processing (agentic loop)")
-    p.add_argument("--summarize", action="store_true",
-                   help="Summarize the response for quick reading")
-    p.add_argument("--elevate-only", action="store_true",
-                   help="Only elevate the question, don't process it")
+    p.add_argument(
+        "--no-synth",
+        action="store_true",
+        help="Show belief matches only, no LLM synthesis",
+    )
+    p.add_argument(
+        "--format",
+        choices=["compact", "markdown", "json", "minimal"],
+        default=None,
+        help="Output format for --no-synth (default: compact)",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--simple",
+        action="store_true",
+        help="Single-pass synthesis with pre-retrieved beliefs (better for smaller models)",
+    )
+    p.add_argument(
+        "--full-sources",
+        default=None,
+        metavar="FTS_DB",
+        help="Also search source document chunks from FTS5 index (e.g. rag_fts.db)",
+    )
+    p.add_argument(
+        "--natural",
+        action="store_true",
+        help="Strip belief IDs, status, and justification metadata from context",
+    )
+    p.add_argument(
+        "--dual",
+        action="store_true",
+        help="Run TMS and FTS RAG separately, then merge (requires --full-sources)",
+    )
+    p.add_argument(
+        "--mcp",
+        action="append",
+        default=None,
+        help="MCP server command as data source (repeatable, e.g. --mcp snowflake-mcp)",
+    )
+    p.add_argument(
+        "--elevate",
+        action="store_true",
+        help="Elevate the question using EEM beliefs before processing (agentic loop)",
+    )
+    p.add_argument(
+        "--summarize",
+        action="store_true",
+        help="Summarize the response for quick reading",
+    )
+    p.add_argument(
+        "--elevate-only",
+        action="store_true",
+        help="Only elevate the question, don't process it",
+    )
 
     # search-sources
-    p = sub.add_parser("search-sources", help="Search source document chunks from an FTS5 index (no LLM)")
+    p = sub.add_parser(
+        "search-sources",
+        help="Search source document chunks from an FTS5 index (no LLM)",
+    )
     p.add_argument("query", help="Search query")
-    p.add_argument("--db", required=True, metavar="FTS_DB",
-                   help="Path to FTS5 chunks database (e.g. rag_fts.db)")
-    p.add_argument("--top-k", type=int, default=10,
-                   help="Number of results to return (default: 10)")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
+    p.add_argument(
+        "--db",
+        required=True,
+        metavar="FTS_DB",
+        help="Path to FTS5 chunks database (e.g. rag_fts.db)",
+    )
+    p.add_argument(
+        "--top-k",
+        type=int,
+        default=10,
+        help="Number of results to return (default: 10)",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     # deduplicate
-    p = sub.add_parser("deduplicate", help="Find and optionally retract duplicate IN beliefs")
-    p.add_argument("--threshold", type=float, default=0.5,
-                   help="Similarity threshold (Jaccard for ID mode, cosine for --semantic; default: 0.5)")
-    p.add_argument("--semantic", action="store_true",
-                   help="Use embedding similarity instead of ID token similarity")
-    p.add_argument("--embedding-model", default=None,
-                   help="Sentence-transformers model (default: all-MiniLM-L6-v2)")
-    p.add_argument("--auto", action="store_true",
-                   help="Automatically retract duplicates (keeps one per cluster)")
-    p.add_argument("--verify", action="store_true",
-                   help="LLM-verify candidate clusters (same-claim / different-claims / contradiction)")
-    p.add_argument("--model", default=None,
-                   help="LLM model for --verify (default: claude)")
-    p.add_argument("--parallel", type=int, default=1,
-                   help="Number of concurrent LLM calls for --verify (default: 1)")
-    p.add_argument("-o", "--output", default="proposed-dedup.md",
-                   help="Output file for dedup plan (default: proposed-dedup.md)")
-    p.add_argument("--accept", metavar="FILE",
-                   help="Apply a reviewed dedup plan file")
+    p = sub.add_parser(
+        "deduplicate", help="Find and optionally retract duplicate IN beliefs"
+    )
+    p.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        help="Similarity threshold (Jaccard for ID mode, cosine for --semantic; default: 0.5)",
+    )
+    p.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Use embedding similarity instead of ID token similarity",
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model (default: all-MiniLM-L6-v2)",
+    )
+    p.add_argument(
+        "--auto",
+        action="store_true",
+        help="Automatically retract duplicates (keeps one per cluster)",
+    )
+    p.add_argument(
+        "--verify",
+        action="store_true",
+        help="LLM-verify candidate clusters (same-claim / different-claims / contradiction)",
+    )
+    p.add_argument(
+        "--model", default=None, help="LLM model for --verify (default: claude)"
+    )
+    p.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of concurrent LLM calls for --verify (default: 1)",
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default="proposed-dedup.md",
+        help="Output file for dedup plan (default: proposed-dedup.md)",
+    )
+    p.add_argument("--accept", metavar="FILE", help="Apply a reviewed dedup plan file")
 
     # cluster-list
     p = sub.add_parser("cluster-list", help="List semantic similarity clusters")
-    p.add_argument("--status", choices=["IN", "OUT"], default="IN",
-                   help="Filter by truth value (default: IN)")
-    p.add_argument("--n-clusters", type=int, default=None,
-                   help="Override automatic cluster count")
-    p.add_argument("--seed", type=int, default=None,
-                   help="Random seed for reproducible clustering")
-    p.add_argument("--embedding-model", default=None,
-                   help="Sentence-transformers model (default: all-MiniLM-L6-v2)")
-    p.add_argument("--visible-to", metavar="TAG,TAG",
-                   help="Only show nodes whose access_tags are a subset of these tags")
-    p.add_argument("--format", choices=["text", "json", "markdown"], default="text",
-                   help="Output format (default: text)")
+    p.add_argument(
+        "--status",
+        choices=["IN", "OUT"],
+        default="IN",
+        help="Filter by truth value (default: IN)",
+    )
+    p.add_argument(
+        "--n-clusters", type=int, default=None, help="Override automatic cluster count"
+    )
+    p.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducible clustering"
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model (default: all-MiniLM-L6-v2)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json", "markdown"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     # namespaces
     p = sub.add_parser("list-gated", help="List OUT nodes blocked by IN outlist nodes")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
 
     # report-gated
-    p = sub.add_parser("report-gated", help="Generate a problems/open-issues report from gated beliefs")
-    p.add_argument("-o", "--output", default=None, help="Write report to file (default: stdout)")
-    p.add_argument("-m", "--model", default=None,
-                   help="LLM model for narrative synthesis (default: structured report)")
-    p.add_argument("--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only include nodes whose access_tags are a subset of these tags")
+    p = sub.add_parser(
+        "report-gated", help="Generate a problems/open-issues report from gated beliefs"
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write report to file (default: stdout)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="LLM model for narrative synthesis (default: structured report)",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)"
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only include nodes whose access_tags are a subset of these tags",
+    )
 
     # report
-    p = sub.add_parser("report", help="Trace a belief to its root premises with source evidence")
+    p = sub.add_parser(
+        "report", help="Trace a belief to its root premises with source evidence"
+    )
     p.add_argument("node_id", help="Belief ID to report on")
-    p.add_argument("--sources-db", default=None, metavar="FTS_DB",
-                   help="FTS5 chunks database for source evidence (e.g. rag_fts.db)")
-    p.add_argument("-o", "--output", default=None, help="Write report to file (default: stdout)")
-    p.add_argument("-m", "--model", default=None,
-                   help="LLM model for narrative synthesis (default: structured report)")
-    p.add_argument("--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)")
+    p.add_argument(
+        "--sources-db",
+        default=None,
+        metavar="FTS_DB",
+        help="FTS5 chunks database for source evidence (e.g. rag_fts.db)",
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write report to file (default: stdout)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="LLM model for narrative synthesis (default: structured report)",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)"
+    )
 
     # verify
     p = sub.add_parser("verify", help="Verify beliefs against their source documents")
     p.add_argument("node_id", help="Belief ID to verify")
-    p.add_argument("--trace", action="store_true",
-                   help="Trace derived beliefs to leaf premises and verify each")
-    p.add_argument("--retract", action="store_true",
-                   help="Retract beliefs with STALE verdicts")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show what would be verified without calling LLM")
-    p.add_argument("-m", "--model", default="claude",
-                   help="LLM model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=120, help="LLM timeout in seconds (default: 120)")
+    p.add_argument(
+        "--trace",
+        action="store_true",
+        help="Trace derived beliefs to leaf premises and verify each",
+    )
+    p.add_argument(
+        "--retract", action="store_true", help="Retract beliefs with STALE verdicts"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be verified without calling LLM",
+    )
+    p.add_argument(
+        "-m", "--model", default="claude", help="LLM model to use (default: claude)"
+    )
+    p.add_argument(
+        "--timeout", type=int, default=120, help="LLM timeout in seconds (default: 120)"
+    )
 
-    p = sub.add_parser("list-negative", help="Find IN beliefs describing problems/defects/risks (LLM-classified)")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--no-llm", action="store_true",
-                   help="Skip LLM classification; return keyword-filtered candidates directly")
+    p = sub.add_parser(
+        "list-negative",
+        help="Find IN beliefs describing problems/defects/risks (LLM-classified)",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Skip LLM classification; return keyword-filtered candidates directly",
+    )
 
     sub.add_parser("namespaces", help="List all agent namespaces in the database")
 
     # topics
     p = sub.add_parser("topics", help="Extract topics from node IDs by word frequency")
-    p.add_argument("--limit", type=int, default=20, help="Max topics to show (default: 20)")
+    p.add_argument(
+        "--limit", type=int, default=20, help="Max topics to show (default: 20)"
+    )
     p.add_argument("--json", action="store_true", help="Machine-readable JSON output")
 
     # build-wiki
-    p = sub.add_parser("build-wiki", help="Export beliefs as interlinked markdown wiki pages")
-    p.add_argument("-o", "--output", default="wiki", help="Output directory (default: wiki)")
-    p.add_argument("-m", "--model", default=None,
-                   help="LLM model for page generation (e.g. claude, gemini). Without this, pages are structured dumps")
-    p.add_argument("--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)")
-    p.add_argument("--parallel", type=int, default=0, help="Number of concurrent LLM workers (default: 0 = sequential)")
-    p.add_argument("--status", choices=["IN", "OUT"], default=None, help="Filter by truth value")
-    p.add_argument("--max-topics", type=int, default=20, help="Max topics for word-frequency grouping (default: 20)")
-    p.add_argument("--topics-file", default=None,
-                   help="File with custom topic list (one per line). Supports multi-word topics and aliases (comma-separated)")
-    p.add_argument("--summaries-dir", default=None,
-                   help="Write eem-wiki compatible summary files (topic-summaries.json, belief-summaries.json, project-summary.txt)")
-    p.add_argument("--skip-belief-summaries", action="store_true",
-                   help="Skip per-belief summaries (expensive). Only generate topic and project summaries")
-    p.add_argument("--cluster", action="store_true", help="Use semantic clustering instead of topic grouping")
-    p.add_argument("--n-clusters", type=int, default=None, help="Override automatic cluster count")
-    p.add_argument("--seed", type=int, default=None, help="Random seed for reproducible clustering")
-    p.add_argument("--embedding-model", default=None, help="Sentence-transformers model for clustering")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only export nodes whose access_tags are a subset of these tags")
+    p = sub.add_parser(
+        "build-wiki", help="Export beliefs as interlinked markdown wiki pages"
+    )
+    p.add_argument(
+        "-o", "--output", default="wiki", help="Output directory (default: wiki)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="LLM model for page generation (e.g. claude, gemini). Without this, pages are structured dumps",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=300, help="LLM timeout in seconds (default: 300)"
+    )
+    p.add_argument(
+        "--parallel",
+        type=int,
+        default=0,
+        help="Number of concurrent LLM workers (default: 0 = sequential)",
+    )
+    p.add_argument(
+        "--status", choices=["IN", "OUT"], default=None, help="Filter by truth value"
+    )
+    p.add_argument(
+        "--max-topics",
+        type=int,
+        default=20,
+        help="Max topics for word-frequency grouping (default: 20)",
+    )
+    p.add_argument(
+        "--topics-file",
+        default=None,
+        help="File with custom topic list (one per line). Supports multi-word topics and aliases (comma-separated)",
+    )
+    p.add_argument(
+        "--summaries-dir",
+        default=None,
+        help="Write eem-wiki compatible summary files (topic-summaries.json, belief-summaries.json, project-summary.txt)",
+    )
+    p.add_argument(
+        "--skip-belief-summaries",
+        action="store_true",
+        help="Skip per-belief summaries (expensive). Only generate topic and project summaries",
+    )
+    p.add_argument(
+        "--cluster",
+        action="store_true",
+        help="Use semantic clustering instead of topic grouping",
+    )
+    p.add_argument(
+        "--n-clusters", type=int, default=None, help="Override automatic cluster count"
+    )
+    p.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducible clustering"
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model for clustering",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only export nodes whose access_tags are a subset of these tags",
+    )
 
     # review-beliefs
-    p = sub.add_parser("review-beliefs", help="Review derived beliefs for validity, sufficiency, and necessity")
-    p.add_argument("ids", nargs="*", help="Specific belief IDs to review (default: all derived)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--min-depth", type=int, default=None,
-                   help="Only review beliefs at this depth or deeper")
-    p.add_argument("--depends-on", default=None,
-                   help="Only review beliefs depending on this node")
-    p.add_argument("-n", "--namespace", default=None,
-                   help="Filter by agent namespace (use empty string '' for local beliefs only)")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Randomly sample N beliefs to review")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without taking action")
-    p.add_argument("--auto-retract", action="store_true",
-                   help="Retract beliefs found invalid")
-    p.add_argument("--auto-defeat", action="store_true",
-                   help="Defeat invalid beliefs with justified scope defeaters")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write findings to markdown file")
-    p.add_argument("--visible-to", metavar="TAG,TAG",
-                   help="Only review nodes whose access_tags are a subset of these tags")
-    p.add_argument("--report-dir", default="reviews",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Skip JSON report generation")
-    p.add_argument("--include-out", action="store_true",
-                   help="Include OUT beliefs (e.g. to re-review previously retracted beliefs)")
+    p = sub.add_parser(
+        "review-beliefs",
+        help="Review derived beliefs for validity, sufficiency, and necessity",
+    )
+    p.add_argument(
+        "ids", nargs="*", help="Specific belief IDs to review (default: all derived)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--min-depth",
+        type=int,
+        default=None,
+        help="Only review beliefs at this depth or deeper",
+    )
+    p.add_argument(
+        "--depends-on", default=None, help="Only review beliefs depending on this node"
+    )
+    p.add_argument(
+        "-n",
+        "--namespace",
+        default=None,
+        help="Filter by agent namespace (use empty string '' for local beliefs only)",
+    )
+    p.add_argument(
+        "--sample", type=int, default=None, help="Randomly sample N beliefs to review"
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Report findings without taking action"
+    )
+    p.add_argument(
+        "--auto-retract", action="store_true", help="Retract beliefs found invalid"
+    )
+    p.add_argument(
+        "--auto-defeat",
+        action="store_true",
+        help="Defeat invalid beliefs with justified scope defeaters",
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write findings to markdown file"
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only review nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Skip JSON report generation"
+    )
+    p.add_argument(
+        "--include-out",
+        action="store_true",
+        help="Include OUT beliefs (e.g. to re-review previously retracted beliefs)",
+    )
 
     # review-justifications
-    p = sub.add_parser("review-justifications",
-                       help="Review SL justifications for ALL vs ANY misclassification")
+    p = sub.add_parser(
+        "review-justifications",
+        help="Review SL justifications for ALL vs ANY misclassification",
+    )
     p.add_argument("--node", default=None, help="Review a specific belief")
-    p.add_argument("--min-antecedents", type=int, default=2,
-                   help="Only review justifications with at least N antecedents (default: 2)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--parallel", type=int, default=0,
-                   help="Number of concurrent LLM workers (default: 0 = sequential)")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write findings to markdown file")
+    p.add_argument(
+        "--min-antecedents",
+        type=int,
+        default=2,
+        help="Only review justifications with at least N antecedents (default: 2)",
+    )
+    p.add_argument("-m", "--model", default=None, help="Model to use (default: claude)")
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--parallel",
+        type=int,
+        default=0,
+        help="Number of concurrent LLM workers (default: 0 = sequential)",
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write findings to markdown file"
+    )
 
     # review-premises
-    p = sub.add_parser("review-premises", help="Review premises against source material for factual accuracy")
-    p.add_argument("ids", nargs="*", help="Specific premise IDs to review (default: all IN premises)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Randomly sample N premises to review")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without taking action")
-    p.add_argument("--auto-retract", action="store_true",
-                   help="Retract premises found inaccurate")
-    p.add_argument("--visible-to", metavar="TAG,TAG",
-                   help="Only review nodes whose access_tags are a subset of these tags")
-    p.add_argument("--report-dir", default="reviews",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Skip JSON report generation")
-    p.add_argument("--parallel", type=int, default=0, metavar="N",
-                   help="Number of concurrent workers (0 = sequential)")
+    p = sub.add_parser(
+        "review-premises",
+        help="Review premises against source material for factual accuracy",
+    )
+    p.add_argument(
+        "ids",
+        nargs="*",
+        help="Specific premise IDs to review (default: all IN premises)",
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--sample", type=int, default=None, help="Randomly sample N premises to review"
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Report findings without taking action"
+    )
+    p.add_argument(
+        "--auto-retract", action="store_true", help="Retract premises found inaccurate"
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only review nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Skip JSON report generation"
+    )
+    p.add_argument(
+        "--parallel",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Number of concurrent workers (0 = sequential)",
+    )
 
     # repair-premises
-    p = sub.add_parser("repair-premises", help="Repair inaccurate premises by rewriting from source or retracting")
-    p.add_argument("ids", nargs="*", help="Premise IDs to repair (requires --review-file or re-reviews these IDs)")
-    p.add_argument("--review-file", default=None,
-                   help="Path to review-premises JSON report")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without applying changes")
-    p.add_argument("--parallel", type=int, default=0, metavar="N",
-                   help="Number of concurrent workers (0 = sequential)")
-    p.add_argument("--report-dir", default="reviews",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Skip JSON report generation")
+    p = sub.add_parser(
+        "repair-premises",
+        help="Repair inaccurate premises by rewriting from source or retracting",
+    )
+    p.add_argument(
+        "ids",
+        nargs="*",
+        help="Premise IDs to repair (requires --review-file or re-reviews these IDs)",
+    )
+    p.add_argument(
+        "--review-file", default=None, help="Path to review-premises JSON report"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report findings without applying changes",
+    )
+    p.add_argument(
+        "--parallel",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Number of concurrent workers (0 = sequential)",
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Skip JSON report generation"
+    )
 
     # propose-update
-    p = sub.add_parser("propose-update",
-        help="Propose structured updates or retractions for beliefs (LLM-driven)")
-    p.add_argument("ids", nargs="*", help="Specific belief IDs to evaluate (default: all IN)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--stale-only", action="store_true",
-                   help="Only evaluate beliefs flagged as stale")
-    p.add_argument("-n", "--namespace", default=None,
-                   help="Filter by agent namespace (use empty string '' for local beliefs only)")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Randomly sample N beliefs to evaluate")
-    p.add_argument("-o", "--output", default=None,
-                   help="Output file path (default: proposed-updates.md or .json)")
-    p.add_argument("--format", choices=["markdown", "json"], default="markdown",
-                   help="Output format (default: markdown)")
-    p.add_argument("--report-dir", default="reviews",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Skip JSON report generation")
+    p = sub.add_parser(
+        "propose-update",
+        help="Propose structured updates or retractions for beliefs (LLM-driven)",
+    )
+    p.add_argument(
+        "ids", nargs="*", help="Specific belief IDs to evaluate (default: all IN)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--stale-only",
+        action="store_true",
+        help="Only evaluate beliefs flagged as stale",
+    )
+    p.add_argument(
+        "-n",
+        "--namespace",
+        default=None,
+        help="Filter by agent namespace (use empty string '' for local beliefs only)",
+    )
+    p.add_argument(
+        "--sample", type=int, default=None, help="Randomly sample N beliefs to evaluate"
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Output file path (default: proposed-updates.md or .json)",
+    )
+    p.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="Output format (default: markdown)",
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Skip JSON report generation"
+    )
 
     # repair-smuggled
-    p = sub.add_parser("repair-smuggled",
-        help="Repair smuggled premises by finding and linking existing premises")
+    p = sub.add_parser(
+        "repair-smuggled",
+        help="Repair smuggled premises by finding and linking existing premises",
+    )
     p.add_argument("ids", nargs="*", help="Belief IDs to review and repair")
-    p.add_argument("--review-file", default=None,
-                   help="Path to review-beliefs JSON report")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without applying repairs")
+    p.add_argument(
+        "--review-file", default=None, help="Path to review-beliefs JSON report"
+    )
+    p.add_argument("-m", "--model", default=None, help="Model to use (default: claude)")
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report findings without applying repairs",
+    )
 
     # repair (formerly research)
-    p = sub.add_parser("repair",
-        help="Repair flagged beliefs: search-and-link, soften, or abandon")
+    p = sub.add_parser(
+        "repair", help="Repair flagged beliefs: search-and-link, soften, or abandon"
+    )
     p.add_argument("ids", nargs="*", help="Belief IDs to repair")
-    p.add_argument("--review-file", default=None,
-                   help="Path to review-beliefs JSON report")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without applying changes")
+    p.add_argument(
+        "--review-file", default=None, help="Path to review-beliefs JSON report"
+    )
+    p.add_argument("-m", "--model", default=None, help="Model to use (default: claude)")
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report findings without applying changes",
+    )
 
     # research (backward-compatible alias for repair)
     p = sub.add_parser("research", help="Alias for 'repair' (deprecated)")
     p.add_argument("ids", nargs="*", help="Belief IDs to repair")
-    p.add_argument("--review-file", default=None,
-                   help="Path to review-beliefs JSON report")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without applying changes")
+    p.add_argument(
+        "--review-file", default=None, help="Path to review-beliefs JSON report"
+    )
+    p.add_argument("-m", "--model", default=None, help="Model to use (default: claude)")
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report findings without applying changes",
+    )
 
     # contradictions
-    p = sub.add_parser("contradictions", help="Detect contradictions between IN beliefs")
-    p.add_argument("ids", nargs="*", help="Specific belief IDs to check (default: all IN)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Randomly sample N beliefs to check")
-    p.add_argument("--auto-apply", action="store_true",
-                   help="Auto-apply detected nogoods via dependency-directed backtracking")
-    p.add_argument("--semantic", action="store_true",
-                   help="Group beliefs by semantic similarity before LLM analysis")
-    p.add_argument("--embedding-model", default=None,
-                   help="Sentence-transformers model (default: all-MiniLM-L6-v2)")
-    p.add_argument("-o", "--output", default="proposed-contradictions.md",
-                   help="Output file for contradiction plan (default: proposed-contradictions.md)")
-    p.add_argument("--parallel", type=int, default=1,
-                   help="Max concurrent LLM calls (default: 1)")
-    p.add_argument("--accept", metavar="FILE",
-                   help="Apply a reviewed contradiction plan file")
+    p = sub.add_parser(
+        "contradictions", help="Detect contradictions between IN beliefs"
+    )
+    p.add_argument(
+        "ids", nargs="*", help="Specific belief IDs to check (default: all IN)"
+    )
+    p.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        help="Model to use (default: claude). Prefixes: ollama:<model>, api:<model>, vertex:<model>",
+    )
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
+    p.add_argument(
+        "--sample", type=int, default=None, help="Randomly sample N beliefs to check"
+    )
+    p.add_argument(
+        "--auto-apply",
+        action="store_true",
+        help="Auto-apply detected nogoods via dependency-directed backtracking",
+    )
+    p.add_argument(
+        "--semantic",
+        action="store_true",
+        help="Group beliefs by semantic similarity before LLM analysis",
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model (default: all-MiniLM-L6-v2)",
+    )
+    p.add_argument(
+        "-o",
+        "--output",
+        default="proposed-contradictions.md",
+        help="Output file for contradiction plan (default: proposed-contradictions.md)",
+    )
+    p.add_argument(
+        "--parallel", type=int, default=1, help="Max concurrent LLM calls (default: 1)"
+    )
+    p.add_argument(
+        "--accept", metavar="FILE", help="Apply a reviewed contradiction plan file"
+    )
 
     # relations
-    p = sub.add_parser("relations", help="Extract and query FOL relations from belief names")
-    p.add_argument("--apply", action="store_true",
-                   help="Extract relations and store in node metadata")
-    p.add_argument("--stats", action="store_true",
-                   help="Show relation statistics")
-    p.add_argument("--relation", metavar="TYPE",
-                   help="Filter to a specific relation type (e.g., requires)")
-    p.add_argument("--check", action="store_true",
-                   help="Check for unmet requirements and prevention conflicts")
-    p.add_argument("--closure", metavar="NODE_ID",
-                   help="Compute transitive closure from a node")
-    p.add_argument("--closure-type", default="requires",
-                   help="Relation type for closure (default: requires)")
-    p.add_argument("--include-is", action="store_true",
-                   help="Include broad 'is' and 'is-not' patterns")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
+    p = sub.add_parser(
+        "relations", help="Extract and query FOL relations from belief names"
+    )
+    p.add_argument(
+        "--apply",
+        action="store_true",
+        help="Extract relations and store in node metadata",
+    )
+    p.add_argument("--stats", action="store_true", help="Show relation statistics")
+    p.add_argument(
+        "--relation",
+        metavar="TYPE",
+        help="Filter to a specific relation type (e.g., requires)",
+    )
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="Check for unmet requirements and prevention conflicts",
+    )
+    p.add_argument(
+        "--closure", metavar="NODE_ID", help="Compute transitive closure from a node"
+    )
+    p.add_argument(
+        "--closure-type",
+        default="requires",
+        help="Relation type for closure (default: requires)",
+    )
+    p.add_argument(
+        "--include-is",
+        action="store_true",
+        help="Include broad 'is' and 'is-not' patterns",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     # review-relations
-    p = sub.add_parser("review-relations",
-                       help="Review relational beliefs for type accuracy, direction, and grounding")
-    p.add_argument("ids", nargs="*", help="Specific relation IDs to review (default: all)")
-    p.add_argument("-m", "--model", default=None,
-                   help="Model to use (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="LLM timeout in seconds (default: 600)")
+    p = sub.add_parser(
+        "review-relations",
+        help="Review relational beliefs for type accuracy, direction, and grounding",
+    )
+    p.add_argument(
+        "ids", nargs="*", help="Specific relation IDs to review (default: all)"
+    )
+    p.add_argument("-m", "--model", default=None, help="Model to use (default: claude)")
+    p.add_argument(
+        "--timeout", type=int, default=600, help="LLM timeout in seconds (default: 600)"
+    )
     p.add_argument("--topic", help="Filter relations by keyword")
-    p.add_argument("--relation-type", choices=[
-        "requires", "enables", "extends", "is-a", "has-a", "contains",
-        "implements", "produces", "causes", "replaces", "prevents", "maps-to",
-    ], help="Only review this relation type")
-    p.add_argument("--sample", type=int, default=None,
-                   help="Randomly sample N relations to review")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Report findings without taking action")
-    p.add_argument("--auto-retract", action="store_true",
-                   help="Retract relations found incorrect")
-    p.add_argument("--auto-fix", action="store_true",
-                   help="Fix wrong type/direction: retract and re-add with correction")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write findings to markdown file")
-    p.add_argument("--report-dir", default="reviews",
-                   help="Directory for JSON reports (default: reviews/)")
-    p.add_argument("--no-report", action="store_true",
-                   help="Skip JSON report generation")
+    p.add_argument(
+        "--relation-type",
+        choices=[
+            "requires",
+            "enables",
+            "extends",
+            "is-a",
+            "has-a",
+            "contains",
+            "implements",
+            "produces",
+            "causes",
+            "replaces",
+            "prevents",
+            "maps-to",
+        ],
+        help="Only review this relation type",
+    )
+    p.add_argument(
+        "--sample", type=int, default=None, help="Randomly sample N relations to review"
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Report findings without taking action"
+    )
+    p.add_argument(
+        "--auto-retract", action="store_true", help="Retract relations found incorrect"
+    )
+    p.add_argument(
+        "--auto-fix",
+        action="store_true",
+        help="Fix wrong type/direction: retract and re-add with correction",
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write findings to markdown file"
+    )
+    p.add_argument(
+        "--report-dir",
+        default="reviews",
+        help="Directory for JSON reports (default: reviews/)",
+    )
+    p.add_argument(
+        "--no-report", action="store_true", help="Skip JSON report generation"
+    )
 
     # derive-relations
-    p = sub.add_parser("derive-relations",
-                       help="Discover FOL relations between existing beliefs using LLM")
+    p = sub.add_parser(
+        "derive-relations",
+        help="Discover FOL relations between existing beliefs using LLM",
+    )
     p.add_argument("--domain", "-d", help="Domain description for context")
     p.add_argument("--topic", help="Filter beliefs by keyword")
-    p.add_argument("--budget", type=int, default=50,
-                   help="Max belief pairs to analyze (default: 50)")
-    p.add_argument("--sample-budget", type=int, default=100,
-                   help="Max beliefs to sample for pairing (default: 100)")
+    p.add_argument(
+        "--budget",
+        type=int,
+        default=50,
+        help="Max belief pairs to analyze (default: 50)",
+    )
+    p.add_argument(
+        "--sample-budget",
+        type=int,
+        default=100,
+        help="Max beliefs to sample for pairing (default: 100)",
+    )
     p.add_argument("--seed", type=int, help="Random seed for reproducible sampling")
-    p.add_argument("--strategy", choices=["random", "prefix", "justification", "embedding", "all"],
-                   default="justification",
-                   help="Pair sampling strategy (default: justification)")
-    p.add_argument("--embedding-model", default=None,
-                   help="Sentence-transformers model for embedding strategy (default: all-MiniLM-L6-v2)")
-    p.add_argument("--use-case", default="lesson-planning",
-                   help="Use case guidance (default: lesson-planning)")
+    p.add_argument(
+        "--strategy",
+        choices=["random", "prefix", "justification", "embedding", "all"],
+        default="justification",
+        help="Pair sampling strategy (default: justification)",
+    )
+    p.add_argument(
+        "--embedding-model",
+        default=None,
+        help="Sentence-transformers model for embedding strategy (default: all-MiniLM-L6-v2)",
+    )
+    p.add_argument(
+        "--use-case",
+        default="lesson-planning",
+        help="Use case guidance (default: lesson-planning)",
+    )
     p.add_argument("--model", "-m", help="LLM model (default: claude)")
-    p.add_argument("--timeout", type=int, default=300,
-                   help="Model timeout in seconds (default: 300)")
-    p.add_argument("--auto", action="store_true",
-                   help="Automatically apply valid proposals")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show the prompt without calling the LLM")
-    p.add_argument("--output", "-o", default="derive-relations-proposals.md",
-                   help="Output file for proposals (default: derive-relations-proposals.md)")
-    p.add_argument("--high-only", action="store_true",
-                   help="Only keep HIGH confidence proposals")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Model timeout in seconds (default: 300)",
+    )
+    p.add_argument(
+        "--auto", action="store_true", help="Automatically apply valid proposals"
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show the prompt without calling the LLM"
+    )
+    p.add_argument(
+        "--output",
+        "-o",
+        default="derive-relations-proposals.md",
+        help="Output file for proposals (default: derive-relations-proposals.md)",
+    )
+    p.add_argument(
+        "--high-only", action="store_true", help="Only keep HIGH confidence proposals"
+    )
 
     # lesson-plan
-    p = sub.add_parser("lesson-plan",
-                       help="Generate a sequenced lesson plan from FOL relations")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
-    p.add_argument("--title", default=None,
-                   help="Title for the lesson plan")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write lesson plan to file")
+    p = sub.add_parser(
+        "lesson-plan", help="Generate a sequenced lesson plan from FOL relations"
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    p.add_argument("--title", default=None, help="Title for the lesson plan")
+    p.add_argument("-o", "--output", default=None, help="Write lesson plan to file")
 
     # generate-lesson
-    p = sub.add_parser("generate-lesson",
-                       help="Generate individual lessons from a lesson plan using LLM")
-    p.add_argument("concept", nargs="?", default=None,
-                   help="Concept to generate a lesson for (default: next in plan)")
-    p.add_argument("--all", action="store_true",
-                   help="Generate lessons for all concepts in order")
-    p.add_argument("--count", type=int, default=None,
-                   help="Generate N lessons starting from the next untaught concept")
-    p.add_argument("--domain", "-d", default="",
-                   help="Domain name for prompt context")
-    p.add_argument("--model", "-m", default=None,
-                   help="LLM model (default: claude)")
-    p.add_argument("--timeout", type=int, default=300,
-                   help="Model timeout in seconds (default: 300)")
-    p.add_argument("-o", "--output-dir", default=None,
-                   help="Directory to write lesson files (default: stdout)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show the prompt without calling the LLM")
-    p.add_argument("--survey", action="store_true",
-                   help="Use survey plan — broad overview lessons covering subtopics lightly")
-    p.add_argument("--from-plan", default=None, metavar="JSON_FILE",
-                   help="Load lesson plan from JSON file instead of building from TMS")
+    p = sub.add_parser(
+        "generate-lesson",
+        help="Generate individual lessons from a lesson plan using LLM",
+    )
+    p.add_argument(
+        "concept",
+        nargs="?",
+        default=None,
+        help="Concept to generate a lesson for (default: next in plan)",
+    )
+    p.add_argument(
+        "--all", action="store_true", help="Generate lessons for all concepts in order"
+    )
+    p.add_argument(
+        "--count",
+        type=int,
+        default=None,
+        help="Generate N lessons starting from the next untaught concept",
+    )
+    p.add_argument("--domain", "-d", default="", help="Domain name for prompt context")
+    p.add_argument("--model", "-m", default=None, help="LLM model (default: claude)")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Model timeout in seconds (default: 300)",
+    )
+    p.add_argument(
+        "-o",
+        "--output-dir",
+        default=None,
+        help="Directory to write lesson files (default: stdout)",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show the prompt without calling the LLM"
+    )
+    p.add_argument(
+        "--survey",
+        action="store_true",
+        help="Use survey plan — broad overview lessons covering subtopics lightly",
+    )
+    p.add_argument(
+        "--from-plan",
+        default=None,
+        metavar="JSON_FILE",
+        help="Load lesson plan from JSON file instead of building from TMS",
+    )
 
     # consolidate-lessons
-    p = sub.add_parser("consolidate-lessons",
-                       help="Consolidate granular lessons into broader teaching units using LLM")
-    p.add_argument("--title", default=None,
-                   help="Title for the consolidated plan")
-    p.add_argument("--domain", "-d", default="",
-                   help="Domain name for context")
-    p.add_argument("--model", "-m", default=None,
-                   help="LLM model (default: claude)")
-    p.add_argument("--timeout", type=int, default=300,
-                   help="Model timeout in seconds (default: 300)")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write consolidated plan to file")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show standalone concepts without calling LLM")
-    p.add_argument("--batch-size", type=int, default=80,
-                   help="Concepts per LLM batch (default: 80)")
+    p = sub.add_parser(
+        "consolidate-lessons",
+        help="Consolidate granular lessons into broader teaching units using LLM",
+    )
+    p.add_argument("--title", default=None, help="Title for the consolidated plan")
+    p.add_argument("--domain", "-d", default="", help="Domain name for context")
+    p.add_argument("--model", "-m", default=None, help="LLM model (default: claude)")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=300,
+        help="Model timeout in seconds (default: 300)",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    p.add_argument(
+        "-o", "--output", default=None, help="Write consolidated plan to file"
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show standalone concepts without calling LLM",
+    )
+    p.add_argument(
+        "--batch-size",
+        type=int,
+        default=80,
+        help="Concepts per LLM batch (default: 80)",
+    )
 
     # survey-lessons
-    p = sub.add_parser("survey-lessons",
-                       help="Create a high-level survey course grouping all concepts into broad lessons")
-    p.add_argument("--title", default=None,
-                   help="Title for the survey course")
-    p.add_argument("--model", "-m", default=None,
-                   help="LLM model (default: claude)")
-    p.add_argument("--timeout", type=int, default=600,
-                   help="Model timeout in seconds (default: 600)")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
-    p.add_argument("-o", "--output", default=None,
-                   help="Write survey plan to file")
-    p.add_argument("--target-lessons", type=int, default=12,
-                   help="Target number of survey lessons (default: 12)")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show all concepts without calling LLM")
+    p = sub.add_parser(
+        "survey-lessons",
+        help="Create a high-level survey course grouping all concepts into broad lessons",
+    )
+    p.add_argument("--title", default=None, help="Title for the survey course")
+    p.add_argument("--model", "-m", default=None, help="LLM model (default: claude)")
+    p.add_argument(
+        "--timeout",
+        type=int,
+        default=600,
+        help="Model timeout in seconds (default: 600)",
+    )
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    p.add_argument("-o", "--output", default=None, help="Write survey plan to file")
+    p.add_argument(
+        "--target-lessons",
+        type=int,
+        default=12,
+        help="Target number of survey lessons (default: 12)",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true", help="Show all concepts without calling LLM"
+    )
 
     # import-lessons
-    p = sub.add_parser("import-lessons",
-                       help="Import generated lesson markdown files as feed stories")
-    p.add_argument("lesson_dir",
-                   help="Directory containing lesson .md files")
-    p.add_argument("--dry-run", action="store_true",
-                   help="Show what would be imported without writing")
+    p = sub.add_parser(
+        "import-lessons", help="Import generated lesson markdown files as feed stories"
+    )
+    p.add_argument("lesson_dir", help="Directory containing lesson .md files")
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be imported without writing",
+    )
 
     # costs
     p = sub.add_parser("costs", help="Summarize JSON cost reports")
-    p.add_argument("--format", choices=["text", "json"], default="text",
-                   help="Output format (default: text)")
+    p.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
 
     # list
     p = sub.add_parser("list", help="List nodes with filters")
     p.add_argument("--status", choices=["IN", "OUT"], help="Filter by truth value")
-    p.add_argument("--premises", action="store_true", help="Only show premises (no justifications)")
-    p.add_argument("--has-dependents", action="store_true", help="Only show nodes that others depend on")
-    p.add_argument("--challenged", action="store_true", help="Only show nodes with active challenges")
+    p.add_argument(
+        "--premises", action="store_true", help="Only show premises (no justifications)"
+    )
+    p.add_argument(
+        "--has-dependents",
+        action="store_true",
+        help="Only show nodes that others depend on",
+    )
+    p.add_argument(
+        "--challenged",
+        action="store_true",
+        help="Only show nodes with active challenges",
+    )
     p.add_argument("-n", "--namespace", help="Filter to nodes in this namespace")
-    p.add_argument("--min-depth", type=int, default=None,
-                   help="Only show beliefs at this depth or deeper (0=premises)")
-    p.add_argument("--max-depth", type=int, default=None,
-                   help="Only show beliefs at this depth or shallower")
-    p.add_argument("--visible-to", metavar="TAG,TAG", help="Only show nodes whose access_tags are a subset of these tags")
-    p.add_argument("--not-reviewed-since", type=int, default=None, metavar="DAYS",
-                   help="Derived beliefs not reviewed in the last N days (or never)")
-    p.add_argument("--never-reviewed", action="store_true",
-                   help="Derived beliefs that have never been reviewed")
-    p.add_argument("--by-impact", action="store_true",
-                   help="Sort output by dependent count (descending)")
-    p.add_argument("--sort", default="id",
-                   choices=["id", "created", "updated", "impact", "depth"],
-                   help="Sort order (default: id)")
-    p.add_argument("--label", help="Filter to nodes with a justification matching this label")
-    p.add_argument("--format", choices=["full", "names-only"], default="full",
-                   help="Output format (default: full)")
+    p.add_argument(
+        "--min-depth",
+        type=int,
+        default=None,
+        help="Only show beliefs at this depth or deeper (0=premises)",
+    )
+    p.add_argument(
+        "--max-depth",
+        type=int,
+        default=None,
+        help="Only show beliefs at this depth or shallower",
+    )
+    p.add_argument(
+        "--visible-to",
+        metavar="TAG,TAG",
+        help="Only show nodes whose access_tags are a subset of these tags",
+    )
+    p.add_argument(
+        "--not-reviewed-since",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="Derived beliefs not reviewed in the last N days (or never)",
+    )
+    p.add_argument(
+        "--never-reviewed",
+        action="store_true",
+        help="Derived beliefs that have never been reviewed",
+    )
+    p.add_argument(
+        "--by-impact",
+        action="store_true",
+        help="Sort output by dependent count (descending)",
+    )
+    p.add_argument(
+        "--sort",
+        default="id",
+        choices=["id", "created", "updated", "impact", "depth"],
+        help="Sort order (default: id)",
+    )
+    p.add_argument(
+        "--label", help="Filter to nodes with a justification matching this label"
+    )
+    p.add_argument(
+        "--format",
+        choices=["full", "names-only"],
+        default="full",
+        help="Output format (default: full)",
+    )
 
     args = parser.parse_args()
     if not args.command:
@@ -5071,7 +6577,9 @@ def main():
         "import-lessons": cmd_import_lessons,
         "costs": cmd_costs,
         "namespaces": cmd_namespaces,
-        "worker": lambda args: __import__("reasonsforge.worker", fromlist=["cmd_worker"]).cmd_worker(args),
+        "worker": lambda args: __import__(
+            "reasonsforge.worker", fromlist=["cmd_worker"]
+        ).cmd_worker(args),
         "forge": lambda args: _dispatch_forge(args, _forge_commands),
         **_forge_type_commands,
     }
@@ -5081,7 +6589,6 @@ def main():
 def _dispatch_forge(args, forge_commands):
     if not args.forge_command:
         print("Usage: reasonsforge forge <command>", file=sys.stderr)
-        print("Commands: " + ", ".join(sorted(forge_commands.keys())),
-              file=sys.stderr)
+        print("Commands: " + ", ".join(sorted(forge_commands.keys())), file=sys.stderr)
         sys.exit(1)
     forge_commands[args.forge_command](args)

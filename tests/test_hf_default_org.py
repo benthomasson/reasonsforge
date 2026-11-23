@@ -15,12 +15,18 @@ from reasonsforge.hf import (
     upload_file,
 )
 
-
 SAMPLE_NETWORK = {
     "meta": {"schema_version": "1.0", "project_name": "test-eem"},
     "nodes": {
-        "a": {"text": "Node A", "truth_value": "IN", "justifications": [],
-               "source": "", "source_hash": "", "date": "", "metadata": {}},
+        "a": {
+            "text": "Node A",
+            "truth_value": "IN",
+            "justifications": [],
+            "source": "",
+            "source_hash": "",
+            "date": "",
+            "metadata": {},
+        },
     },
     "nogoods": [],
     "repos": {},
@@ -97,13 +103,17 @@ class TestCreateRepo:
 
     @patch("reasonsforge.hf.urlopen")
     def test_auth_failure_raises(self, mock_urlopen):
-        mock_urlopen.side_effect = HTTPError("url", 401, "Unauthorized", {}, BytesIO(b""))
+        mock_urlopen.side_effect = HTTPError(
+            "url", 401, "Unauthorized", {}, BytesIO(b"")
+        )
         with pytest.raises(RuntimeError, match="Authentication failed"):
             create_repo("org/repo", token="bad-tok")
 
     @patch("reasonsforge.hf.urlopen")
     def test_other_error_raises(self, mock_urlopen):
-        mock_urlopen.side_effect = HTTPError("url", 500, "Server Error", {}, BytesIO(b""))
+        mock_urlopen.side_effect = HTTPError(
+            "url", 500, "Server Error", {}, BytesIO(b"")
+        )
         with pytest.raises(RuntimeError, match="HTTP 500"):
             create_repo("org/repo", token="tok")
 
@@ -114,7 +124,10 @@ class TestUploadFile:
         mock_urlopen.return_value = _mock_response()
         upload_file("EEM-Hub/test-eem", "network.json", b'{"nodes":{}}', "tok")
         req = mock_urlopen.call_args[0][0]
-        assert req.full_url == "https://huggingface.co/api/models/EEM-Hub/test-eem/upload/main/network.json"
+        assert (
+            req.full_url
+            == "https://huggingface.co/api/models/EEM-Hub/test-eem/upload/main/network.json"
+        )
         assert req.get_method() == "PUT"
         assert req.data == b'{"nodes":{}}'
 
@@ -127,7 +140,9 @@ class TestUploadFile:
 
     @patch("reasonsforge.hf.urlopen")
     def test_auth_failure_raises(self, mock_urlopen):
-        mock_urlopen.side_effect = HTTPError("url", 401, "Unauthorized", {}, BytesIO(b""))
+        mock_urlopen.side_effect = HTTPError(
+            "url", 401, "Unauthorized", {}, BytesIO(b"")
+        )
         with pytest.raises(RuntimeError, match="Authentication failed"):
             upload_file("org/repo", "file.txt", b"data", "bad-tok")
 
@@ -153,7 +168,11 @@ class TestPublishHf:
         result = api.publish_hf("test-eem", token="tok", db_path=db)
         assert result["repo_id"] == "EEM-Hub/test-eem"
         assert result["url"] == "https://huggingface.co/EEM-Hub/test-eem"
-        assert set(result["files_uploaded"]) == {"network.json", "beliefs.md", "README.md"}
+        assert set(result["files_uploaded"]) == {
+            "network.json",
+            "beliefs.md",
+            "README.md",
+        }
 
     @patch("reasonsforge.hf.urlopen")
     def test_upload_calls(self, mock_urlopen, db):
@@ -179,7 +198,10 @@ class TestPublishHf:
 
     def test_no_token_raises(self, db, monkeypatch):
         monkeypatch.delenv("HF_TOKEN", raising=False)
-        with patch("reasonsforge.hf.Path.home", return_value=pytest.importorskip("pathlib").Path("/nonexistent")):
+        with patch(
+            "reasonsforge.hf.Path.home",
+            return_value=pytest.importorskip("pathlib").Path("/nonexistent"),
+        ):
             with pytest.raises(RuntimeError, match="token required"):
                 api.publish_hf("test-eem", db_path=db)
 
@@ -213,19 +235,23 @@ class TestPullCommand:
 class TestCLIDispatch:
     def test_pull_dispatches(self):
         from reasonsforge.cli import cmd_pull, cmd_import_hf
+
         # cmd_pull delegates to cmd_import_hf — verify it's callable
         assert callable(cmd_pull)
 
     def test_publish_dispatches(self):
         from reasonsforge.cli import cmd_publish
+
         assert callable(cmd_publish)
 
     def test_commands_registered(self):
         """pull and publish are in the CLI dispatch table."""
         import argparse
         from reasonsforge.cli import main
+
         # Just verify the subparser accepts the commands
         from reasonsforge import cli
+
         parser = argparse.ArgumentParser()
         sub = parser.add_subparsers(dest="command")
         # Smoke test: the commands exist by checking the dispatch dict

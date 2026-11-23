@@ -12,14 +12,17 @@ from reasonsforge import api
 
 def run_cli(*args, db_path=None):
     from reasonsforge.cli import main
+
     argv = ["reasons"]
     if db_path:
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
             code = 0

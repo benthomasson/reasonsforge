@@ -33,7 +33,11 @@ def chunk_python(text, max_chars=25000):
 
     preamble_end = 0
     for i, line in enumerate(lines):
-        if re.match(r"^(class |def )", line) or (line.startswith("@") and i + 1 < len(lines) and re.match(r"^(class |def |@)", lines[i + 1])):
+        if re.match(r"^(class |def )", line) or (
+            line.startswith("@")
+            and i + 1 < len(lines)
+            and re.match(r"^(class |def |@)", lines[i + 1])
+        ):
             preamble_end = i
             break
     else:
@@ -63,7 +67,10 @@ def chunk_python(text, max_chars=25000):
     chunks = []
     current = preamble
     for section in sections:
-        if len(current) + len(section) > max_chars and current.strip() != preamble.strip():
+        if (
+            len(current) + len(section) > max_chars
+            and current.strip() != preamble.strip()
+        ):
             chunks.append(current)
             current = preamble + section
         else:
@@ -102,7 +109,7 @@ def _strip_frontmatter(text):
                 if ":" in line:
                     key, _, val = line.partition(":")
                     meta[key.strip()] = val.strip()
-            content = text[end + 3:].strip()
+            content = text[end + 3 :].strip()
     return meta, content
 
 

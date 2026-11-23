@@ -13,7 +13,6 @@ from . import Node, Justification, Nogood
 from .metadata import SCHEMA_VERSION, build_meta
 from .network import Network
 
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
     id TEXT PRIMARY KEY,
@@ -102,16 +101,29 @@ class Storage:
         cols = [c[1] for c in self.conn.execute("PRAGMA table_info(nodes)").fetchall()]
         if "source_url" not in cols:
             self.conn.execute("ALTER TABLE nodes ADD COLUMN source_url TEXT DEFAULT ''")
-        for col in ("created_at", "updated_at", "reviewed_at", "verified_at", "retracted_at"):
+        for col in (
+            "created_at",
+            "updated_at",
+            "reviewed_at",
+            "verified_at",
+            "retracted_at",
+        ):
             if col not in cols:
                 self.conn.execute(f"ALTER TABLE nodes ADD COLUMN {col} TEXT DEFAULT ''")
         if "supporting_justification" not in cols:
-            self.conn.execute("ALTER TABLE nodes ADD COLUMN supporting_justification INTEGER DEFAULT NULL")
+            self.conn.execute(
+                "ALTER TABLE nodes ADD COLUMN supporting_justification INTEGER DEFAULT NULL"
+            )
         if "text_hash" not in cols:
             self.conn.execute("ALTER TABLE nodes ADD COLUMN text_hash TEXT DEFAULT ''")
-        j_cols = [c[1] for c in self.conn.execute("PRAGMA table_info(justifications)").fetchall()]
+        j_cols = [
+            c[1]
+            for c in self.conn.execute("PRAGMA table_info(justifications)").fetchall()
+        ]
         if "content_hash" not in j_cols:
-            self.conn.execute("ALTER TABLE justifications ADD COLUMN content_hash TEXT DEFAULT ''")
+            self.conn.execute(
+                "ALTER TABLE justifications ADD COLUMN content_hash TEXT DEFAULT ''"
+            )
         if self._is_new:
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             project_name = self._project_name or self.db_path.stem
@@ -135,7 +147,9 @@ class Storage:
             self.conn.execute("DELETE FROM node_tags")
             self.conn.execute("DELETE FROM node_sources")
             self.conn.execute("DROP TABLE IF EXISTS nodes_fts")
-            self.conn.execute("CREATE VIRTUAL TABLE nodes_fts USING fts5(id, text, tokenize='porter unicode61')")
+            self.conn.execute(
+                "CREATE VIRTUAL TABLE nodes_fts USING fts5(id, text, tokenize='porter unicode61')"
+            )
             self.conn.execute("DELETE FROM nodes")
             self.conn.execute("DELETE FROM nogoods")
             self.conn.execute("DELETE FROM repos")
@@ -174,14 +188,26 @@ class Storage:
                     self.conn.execute(
                         "INSERT INTO justifications (node_id, type, antecedents_json, outlist_json, label, content_hash) "
                         "VALUES (?, ?, ?, ?, ?, ?)",
-                        (node.id, j.type, json.dumps(j.antecedents), json.dumps(j.outlist), j.label, j.content_hash),
+                        (
+                            node.id,
+                            j.type,
+                            json.dumps(j.antecedents),
+                            json.dumps(j.outlist),
+                            j.label,
+                            j.content_hash,
+                        ),
                     )
 
             for nogood in network.nogoods:
                 self.conn.execute(
                     "INSERT INTO nogoods (id, nodes_json, discovered, resolution) "
                     "VALUES (?, ?, ?, ?)",
-                    (nogood.id, json.dumps(nogood.nodes), nogood.discovered, nogood.resolution),
+                    (
+                        nogood.id,
+                        json.dumps(nogood.nodes),
+                        nogood.discovered,
+                        nogood.resolution,
+                    ),
                 )
 
             self.conn.execute(
@@ -211,7 +237,12 @@ class Storage:
                 self.conn.execute(
                     "INSERT INTO propagation_log (timestamp, action, target, value) "
                     "VALUES (?, ?, ?, ?)",
-                    (entry["timestamp"], entry["action"], entry["target"], entry["value"]),
+                    (
+                        entry["timestamp"],
+                        entry["action"],
+                        entry["target"],
+                        entry["value"],
+                    ),
                 )
 
     def load(self) -> Network:
@@ -254,7 +285,10 @@ class Storage:
         node_rows = cursor.fetchall()
 
         # Load justifications keyed by node_id
-        j_cols = [c[1] for c in self.conn.execute("PRAGMA table_info(justifications)").fetchall()]
+        j_cols = [
+            c[1]
+            for c in self.conn.execute("PRAGMA table_info(justifications)").fetchall()
+        ]
         has_content_hash = "content_hash" in j_cols
         just_cursor = self.conn.execute(
             "SELECT node_id, type, antecedents_json, outlist_json, label"
@@ -274,9 +308,23 @@ class Storage:
 
         # Build nodes directly (bypass add_node to preserve exact state)
         for row in node_rows:
-            nid, text, truth_value, supporting_j, source, source_url, source_hash, \
-                date, meta_json, created_at, updated_at, reviewed_at, verified_at, \
-                retracted_at, text_hash = row
+            (
+                nid,
+                text,
+                truth_value,
+                supporting_j,
+                source,
+                source_url,
+                source_hash,
+                date,
+                meta_json,
+                created_at,
+                updated_at,
+                reviewed_at,
+                verified_at,
+                retracted_at,
+                text_hash,
+            ) = row
             meta = json.loads(meta_json)
             node = Node(
                 id=nid,
@@ -307,12 +355,14 @@ class Storage:
             "SELECT id, nodes_json, discovered, resolution FROM nogoods"
         )
         for ng_id, nodes_json, discovered, resolution in ng_cursor:
-            network.nogoods.append(Nogood(
-                id=ng_id,
-                nodes=json.loads(nodes_json),
-                discovered=discovered,
-                resolution=resolution,
-            ))
+            network.nogoods.append(
+                Nogood(
+                    id=ng_id,
+                    nodes=json.loads(nodes_json),
+                    discovered=discovered,
+                    resolution=resolution,
+                )
+            )
 
         # Load network metadata — persisted counter takes priority,
         # otherwise derive from existing nogoods to avoid ID collisions
@@ -329,6 +379,7 @@ class Storage:
             pass  # network_meta table may not exist in old databases
         if not loaded_counter and network.nogoods:
             import re
+
             max_id = 0
             for ng in network.nogoods:
                 m = re.fullmatch(r"nogood-(\d+)", ng.id)
@@ -349,12 +400,14 @@ class Storage:
             "SELECT timestamp, action, target, value FROM propagation_log ORDER BY rowid"
         )
         for ts, action, target, value in log_cursor:
-            network.log.append({
-                "timestamp": ts,
-                "action": action,
-                "target": target,
-                "value": value,
-            })
+            network.log.append(
+                {
+                    "timestamp": ts,
+                    "action": action,
+                    "target": target,
+                    "value": value,
+                }
+            )
 
         return network
 

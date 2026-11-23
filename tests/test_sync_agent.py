@@ -6,7 +6,6 @@ import pytest
 
 from reasonsforge import api
 
-
 INITIAL_BELIEFS = """\
 ## Beliefs
 
@@ -61,12 +60,15 @@ class TestSyncNewBeliefs:
     def test_sync_adds_new_belief(self, initial_import):
         db, tmp_path = initial_import
 
-        updated = INITIAL_BELIEFS + """
+        updated = (
+            INITIAL_BELIEFS
+            + """
 ### delta-new [IN] OBSERVATION
 Delta is the fourth letter
 - Source: alphabet.md
 - Date: 2026-04-18
 """
+        )
         p = tmp_path / "beliefs.md"
         p.write_text(updated)
 
@@ -241,10 +243,12 @@ class TestSyncJson:
                 "derived-b": {
                     "text": "Derived from A",
                     "truth_value": "IN",
-                    "justifications": [{
-                        "type": "SL",
-                        "antecedents": ["premise-a"],
-                    }],
+                    "justifications": [
+                        {
+                            "type": "SL",
+                            "antecedents": ["premise-a"],
+                        }
+                    ],
                     "source": "test.md",
                 },
             },
@@ -267,10 +271,12 @@ class TestSyncJson:
                 "derived-b": {
                     "text": "Derived from A",
                     "truth_value": "IN",
-                    "justifications": [{
-                        "type": "SL",
-                        "antecedents": ["premise-a"],
-                    }],
+                    "justifications": [
+                        {
+                            "type": "SL",
+                            "antecedents": ["premise-a"],
+                        }
+                    ],
                     "source": "test.md",
                 },
                 "new-c": {
@@ -485,7 +491,9 @@ class TestSyncAgentRevocation:
 
         # Verify justifications still have inactive in outlist
         node = api.show_node("test-agent:alpha-fact", db_path=db)
-        assert any("test-agent:inactive" in j["outlist"] for j in node["justifications"])
+        assert any(
+            "test-agent:inactive" in j["outlist"] for j in node["justifications"]
+        )
 
         # Revoke the agent
         api.retract_node("test-agent:active", db_path=db)
@@ -622,7 +630,6 @@ class TestSyncOutWithJustifications:
 
 
 class TestSyncRegistersRepo:
-
     def test_sync_registers_repo(self, initial_import):
         db, tmp_path = initial_import
         p = tmp_path / "beliefs.md"
@@ -632,4 +639,5 @@ class TestSyncRegistersRepo:
         repos = api.list_repos(db_path=db)["repos"]
         assert "test-agent" in repos
         from pathlib import Path
+
         assert repos["test-agent"] == str(Path(str(p)).resolve().parent)

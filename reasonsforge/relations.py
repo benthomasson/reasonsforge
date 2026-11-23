@@ -13,7 +13,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-
 RELATION_TYPES = [
     "maps-to",
     "is-a",
@@ -46,20 +45,33 @@ OBLIGATION_RELATIONS = {"requires", "implements"}
 @dataclass
 class Relation:
     """A directed relation between two beliefs."""
+
     subject: str
     relation: str
     object: str
 
     def inverse_direction(self) -> Relation:
-        return Relation(subject=self.object, relation=self.relation, object=self.subject)
+        return Relation(
+            subject=self.object, relation=self.relation, object=self.subject
+        )
 
     def to_dict(self, direction: str = "outgoing") -> dict:
         if direction == "outgoing":
-            return {"relation": self.relation, "target": self.object, "direction": "outgoing"}
-        return {"relation": self.relation, "target": self.subject, "direction": "incoming"}
+            return {
+                "relation": self.relation,
+                "target": self.object,
+                "direction": "outgoing",
+            }
+        return {
+            "relation": self.relation,
+            "target": self.subject,
+            "direction": "incoming",
+        }
 
 
-def extract_triple(belief_id: str, patterns: list[str] | None = None) -> Relation | None:
+def extract_triple(
+    belief_id: str, patterns: list[str] | None = None
+) -> Relation | None:
     """Extract a relation triple from a belief ID.
 
     Matches the longest relation keyword found between hyphens.
@@ -78,7 +90,7 @@ def extract_triple(belief_id: str, patterns: list[str] | None = None) -> Relatio
         idx = belief_id.find(marker)
         if idx != -1:
             subject = belief_id[:idx]
-            obj = belief_id[idx + len(marker):]
+            obj = belief_id[idx + len(marker) :]
             if subject and obj:
                 return Relation(subject=subject, relation=rel, object=obj)
     return None
@@ -108,7 +120,11 @@ def extract_all_relations(
 
     results = []
     for node_id, node in sorted(nodes.items()):
-        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        tv = (
+            node.get("truth_value", "IN")
+            if isinstance(node, dict)
+            else getattr(node, "truth_value", "IN")
+        )
         if tv != "IN":
             continue
         rel = extract_triple(node_id, patterns)
@@ -117,7 +133,9 @@ def extract_all_relations(
     return results
 
 
-def store_relation_metadata(node_metadata: dict, relation: Relation, direction: str = "outgoing") -> None:
+def store_relation_metadata(
+    node_metadata: dict, relation: Relation, direction: str = "outgoing"
+) -> None:
     """Add a relation triple to a node's metadata dict.
 
     Appends to the ``relations`` list, creating it if absent.
@@ -248,18 +266,24 @@ def transitive_closure(
         for node_id in current:
             rels = []
             if node_id in network.nodes:
-                rels.extend(get_relations(
-                    network.nodes[node_id].metadata,
-                    relation_type=relation_type,
-                    direction="outgoing",
-                ))
+                rels.extend(
+                    get_relations(
+                        network.nodes[node_id].metadata,
+                        relation_type=relation_type,
+                        direction="outgoing",
+                    )
+                )
             rels.extend(subject_idx.get(node_id, []))
             seen_targets = set()
             for r in rels:
                 if r["relation"] != relation_type:
                     continue
                 target = r["target"]
-                if target not in visited and target != start_node_id and target not in seen_targets:
+                if (
+                    target not in visited
+                    and target != start_node_id
+                    and target not in seen_targets
+                ):
                     seen_targets.add(target)
                     visited.add(target)
                     chain.append(target)
@@ -281,7 +305,9 @@ def find_unmet_requirements(network) -> list[tuple[str, str]]:
     for node_id, node in network.nodes.items():
         if node.truth_value != "IN":
             continue
-        for rel_dict in get_relations(node.metadata, relation_type="requires", direction="outgoing"):
+        for rel_dict in get_relations(
+            node.metadata, relation_type="requires", direction="outgoing"
+        ):
             target = rel_dict["target"]
             if target in network.nodes and network.nodes[target].truth_value == "OUT":
                 results.append((node_id, target))
@@ -298,7 +324,9 @@ def find_prevention_conflicts(network) -> list[tuple[str, str]]:
     for node_id, node in network.nodes.items():
         if node.truth_value != "IN":
             continue
-        for rel_dict in get_relations(node.metadata, relation_type="prevents", direction="outgoing"):
+        for rel_dict in get_relations(
+            node.metadata, relation_type="prevents", direction="outgoing"
+        ):
             target = rel_dict["target"]
             if target in network.nodes and network.nodes[target].truth_value == "IN":
                 results.append((node_id, target))
@@ -308,6 +336,7 @@ def find_prevention_conflicts(network) -> list[tuple[str, str]]:
 def relation_stats(network) -> dict:
     """Compute summary statistics about relations in a network."""
     from collections import Counter
+
     type_counts = Counter()
     nodes_with_relations = 0
     total_relations = 0
@@ -325,6 +354,8 @@ def relation_stats(network) -> dict:
         "total_relations": total_relations,
         "nodes_with_relations": nodes_with_relations,
         "total_nodes": len(network.nodes),
-        "coverage_pct": round(100 * nodes_with_relations / max(len(network.nodes), 1), 1),
+        "coverage_pct": round(
+            100 * nodes_with_relations / max(len(network.nodes), 1), 1
+        ),
         "by_type": dict(type_counts.most_common()),
     }

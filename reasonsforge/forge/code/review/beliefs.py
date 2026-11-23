@@ -5,14 +5,48 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-STOP_WORDS = frozenset({
-    "src", "tests", "test", "unit", "integration", "e2e", "functional",
-    "lib", "pkg", "packages", "scripts", "docs", "bin",
-    "py", "js", "ts", "md", "json", "yaml", "yml", "toml",
-    "init", "__init__", "utils", "helpers", "common", "types",
-    "main", "index", "app", "core", "base", "models", "api",
-    "conftest", "fixtures", "setup", "config",
-})
+STOP_WORDS = frozenset(
+    {
+        "src",
+        "tests",
+        "test",
+        "unit",
+        "integration",
+        "e2e",
+        "functional",
+        "lib",
+        "pkg",
+        "packages",
+        "scripts",
+        "docs",
+        "bin",
+        "py",
+        "js",
+        "ts",
+        "md",
+        "json",
+        "yaml",
+        "yml",
+        "toml",
+        "init",
+        "__init__",
+        "utils",
+        "helpers",
+        "common",
+        "types",
+        "main",
+        "index",
+        "app",
+        "core",
+        "base",
+        "models",
+        "api",
+        "conftest",
+        "fixtures",
+        "setup",
+        "config",
+    }
+)
 
 ENTRY_HEADER = re.compile(r"^### (.+)$", re.MULTILINE)
 STATUS_RE = re.compile(r"\[(\w+)\]")
@@ -31,7 +65,9 @@ def parse_belief_entries(beliefs_content: str) -> tuple[str, list[dict]]:
         entry_text = f"### {raw_id_line}\n{body}"
         clean_id = re.sub(r"\s*\[.*", "", raw_id_line).strip().strip("`")
         claim = SOURCE_LINE.sub("", body).strip().split("\n")[0] if body.strip() else ""
-        entries.append({"id": clean_id, "status": status, "text": entry_text, "claim": claim})
+        entries.append(
+            {"id": clean_id, "status": status, "text": entry_text, "claim": claim}
+        )
     return header, entries
 
 
@@ -81,7 +117,9 @@ def filter_beliefs(
             return beliefs_content, total, total
         return _truncate(beliefs_content, max_size), total, total
 
-    active = [e for e in entries if include_stale or e["status"] not in ("OUT", "STALE")]
+    active = [
+        e for e in entries if include_stale or e["status"] not in ("OUT", "STALE")
+    ]
 
     hit_counts: Counter[str] = Counter()
     for entry in active:

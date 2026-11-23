@@ -20,8 +20,9 @@ def _resolve_config(
     by name via the API.
     """
     url = url or os.environ.get("REASONS_SERVICE_URL", "")
-    api_key = api_key or os.environ.get("REASONS_SERVICE_API_KEY",
-                os.environ.get("EXPERT_SERVICE_API_KEY", ""))
+    api_key = api_key or os.environ.get(
+        "REASONS_SERVICE_API_KEY", os.environ.get("EXPERT_SERVICE_API_KEY", "")
+    )
     domain_id = domain_id or os.environ.get("REASONS_SERVICE_DOMAIN_ID", "")
     domain_name = domain_name or os.environ.get("REASONS_SERVICE_DOMAIN_NAME", "")
 
@@ -31,7 +32,9 @@ def _resolve_config(
     if not api_key:
         missing.append("api-key (--api-key or REASONS_SERVICE_API_KEY)")
     if not domain_id and not domain_name:
-        missing.append("domain-id or domain-name (--domain-id/--domain-name or REASONS_SERVICE_DOMAIN_ID/REASONS_SERVICE_DOMAIN_NAME)")
+        missing.append(
+            "domain-id or domain-name (--domain-id/--domain-name or REASONS_SERVICE_DOMAIN_ID/REASONS_SERVICE_DOMAIN_NAME)"
+        )
     if missing:
         raise RuntimeError(f"Missing required config: {', '.join(missing)}")
 
@@ -51,14 +54,17 @@ def _resolve_domain_name(url: str, api_key: str, name: str) -> str:
         if d.get("name", "").lower() == name.lower():
             return d["id"]
     available = [d.get("name", "") for d in domains[:20]]
-    raise RuntimeError(
-        f"Domain '{name}' not found. Available: {', '.join(available)}"
-    )
+    raise RuntimeError(f"Domain '{name}' not found. Available: {', '.join(available)}")
 
 
-def _request(url: str, api_key: str, data: bytes | None = None,
-             method: str = "GET", content_type: str = "application/json",
-             timeout: int = 120) -> dict:
+def _request(
+    url: str,
+    api_key: str,
+    data: bytes | None = None,
+    method: str = "GET",
+    content_type: str = "application/json",
+    timeout: int = 120,
+) -> dict:
     """Make an authenticated request to reasons-service."""
     req = Request(
         url,
@@ -79,25 +85,22 @@ def _request(url: str, api_key: str, data: bytes | None = None,
                 "Authentication failed. Check your REASONS_SERVICE_API_KEY."
             ) from e
         if e.code == 404:
-            raise RuntimeError(
-                f"Not found: {url}"
-            ) from e
+            raise RuntimeError(f"Not found: {url}") from e
         body = ""
         try:
             body = e.read().decode("utf-8")
         except Exception:
             pass
-        raise RuntimeError(
-            f"HTTP {e.code} from {url}: {body}"
-        ) from e
+        raise RuntimeError(f"HTTP {e.code} from {url}: {body}") from e
     except URLError as e:
-        raise RuntimeError(
-            f"Connection failed for {url}: {e.reason}"
-        ) from e
+        raise RuntimeError(f"Connection failed for {url}: {e.reason}") from e
 
 
 def push_network(
-    url: str, api_key: str, domain_id: str, network_path: str,
+    url: str,
+    api_key: str,
+    domain_id: str,
+    network_path: str,
 ) -> dict:
     """Upload network.json or reasons.db via multipart file upload."""
     path = Path(network_path)
@@ -105,36 +108,50 @@ def push_network(
         raise RuntimeError(f"File not found: {network_path}")
 
     content = path.read_bytes()
-    filename = path.name.replace('"', '_')
+    filename = path.name.replace('"', "_")
 
     boundary = f"----ReasonsforgePush{uuid4().hex}"
     body = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
-        f"Content-Type: application/octet-stream\r\n"
-        f"\r\n"
-    ).encode() + content + f"\r\n--{boundary}--\r\n".encode()
+        (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
+            f"Content-Type: application/octet-stream\r\n"
+            f"\r\n"
+        ).encode()
+        + content
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
 
     endpoint = f"{url}/api/domains/{domain_id}/import-reasons"
-    return _request(endpoint, api_key, data=body, method="POST",
-                    content_type=f"multipart/form-data; boundary={boundary}",
-                    timeout=300)
+    return _request(
+        endpoint,
+        api_key,
+        data=body,
+        method="POST",
+        content_type=f"multipart/form-data; boundary={boundary}",
+        timeout=300,
+    )
 
 
 def _chunked_push(
-    url: str, api_key: str, items: list[dict], key: str,
-    chunk_size: int = 50, progress: bool = False,
+    url: str,
+    api_key: str,
+    items: list[dict],
+    key: str,
+    chunk_size: int = 50,
+    progress: bool = False,
 ) -> dict:
     """Push items in chunks, aggregating imported/skipped counts."""
     total_imported = 0
     total_skipped = 0
 
-    chunks = [items[i:i + chunk_size] for i in range(0, len(items), chunk_size)]
+    chunks = [items[i : i + chunk_size] for i in range(0, len(items), chunk_size)]
     iterator = chunks
 
     if progress:
         try:
             from tqdm import tqdm
+
             iterator = tqdm(chunks, desc=f"  Pushing {key}", unit="chunk")
         except ImportError:
             pass
@@ -149,27 +166,45 @@ def _chunked_push(
 
 
 def push_sources(
-    url: str, api_key: str, domain_id: str, sources: list[dict],
-    chunk_size: int = 50, progress: bool = False,
+    url: str,
+    api_key: str,
+    domain_id: str,
+    sources: list[dict],
+    chunk_size: int = 50,
+    progress: bool = False,
 ) -> dict:
     """Push sources via POST /api/domains/{domain_id}/import/sources."""
     endpoint = f"{url}/api/domains/{domain_id}/import/sources"
-    return _chunked_push(endpoint, api_key, sources, "sources",
-                         chunk_size=chunk_size, progress=progress)
+    return _chunked_push(
+        endpoint, api_key, sources, "sources", chunk_size=chunk_size, progress=progress
+    )
 
 
 def push_summaries(
-    url: str, api_key: str, domain_id: str, summaries: list[dict],
-    chunk_size: int = 50, progress: bool = False,
+    url: str,
+    api_key: str,
+    domain_id: str,
+    summaries: list[dict],
+    chunk_size: int = 50,
+    progress: bool = False,
 ) -> dict:
     """Push summaries via POST /api/domains/{domain_id}/import/summaries."""
     endpoint = f"{url}/api/domains/{domain_id}/import/summaries"
-    return _chunked_push(endpoint, api_key, summaries, "summaries",
-                         chunk_size=chunk_size, progress=progress)
+    return _chunked_push(
+        endpoint,
+        api_key,
+        summaries,
+        "summaries",
+        chunk_size=chunk_size,
+        progress=progress,
+    )
 
 
 def push_topics(
-    url: str, api_key: str, domain_id: str, topics: list[dict],
+    url: str,
+    api_key: str,
+    domain_id: str,
+    topics: list[dict],
 ) -> dict:
     """Push topics via POST /api/domains/{domain_id}/import/topics."""
     endpoint = f"{url}/api/domains/{domain_id}/import/topics"

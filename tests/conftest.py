@@ -32,8 +32,13 @@ def pg_api():
     # Clean up test data (rollback any failed transaction first)
     api.conn.rollback()
     with api.conn.cursor() as cur:
-        for table in ("rms_propagation_log", "rms_justifications",
-                      "rms_nogoods", "rms_network_meta", "rms_nodes"):
+        for table in (
+            "rms_propagation_log",
+            "rms_justifications",
+            "rms_nogoods",
+            "rms_network_meta",
+            "rms_nodes",
+        ):
             cur.execute(f"DELETE FROM {table} WHERE project_id = %s", (project_id,))
     api.conn.commit()
     api.close()

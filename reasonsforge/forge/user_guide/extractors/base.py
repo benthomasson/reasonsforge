@@ -10,6 +10,7 @@ from pathlib import Path
 @dataclass
 class PropInfo:
     """A single property/parameter extracted from an interface or type."""
+
     name: str
     type: str = ""
     required: bool = True
@@ -20,6 +21,7 @@ class PropInfo:
 @dataclass
 class InterfaceInfo:
     """An interface, struct, or type definition extracted from source code."""
+
     name: str
     file_path: str = ""
     line_number: int = 0
@@ -31,6 +33,7 @@ class InterfaceInfo:
 @dataclass
 class ConfigValue:
     """A configuration value, design token, or constant."""
+
     name: str
     value: str = ""
     category: str = ""
@@ -40,6 +43,7 @@ class ConfigValue:
 @dataclass
 class TestPattern:
     """A usage pattern extracted from test files."""
+
     description: str
     file_path: str = ""
     line_number: int = 0
@@ -60,25 +64,33 @@ class Extractor(ABC):
 
     @abstractmethod
     def extract_interfaces(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[InterfaceInfo]:
         """Extract interface/type definitions from the codebase."""
 
     @abstractmethod
     def extract_config(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[ConfigValue]:
         """Extract configuration values, design tokens, or constants."""
 
     @abstractmethod
     def extract_tests(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[TestPattern]:
         """Extract usage patterns from test files."""
 
     @abstractmethod
     def extract_examples(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[str]:
         """Extract raw example code snippets from docs/demos."""
 
@@ -106,11 +118,14 @@ def get_extractor(language: str) -> Extractor:
     """Get extractor for the given language."""
     if language == "typescript":
         from .typescript import TypeScriptExtractor
+
         return TypeScriptExtractor()
     if language == "python":
         from .python import PythonExtractor
+
         return PythonExtractor()
     if language == "rust":
         from .rust import RustExtractor
+
         return RustExtractor()
     raise ValueError(f"No extractor for language: {language}")

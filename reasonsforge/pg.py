@@ -126,6 +126,7 @@ class PgApi:
 
     def init_db(self, project_name: str = ""):
         from .metadata import SCHEMA_VERSION
+
         with self.conn.cursor() as cur:
             cur.execute(SCHEMA)
             cur.execute(INDEXES)
@@ -135,7 +136,9 @@ class PgApi:
                 "WHERE table_name = 'rms_nodes' AND column_name = 'source_url'"
             )
             if not cur.fetchone():
-                cur.execute("ALTER TABLE rms_nodes ADD COLUMN source_url TEXT DEFAULT ''")
+                cur.execute(
+                    "ALTER TABLE rms_nodes ADD COLUMN source_url TEXT DEFAULT ''"
+                )
             for col in ("updated_at", "reviewed_at", "verified_at", "retracted_at"):
                 cur.execute(
                     "SELECT column_name FROM information_schema.columns "
@@ -163,9 +166,20 @@ class PgApi:
 
     # ── Core mutations ──────────────────────────────────────────
 
-    def _add_node_raw(self, cur, node_id, text, justifications=None,
-                      source="", source_url="", source_hash="", date="",
-                      metadata=None, created_at="", updated_at=""):
+    def _add_node_raw(
+        self,
+        cur,
+        node_id,
+        text,
+        justifications=None,
+        source="",
+        source_url="",
+        source_hash="",
+        date="",
+        metadata=None,
+        created_at="",
+        updated_at="",
+    ):
         """Insert a node with pre-parsed justification dicts.
 
         Does NOT commit, validate refs, or inherit access tags.
@@ -182,8 +196,18 @@ class PgApi:
             "INSERT INTO rms_nodes (id, project_id, text, source, source_url, "
             "source_hash, date, metadata, created_at, updated_at) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (node_id, pid, text, source, source_url, source_hash, now,
-             json.dumps(meta), ts_created, ts_updated),
+            (
+                node_id,
+                pid,
+                text,
+                source,
+                source_url,
+                source_hash,
+                now,
+                json.dumps(meta),
+                ts_created,
+                ts_updated,
+            ),
         )
 
         if justifications:
@@ -192,10 +216,14 @@ class PgApi:
                     "INSERT INTO rms_justifications (node_id, project_id, type, "
                     "antecedents, outlist, label) "
                     "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (node_id, pid, j["type"],
-                     json.dumps(j.get("antecedents", [])),
-                     json.dumps(j.get("outlist", [])),
-                     j.get("label", "")),
+                    (
+                        node_id,
+                        pid,
+                        j["type"],
+                        json.dumps(j.get("antecedents", [])),
+                        json.dumps(j.get("outlist", [])),
+                        j.get("label", ""),
+                    ),
                 )
 
         if justifications:
@@ -211,9 +239,20 @@ class PgApi:
         self._log(cur, "add", node_id, truth)
         return truth
 
-    def add_node(self, node_id, text, sl="", cp="", unless="", label="",
-                 source="", source_url="", access_tags=None,
-                 namespace=None, example=None):
+    def add_node(
+        self,
+        node_id,
+        text,
+        sl="",
+        cp="",
+        unless="",
+        label="",
+        source="",
+        source_url="",
+        access_tags=None,
+        namespace=None,
+        example=None,
+    ):
         pid = self.project_id
         metadata = {}
         if access_tags:
@@ -244,16 +283,17 @@ class PgApi:
                         for a in j["antecedents"]
                     ]
                     j["outlist"] = [
-                        f"{namespace}:{o}" if ":" not in o else o
-                        for o in j["outlist"]
+                        f"{namespace}:{o}" if ":" not in o else o for o in j["outlist"]
                     ]
                 if not justifications:
-                    justifications.append({
-                        "type": "SL",
-                        "antecedents": [active_id],
-                        "outlist": [],
-                        "label": "",
-                    })
+                    justifications.append(
+                        {
+                            "type": "SL",
+                            "antecedents": [active_id],
+                            "outlist": [],
+                            "label": "",
+                        }
+                    )
                 else:
                     for j in justifications:
                         if active_id not in j["antecedents"]:
@@ -263,8 +303,13 @@ class PgApi:
                 self._validate_refs(cur, justifications)
 
             truth = self._add_node_raw(
-                cur, node_id, text, justifications=justifications or None,
-                source=source, source_url=source_url, metadata=metadata,
+                cur,
+                node_id,
+                text,
+                justifications=justifications or None,
+                source=source,
+                source_url=source_url,
+                metadata=metadata,
             )
 
             if justifications:
@@ -286,8 +331,9 @@ class PgApi:
             "premise_count": premise_count,
         }
 
-    def add_justification(self, node_id, sl="", cp="", unless="", label="",
-                          namespace=None):
+    def add_justification(
+        self, node_id, sl="", cp="", unless="", label="", namespace=None
+    ):
         pid = self.project_id
 
         if namespace and ":" not in node_id:
@@ -314,8 +360,7 @@ class PgApi:
                         for a in j["antecedents"]
                     ]
                     j["outlist"] = [
-                        f"{namespace}:{o}" if ":" not in o else o
-                        for o in j["outlist"]
+                        f"{namespace}:{o}" if ":" not in o else o for o in j["outlist"]
                     ]
 
             self._validate_refs(cur, justifications)
@@ -324,8 +369,14 @@ class PgApi:
                 cur.execute(
                     "INSERT INTO rms_justifications (node_id, project_id, type, antecedents, outlist, label) "
                     "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (node_id, pid, j["type"],
-                     json.dumps(j["antecedents"]), json.dumps(j["outlist"]), j["label"]),
+                    (
+                        node_id,
+                        pid,
+                        j["type"],
+                        json.dumps(j["antecedents"]),
+                        json.dumps(j["outlist"]),
+                        j["label"],
+                    ),
                 )
 
             self._inherit_access_tags(cur, node_id, justifications)
@@ -396,7 +447,11 @@ class PgApi:
 
         self.conn.commit()
         all_changed = [node_id] + went_out + went_in
-        return {"changed": all_changed, "went_out": [node_id] + went_out, "went_in": went_in}
+        return {
+            "changed": all_changed,
+            "went_out": [node_id] + went_out,
+            "went_in": went_in,
+        }
 
     def assert_node(self, node_id):
         pid = self.project_id
@@ -431,7 +486,11 @@ class PgApi:
 
         self.conn.commit()
         all_changed = [node_id] + went_out + went_in
-        return {"changed": all_changed, "went_out": went_out, "went_in": [node_id] + went_in}
+        return {
+            "changed": all_changed,
+            "went_out": went_out,
+            "went_in": [node_id] + went_in,
+        }
 
     # ── What-if simulation ──────────────────────────────────────
 
@@ -448,8 +507,11 @@ class PgApi:
                     raise KeyError(f"Node '{node_id}' not found")
                 if row[0] == "OUT":
                     return {
-                        "node_id": node_id, "already_out": True,
-                        "retracted": [], "restored": [], "total_affected": 0,
+                        "node_id": node_id,
+                        "already_out": True,
+                        "retracted": [],
+                        "restored": [],
+                        "total_affected": 0,
                     }
 
                 cur.execute(
@@ -467,7 +529,10 @@ class PgApi:
 
                 changed = went_out + went_in
                 retracted, restored = self._collect_what_if_results(
-                    cur, changed, before, node_id,
+                    cur,
+                    changed,
+                    before,
+                    node_id,
                 )
         finally:
             self.conn.rollback()
@@ -475,8 +540,10 @@ class PgApi:
         retracted.sort(key=lambda c: (c["depth"], c["id"]))
         restored.sort(key=lambda c: (c["depth"], c["id"]))
         return {
-            "node_id": node_id, "already_out": False,
-            "retracted": retracted, "restored": restored,
+            "node_id": node_id,
+            "already_out": False,
+            "retracted": retracted,
+            "restored": restored,
             "total_affected": len(retracted) + len(restored),
         }
 
@@ -493,8 +560,11 @@ class PgApi:
                     raise KeyError(f"Node '{node_id}' not found")
                 if row[0] == "IN":
                     return {
-                        "node_id": node_id, "already_in": True,
-                        "retracted": [], "restored": [], "total_affected": 0,
+                        "node_id": node_id,
+                        "already_in": True,
+                        "retracted": [],
+                        "restored": [],
+                        "total_affected": 0,
                     }
 
                 cur.execute(
@@ -512,7 +582,10 @@ class PgApi:
 
                 changed = went_out + went_in
                 retracted, restored = self._collect_what_if_results(
-                    cur, changed, before, node_id,
+                    cur,
+                    changed,
+                    before,
+                    node_id,
                 )
         finally:
             self.conn.rollback()
@@ -520,8 +593,10 @@ class PgApi:
         retracted.sort(key=lambda c: (c["depth"], c["id"]))
         restored.sort(key=lambda c: (c["depth"], c["id"]))
         return {
-            "node_id": node_id, "already_in": False,
-            "retracted": retracted, "restored": restored,
+            "node_id": node_id,
+            "already_in": False,
+            "retracted": retracted,
+            "restored": restored,
             "total_affected": len(retracted) + len(restored),
         }
 
@@ -664,12 +739,14 @@ class PgApi:
                 meta = json.loads(meta)
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 continue
-            nodes.append({
-                "id": nid,
-                "text": text,
-                "truth_value": tv,
-                "justification_count": jcount,
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "text": text,
+                    "truth_value": tv,
+                    "justification_count": jcount,
+                }
+            )
 
         in_count = sum(1 for n in nodes if n["truth_value"] == "IN")
         return {"nodes": nodes, "in_count": in_count, "total": len(nodes)}
@@ -687,8 +764,20 @@ class PgApi:
             if not row:
                 raise KeyError(f"Node '{node_id}' not found")
 
-            nid, text, tv, source, source_url, source_hash, meta, \
-                created_at, updated_at, reviewed_at, verified_at, retracted_at = row
+            (
+                nid,
+                text,
+                tv,
+                source,
+                source_url,
+                source_hash,
+                meta,
+                created_at,
+                updated_at,
+                reviewed_at,
+                verified_at,
+                retracted_at,
+            ) = row
             if isinstance(meta, str):
                 meta = json.loads(meta)
 
@@ -707,7 +796,12 @@ class PgApi:
                     ants = json.loads(ants)
                 if isinstance(outs, str):
                     outs = json.loads(outs)
-                j = {"type": jtype, "antecedents": ants, "outlist": outs, "label": jlabel}
+                j = {
+                    "type": jtype,
+                    "antecedents": ants,
+                    "outlist": outs,
+                    "label": jlabel,
+                }
                 justifications.append(j)
 
             dependents = sorted(self._find_dependents(cur, [node_id]))
@@ -773,10 +867,15 @@ class PgApi:
                 continue
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 continue
-            matched.append({
-                "id": nid, "text": text, "truth_value": tv,
-                "source": source, "metadata": meta,
-            })
+            matched.append(
+                {
+                    "id": nid,
+                    "text": text,
+                    "truth_value": tv,
+                    "source": source,
+                    "metadata": meta,
+                }
+            )
 
         if not matched:
             if format == "dict":
@@ -832,12 +931,14 @@ class PgApi:
                 continue
             new_hash = hash_file(path)
             was_empty = not source_hash
-            results.append({
-                "node_id": nid,
-                "source": source,
-                "hash": new_hash,
-                "was_empty": was_empty,
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "source": source,
+                    "hash": new_hash,
+                    "was_empty": was_empty,
+                }
+            )
 
         if results:
             with self.conn.cursor() as cur:
@@ -883,14 +984,16 @@ class PgApi:
             agent = meta.get("agent") if meta else None
             path = resolve_source_path(source, repo_paths, agent=agent)
             if path is None:
-                results.append({
-                    "node_id": nid,
-                    "old_hash": source_hash,
-                    "new_hash": None,
-                    "source": source,
-                    "source_path": None,
-                    "reason": "source_deleted",
-                })
+                results.append(
+                    {
+                        "node_id": nid,
+                        "old_hash": source_hash,
+                        "new_hash": None,
+                        "source": source,
+                        "source_path": None,
+                        "reason": "source_deleted",
+                    }
+                )
                 continue
 
             current_hash = hash_file(path)
@@ -900,23 +1003,27 @@ class PgApi:
                         upgrades_to_commit.append((current_hash, nid))
                         upgraded += 1
                         continue
-                    results.append({
+                    results.append(
+                        {
+                            "node_id": nid,
+                            "old_hash": source_hash,
+                            "new_hash": current_hash,
+                            "source": source,
+                            "source_path": str(path),
+                            "reason": "truncated_hash",
+                        }
+                    )
+                    continue
+                results.append(
+                    {
                         "node_id": nid,
                         "old_hash": source_hash,
                         "new_hash": current_hash,
                         "source": source,
                         "source_path": str(path),
-                        "reason": "truncated_hash",
-                    })
-                    continue
-                results.append({
-                    "node_id": nid,
-                    "old_hash": source_hash,
-                    "new_hash": current_hash,
-                    "source": source,
-                    "source_path": str(path),
-                    "reason": "content_changed",
-                })
+                        "reason": "content_changed",
+                    }
+                )
 
         if upgrades_to_commit:
             with self.conn.cursor() as cur:
@@ -992,12 +1099,17 @@ class PgApi:
             block_lower = " ".join(block_parts).lower()
 
             if all(term in block_lower for term in query_terms):
-                matches.append({
-                    "id": nid, "text": text, "truth_value": tv,
-                    "source": source, "source_hash": source_hash,
-                    "date": date,
-                    "depends_on": refs_by_node.get(nid, []),
-                })
+                matches.append(
+                    {
+                        "id": nid,
+                        "text": text,
+                        "truth_value": tv,
+                        "source": source,
+                        "source_hash": source_hash,
+                        "date": date,
+                        "depends_on": refs_by_node.get(nid, []),
+                    }
+                )
 
         if not matches:
             return f"No beliefs found matching '{query}'"
@@ -1048,6 +1160,7 @@ class PgApi:
     def _load_repos(self):
         """Load stored repos as a Path dict for source resolution."""
         from pathlib import Path
+
         result = self.list_repos()
         if result["repos"]:
             return {k: Path(v) for k, v in result["repos"].items()}
@@ -1103,15 +1216,20 @@ class PgApi:
         from .llm import invoke_model
 
         negative_ids = set()
-        total_batches = (len(candidates) + NEGATIVE_BATCH_SIZE - 1) // NEGATIVE_BATCH_SIZE
+        total_batches = (
+            len(candidates) + NEGATIVE_BATCH_SIZE - 1
+        ) // NEGATIVE_BATCH_SIZE
         for i in range(0, len(candidates), NEGATIVE_BATCH_SIZE):
-            batch = candidates[i:i + NEGATIVE_BATCH_SIZE]
+            batch = candidates[i : i + NEGATIVE_BATCH_SIZE]
             lines = [f"- [{nid}] `{text}`" for nid, text in batch]
             prompt = NEGATIVE_CLASSIFY_PROMPT.format(candidates="\n".join(lines))
 
             batch_num = i // NEGATIVE_BATCH_SIZE + 1
-            print(f"  Classifying batch {batch_num}/{total_batches} "
-                  f"({len(batch)} candidates)...", file=sys.stderr)
+            print(
+                f"  Classifying batch {batch_num}/{total_batches} "
+                f"({len(batch)} candidates)...",
+                file=sys.stderr,
+            )
 
             response = invoke_model(prompt, model=model)
 
@@ -1139,8 +1257,15 @@ class PgApi:
             "total": total,
         }
 
-    def list_nodes(self, status=None, premises_only=False, has_dependents=False,
-                   namespace=None, visible_to=None, label=None):
+    def list_nodes(
+        self,
+        status=None,
+        premises_only=False,
+        has_dependents=False,
+        namespace=None,
+        visible_to=None,
+        label=None,
+    ):
         pid = self.project_id
         conditions = ["n.project_id = %s"]
         params = [pid]
@@ -1208,12 +1333,14 @@ class PgApi:
                 continue
             if has_dependents and nid not in ids_with_deps:
                 continue
-            nodes.append({
-                "id": nid,
-                "text": text,
-                "truth_value": tv,
-                "justification_count": jcount,
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "text": text,
+                    "truth_value": tv,
+                    "justification_count": jcount,
+                }
+            )
 
         return {"nodes": nodes, "count": len(nodes)}
 
@@ -1255,7 +1382,11 @@ class PgApi:
                     meta = r[3]
                     if isinstance(meta, str):
                         meta = json.loads(meta)
-                    outlist_info[r[0]] = {"text": r[1], "truth_value": r[2], "metadata": meta}
+                    outlist_info[r[0]] = {
+                        "text": r[1],
+                        "truth_value": r[2],
+                        "metadata": meta,
+                    }
             else:
                 outlist_info = {}
 
@@ -1280,19 +1411,25 @@ class PgApi:
                     blockers[outlist_id]["gated"].append({"id": nid, "text": text})
 
         gated_count = sum(len(b["gated"]) for b in blockers.values())
-        return {"blockers": blockers, "gated_count": gated_count, "blocker_count": len(blockers)}
+        return {
+            "blockers": blockers,
+            "gated_count": gated_count,
+            "blocker_count": len(blockers),
+        }
 
     def topics(self, limit=20):
         from reasonsforge.api import _TOPIC_STOP_WORDS
+
         pid = self.project_id
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             node_ids = [row[0] for row in cur.fetchall()]
         word_counts: dict[str, int] = {}
         for nid in node_ids:
-            for word in re.split(r'[-._:]', nid):
+            for word in re.split(r"[-._:]", nid):
                 if word and len(word) > 2 and word not in _TOPIC_STOP_WORDS:
                     word_counts[word] = word_counts.get(word, 0) + 1
         ranked = sorted(word_counts, key=lambda w: (-word_counts[w], w))[:limit]
@@ -1311,13 +1448,27 @@ class PgApi:
                 "FROM rms_nodes WHERE project_id = %s ORDER BY id",
                 (pid,),
             )
+
             def _fmt_ts(val):
                 return val.isoformat(timespec="seconds") if val else ""
 
             nodes = {}
             for row in cur.fetchall():
-                nid, text, tv, source, source_url, source_hash, date, meta, \
-                    created_at, updated_at, reviewed_at, verified_at, retracted_at = row
+                (
+                    nid,
+                    text,
+                    tv,
+                    source,
+                    source_url,
+                    source_hash,
+                    date,
+                    meta,
+                    created_at,
+                    updated_at,
+                    reviewed_at,
+                    verified_at,
+                    retracted_at,
+                ) = row
                 if isinstance(meta, str):
                     meta = json.loads(meta)
                 if visible_to is not None and not self._is_visible(meta, visible_to):
@@ -1331,7 +1482,9 @@ class PgApi:
                     "source_url": source_url or "",
                     "source_hash": source_hash or "",
                     "date": date or "",
-                    "metadata": {k: v for k, v in meta.items() if not k.startswith("_")},
+                    "metadata": {
+                        k: v for k, v in meta.items() if not k.startswith("_")
+                    },
                     "created_at": _fmt_ts(created_at),
                     "updated_at": _fmt_ts(updated_at),
                     "reviewed_at": _fmt_ts(reviewed_at),
@@ -1353,12 +1506,14 @@ class PgApi:
                     if isinstance(outs, str):
                         outs = json.loads(outs)
                     if nid in nodes:
-                        nodes[nid]["justifications"].append({
-                            "type": jtype,
-                            "antecedents": ants,
-                            "outlist": outs,
-                            "label": label or "",
-                        })
+                        nodes[nid]["justifications"].append(
+                            {
+                                "type": jtype,
+                                "antecedents": ants,
+                                "outlist": outs,
+                                "label": label or "",
+                            }
+                        )
 
             cur.execute(
                 "SELECT id, nodes, discovered, resolution FROM rms_nogoods "
@@ -1373,16 +1528,19 @@ class PgApi:
                 if visible_to is not None:
                     if not all(n in nodes for n in ng_nodes):
                         continue
-                nogoods.append({
-                    "id": ng_id,
-                    "nodes": ng_nodes,
-                    "discovered": discovered or "",
-                    "resolution": resolution or "",
-                })
+                nogoods.append(
+                    {
+                        "id": ng_id,
+                        "nodes": ng_nodes,
+                        "discovered": discovered or "",
+                        "resolution": resolution or "",
+                    }
+                )
 
         repos = self.list_repos()["repos"]
 
         from .metadata import build_meta
+
         stored_meta = {}
         with self.conn.cursor() as cur2:
             cur2.execute(
@@ -1424,8 +1582,7 @@ class PgApi:
 
             if index < 0 or index >= len(justs):
                 raise IndexError(
-                    f"Justification index {index} out of range "
-                    f"(node has {len(justs)})"
+                    f"Justification index {index} out of range (node has {len(justs)})"
                 )
 
             if len(justs) == 1:
@@ -1466,13 +1623,19 @@ class PgApi:
             "node_id": node_id,
             "old_truth_value": old_value,
             "new_truth_value": new_value,
-            "removed": {"type": jtype, "antecedents": ants, "outlist": outs, "label": label or ""},
+            "removed": {
+                "type": jtype,
+                "antecedents": ants,
+                "outlist": outs,
+                "label": label or "",
+            },
             "remaining": len(justs) - 1,
             "changed": changed,
         }
 
-    def update_node(self, node_id, text=None, source=None, source_url=None,
-                    example=None):
+    def update_node(
+        self, node_id, text=None, source=None, source_url=None, example=None
+    ):
         if text is not None:
             raise ValueError(
                 f"Text mutation is not allowed — beliefs are immutable propositions. "
@@ -1563,8 +1726,7 @@ class PgApi:
             old_count = cur.fetchone()[0]
 
             cur.execute(
-                "DELETE FROM rms_justifications "
-                "WHERE node_id = %s AND project_id = %s",
+                "DELETE FROM rms_justifications WHERE node_id = %s AND project_id = %s",
                 (node_id, pid),
             )
 
@@ -1596,8 +1758,7 @@ class PgApi:
         pid = self.project_id
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes "
-                "WHERE project_id = %s AND truth_value = 'IN'",
+                "SELECT id FROM rms_nodes WHERE project_id = %s AND truth_value = 'IN'",
                 (pid,),
             )
             return [row[0] for row in cur.fetchall()]
@@ -1664,8 +1825,7 @@ class PgApi:
                 old_meta = json.loads(old_meta)
 
             cur.execute(
-                "SELECT metadata FROM rms_nodes "
-                "WHERE id = %s AND project_id = %s",
+                "SELECT metadata FROM rms_nodes WHERE id = %s AND project_id = %s",
                 (new_id, pid),
             )
             row = cur.fetchone()
@@ -1687,8 +1847,7 @@ class PgApi:
                     "SET outlist = outlist || %s::jsonb "
                     "WHERE node_id = %s AND project_id = %s "
                     "AND NOT outlist @> %s::jsonb",
-                    (json.dumps([new_id]), old_id, pid,
-                     json.dumps([new_id])),
+                    (json.dumps([new_id]), old_id, pid, json.dumps([new_id])),
                 )
             else:
                 cur.execute(
@@ -1700,8 +1859,7 @@ class PgApi:
 
             old_meta["superseded_by"] = new_id
             cur.execute(
-                "UPDATE rms_nodes SET metadata = %s "
-                "WHERE id = %s AND project_id = %s",
+                "UPDATE rms_nodes SET metadata = %s WHERE id = %s AND project_id = %s",
                 (json.dumps(old_meta), old_id, pid),
             )
 
@@ -1710,8 +1868,7 @@ class PgApi:
                 supersedes.append(old_id)
             new_meta["supersedes"] = supersedes
             cur.execute(
-                "UPDATE rms_nodes SET metadata = %s "
-                "WHERE id = %s AND project_id = %s",
+                "UPDATE rms_nodes SET metadata = %s WHERE id = %s AND project_id = %s",
                 (json.dumps(new_meta), new_id, pid),
             )
 
@@ -1723,15 +1880,15 @@ class PgApi:
                     "WHERE id = %s AND project_id = %s",
                     (new_tv, old_id, pid),
                 )
-                self._log(cur, "supersede", old_id,
-                          f"superseded by {new_id}")
+                self._log(cur, "supersede", old_id, f"superseded by {new_id}")
                 changed.append(old_id)
                 went_out, went_in = self._propagate(cur, old_id)
                 changed.extend(went_out)
                 changed.extend(went_in)
             else:
-                self._log(cur, "supersede", old_id,
-                          f"superseded by {new_id} (unchanged)")
+                self._log(
+                    cur, "supersede", old_id, f"superseded by {new_id} (unchanged)"
+                )
 
         self.conn.commit()
         return {"old_id": old_id, "new_id": new_id, "changed": changed}
@@ -1744,19 +1901,16 @@ class PgApi:
         with self.conn.cursor() as cur:
             if over:
                 cur.execute(
-                    "SELECT id FROM rms_nodes "
-                    "WHERE project_id = %s AND id = ANY(%s)",
+                    "SELECT id FROM rms_nodes WHERE project_id = %s AND id = ANY(%s)",
                     (pid, list(over)),
                 )
                 found = {row[0] for row in cur.fetchall()}
                 missing = set(over) - found
                 if missing:
-                    raise KeyError(
-                        f"Node(s) not found: {', '.join(sorted(missing))}")
+                    raise KeyError(f"Node(s) not found: {', '.join(sorted(missing))}")
 
             cur.execute(
-                "SELECT 1 FROM rms_nodes "
-                "WHERE id = %s AND project_id = %s",
+                "SELECT 1 FROM rms_nodes WHERE id = %s AND project_id = %s",
                 (summary_id, pid),
             )
             if cur.fetchone():
@@ -1790,8 +1944,7 @@ class PgApi:
 
             for nid in over:
                 cur.execute(
-                    "SELECT metadata FROM rms_nodes "
-                    "WHERE id = %s AND project_id = %s",
+                    "SELECT metadata FROM rms_nodes WHERE id = %s AND project_id = %s",
                     (nid, pid),
                 )
                 row = cur.fetchone()
@@ -1861,10 +2014,15 @@ class PgApi:
                     continue
                 if visible_to is not None and not self._is_visible(meta, visible_to):
                     continue
-                all_nodes.append({
-                    "id": nid, "text": text, "truth_value": tv,
-                    "source": source, "metadata": meta,
-                })
+                all_nodes.append(
+                    {
+                        "id": nid,
+                        "text": text,
+                        "truth_value": tv,
+                        "source": source,
+                        "metadata": meta,
+                    }
+                )
 
             # Fetch nogoods (filter by visible_to — hide nogoods referencing inaccessible nodes)
             cur.execute(
@@ -1880,7 +2038,9 @@ class PgApi:
                     nodes = json.loads(nodes)
                 if visible_to is not None and not all(n in visible_ids for n in nodes):
                     continue
-                nogoods.append({"id": ng_id, "nodes": nodes, "resolution": resolution or ""})
+                nogoods.append(
+                    {"id": ng_id, "nodes": nodes, "resolution": resolution or ""}
+                )
 
             # Fetch dependent counts per node
             cur.execute(
@@ -1976,7 +2136,9 @@ class PgApi:
             added_out = 0
             for node in out_nodes:
                 reason = ""
-                retract_reason = node["metadata"].get("retract_reason") or node["metadata"].get("stale_reason")
+                retract_reason = node["metadata"].get("retract_reason") or node[
+                    "metadata"
+                ].get("stale_reason")
                 if retract_reason:
                     reason = f" (stale: {retract_reason[:60]})"
                 elif node["metadata"].get("superseded_by"):
@@ -2082,8 +2244,12 @@ class PgApi:
             cur.execute(
                 "INSERT INTO rms_nogoods (id, project_id, nodes, discovered) "
                 "VALUES (%s, %s, %s, %s)",
-                (nogood_id, pid, json.dumps(node_ids),
-                 datetime.now().isoformat(timespec="seconds")),
+                (
+                    nogood_id,
+                    pid,
+                    json.dumps(node_ids),
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
             )
             self._log(cur, "nogood", nogood_id, str(node_ids))
 
@@ -2157,8 +2323,7 @@ class PgApi:
         pid = self.project_id
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT metadata FROM rms_nodes "
-                "WHERE id = %s AND project_id = %s",
+                "SELECT metadata FROM rms_nodes WHERE id = %s AND project_id = %s",
                 (node_id, pid),
             )
             row = cur.fetchone()
@@ -2169,13 +2334,12 @@ class PgApi:
                 meta = json.loads(meta)
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 raise PermissionError(
-                    f"Node '{node_id}' requires access tags "
-                    f"not in {visible_to}")
+                    f"Node '{node_id}' requires access tags not in {visible_to}"
+                )
 
             all_tags = set()
             visited = set()
-            self._trace_access_tags_recursive(
-                cur, node_id, all_tags, visited)
+            self._trace_access_tags_recursive(cur, node_id, all_tags, visited)
 
         return {"node_id": node_id, "access_tags": sorted(all_tags)}
 
@@ -2187,28 +2351,33 @@ class PgApi:
 
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT 1 FROM rms_nodes "
-                "WHERE id = %s AND project_id = %s",
+                "SELECT 1 FROM rms_nodes WHERE id = %s AND project_id = %s",
                 (active_id, pid),
             )
             if cur.fetchone():
-                return {"namespace": namespace,
-                        "active_node": active_id, "created": False}
+                return {
+                    "namespace": namespace,
+                    "active_node": active_id,
+                    "created": False,
+                }
 
             metadata = {"agent": namespace, "role": "agent_premise"}
             cur.execute(
                 "INSERT INTO rms_nodes "
                 "(id, project_id, text, source, date, metadata, truth_value) "
                 "VALUES (%s, %s, %s, '', %s, %s, 'IN')",
-                (active_id, pid,
-                 f"Agent '{namespace}' beliefs are trusted",
-                 now, json.dumps(metadata)),
+                (
+                    active_id,
+                    pid,
+                    f"Agent '{namespace}' beliefs are trusted",
+                    now,
+                    json.dumps(metadata),
+                ),
             )
             self._log(cur, "add", active_id, "IN")
 
         self.conn.commit()
-        return {"namespace": namespace,
-                "active_node": active_id, "created": True}
+        return {"namespace": namespace, "active_node": active_id, "created": True}
 
     def list_namespaces(self):
         """List all namespaces with belief counts."""
@@ -2225,7 +2394,7 @@ class PgApi:
 
             namespaces = []
             for active_id, tv in ns_rows:
-                ns = active_id[:-len(":active")]
+                ns = active_id[: -len(":active")]
                 cur.execute(
                     "SELECT COUNT(*), "
                     "COUNT(*) FILTER (WHERE truth_value = 'IN') "
@@ -2234,13 +2403,15 @@ class PgApi:
                     (pid, f"{ns}:%", active_id),
                 )
                 total, in_count = cur.fetchone()
-                namespaces.append({
-                    "namespace": ns,
-                    "active_node": active_id,
-                    "active": tv == "IN",
-                    "total_beliefs": total,
-                    "in_beliefs": in_count,
-                })
+                namespaces.append(
+                    {
+                        "namespace": ns,
+                        "active_node": active_id,
+                        "active": tv == "IN",
+                        "total_beliefs": total,
+                        "in_beliefs": in_count,
+                    }
+                )
 
         return {"namespaces": namespaces}
 
@@ -2272,7 +2443,8 @@ class PgApi:
 
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             added = {r[0] for r in cur.fetchall()}
 
@@ -2293,10 +2465,15 @@ class PgApi:
                     deps_in_data = {d for d in all_deps if d in all_node_ids}
                     if all(d in added for d in deps_in_data):
                         justs = ndata.get("justifications", []) or None
-                        meta = {k: v for k, v in ndata.get("metadata", {}).items()
-                                if not k.startswith("_")}
+                        meta = {
+                            k: v
+                            for k, v in ndata.get("metadata", {}).items()
+                            if not k.startswith("_")
+                        }
                         self._add_node_raw(
-                            cur, nid, ndata.get("text", ""),
+                            cur,
+                            nid,
+                            ndata.get("text", ""),
                             justifications=justs,
                             source=ndata.get("source", ""),
                             source_url=ndata.get("source_url", ""),
@@ -2315,10 +2492,15 @@ class PgApi:
                         if nid in added:
                             continue
                         justs = ndata.get("justifications", []) or None
-                        meta = {k: v for k, v in ndata.get("metadata", {}).items()
-                                if not k.startswith("_")}
+                        meta = {
+                            k: v
+                            for k, v in ndata.get("metadata", {}).items()
+                            if not k.startswith("_")
+                        }
                         self._add_node_raw(
-                            cur, nid, ndata.get("text", ""),
+                            cur,
+                            nid,
+                            ndata.get("text", ""),
                             justifications=justs,
                             source=ndata.get("source", ""),
                             source_url=ndata.get("source_url", ""),
@@ -2367,7 +2549,12 @@ class PgApi:
                 # Restore exact timestamps AFTER truth-value fixup
                 ts_updates = []
                 ts_params = []
-                for ts_col in ("updated_at", "reviewed_at", "verified_at", "retracted_at"):
+                for ts_col in (
+                    "updated_at",
+                    "reviewed_at",
+                    "verified_at",
+                    "retracted_at",
+                ):
                     ts_val = ndata.get(ts_col, "")
                     if ts_val:
                         ts_updates.append(f"{ts_col} = %s")
@@ -2391,10 +2578,13 @@ class PgApi:
                 cur.execute(
                     "INSERT INTO rms_nogoods (id, project_id, nodes, discovered, resolution) "
                     "VALUES (%s, %s, %s, %s, %s)",
-                    (ng_data["id"], pid,
-                     json.dumps(ng_data.get("nodes", [])),
-                     ng_data.get("discovered", ""),
-                     ng_data.get("resolution", "")),
+                    (
+                        ng_data["id"],
+                        pid,
+                        json.dumps(ng_data.get("nodes", [])),
+                        ng_data.get("discovered", ""),
+                        ng_data.get("resolution", ""),
+                    ),
                 )
                 nogoods_imported += 1
 
@@ -2461,7 +2651,8 @@ class PgApi:
 
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             existing = {r[0] for r in cur.fetchall()}
 
@@ -2472,15 +2663,18 @@ class PgApi:
 
                 justifications = None
                 deps_in_network = [d for d in claim["depends_on"] if d in claim_by_id]
-                unless_in_network = [u for u in claim.get("unless", [])
-                                     if u in claim_by_id]
+                unless_in_network = [
+                    u for u in claim.get("unless", []) if u in claim_by_id
+                ]
                 if deps_in_network or unless_in_network:
-                    justifications = [{
-                        "type": "SL",
-                        "antecedents": deps_in_network,
-                        "outlist": unless_in_network,
-                        "label": f"imported from beliefs: {claim['type']}",
-                    }]
+                    justifications = [
+                        {
+                            "type": "SL",
+                            "antecedents": deps_in_network,
+                            "outlist": unless_in_network,
+                            "label": f"imported from beliefs: {claim['type']}",
+                        }
+                    ]
 
                 metadata = {}
                 if claim["type"]:
@@ -2491,7 +2685,9 @@ class PgApi:
                     metadata["superseded_by"] = claim["superseded_by"]
 
                 self._add_node_raw(
-                    cur, claim["id"], claim["text"],
+                    cur,
+                    claim["id"],
+                    claim["text"],
                     justifications=justifications,
                     source=claim["source"],
                     source_hash=claim["source_hash"],
@@ -2526,7 +2722,8 @@ class PgApi:
             nogoods = parse_nogoods(nogoods_text)
             with self.conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                    "SELECT id FROM rms_nodes WHERE project_id = %s",
+                    (pid,),
                 )
                 all_nodes = {r[0] for r in cur.fetchall()}
 
@@ -2541,8 +2738,13 @@ class PgApi:
                             cur.execute(
                                 "INSERT INTO rms_nogoods (id, project_id, nodes, "
                                 "discovered, resolution) VALUES (%s, %s, %s, %s, %s)",
-                                (ng["id"], pid, json.dumps(valid_nodes),
-                                 ng["discovered"], ng["resolution"]),
+                                (
+                                    ng["id"],
+                                    pid,
+                                    json.dumps(valid_nodes),
+                                    ng["discovered"],
+                                    ng["resolution"],
+                                ),
                             )
                             m = re.fullmatch(r"nogood-(\d+)", ng["id"])
                             if m:
@@ -2587,12 +2789,17 @@ class PgApi:
             )
             if not cur.fetchone():
                 self._add_node_raw(
-                    cur, inactive_id,
+                    cur,
+                    inactive_id,
                     f"Agent '{agent_name}' kill switch — IN when active is OUT",
-                    justifications=[{
-                        "type": "SL", "antecedents": [],
-                        "outlist": [active_id], "label": "",
-                    }],
+                    justifications=[
+                        {
+                            "type": "SL",
+                            "antecedents": [],
+                            "outlist": [active_id],
+                            "label": "",
+                        }
+                    ],
                     source=source_path,
                     metadata={"agent": agent_name, "role": "agent_inactive"},
                 )
@@ -2607,7 +2814,8 @@ class PgApi:
 
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             existing = {r[0] for r in cur.fetchall()}
 
@@ -2622,26 +2830,37 @@ class PgApi:
                     antecedents = [f"{prefix}{a}" for a in rj["antecedents"]]
                     outlist = [inactive_id] + [f"{prefix}{o}" for o in rj["outlist"]]
                     label = rj.get("label") or f"imported from agent: {agent_name}"
-                    justs.append({
-                        "type": rj["type"], "antecedents": antecedents,
-                        "outlist": outlist, "label": label,
-                    })
+                    justs.append(
+                        {
+                            "type": rj["type"],
+                            "antecedents": antecedents,
+                            "outlist": outlist,
+                            "label": label,
+                        }
+                    )
                 if not justs:
-                    justs = [{
-                        "type": "SL", "antecedents": [],
-                        "outlist": [inactive_id],
-                        "label": f"imported from agent: {agent_name}",
-                    }]
+                    justs = [
+                        {
+                            "type": "SL",
+                            "antecedents": [],
+                            "outlist": [inactive_id],
+                            "label": f"imported from agent: {agent_name}",
+                        }
+                    ]
 
                 metadata = claim.get("metadata", {}).copy()
-                metadata.update({
-                    "agent": agent_name,
-                    "original_id": claim["id"],
-                    "imported_from": source_path,
-                })
+                metadata.update(
+                    {
+                        "agent": agent_name,
+                        "original_id": claim["id"],
+                        "imported_from": source_path,
+                    }
+                )
 
                 self._add_node_raw(
-                    cur, node_id, claim["text"],
+                    cur,
+                    node_id,
+                    claim["text"],
                     justifications=justs,
                     source=claim.get("source", ""),
                     source_url=claim.get("source_url", ""),
@@ -2680,8 +2899,7 @@ class PgApi:
             self.conn.commit()
             self.propagate()
 
-        nogoods_imported = self._import_agent_nogoods(prefix=prefix,
-                                                      nogoods=nogoods)
+        nogoods_imported = self._import_agent_nogoods(prefix=prefix, nogoods=nogoods)
 
         return {
             "agent": agent_name,
@@ -2717,12 +2935,17 @@ class PgApi:
             )
             if not cur.fetchone():
                 self._add_node_raw(
-                    cur, inactive_id,
+                    cur,
+                    inactive_id,
                     f"Agent '{agent_name}' kill switch — IN when active is OUT",
-                    justifications=[{
-                        "type": "SL", "antecedents": [],
-                        "outlist": [active_id], "label": "",
-                    }],
+                    justifications=[
+                        {
+                            "type": "SL",
+                            "antecedents": [],
+                            "outlist": [active_id],
+                            "label": "",
+                        }
+                    ],
                     source=source_path,
                     metadata={"agent": agent_name, "role": "agent_inactive"},
                 )
@@ -2750,7 +2973,8 @@ class PgApi:
 
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             existing = {r[0] for r in cur.fetchall()}
 
@@ -2763,16 +2987,23 @@ class PgApi:
                     antecedents = [f"{prefix}{a}" for a in rj["antecedents"]]
                     outlist = [inactive_id] + [f"{prefix}{o}" for o in rj["outlist"]]
                     label = rj.get("label") or f"imported from agent: {agent_name}"
-                    justs.append({
-                        "type": rj["type"], "antecedents": antecedents,
-                        "outlist": outlist, "label": label,
-                    })
+                    justs.append(
+                        {
+                            "type": rj["type"],
+                            "antecedents": antecedents,
+                            "outlist": outlist,
+                            "label": label,
+                        }
+                    )
                 if not justs:
-                    justs = [{
-                        "type": "SL", "antecedents": [],
-                        "outlist": [inactive_id],
-                        "label": f"imported from agent: {agent_name}",
-                    }]
+                    justs = [
+                        {
+                            "type": "SL",
+                            "antecedents": [],
+                            "outlist": [inactive_id],
+                            "label": f"imported from agent: {agent_name}",
+                        }
+                    ]
 
                 if node_id in existing:
                     cur.execute(
@@ -2782,8 +3013,15 @@ class PgApi:
                         (node_id, pid),
                     )
                     row = cur.fetchone()
-                    old_text, old_source, old_source_url, old_source_hash, \
-                        old_date, old_tv, old_meta = row
+                    (
+                        old_text,
+                        old_source,
+                        old_source_url,
+                        old_source_hash,
+                        old_date,
+                        old_tv,
+                        old_meta,
+                    ) = row
                     if isinstance(old_meta, str):
                         old_meta = json.loads(old_meta)
                     changed = False
@@ -2795,10 +3033,15 @@ class PgApi:
                     if claim.get("source") and old_source != claim["source"]:
                         updates["source"] = claim["source"]
                         changed = True
-                    if claim.get("source_url") and old_source_url != claim.get("source_url"):
+                    if claim.get("source_url") and old_source_url != claim.get(
+                        "source_url"
+                    ):
                         updates["source_url"] = claim["source_url"]
                         changed = True
-                    if claim.get("source_hash") and old_source_hash != claim["source_hash"]:
+                    if (
+                        claim.get("source_hash")
+                        and old_source_hash != claim["source_hash"]
+                    ):
                         updates["source_hash"] = claim["source_hash"]
                         changed = True
                     if claim.get("date") and old_date != claim["date"]:
@@ -2832,18 +3075,24 @@ class PgApi:
                             ants = json.loads(ants)
                         if isinstance(outs, str):
                             outs = json.loads(outs)
-                        old_justs.append({
-                            "type": jtype, "antecedents": ants,
-                            "outlist": outs, "label": jlabel or "",
-                        })
+                        old_justs.append(
+                            {
+                                "type": jtype,
+                                "antecedents": ants,
+                                "outlist": outs,
+                                "label": jlabel or "",
+                            }
+                        )
 
                     justs_changed = len(old_justs) != len(justs)
                     if not justs_changed:
                         for a, b in zip(old_justs, justs):
-                            if (a["type"] != b["type"]
-                                    or a["antecedents"] != b["antecedents"]
-                                    or a["outlist"] != b["outlist"]
-                                    or a.get("label", "") != b.get("label", "")):
+                            if (
+                                a["type"] != b["type"]
+                                or a["antecedents"] != b["antecedents"]
+                                or a["outlist"] != b["outlist"]
+                                or a.get("label", "") != b.get("label", "")
+                            ):
                                 justs_changed = True
                                 break
 
@@ -2858,10 +3107,14 @@ class PgApi:
                                 "INSERT INTO rms_justifications "
                                 "(node_id, project_id, type, antecedents, outlist, label) "
                                 "VALUES (%s, %s, %s, %s, %s, %s)",
-                                (node_id, pid, j["type"],
-                                 json.dumps(j["antecedents"]),
-                                 json.dumps(j["outlist"]),
-                                 j.get("label", "")),
+                                (
+                                    node_id,
+                                    pid,
+                                    j["type"],
+                                    json.dumps(j["antecedents"]),
+                                    json.dumps(j["outlist"]),
+                                    j.get("label", ""),
+                                ),
                             )
                         changed = True
 
@@ -2895,14 +3148,18 @@ class PgApi:
                         beliefs_unchanged += 1
                 else:
                     metadata = claim.get("metadata", {}).copy()
-                    metadata.update({
-                        "agent": agent_name,
-                        "original_id": claim["id"],
-                        "imported_from": source_path,
-                    })
+                    metadata.update(
+                        {
+                            "agent": agent_name,
+                            "original_id": claim["id"],
+                            "imported_from": source_path,
+                        }
+                    )
 
                     self._add_node_raw(
-                        cur, node_id, claim["text"],
+                        cur,
+                        node_id,
+                        claim["text"],
                         justifications=justs,
                         source=claim.get("source", ""),
                         source_url=claim.get("source_url", ""),
@@ -2999,8 +3256,7 @@ class PgApi:
             self.conn.commit()
             self.propagate()
 
-        nogoods_imported = self._import_agent_nogoods(prefix=prefix,
-                                                      nogoods=nogoods)
+        nogoods_imported = self._import_agent_nogoods(prefix=prefix, nogoods=nogoods)
 
         return {
             "agent": agent_name,
@@ -3022,11 +3278,13 @@ class PgApi:
         count = 0
         with self.conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM rms_nodes WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nodes WHERE project_id = %s",
+                (pid,),
             )
             all_nodes = {r[0] for r in cur.fetchall()}
             cur.execute(
-                "SELECT id FROM rms_nogoods WHERE project_id = %s", (pid,),
+                "SELECT id FROM rms_nogoods WHERE project_id = %s",
+                (pid,),
             )
             existing_nogoods = {r[0] for r in cur.fetchall()}
 
@@ -3038,8 +3296,13 @@ class PgApi:
                     cur.execute(
                         "INSERT INTO rms_nogoods (id, project_id, nodes, "
                         "discovered, resolution) VALUES (%s, %s, %s, %s, %s)",
-                        (nogood_id, pid, json.dumps(valid_nodes),
-                         ng.get("discovered", ""), ng.get("resolution", "")),
+                        (
+                            nogood_id,
+                            pid,
+                            json.dumps(valid_nodes),
+                            ng.get("discovered", ""),
+                            ng.get("resolution", ""),
+                        ),
                     )
                     existing_nogoods.add(nogood_id)
                     count += 1
@@ -3127,12 +3390,8 @@ class PgApi:
 
                 new_tv = "OUT"
                 for jtype, ants, outs in justs:
-                    inlist_ok = all(
-                        truth_cache.get(a, "OUT") == "IN" for a in ants
-                    )
-                    outlist_ok = all(
-                        truth_cache.get(o, "OUT") == "OUT" for o in outs
-                    )
+                    inlist_ok = all(truth_cache.get(a, "OUT") == "IN" for a in ants)
+                    outlist_ok = all(truth_cache.get(o, "OUT") == "OUT" for o in outs)
                     if inlist_ok and outlist_ok:
                         new_tv = "IN"
                         break
@@ -3289,7 +3548,11 @@ class PgApi:
         else:
             self._log(cur, "challenge", target_id, f"unchanged ({old_value})")
 
-        return {"challenge_id": challenge_id, "target_id": target_id, "changed": changed}
+        return {
+            "challenge_id": challenge_id,
+            "target_id": target_id,
+            "changed": changed,
+        }
 
     def _find_dependents(self, cur, node_ids):
         """Find nodes that have any of node_ids in their antecedents or outlist."""
@@ -3314,8 +3577,13 @@ class PgApi:
         cur.execute(
             "INSERT INTO rms_propagation_log (project_id, timestamp, action, target, value) "
             "VALUES (%s, %s, %s, %s, %s)",
-            (self.project_id, datetime.now().isoformat(timespec="seconds"),
-             action, target, value),
+            (
+                self.project_id,
+                datetime.now().isoformat(timespec="seconds"),
+                action,
+                target,
+                value,
+            ),
         )
 
     # ── Internal: nogoods + explain ─────────────────────────────
@@ -3345,18 +3613,21 @@ class PgApi:
         candidates = []
         for premise_id in all_premises:
             would_resolve = [
-                nid for nid, assumptions in assumptions_by_node.items()
+                nid
+                for nid, assumptions in assumptions_by_node.items()
                 if premise_id in assumptions
             ]
             if would_resolve:
                 entrenchment = self._entrenchment(cur, premise_id)
                 deps = self._find_dependents(cur, [premise_id])
-                candidates.append({
-                    "premise": premise_id,
-                    "would_resolve": would_resolve,
-                    "dependent_count": len(deps),
-                    "entrenchment": entrenchment,
-                })
+                candidates.append(
+                    {
+                        "premise": premise_id,
+                        "would_resolve": would_resolve,
+                        "dependent_count": len(deps),
+                        "entrenchment": entrenchment,
+                    }
+                )
 
         candidates.sort(key=lambda c: c["entrenchment"])
         return candidates
@@ -3396,7 +3667,8 @@ class PgApi:
 
         btype = meta.get("beliefs_type", "").upper()
         type_scores = {
-            "AXIOM": 90, "WARNING": 90,
+            "AXIOM": 90,
+            "WARNING": 90,
             "OBSERVATION": 80,
             "DERIVED": 40,
             "PREDICTED": 30,
@@ -3437,8 +3709,7 @@ class PgApi:
         pid = self.project_id
 
         cur.execute(
-            "SELECT metadata FROM rms_nodes "
-            "WHERE id = %s AND project_id = %s",
+            "SELECT metadata FROM rms_nodes WHERE id = %s AND project_id = %s",
             (node_id, pid),
         )
         row = cur.fetchone()
@@ -3458,8 +3729,7 @@ class PgApi:
             if isinstance(ants, str):
                 ants = json.loads(ants)
             for ant_id in ants:
-                self._trace_access_tags_recursive(
-                    cur, ant_id, all_tags, visited)
+                self._trace_access_tags_recursive(cur, ant_id, all_tags, visited)
 
     def _explain_recursive(self, cur, node_id, visible_to, visited):
         if node_id in visited:
@@ -3492,11 +3762,13 @@ class PgApi:
         steps = []
 
         if not justs:
-            steps.append({
-                "node": node_id,
-                "truth_value": tv,
-                "reason": "premise" if tv == "IN" else "retracted premise",
-            })
+            steps.append(
+                {
+                    "node": node_id,
+                    "truth_value": tv,
+                    "reason": "premise" if tv == "IN" else "retracted premise",
+                }
+            )
             return steps
 
         if tv == "IN":
@@ -3520,7 +3792,9 @@ class PgApi:
                         step["outlist"] = list(outs)
                     steps.append(step)
                     for ant_id in ants:
-                        steps.extend(self._explain_recursive(cur, ant_id, visible_to, visited))
+                        steps.extend(
+                            self._explain_recursive(cur, ant_id, visible_to, visited)
+                        )
                     break
         else:
             # All justifications invalid
@@ -3616,10 +3890,15 @@ class PgApi:
                 meta = json.loads(meta)
             if visible_to is not None and not self._is_visible(meta, visible_to):
                 continue
-            neighbors.append({
-                "id": nid, "text": text, "truth_value": tv,
-                "source": source, "metadata": meta,
-            })
+            neighbors.append(
+                {
+                    "id": nid,
+                    "text": text,
+                    "truth_value": tv,
+                    "source": source,
+                    "metadata": meta,
+                }
+            )
         return neighbors
 
     def _format_results(self, matched, neighbors, format):
@@ -3654,18 +3933,26 @@ class PgApi:
     def _format_json(self, matched, neighbors):
         results = []
         for m in matched:
-            results.append({
-                "id": m["id"], "text": m["text"],
-                "truth_value": m["truth_value"],
-                "source": m.get("source", ""), "match": True,
-            })
+            results.append(
+                {
+                    "id": m["id"],
+                    "text": m["text"],
+                    "truth_value": m["truth_value"],
+                    "source": m.get("source", ""),
+                    "match": True,
+                }
+            )
         for n in neighbors:
-            results.append({
-                "id": n["id"], "text": n["text"],
-                "truth_value": n["truth_value"],
-                "source": n.get("source", ""), "match": False,
-                "relation": "neighbor",
-            })
+            results.append(
+                {
+                    "id": n["id"],
+                    "text": n["text"],
+                    "truth_value": n["truth_value"],
+                    "source": n.get("source", ""),
+                    "match": False,
+                    "relation": "neighbor",
+                }
+            )
         return json.dumps(results, indent=2)
 
     def _format_minimal(self, matched, neighbors):
@@ -3699,7 +3986,9 @@ class PgApi:
         found = {row[0] for row in cur.fetchall()}
         missing = all_ids - found
         if missing:
-            raise KeyError(f"Referenced nodes do not exist: {', '.join(sorted(missing))}")
+            raise KeyError(
+                f"Referenced nodes do not exist: {', '.join(sorted(missing))}"
+            )
 
     def _parse_justifications(self, sl, cp, unless, label):
         justs = []
@@ -3707,20 +3996,24 @@ class PgApi:
 
         if sl:
             antecedents = [a.strip() for a in sl.split(",") if a.strip()]
-            justs.append({
-                "type": "SL",
-                "antecedents": antecedents,
-                "outlist": outlist,
-                "label": label,
-            })
+            justs.append(
+                {
+                    "type": "SL",
+                    "antecedents": antecedents,
+                    "outlist": outlist,
+                    "label": label,
+                }
+            )
         if cp:
             antecedents = [a.strip() for a in cp.split(",") if a.strip()]
-            justs.append({
-                "type": "CP",
-                "antecedents": antecedents,
-                "outlist": outlist,
-                "label": label,
-            })
+            justs.append(
+                {
+                    "type": "CP",
+                    "antecedents": antecedents,
+                    "outlist": outlist,
+                    "label": label,
+                }
+            )
         return justs
 
     def _is_visible(self, metadata, visible_to):

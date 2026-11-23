@@ -57,7 +57,9 @@ def get_diff(
     return result.stdout
 
 
-def get_diff_since(since: str, cwd: str | None = None, context_lines: int = 10) -> tuple[str, str]:
+def get_diff_since(
+    since: str, cwd: str | None = None, context_lines: int = 10
+) -> tuple[str, str]:
     """Get diff of all changes since a date.
 
     Args:
@@ -74,7 +76,9 @@ def get_diff_since(since: str, cwd: str | None = None, context_lines: int = 10) 
     # Find the last commit BEFORE the date to use as diff base
     result = subprocess.run(
         ["git", "log", f"--until={since}", "--format=%H", "-1"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Git log failed: {result.stderr}")
@@ -86,7 +90,9 @@ def get_diff_since(since: str, cwd: str | None = None, context_lines: int = 10) 
         # in shallow clones, so just get the full log
         check = subprocess.run(
             ["git", "log", f"--since={since}", "--format=%H"],
-            capture_output=True, text=True, cwd=cwd,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
         )
         commits = [c for c in check.stdout.strip().split("\n") if c]
         if not commits:
@@ -99,7 +105,9 @@ def get_diff_since(since: str, cwd: str | None = None, context_lines: int = 10) 
     context_arg = f"-U{context_lines}"
     diff_result = subprocess.run(
         ["git", "diff", context_arg, f"{base}..HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if diff_result.returncode != 0:
         raise RuntimeError(f"Git diff failed: {diff_result.stderr}")
@@ -108,7 +116,9 @@ def get_diff_since(since: str, cwd: str | None = None, context_lines: int = 10) 
     # Get commit log
     log_result = subprocess.run(
         ["git", "log", "--oneline", f"{base}..HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     log = log_result.stdout if log_result.returncode == 0 else ""
 
@@ -119,18 +129,26 @@ def save_diff_checkpoint(project_dir: str, cwd: str | None = None) -> None:
     """Record the current HEAD as the last-explored commit."""
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         return
     head_sha = result.stdout.strip()
     repo_root = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     checkpoint = {
         "head": head_sha,
-        "repo": repo_root.stdout.strip() if repo_root.returncode == 0 else os.path.abspath(cwd or os.getcwd()),
+        "repo": (
+            repo_root.stdout.strip()
+            if repo_root.returncode == 0
+            else os.path.abspath(cwd or os.getcwd())
+        ),
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
     os.makedirs(project_dir, exist_ok=True)
@@ -157,14 +175,19 @@ def load_diff_checkpoint(project_dir: str, repo_path: str | None = None) -> dict
         saved_repo = os.path.realpath(checkpoint["repo"])
         target_repo = os.path.realpath(repo_path)
         if saved_repo != target_repo:
-            print(f"Warning: checkpoint was saved from {saved_repo} "
-                  f"but --repo points to {target_repo}. "
-                  f"Ignoring stale checkpoint.", file=sys.stderr)
+            print(
+                f"Warning: checkpoint was saved from {saved_repo} "
+                f"but --repo points to {target_repo}. "
+                f"Ignoring stale checkpoint.",
+                file=sys.stderr,
+            )
             return None
     return checkpoint
 
 
-def get_diff_since_commit(base_sha: str, cwd: str | None = None, context_lines: int = 10) -> tuple[str, str]:
+def get_diff_since_commit(
+    base_sha: str, cwd: str | None = None, context_lines: int = 10
+) -> tuple[str, str]:
     """Get diff from a specific commit to HEAD.
 
     Returns:
@@ -173,28 +196,36 @@ def get_diff_since_commit(base_sha: str, cwd: str | None = None, context_lines: 
     context_arg = f"-U{context_lines}"
     diff_result = subprocess.run(
         ["git", "diff", context_arg, f"{base_sha}..HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if diff_result.returncode != 0:
         raise RuntimeError(f"Git diff failed: {diff_result.stderr}")
 
     log_result = subprocess.run(
         ["git", "log", "--oneline", f"{base_sha}..HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     log = log_result.stdout if log_result.returncode == 0 else ""
 
     return diff_result.stdout, log
 
 
-def commits_since_checkpoint(project_dir: str, cwd: str | None = None, repo_path: str | None = None) -> int | None:
+def commits_since_checkpoint(
+    project_dir: str, cwd: str | None = None, repo_path: str | None = None
+) -> int | None:
     """Count commits since last diff checkpoint. Returns None if no checkpoint."""
     checkpoint = load_diff_checkpoint(project_dir, repo_path=repo_path or cwd)
     if not checkpoint:
         return None
     result = subprocess.run(
         ["git", "rev-list", "--count", f"{checkpoint['head']}..HEAD"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         return None
@@ -245,15 +276,49 @@ def extract_modified_line_ranges(diff_content: str) -> dict[str, list[tuple[int,
     return result
 
 
-BINARY_EXTENSIONS = frozenset({
-    ".pyc", ".pyo", ".so", ".o", ".a", ".dylib",
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp",
-    ".woff", ".woff2", ".ttf", ".eot",
-    ".mp3", ".mp4", ".wav", ".avi", ".mov",
-    ".zip", ".tar", ".gz", ".bz2", ".xz", ".7z",
-    ".jar", ".war", ".class", ".exe", ".dll",
-    ".bin", ".dat", ".db", ".sqlite", ".sqlite3", ".pdf",
-})
+BINARY_EXTENSIONS = frozenset(
+    {
+        ".pyc",
+        ".pyo",
+        ".so",
+        ".o",
+        ".a",
+        ".dylib",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".ico",
+        ".svg",
+        ".webp",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".mp3",
+        ".mp4",
+        ".wav",
+        ".avi",
+        ".mov",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".bz2",
+        ".xz",
+        ".7z",
+        ".jar",
+        ".war",
+        ".class",
+        ".exe",
+        ".dll",
+        ".bin",
+        ".dat",
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".pdf",
+    }
+)
 
 
 def list_source_files(repo_path: str) -> list[str]:
@@ -263,7 +328,9 @@ def list_source_files(repo_path: str) -> list[str]:
     """
     result = subprocess.run(
         ["git", "ls-files"],
-        capture_output=True, text=True, cwd=repo_path,
+        capture_output=True,
+        text=True,
+        cwd=repo_path,
     )
     if result.returncode != 0:
         return []
@@ -291,10 +358,25 @@ def get_repo_structure(repo_path: str, max_depth: int = 4) -> str:
         Formatted directory tree string
     """
     skip_dirs = {
-        ".git", ".hg", ".svn", "node_modules", "__pycache__",
-        ".tox", ".venv", "venv", ".env", "env", ".eggs",
-        "dist", "build", ".mypy_cache", ".pytest_cache",
-        ".ruff_cache", "htmlcov", ".coverage", "*.egg-info",
+        ".git",
+        ".hg",
+        ".svn",
+        "node_modules",
+        "__pycache__",
+        ".tox",
+        ".venv",
+        "venv",
+        ".env",
+        "env",
+        ".eggs",
+        "dist",
+        "build",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "htmlcov",
+        ".coverage",
+        "*.egg-info",
     }
     skip_suffixes = {".pyc", ".pyo", ".so", ".o", ".a", ".dylib"}
 
@@ -369,7 +451,9 @@ def get_commit_log(
     return result.stdout
 
 
-def get_imports(file_path: str, repo_path: str, lang: LanguageProfile | None = None) -> dict:
+def get_imports(
+    file_path: str, repo_path: str, lang: LanguageProfile | None = None
+) -> dict:
     """
     Analyze imports for a source file.
 
@@ -414,7 +498,9 @@ def get_imports(file_path: str, repo_path: str, lang: LanguageProfile | None = N
     return {"imports": imports, "imported_by": imported_by}
 
 
-def extract_symbol(file_path: str, symbol: str, lang: LanguageProfile | None = None) -> str | None:
+def extract_symbol(
+    file_path: str, symbol: str, lang: LanguageProfile | None = None
+) -> str | None:
     """
     Extract a function or class definition from a file.
 
@@ -453,7 +539,14 @@ def list_commits_with_files(
         range_spec = f"{since_commit}..HEAD"
         cmd = ["git", "log", "--reverse", "--format=%H %s", "--name-status", range_spec]
     elif since:
-        cmd = ["git", "log", "--reverse", "--format=%H %s", "--name-status", f"--since={since}"]
+        cmd = [
+            "git",
+            "log",
+            "--reverse",
+            "--format=%H %s",
+            "--name-status",
+            f"--since={since}",
+        ]
     else:
         raise ValueError("Either since or since_commit must be provided")
 
@@ -467,16 +560,25 @@ def list_commits_with_files(
         if not line:
             continue
         # Commit lines are 40-char hex SHA followed by space and subject
-        if len(line) > 40 and line[40] == " " and all(c in "0123456789abcdef" for c in line[:40]):
+        if (
+            len(line) > 40
+            and line[40] == " "
+            and all(c in "0123456789abcdef" for c in line[:40])
+        ):
             if current:
                 commits.append(current)
-            current = {"sha": line[:40], "subject": line[41:], "files": [], "deleted_files": []}
+            current = {
+                "sha": line[:40],
+                "subject": line[41:],
+                "files": [],
+                "deleted_files": [],
+            }
         elif current is not None:
             # --name-status lines: "M\tpath" or "R100\told\tnew"
             parts = line.split("\t")
             if len(parts) >= 2:
                 status = parts[0][0]  # First char: A, M, D, R, C, T
-                path = parts[-1]     # Last field (handles renames: old\tnew)
+                path = parts[-1]  # Last field (handles renames: old\tnew)
                 current["files"].append(path)
                 if status == "D":
                     current["deleted_files"].append(path)
@@ -491,7 +593,10 @@ def list_commits_with_files(
 
 
 def get_commit_file_diff(
-    sha: str, file_path: str, cwd: str | None = None, context_lines: int = 10,
+    sha: str,
+    file_path: str,
+    cwd: str | None = None,
+    context_lines: int = 10,
 ) -> str:
     """Get the diff for a specific file from a commit.
 
@@ -506,7 +611,9 @@ def get_commit_file_diff(
     """
     result = subprocess.run(
         ["git", "show", f"-U{context_lines}", "--format=", sha, "--", file_path],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Git show failed: {result.stderr}")
@@ -517,7 +624,9 @@ def get_commit_message(sha: str, cwd: str | None = None) -> str:
     """Get the full commit message (subject + body) for a commit."""
     result = subprocess.run(
         ["git", "log", sha, "-1", "--format=%B"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         raise RuntimeError(f"Git log failed: {result.stderr}")
@@ -525,7 +634,10 @@ def get_commit_message(sha: str, cwd: str | None = None) -> str:
 
 
 def find_related_tests(
-    file_path: str, repo_path: str, symbol: str | None = None, lang: LanguageProfile | None = None,
+    file_path: str,
+    repo_path: str,
+    symbol: str | None = None,
+    lang: LanguageProfile | None = None,
 ) -> list[str]:
     """
     Find test files related to a source file or symbol.

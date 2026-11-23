@@ -28,7 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from reasonsforge.forge.code.language import LanguageProfile, PYTHON, detect_language
-from reasonsforge.forge.code.git_utils import extract_changed_files, extract_modified_line_ranges
+from reasonsforge.forge.code.git_utils import (
+    extract_changed_files,
+    extract_modified_line_ranges,
+)
 
 _EXCLUDE_DIRS = [
     "--exclude-dir=.venv",
@@ -40,6 +43,7 @@ _EXCLUDE_DIRS = [
     "--exclude-dir=.tox",
     "--exclude-dir=.mypy_cache",
 ]
+
 
 def is_test_file(file_path: str, lang: LanguageProfile | None = None) -> bool:
     """Classify whether a file path belongs to test code.
@@ -76,8 +80,16 @@ def is_test_file(file_path: str, lang: LanguageProfile | None = None) -> bool:
     if basename == "conftest.py":
         return True
     # JS/TS patterns
-    for suffix in (".test.js", ".spec.js", ".test.ts", ".spec.ts",
-                    ".test.jsx", ".spec.jsx", ".test.tsx", ".spec.tsx"):
+    for suffix in (
+        ".test.js",
+        ".spec.js",
+        ".test.ts",
+        ".spec.ts",
+        ".test.jsx",
+        ".spec.jsx",
+        ".test.tsx",
+        ".spec.tsx",
+    ):
         if basename.endswith(suffix):
             return True
 
@@ -118,7 +130,9 @@ def _find_similar_files(filename: str, repo_path: str) -> list[str]:
     return sorted(matches)
 
 
-async def exception_hierarchy(class_name: str, repo_path: str | None = None) -> dict[str, Any]:
+async def exception_hierarchy(
+    class_name: str, repo_path: str | None = None
+) -> dict[str, Any]:
     """
     Show exception class hierarchy (MRO and subclasses).
 
@@ -138,6 +152,7 @@ async def exception_hierarchy(class_name: str, repo_path: str | None = None) -> 
         else:
             # Try builtins first
             import builtins
+
             cls = getattr(builtins, class_name)
             cls_name = class_name
 
@@ -151,7 +166,9 @@ async def exception_hierarchy(class_name: str, repo_path: str | None = None) -> 
 
         return {
             "class": class_name,
-            "mro": [f"{c.__module__}.{c.__name__}" for c in cls.__mro__ if c is not object],
+            "mro": [
+                f"{c.__module__}.{c.__name__}" for c in cls.__mro__ if c is not object
+            ],
             "subclasses": get_all_subclasses(cls),
             "doc": cls.__doc__[:200] if cls.__doc__ else None,
         }
@@ -218,7 +235,12 @@ class _RaisesVisitor(ast.NodeVisitor):
                 # Check if caught by any enclosing try/except
                 is_caught = False
                 for caught in self.caught_stack:
-                    if "*" in caught or exc_name in caught or "Exception" in caught or "BaseException" in caught:
+                    if (
+                        "*" in caught
+                        or exc_name in caught
+                        or "Exception" in caught
+                        or "BaseException" in caught
+                    ):
                         is_caught = True
                         break
                 if not is_caught:
@@ -233,7 +255,9 @@ class _RaisesVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-async def raises_analysis(file_path: str, function_name: str, repo_path: str | None = None) -> dict[str, Any]:
+async def raises_analysis(
+    file_path: str, function_name: str, repo_path: str | None = None
+) -> dict[str, Any]:
     """
     Static analysis of what exceptions a function might raise (Python only).
 
@@ -248,7 +272,11 @@ async def raises_analysis(file_path: str, function_name: str, repo_path: str | N
         Dict with explicit raises and called functions that might raise
     """
     if not file_path.endswith(".py"):
-        return {"error": "raises_analysis requires a Python file", "function": function_name, "file": str(file_path)}
+        return {
+            "error": "raises_analysis requires a Python file",
+            "function": function_name,
+            "file": str(file_path),
+        }
     try:
         if repo_path and not Path(file_path).is_absolute():
             full_path = Path(repo_path) / file_path
@@ -279,7 +307,10 @@ async def raises_analysis(file_path: str, function_name: str, repo_path: str | N
             "error": f"Function '{function_name}' not found",
         }
     except FileNotFoundError:
-        result: dict[str, Any] = {"error": f"File not found: {file_path}", "function": function_name}
+        result: dict[str, Any] = {
+            "error": f"File not found: {file_path}",
+            "function": function_name,
+        }
         if repo_path:
             similar = _find_similar_files(Path(file_path).name, repo_path)
             if similar:
@@ -289,7 +320,9 @@ async def raises_analysis(file_path: str, function_name: str, repo_path: str | N
         return {"error": str(e), "function": function_name}
 
 
-async def call_graph(file_path: str, function_name: str, repo_path: str | None = None) -> dict[str, Any]:
+async def call_graph(
+    file_path: str, function_name: str, repo_path: str | None = None
+) -> dict[str, Any]:
     """
     Build call graph for a function (Python only).
 
@@ -302,7 +335,11 @@ async def call_graph(file_path: str, function_name: str, repo_path: str | None =
         Dict with functions called by this function
     """
     if not file_path.endswith(".py"):
-        return {"error": "call_graph requires a Python file", "function": function_name, "file": str(file_path)}
+        return {
+            "error": "call_graph requires a Python file",
+            "function": function_name,
+            "file": str(file_path),
+        }
     try:
         if repo_path and not Path(file_path).is_absolute():
             full_path = Path(repo_path) / file_path
@@ -326,7 +363,9 @@ async def call_graph(file_path: str, function_name: str, repo_path: str | None =
                             elif isinstance(child.func, ast.Attribute):
                                 # e.g., self.method() or module.func()
                                 if isinstance(child.func.value, ast.Name):
-                                    call_info["name"] = f"{child.func.value.id}.{child.func.attr}"
+                                    call_info["name"] = (
+                                        f"{child.func.value.id}.{child.func.attr}"
+                                    )
                                 else:
                                     call_info["name"] = child.func.attr
 
@@ -347,7 +386,10 @@ async def call_graph(file_path: str, function_name: str, repo_path: str | None =
             "calls": unique_calls,
         }
     except FileNotFoundError:
-        result: dict[str, Any] = {"error": f"File not found: {file_path}", "function": function_name}
+        result: dict[str, Any] = {
+            "error": f"File not found: {file_path}",
+            "function": function_name,
+        }
         if repo_path:
             similar = _find_similar_files(Path(file_path).name, repo_path)
             if similar:
@@ -357,7 +399,9 @@ async def call_graph(file_path: str, function_name: str, repo_path: str | None =
         return {"error": str(e), "function": function_name}
 
 
-async def find_usages(symbol: str, repo_path: str, lang: LanguageProfile | None = None) -> dict[str, Any]:
+async def find_usages(
+    symbol: str, repo_path: str, lang: LanguageProfile | None = None
+) -> dict[str, Any]:
     """
     Find usages of a symbol in the codebase.
 
@@ -371,7 +415,12 @@ async def find_usages(symbol: str, repo_path: str, lang: LanguageProfile | None 
     """
     try:
         lang = lang or detect_language(repo_path)
-        grep_cmd = ["grep", "-Frn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = (
+            ["grep", "-Frn"]
+            + _EXCLUDE_DIRS
+            + lang.grep_include_args()
+            + [symbol, repo_path]
+        )
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -466,7 +515,9 @@ def _extract_enclosing_function(
 
 
 async def find_callers(
-    symbol: str, repo_path: str, include_context: bool = True,
+    symbol: str,
+    repo_path: str,
+    include_context: bool = True,
     lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """Find callers of a symbol with production/test separation and calling context.
@@ -495,7 +546,12 @@ async def find_callers(
     """
     try:
         lang = lang or detect_language(repo_path)
-        grep_cmd = ["grep", "-Frn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = (
+            ["grep", "-Frn"]
+            + _EXCLUDE_DIRS
+            + lang.grep_include_args()
+            + [symbol, repo_path]
+        )
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -544,9 +600,7 @@ async def find_callers(
                         pass
 
                 if abs_path in file_cache:
-                    ctx = _extract_enclosing_function(
-                        file_cache[abs_path], line_no
-                    )
+                    ctx = _extract_enclosing_function(file_cache[abs_path], line_no)
                     entry["context_function"] = ctx["context_function"]
                     entry["context_snippet"] = ctx["context_snippet"]
                     context_count += 1
@@ -568,7 +622,9 @@ async def find_callers(
         return {"error": str(e), "symbol": symbol}
 
 
-async def git_blame(file_path: str, start_line: int, end_line: int, repo_path: str) -> dict[str, Any]:
+async def git_blame(
+    file_path: str, start_line: int, end_line: int, repo_path: str
+) -> dict[str, Any]:
     """
     Get git blame information for a range of lines.
 
@@ -583,7 +639,14 @@ async def git_blame(file_path: str, start_line: int, end_line: int, repo_path: s
     """
     try:
         proc = await asyncio.create_subprocess_exec(
-            "git", "-C", repo_path, "blame", "-L", f"{start_line},{end_line}", "--porcelain", file_path,
+            "git",
+            "-C",
+            repo_path,
+            "blame",
+            "-L",
+            f"{start_line},{end_line}",
+            "--porcelain",
+            file_path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -607,11 +670,13 @@ async def git_blame(file_path: str, start_line: int, end_line: int, repo_path: s
                 current_author = line[7:]
             elif line.startswith("\t"):
                 if current_commit and current_author:
-                    blame_info.append({
-                        "commit": current_commit[:8],
-                        "author": current_author,
-                        "code": line[1:][:60],
-                    })
+                    blame_info.append(
+                        {
+                            "commit": current_commit[:8],
+                            "author": current_author,
+                            "code": line[1:][:60],
+                        }
+                    )
             elif " " in line and len(line.split()[0]) == 40:
                 current_commit = line.split()[0]
 
@@ -625,7 +690,9 @@ async def git_blame(file_path: str, start_line: int, end_line: int, repo_path: s
 
 
 async def test_coverage(
-    file_path: str, repo_path: str, lang: LanguageProfile | None = None,
+    file_path: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """
     Find tests that cover a given file.
@@ -656,7 +723,10 @@ async def test_coverage(
         tests_found = []
         for pattern in test_patterns:
             proc = await asyncio.create_subprocess_exec(
-                "find", repo_path, "-name", pattern,
+                "find",
+                repo_path,
+                "-name",
+                pattern,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -705,7 +775,7 @@ async def coverage_map_tests(file_path: str, repo_path: str) -> dict[str, Any]:
         # Strip leading repo path if present
         normalized_path = file_path
         if repo_path and file_path.startswith(repo_path):
-            normalized_path = file_path[len(repo_path):].lstrip("/")
+            normalized_path = file_path[len(repo_path) :].lstrip("/")
 
         # Try exact match first
         tests = file_to_tests.get(normalized_path, [])
@@ -713,7 +783,9 @@ async def coverage_map_tests(file_path: str, repo_path: str) -> dict[str, Any]:
         # If not found, try partial match
         if not tests:
             for mapped_file, mapped_tests in file_to_tests.items():
-                if normalized_path in mapped_file or mapped_file.endswith(normalized_path):
+                if normalized_path in mapped_file or mapped_file.endswith(
+                    normalized_path
+                ):
                     tests = mapped_tests
                     normalized_path = mapped_file
                     break
@@ -866,13 +938,17 @@ def _function_body_brace(
     if line_hint is not None:
         idx = line_hint - 1
         for i in range(idx, -1, -1):
-            if _FUNCTION_DEF_RE.match(source_lines[i]) or _CLASS_DEF_RE.match(source_lines[i]):
+            if _FUNCTION_DEF_RE.match(source_lines[i]) or _CLASS_DEF_RE.match(
+                source_lines[i]
+            ):
                 start_idx = i
                 break
     elif function_name:
         pat = _re.compile(r"\b" + _re.escape(function_name) + r"\b")
         for i, line in enumerate(source_lines):
-            if pat.search(line) and (_FUNCTION_DEF_RE.match(line) or _CLASS_DEF_RE.match(line)):
+            if pat.search(line) and (
+                _FUNCTION_DEF_RE.match(line) or _CLASS_DEF_RE.match(line)
+            ):
                 start_idx = i
                 break
 
@@ -880,7 +956,9 @@ def _function_body_brace(
         search = f"line {line_hint}" if line_hint else f"'{function_name}'"
         return {"error": f"No function found at {search}", "file": str(file_path)}
 
-    m = _FUNCTION_DEF_RE.match(source_lines[start_idx]) or _CLASS_DEF_RE.match(source_lines[start_idx])
+    m = _FUNCTION_DEF_RE.match(source_lines[start_idx]) or _CLASS_DEF_RE.match(
+        source_lines[start_idx]
+    )
     found_name = m.group(1) if m else function_name or "unknown"
 
     brace_depth = 0
@@ -963,9 +1041,13 @@ async def function_body(
         source_lines = source.splitlines()
 
         if file_path.endswith(".py"):
-            return _function_body_ast(source, source_lines, file_path, line_hint, function_name)
+            return _function_body_ast(
+                source, source_lines, file_path, line_hint, function_name
+            )
         else:
-            return _function_body_brace(source_lines, file_path, line_hint, function_name)
+            return _function_body_brace(
+                source_lines, file_path, line_hint, function_name
+            )
 
     except FileNotFoundError:
         result: dict[str, Any] = {
@@ -979,7 +1061,10 @@ async def function_body(
                 result["similar_files"] = similar
         return result
     except SyntaxError as e:
-        return {"error": f"Syntax error parsing {file_path}: {e}", "file": str(file_path)}
+        return {
+            "error": f"Syntax error parsing {file_path}: {e}",
+            "file": str(file_path),
+        }
     except Exception as e:
         return {"error": str(e), "file": str(file_path)}
 
@@ -1028,12 +1113,16 @@ async def gather_function_context(
                 key = f"{file_path}:{line}"
                 if key not in seen_functions:
                     seen_functions.add(key)
-                    tasks.append((
-                        file_path,
-                        asyncio.ensure_future(
-                            function_body(file_path, line_hint=line, repo_path=repo_path)
-                        ),
-                    ))
+                    tasks.append(
+                        (
+                            file_path,
+                            asyncio.ensure_future(
+                                function_body(
+                                    file_path, line_hint=line, repo_path=repo_path
+                                )
+                            ),
+                        )
+                    )
 
     if not tasks:
         return results
@@ -1062,7 +1151,9 @@ async def gather_function_context(
 
 
 def _extract_modified_symbols(
-    diff_content: str, repo_path: str, lang: LanguageProfile | None = None,
+    diff_content: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, set[str]]:
     """Extract function/class names modified in each file from a diff.
 
@@ -1103,7 +1194,9 @@ def _extract_modified_symbols(
                 continue
             symbols: set[str] = set()
             for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                ):
                     node_start = node.lineno
                     node_end = node.end_lineno or node_start
                     for start, end in line_ranges:
@@ -1129,7 +1222,9 @@ def _extract_modified_symbols(
 
 
 async def _find_test_files_by_naming(
-    module_name: str, repo_path: str, lang: LanguageProfile | None = None,
+    module_name: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> list[str]:
     """Find test files by naming convention.
 
@@ -1146,8 +1241,16 @@ async def _find_test_files_by_naming(
     """
     lang = lang or detect_language(repo_path)
     test_patterns = lang.test_file_search_patterns(module_name)
-    search_dirs = ["tests", "test", "tests/unit", "tests/integration",
-                    "__tests__", "src/__tests__", "spec", "."]
+    search_dirs = [
+        "tests",
+        "test",
+        "tests/unit",
+        "tests/integration",
+        "__tests__",
+        "src/__tests__",
+        "spec",
+        ".",
+    ]
 
     found: list[str] = []
     repo = Path(repo_path)
@@ -1166,7 +1269,9 @@ async def _find_test_files_by_naming(
 
 
 async def _find_test_files_by_imports(
-    module_name: str, source_file: str, repo_path: str,
+    module_name: str,
+    source_file: str,
+    repo_path: str,
     lang: LanguageProfile | None = None,
 ) -> list[str]:
     """Find test files that import from a given module.
@@ -1207,7 +1312,12 @@ async def _find_test_files_by_imports(
 
     grep_pattern = "|".join(patterns)
     try:
-        grep_cmd = ["grep", "-rl"] + _EXCLUDE_DIRS + lang.grep_include_args() + ["-E", grep_pattern, repo_path]
+        grep_cmd = (
+            ["grep", "-rl"]
+            + _EXCLUDE_DIRS
+            + lang.grep_include_args()
+            + ["-E", grep_pattern, repo_path]
+        )
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -1274,18 +1384,24 @@ async def gather_related_test_files(
     lang = lang or detect_language(repo_path)
     changed_files = extract_changed_files(diff_content)
     source_files = [
-        f for f in changed_files
-        if lang.matches_extension(f)
-        and not is_test_file(f, lang)
+        f
+        for f in changed_files
+        if lang.matches_extension(f) and not is_test_file(f, lang)
     ]
 
     if not source_files:
-        return {"test_files": [], "modified_symbols": {}, "message": f"No non-test {lang.name} files modified"}
+        return {
+            "test_files": [],
+            "modified_symbols": {},
+            "message": f"No non-test {lang.name} files modified",
+        }
 
     modified_symbols = _extract_modified_symbols(diff_content, repo_path, lang)
 
     # Discover test files for each source file (parallel)
-    all_test_files: dict[str, list[str]] = {}  # test_path -> list of source files it covers
+    all_test_files: dict[
+        str, list[str]
+    ] = {}  # test_path -> list of source files it covers
     source_to_tests: dict[str, list[str]] = {}
 
     discovery_tasks = []
@@ -1308,13 +1424,17 @@ async def gather_related_test_files(
                     if isinstance(test_entry, str) and "::" in test_entry:
                         test_file = test_entry.split("::")[0]
                         tests.add(test_file)
-                    elif isinstance(test_entry, str) and lang.matches_extension(test_entry):
+                    elif isinstance(test_entry, str) and lang.matches_extension(
+                        test_entry
+                    ):
                         tests.add(test_entry)
         except Exception:
             pass
 
         # Strategy 3: Import scanning
-        import_results = await _find_test_files_by_imports(module_name, source_file, repo_path, lang)
+        import_results = await _find_test_files_by_imports(
+            module_name, source_file, repo_path, lang
+        )
         tests.update(import_results)
 
         # Record mappings
@@ -1364,14 +1484,16 @@ async def gather_related_test_files(
 
         total_lines += len(lines)
 
-        test_file_results.append({
-            "path": test_path,
-            "covers": all_test_files[test_path],
-            "symbols_referenced": sorted(symbols_referenced),
-            "line_count": line_count,
-            "truncated": truncated,
-            "content": "\n".join(lines),
-        })
+        test_file_results.append(
+            {
+                "path": test_path,
+                "covers": all_test_files[test_path],
+                "symbols_referenced": sorted(symbols_referenced),
+                "line_count": line_count,
+                "truncated": truncated,
+                "content": "\n".join(lines),
+            }
+        )
 
     # Detect duplicate coverage
     duplicate_coverage: dict[str, list[str]] = {}
@@ -1422,14 +1544,17 @@ async def run_tests_for_files(
     lang = lang or detect_language(repo_path)
 
     source_files = [
-        f for f in changed_files
-        if lang.matches_extension(f)
-        and not is_test_file(f, lang)
+        f
+        for f in changed_files
+        if lang.matches_extension(f) and not is_test_file(f, lang)
     ]
 
     if not source_files:
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "SKIPPED",
             "output": f"No non-test {lang.name} source files to test",
             "tests_run": [],
@@ -1448,20 +1573,27 @@ async def run_tests_for_files(
                     if isinstance(test_entry, str) and "::" in test_entry:
                         test_file = test_entry.split("::")[0]
                         all_tests.add(test_file)
-                    elif isinstance(test_entry, str) and lang.matches_extension(test_entry):
+                    elif isinstance(test_entry, str) and lang.matches_extension(
+                        test_entry
+                    ):
                         all_tests.add(test_entry)
         except Exception:
             pass
 
         try:
-            naming_results = await _find_test_files_by_naming(module_name, repo_path, lang)
+            naming_results = await _find_test_files_by_naming(
+                module_name, repo_path, lang
+            )
             all_tests.update(naming_results)
         except Exception:
             pass
 
     if not all_tests:
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "SKIPPED",
             "output": "No related test files found",
             "tests_run": [],
@@ -1469,13 +1601,14 @@ async def run_tests_for_files(
         }
 
     # Verify test files exist
-    test_files = sorted(
-        t for t in all_tests if (Path(repo_path) / t).exists()
-    )
+    test_files = sorted(t for t in all_tests if (Path(repo_path) / t).exists())
 
     if not test_files:
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "SKIPPED",
             "output": "Related test files not found on disk",
             "tests_run": [],
@@ -1484,9 +1617,13 @@ async def run_tests_for_files(
 
     if lang.name == "python":
         cmd = [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             *test_files,
-            "--tb=short", "--no-header", "-q",
+            "--tb=short",
+            "--no-header",
+            "-q",
         ]
     elif lang.name in ("javascript", "typescript"):
         cmd = ["npx", "jest", "--no-coverage", "--", *test_files]
@@ -1494,7 +1631,10 @@ async def run_tests_for_files(
             cmd = ["npm", "test", "--", "--no-coverage"]
     else:
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "SKIPPED",
             "output": f"No test runner configured for {lang.name}",
             "tests_run": test_files,
@@ -1517,8 +1657,13 @@ async def run_tests_for_files(
         passed = failed = errors = 0
         for line in output.splitlines():
             line_lower = line.lower()
-            if "passed" in line_lower or "failed" in line_lower or "error" in line_lower:
+            if (
+                "passed" in line_lower
+                or "failed" in line_lower
+                or "error" in line_lower
+            ):
                 import re
+
                 for match in re.finditer(r"(\d+) (passed|failed|error)", line_lower):
                     count = int(match.group(1))
                     kind = match.group(2)
@@ -1553,7 +1698,10 @@ async def run_tests_for_files(
     except subprocess.TimeoutExpired:
         duration = time.monotonic() - start
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "TIMEOUT",
             "output": f"pytest timed out after {timeout}s",
             "tests_run": test_files,
@@ -1561,7 +1709,10 @@ async def run_tests_for_files(
         }
     except FileNotFoundError:
         return {
-            "passed": 0, "failed": 0, "errors": 0, "total": 0,
+            "passed": 0,
+            "failed": 0,
+            "errors": 0,
+            "total": 0,
             "status": "ERROR",
             "output": "pytest not found — is it installed in the target environment?",
             "tests_run": test_files,
@@ -1610,7 +1761,9 @@ def format_test_results(results: dict[str, Any]) -> str:
 
 
 async def related_test_files(
-    file_path: str, repo_path: str, lang: LanguageProfile | None = None,
+    file_path: str,
+    repo_path: str,
+    lang: LanguageProfile | None = None,
 ) -> dict[str, Any]:
     """Find test files related to a specific source file.
 
@@ -1630,7 +1783,9 @@ async def related_test_files(
 
     tests: set[str] = set()
     tests.update(await _find_test_files_by_naming(module_name, repo_path, lang))
-    tests.update(await _find_test_files_by_imports(module_name, file_path, repo_path, lang))
+    tests.update(
+        await _find_test_files_by_imports(module_name, file_path, repo_path, lang)
+    )
 
     try:
         cov_result = await coverage_map_tests(file_path, repo_path)
@@ -1689,11 +1844,13 @@ def _file_imports_python(source: str, file_path: str) -> dict[str, Any]:
         if in_docstring:
             import_section_lines.append(line)
             continue
-        if (stripped.startswith("import ") or
-            stripped.startswith("from ") or
-            stripped.startswith("#") or
-            stripped == "" or
-            stripped.startswith("__")):
+        if (
+            stripped.startswith("import ")
+            or stripped.startswith("from ")
+            or stripped.startswith("#")
+            or stripped == ""
+            or stripped.startswith("__")
+        ):
             import_section_lines.append(line)
         else:
             break
@@ -1706,7 +1863,9 @@ def _file_imports_python(source: str, file_path: str) -> dict[str, Any]:
     }
 
 
-def _file_imports_generic(source: str, file_path: str, lang: LanguageProfile) -> dict[str, Any]:
+def _file_imports_generic(
+    source: str, file_path: str, lang: LanguageProfile
+) -> dict[str, Any]:
     """Regex-based import extraction for non-Python languages."""
     lines = source.split("\n")
     import_lines = []
@@ -1754,7 +1913,10 @@ async def file_imports(file_path: str, repo_path: str | None = None) -> dict[str
             lang = PYTHON
         return _file_imports_generic(source, file_path, lang)
     except FileNotFoundError:
-        result: dict[str, Any] = {"error": f"File not found: {file_path}", "file": str(file_path)}
+        result: dict[str, Any] = {
+            "error": f"File not found: {file_path}",
+            "file": str(file_path),
+        }
         if repo_path:
             similar = _find_similar_files(Path(file_path).name, repo_path)
             if similar:
@@ -1788,6 +1950,7 @@ async def project_dependencies(repo_path: str) -> dict[str, Any]:
             found_any = True
             try:
                 import tomllib
+
                 data = tomllib.loads(content)
                 deps = data.get("project", {}).get("dependencies", [])
                 optional_deps = data.get("project", {}).get("optional-dependencies", {})
@@ -1800,13 +1963,16 @@ async def project_dependencies(repo_path: str) -> dict[str, Any]:
         for req_file in ("requirements.txt", "requirements-dev.txt"):
             req_path = Path(repo_path) / req_file
             if req_path.exists():
-                result[req_file.replace(".", "_").replace("-", "_")] = req_path.read_text()
+                result[req_file.replace(".", "_").replace("-", "_")] = (
+                    req_path.read_text()
+                )
                 found_any = True
 
         # JS/TS: package.json
         pkg_path = Path(repo_path) / "package.json"
         if pkg_path.exists():
             import json
+
             content = pkg_path.read_text()
             result["package_json"] = content
             found_any = True
@@ -1870,7 +2036,11 @@ async def class_hierarchy(
         'def __init__(self, host: str, port: int = 443)'
     """
     if not file_path.endswith(".py"):
-        return {"error": "class_hierarchy requires a Python file", "class": class_name, "file": str(file_path)}
+        return {
+            "error": "class_hierarchy requires a Python file",
+            "class": class_name,
+            "file": str(file_path),
+        }
     try:
         if not Path(file_path).is_absolute():
             full_path = Path(repo_path) / file_path
@@ -1888,7 +2058,10 @@ async def class_hierarchy(
                 break
 
         if target_class is None:
-            return {"error": f"Class '{class_name}' not found in {file_path}", "file": str(file_path)}
+            return {
+                "error": f"Class '{class_name}' not found in {file_path}",
+                "file": str(file_path),
+            }
 
         # Extract base class names
         bases: list[str] = []
@@ -1946,13 +2119,18 @@ async def class_hierarchy(
             ret = ""
             if func_node.returns:
                 ret = f" -> {ast.unparse(func_node.returns)}"
-            prefix = "async def" if isinstance(func_node, ast.AsyncFunctionDef) else "def"
+            prefix = (
+                "async def" if isinstance(func_node, ast.AsyncFunctionDef) else "def"
+            )
             return f"{prefix} {func_node.name}({', '.join(parts)}){ret}"
 
         # Extract own __init__ signature
         own_init: str | None = None
         for child in ast.iter_child_nodes(target_class):
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == "__init__":
+            if (
+                isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and child.name == "__init__"
+            ):
                 own_init = _format_signature(child)
                 break
 
@@ -1983,10 +2161,21 @@ async def class_hierarchy(
                         base_source = candidate.read_text()
                         base_tree = ast.parse(base_source)
                         for bnode in ast.walk(base_tree):
-                            if isinstance(bnode, ast.ClassDef) and bnode.name == simple_name:
+                            if (
+                                isinstance(bnode, ast.ClassDef)
+                                and bnode.name == simple_name
+                            ):
                                 for child in ast.iter_child_nodes(bnode):
-                                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == "__init__":
-                                        base_init_signatures[base_name] = _format_signature(child)
+                                    if (
+                                        isinstance(
+                                            child,
+                                            (ast.FunctionDef, ast.AsyncFunctionDef),
+                                        )
+                                        and child.name == "__init__"
+                                    ):
+                                        base_init_signatures[base_name] = (
+                                            _format_signature(child)
+                                        )
                                         break
                                 break
                     except Exception:
@@ -1997,8 +2186,15 @@ async def class_hierarchy(
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef) and node.name == simple_name:
                         for child in ast.iter_child_nodes(node):
-                            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == "__init__":
-                                base_init_signatures[base_name] = _format_signature(child)
+                            if (
+                                isinstance(
+                                    child, (ast.FunctionDef, ast.AsyncFunctionDef)
+                                )
+                                and child.name == "__init__"
+                            ):
+                                base_init_signatures[base_name] = _format_signature(
+                                    child
+                                )
                                 break
                         break
 
@@ -2063,7 +2259,12 @@ async def symbol_migration(
     lang = lang or detect_language(repo_path)
 
     async def _grep_symbol(symbol: str) -> list[dict[str, Any]]:
-        grep_cmd = ["grep", "-wrn"] + _EXCLUDE_DIRS + lang.grep_include_args() + [symbol, repo_path]
+        grep_cmd = (
+            ["grep", "-wrn"]
+            + _EXCLUDE_DIRS
+            + lang.grep_include_args()
+            + [symbol, repo_path]
+        )
         proc = await asyncio.create_subprocess_exec(
             *grep_cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -2082,11 +2283,13 @@ async def symbol_migration(
             parts = line.split(":", 2)
             if len(parts) >= 3:
                 rel_file = parts[0].replace(repo_path + "/", "")
-                usages.append({
-                    "file": rel_file,
-                    "line": int(parts[1]),
-                    "text": parts[2].strip()[:100],
-                })
+                usages.append(
+                    {
+                        "file": rel_file,
+                        "line": int(parts[1]),
+                        "text": parts[2].strip()[:100],
+                    }
+                )
         return usages
 
     # Run searches in parallel
@@ -2154,7 +2357,11 @@ async def generator_info(
         3
     """
     if not file_path.endswith(".py"):
-        return {"error": "generator_info requires a Python file", "function": function_name, "file": str(file_path)}
+        return {
+            "error": "generator_info requires a Python file",
+            "function": function_name,
+            "file": str(file_path),
+        }
     try:
         if repo_path and not Path(file_path).is_absolute():
             full_path = Path(repo_path) / file_path
@@ -2167,7 +2374,10 @@ async def generator_info(
         # Find the target function (including methods inside classes)
         target: ast.FunctionDef | ast.AsyncFunctionDef | None = None
         for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == function_name
+            ):
                 target = node
                 break
 
@@ -2213,7 +2423,10 @@ async def generator_info(
             "return_annotation": return_annotation,
         }
     except FileNotFoundError:
-        result: dict[str, Any] = {"error": f"File not found: {file_path}", "file": str(file_path)}
+        result: dict[str, Any] = {
+            "error": f"File not found: {file_path}",
+            "file": str(file_path),
+        }
         if repo_path:
             similar = _find_similar_files(Path(file_path).name, repo_path)
             if similar:
@@ -2224,7 +2437,9 @@ async def generator_info(
 
 
 async def reasons_search(
-    query: str, repo_path: str, db_path: str | None = None,
+    query: str,
+    repo_path: str,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """Search beliefs in a reasons.db knowledge base.
 
@@ -2251,7 +2466,11 @@ async def reasons_search(
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            reasons_bin, "--db", resolved_db, "search", query,
+            reasons_bin,
+            "--db",
+            resolved_db,
+            "search",
+            query,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=repo_path,
@@ -2263,7 +2482,10 @@ async def reasons_search(
             return {"error": "reasons search timed out", "query": query}
 
         if proc.returncode != 0:
-            return {"error": f"reasons search failed: {stderr.decode()[:200]}", "query": query}
+            return {
+                "error": f"reasons search failed: {stderr.decode()[:200]}",
+                "query": query,
+            }
 
         return {
             "query": query,
@@ -2274,7 +2496,9 @@ async def reasons_search(
 
 
 async def gather_reasons_beliefs(
-    changed_files: list[str], repo_path: str, db_path: str | None = None,
+    changed_files: list[str],
+    repo_path: str,
+    db_path: str | None = None,
 ) -> dict[str, Any]:
     """Auto-gather beliefs from reasons.db related to changed files.
 
@@ -2300,9 +2524,22 @@ async def gather_reasons_beliefs(
         return {}
 
     generic_stems = {
-        "__init__", "utils", "helpers", "common", "types", "main",
-        "index", "app", "core", "base", "models", "api", "config",
-        "setup", "conftest", "fixtures",
+        "__init__",
+        "utils",
+        "helpers",
+        "common",
+        "types",
+        "main",
+        "index",
+        "app",
+        "core",
+        "base",
+        "models",
+        "api",
+        "config",
+        "setup",
+        "conftest",
+        "fixtures",
     }
 
     results: dict[str, Any] = {}
@@ -2311,12 +2548,14 @@ async def gather_reasons_beliefs(
     for file_path in changed_files:
         stem = Path(file_path).stem
         query = file_path if stem in generic_stems else f"{file_path} {stem}"
-        tasks.append((
-            file_path,
-            asyncio.ensure_future(
-                reasons_search(query, repo_path, db_path=resolved_db)
-            ),
-        ))
+        tasks.append(
+            (
+                file_path,
+                asyncio.ensure_future(
+                    reasons_search(query, repo_path, db_path=resolved_db)
+                ),
+            )
+        )
 
     if not tasks:
         return results
@@ -2357,7 +2596,9 @@ OBSERVATION_TOOLS: dict[str, Any] = {
 }
 
 
-async def run_observation(name: str, tool: str, params: dict[str, Any], repo_path: str) -> dict[str, Any]:
+async def run_observation(
+    name: str, tool: str, params: dict[str, Any], repo_path: str
+) -> dict[str, Any]:
     """
     Run a single observation tool.
 
@@ -2391,12 +2632,17 @@ async def run_observation(name: str, tool: str, params: dict[str, Any], repo_pat
     try:
         result = await tool_func(**filtered_params)
     except TypeError as e:
-        result = {"error": f"Parameter error: {e}", "params_received": list(params.keys())}
+        result = {
+            "error": f"Parameter error: {e}",
+            "params_received": list(params.keys()),
+        }
 
     return {"name": name, "tool": tool, "result": result}
 
 
-async def run_observations(observations: list[dict[str, Any]], repo_path: str) -> dict[str, Any]:
+async def run_observations(
+    observations: list[dict[str, Any]], repo_path: str
+) -> dict[str, Any]:
     """
     Run multiple observations in parallel and collect results.
 

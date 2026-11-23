@@ -124,15 +124,19 @@ def test_get_relations_filters():
 def test_apply_relations_no_double_store():
     """Outgoing relation should only be stored on the relational belief node,
     not duplicated on the subject node."""
-    network = FakeNetwork({
-        "a": FakeNode("a"),
-        "a-requires-b": FakeNode("a-requires-b"),
-        "b": FakeNode("b"),
-    })
+    network = FakeNetwork(
+        {
+            "a": FakeNode("a"),
+            "a-requires-b": FakeNode("a-requires-b"),
+            "b": FakeNode("b"),
+        }
+    )
     apply_relations_to_network(network)
     a_rels = get_relations(network.nodes["a"].metadata, direction="outgoing")
     assert len(a_rels) == 0
-    rel_rels = get_relations(network.nodes["a-requires-b"].metadata, direction="outgoing")
+    rel_rels = get_relations(
+        network.nodes["a-requires-b"].metadata, direction="outgoing"
+    )
     assert len(rel_rels) == 1
     b_rels = get_relations(network.nodes["b"].metadata, direction="incoming")
     assert len(b_rels) == 1
@@ -141,26 +145,37 @@ def test_apply_relations_no_double_store():
 def test_has_stored_relations():
     network = FakeNetwork({"a": FakeNode("a")})
     assert not has_stored_relations(network)
-    network.nodes["a"].metadata["relations"] = [{"relation": "requires", "target": "b", "direction": "outgoing"}]
+    network.nodes["a"].metadata["relations"] = [
+        {"relation": "requires", "target": "b", "direction": "outgoing"}
+    ]
     assert has_stored_relations(network)
 
 
 def test_ensure_relations_skips_if_stored():
-    network = FakeNetwork({
-        "a-requires-b": FakeNode("a-requires-b", metadata={
-            "relations": [{"relation": "requires", "target": "b", "direction": "outgoing"}]
-        }),
-    })
+    network = FakeNetwork(
+        {
+            "a-requires-b": FakeNode(
+                "a-requires-b",
+                metadata={
+                    "relations": [
+                        {"relation": "requires", "target": "b", "direction": "outgoing"}
+                    ]
+                },
+            ),
+        }
+    )
     ensure_relations(network)
     assert len(network.nodes["a-requires-b"].metadata["relations"]) == 1
 
 
 def test_transitive_closure():
-    network = FakeNetwork({
-        "a-requires-b": FakeNode("a-requires-b"),
-        "b-requires-c": FakeNode("b-requires-c"),
-        "c": FakeNode("c"),
-    })
+    network = FakeNetwork(
+        {
+            "a-requires-b": FakeNode("a-requires-b"),
+            "b-requires-c": FakeNode("b-requires-c"),
+            "c": FakeNode("c"),
+        }
+    )
     apply_relations_to_network(network)
     chain = transitive_closure(network, "a", "requires")
     assert "b" in chain
@@ -168,10 +183,12 @@ def test_transitive_closure():
 
 
 def test_find_unmet_requirements():
-    network = FakeNetwork({
-        "a-requires-b": FakeNode("a-requires-b"),
-        "b": FakeNode("b", truth_value="OUT"),
-    })
+    network = FakeNetwork(
+        {
+            "a-requires-b": FakeNode("a-requires-b"),
+            "b": FakeNode("b", truth_value="OUT"),
+        }
+    )
     apply_relations_to_network(network)
     unmet = find_unmet_requirements(network)
     assert len(unmet) == 1
@@ -179,22 +196,26 @@ def test_find_unmet_requirements():
 
 
 def test_find_prevention_conflicts():
-    network = FakeNetwork({
-        "a-prevents-b": FakeNode("a-prevents-b"),
-        "a": FakeNode("a"),
-        "b": FakeNode("b"),
-    })
+    network = FakeNetwork(
+        {
+            "a-prevents-b": FakeNode("a-prevents-b"),
+            "a": FakeNode("a"),
+            "b": FakeNode("b"),
+        }
+    )
     apply_relations_to_network(network)
     conflicts = find_prevention_conflicts(network)
     assert len(conflicts) == 1
 
 
 def test_relation_stats():
-    network = FakeNetwork({
-        "a-requires-b": FakeNode("a-requires-b"),
-        "c-enables-d": FakeNode("c-enables-d"),
-        "plain": FakeNode("plain"),
-    })
+    network = FakeNetwork(
+        {
+            "a-requires-b": FakeNode("a-requires-b"),
+            "c-enables-d": FakeNode("c-enables-d"),
+            "plain": FakeNode("plain"),
+        }
+    )
     apply_relations_to_network(network)
     stats = relation_stats(network)
     assert stats["total_relations"] == 2

@@ -89,7 +89,8 @@ def query_beliefs_for_files(
                 "dependent_count": len(node.dependents),
                 "score": score,
                 "metadata": {
-                    k: v for k, v in node.metadata.items()
+                    k: v
+                    for k, v in node.metadata.items()
                     if k in ("source_type", "review_result", "challenges")
                 },
             }
@@ -135,19 +136,26 @@ def query_gated_beliefs(
             for j in node.justifications:
                 active_blockers = []
                 for outlist_id in j.outlist:
-                    if outlist_id in net.nodes and net.nodes[outlist_id].truth_value == "IN":
+                    if (
+                        outlist_id in net.nodes
+                        and net.nodes[outlist_id].truth_value == "IN"
+                    ):
                         blocker = net.nodes[outlist_id]
-                        active_blockers.append({
-                            "id": outlist_id,
-                            "text": blocker.text,
-                        })
+                        active_blockers.append(
+                            {
+                                "id": outlist_id,
+                                "text": blocker.text,
+                            }
+                        )
                 if active_blockers:
-                    relevant_gates.append({
-                        "gated_id": nid,
-                        "gated_text": node.text,
-                        "blockers": active_blockers,
-                        "score": score,
-                    })
+                    relevant_gates.append(
+                        {
+                            "gated_id": nid,
+                            "gated_text": node.text,
+                            "blockers": active_blockers,
+                            "score": score,
+                        }
+                    )
 
         relevant_gates.sort(key=lambda g: -g["score"])
         return {
@@ -174,8 +182,14 @@ def format_beliefs_for_prompt(
         lines.append("## Active Beliefs (IN)")
         lines.append("")
         for b in in_beliefs:
-            jtype = ", ".join(b["justification_types"]) if b["justification_types"] else "premise"
-            deps = f", {b['dependent_count']} dependents" if b["dependent_count"] else ""
+            jtype = (
+                ", ".join(b["justification_types"])
+                if b["justification_types"]
+                else "premise"
+            )
+            deps = (
+                f", {b['dependent_count']} dependents" if b["dependent_count"] else ""
+            )
             lines.append(f"### `{b['id']}` [IN]")
             lines.append(f"{b['text']}")
             lines.append(f"- Justification: {jtype}{deps}")
@@ -197,7 +211,9 @@ def format_beliefs_for_prompt(
         lines.append("## Gated Beliefs (blocked by active beliefs)")
         lines.append("")
         lines.append("These beliefs are OUT because their blockers are IN.")
-        lines.append("If the diff resolves a blocker, the gated belief could become true.")
+        lines.append(
+            "If the diff resolves a blocker, the gated belief could become true."
+        )
         lines.append("")
         for g in gated:
             lines.append(f"### `{g['gated_id']}` [GATED]")
@@ -245,7 +261,22 @@ def _match_score(node, nid: str, changed_files: list[str], file_stems: set[str])
 
 
 _GENERIC_STEMS = {
-    "__init__", "utils", "helpers", "common", "types", "main",
-    "index", "app", "core", "base", "models", "api", "config",
-    "setup", "conftest", "fixtures", "mod", "lib",
+    "__init__",
+    "utils",
+    "helpers",
+    "common",
+    "types",
+    "main",
+    "index",
+    "app",
+    "core",
+    "base",
+    "models",
+    "api",
+    "config",
+    "setup",
+    "conftest",
+    "fixtures",
+    "mod",
+    "lib",
 }

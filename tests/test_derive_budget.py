@@ -38,7 +38,7 @@ def _make_nodes(agent_beliefs, local_beliefs=None):
             nid = f"{agent}:{s}"
             agents[agent].append(nid)
             nodes[nid] = {"truth_value": "IN", "text": f"{agent} belief {s}"}
-    for lid in (local_beliefs or []):
+    for lid in local_beliefs or []:
         nodes[lid] = {"truth_value": "IN", "text": f"Local belief {lid}"}
     derived = {}
     return nodes, derived, agents
@@ -53,15 +53,19 @@ def _count_local_shown(output):
 
 def _count_agent_shown(output, agent_name):
     """Extract 'showing N' from an agent header."""
-    m = re.search(rf"Agent: {re.escape(agent_name)} \(\d+ beliefs, showing (\d+)\)", output)
-    assert m is not None, f"Agent header for {agent_name} not found in output:\n{output[:500]}"
+    m = re.search(
+        rf"Agent: {re.escape(agent_name)} \(\d+ beliefs, showing (\d+)\)", output
+    )
+    assert m is not None, (
+        f"Agent header for {agent_name} not found in output:\n{output[:500]}"
+    )
     return int(m.group(1))
 
 
 # --- Core regression: count is N, not N² ---
 
-class TestCountLinearNotQuadratic:
 
+class TestCountLinearNotQuadratic:
     def test_six_beliefs_one_agent(self):
         """With 6 agent beliefs and budget=20, locals get 15 (not buggy 5).
 
@@ -93,8 +97,8 @@ class TestCountLinearNotQuadratic:
 
 # --- Multi-agent accumulation ---
 
-class TestMultiAgent:
 
+class TestMultiAgent:
     def test_two_agents_accumulate_correctly(self):
         """Count sums across both agents, leaving correct remainder for locals."""
         nodes, derived, agents = _make_nodes(
@@ -130,8 +134,8 @@ class TestMultiAgent:
 
 # --- Budget floor ---
 
-class TestBudgetFloor:
 
+class TestBudgetFloor:
     def test_floor_of_five_when_agents_exceed_budget(self):
         """Even when agents consume the entire budget, locals get at least 5.
 
@@ -165,8 +169,8 @@ class TestBudgetFloor:
 
 # --- Edge cases ---
 
-class TestEdgeCases:
 
+class TestEdgeCases:
     def test_single_agent_belief(self):
         """N=1: N²=N=1, bug was invisible — verify fix doesn't break it."""
         nodes, derived, agents = _make_nodes(
@@ -181,8 +185,10 @@ class TestEdgeCases:
 
     def test_no_agents(self):
         """No agents: entire budget goes to grouped local beliefs."""
-        nodes = {f"belief-{i}": {"truth_value": "IN", "text": f"Belief {i}"}
-                 for i in range(10)}
+        nodes = {
+            f"belief-{i}": {"truth_value": "IN", "text": f"Belief {i}"}
+            for i in range(10)
+        }
         derived = {}
         output, _ = _build_beliefs_section(nodes, derived, agents=None, max_beliefs=20)
         assert "Agent:" not in output
@@ -206,7 +212,10 @@ class TestEdgeCases:
     def test_empty_network_with_agents(self):
         """Agents dict provided but no matching nodes."""
         output, _ = _build_beliefs_section(
-            {}, {}, agents={"agent-a": ["agent-a:missing"]}, max_beliefs=20,
+            {},
+            {},
+            agents={"agent-a": ["agent-a:missing"]},
+            max_beliefs=20,
         )
         assert isinstance(output, str)
 
@@ -217,20 +226,25 @@ class TestEdgeCases:
             "agent-a:premise-1": {"truth_value": "IN", "text": "premise 1"},
             "agent-a:premise-2": {"truth_value": "IN", "text": "premise 2"},
             "agent-a:derived-1": {
-                "truth_value": "IN", "text": "derived from premises",
-                "justifications": [{"antecedents": ["agent-a:premise-1", "agent-a:premise-2"]}],
+                "truth_value": "IN",
+                "text": "derived from premises",
+                "justifications": [
+                    {"antecedents": ["agent-a:premise-1", "agent-a:premise-2"]}
+                ],
             },
         }
         derived = {"agent-a:derived-1": nodes["agent-a:derived-1"]}
-        agents = {"agent-a": ["agent-a:premise-1", "agent-a:premise-2", "agent-a:derived-1"]}
+        agents = {
+            "agent-a": ["agent-a:premise-1", "agent-a:premise-2", "agent-a:derived-1"]
+        }
         output, _ = _build_beliefs_section(nodes, derived, agents, max_beliefs=20)
         assert "Agent: agent-a" in output
 
 
 # --- Sampling mode ---
 
-class TestSampling:
 
+class TestSampling:
     def test_sample_mode_respects_budget(self):
         """In sample mode, the budget calculation should also be correct."""
         nodes, derived, agents = _make_nodes(
@@ -238,7 +252,12 @@ class TestSampling:
             local_beliefs=[f"local-{i}" for i in range(20)],
         )
         output, _ = _build_beliefs_section(
-            nodes, derived, agents, max_beliefs=20, sample=True, seed=42,
+            nodes,
+            derived,
+            agents,
+            max_beliefs=20,
+            sample=True,
+            seed=42,
         )
         local_shown = _count_local_shown(output)
         assert local_shown >= 5
@@ -250,25 +269,38 @@ class TestSampling:
             local_beliefs=[f"local-{i}" for i in range(20)],
         )
         out1, _ = _build_beliefs_section(
-            nodes, derived, agents, max_beliefs=15, sample=True, seed=99,
+            nodes,
+            derived,
+            agents,
+            max_beliefs=15,
+            sample=True,
+            seed=99,
         )
         out2, _ = _build_beliefs_section(
-            nodes, derived, agents, max_beliefs=15, sample=True, seed=99,
+            nodes,
+            derived,
+            agents,
+            max_beliefs=15,
+            sample=True,
+            seed=99,
         )
         assert out1 == out2
 
 
 # --- Integration: build_prompt with agent network ---
 
-class TestBuildPromptIntegration:
 
+class TestBuildPromptIntegration:
     def test_build_prompt_budget_correct(self, db):
         """End-to-end: build_prompt with agents uses correct budget."""
         api.add_node("agent-a:active", "Agent A active", db_path=db)
         for i in range(6):
             api.add_node(
-                f"agent-a:belief-{i}", f"Agent A belief {i}",
-                sl="agent-a:active", label="imported", db_path=db,
+                f"agent-a:belief-{i}",
+                f"Agent A belief {i}",
+                sl="agent-a:active",
+                label="imported",
+                db_path=db,
             )
         for i in range(20):
             api.add_node(f"local-{i}", f"Local belief {i}", db_path=db)

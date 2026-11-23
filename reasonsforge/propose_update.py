@@ -190,15 +190,17 @@ def parse_update_proposals(response):
             basis = item.get("basis", "prior-knowledge")
             if basis not in BASES:
                 basis = "prior-knowledge"
-            results.append({
-                "id": item["id"],
-                "action": action,
-                "proposed_text": item.get("proposed_text"),
-                "failure_mode": failure_mode,
-                "basis": basis,
-                "evidence": item.get("evidence", ""),
-                "comment": item.get("comment", ""),
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "action": action,
+                    "proposed_text": item.get("proposed_text"),
+                    "failure_mode": failure_mode,
+                    "basis": basis,
+                    "evidence": item.get("evidence", ""),
+                    "comment": item.get("comment", ""),
+                }
+            )
         if results:
             return results
     return []
@@ -235,18 +237,20 @@ def format_proposal_markdown(proposal, nodes=None, cascade=None):
                 lines.append(f"\n**Cascade impact:** {total} dependent(s) affected")
                 for item in retracted:
                     text = item.get("text", "")[:80]
-                    lines.append(f"- {item['id']}: \"{text}\" — will go OUT")
+                    lines.append(f'- {item["id"]}: "{text}" — will go OUT')
                 for item in restored:
                     text = item.get("text", "")[:80]
-                    lines.append(f"- {item['id']}: \"{text}\" — will go IN")
+                    lines.append(f'- {item["id"]}: "{text}" — will go IN')
             else:
-                lines.append(f"\n**Cascade impact:** {total} dependent(s) need re-review")
+                lines.append(
+                    f"\n**Cascade impact:** {total} dependent(s) need re-review"
+                )
                 for item in retracted:
                     text = item.get("text", "")[:80]
-                    lines.append(f"- {item['id']}: \"{text}\"")
+                    lines.append(f'- {item["id"]}: "{text}"')
                 for item in restored:
                     text = item.get("text", "")[:80]
-                    lines.append(f"- {item['id']}: \"{text}\"")
+                    lines.append(f'- {item["id"]}: "{text}"')
         else:
             lines.append("\n**Cascade impact:** none")
     else:
@@ -254,12 +258,12 @@ def format_proposal_markdown(proposal, nodes=None, cascade=None):
 
     if action == "UPDATE" and proposal.get("proposed_text"):
         escaped = proposal["proposed_text"].replace('"', '\\"')
-        lines.append(f"\n**Command:** `reasons update {nid} \"{escaped}\"`")
+        lines.append(f'\n**Command:** `reasons update {nid} "{escaped}"`')
     elif action == "RETRACT":
         fm = proposal.get("failure_mode", "unknown")
         lines.append(
             f"\n**Command:** `reasons retract {nid} "
-            f"--reason \"{fm}: {proposal.get('comment', '')}\"`"
+            f'--reason "{fm}: {proposal.get("comment", "")}"`'
         )
 
     return "\n".join(lines)
@@ -288,15 +292,22 @@ def format_proposals_file(proposals, nodes=None, cascades=None):
     return "\n".join(lines)
 
 
-def propose_updates(nodes, belief_ids=None, model="claude", timeout=300,
-                    batch_size=PROPOSE_UPDATE_BATCH_SIZE, on_batch=None):
+def propose_updates(
+    nodes,
+    belief_ids=None,
+    model="claude",
+    timeout=300,
+    batch_size=PROPOSE_UPDATE_BATCH_SIZE,
+    on_batch=None,
+):
     """Propose updates for beliefs by sending them to an LLM in batches.
 
     Returns list of proposal dicts.
     """
     if belief_ids is None:
         belief_ids = [
-            nid for nid, node in sorted(nodes.items())
+            nid
+            for nid, node in sorted(nodes.items())
             if node.get("truth_value") == "IN"
         ]
     else:
@@ -309,10 +320,12 @@ def propose_updates(nodes, belief_ids=None, model="claude", timeout=300,
     total_batches = (len(belief_ids) + batch_size - 1) // batch_size
 
     for i in range(0, len(belief_ids), batch_size):
-        batch = belief_ids[i:i + batch_size]
+        batch = belief_ids[i : i + batch_size]
         batch_num = i // batch_size + 1
-        print(f"  Reviewing batch {batch_num}/{total_batches} "
-              f"({len(batch)} beliefs)...", file=sys.stderr)
+        print(
+            f"  Reviewing batch {batch_num}/{total_batches} ({len(batch)} beliefs)...",
+            file=sys.stderr,
+        )
 
         beliefs_text = "\n\n".join(
             format_belief_for_update(nid, nodes) for nid in batch

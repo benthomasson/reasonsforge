@@ -21,9 +21,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -32,7 +34,6 @@ def run_cli(*args, db_path=None):
 
 
 class TestInit:
-
     def test_init_creates_db(self, db_path):
         out, err, code = run_cli("init", db_path=db_path)
         assert code == 0
@@ -52,7 +53,6 @@ class TestInit:
 
 
 class TestAdd:
-
     def test_add_premise(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("add", "a", "Premise A", db_path=db_path)
@@ -76,7 +76,9 @@ class TestAdd:
 
     def test_add_with_access_tags(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("add", "a", "Tagged", "--access-tags", "finance,hr", db_path=db_path)
+        out, err, code = run_cli(
+            "add", "a", "Tagged", "--access-tags", "finance,hr", db_path=db_path
+        )
         assert code == 0
         assert "Added a [IN]" in out
 
@@ -92,7 +94,6 @@ class TestAdd:
 
 
 class TestAddJustification:
-
     def test_add_justification(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -103,13 +104,14 @@ class TestAddJustification:
 
     def test_add_justification_missing_node(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("add-justification", "missing", "--sl", "a", db_path=db_path)
+        out, err, code = run_cli(
+            "add-justification", "missing", "--sl", "a", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
 
 class TestRetractAssert:
-
     def test_retract(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -137,7 +139,9 @@ class TestRetractAssert:
     def test_retract_with_reason(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
-        out, err, code = run_cli("retract", "a", "--reason", "Fixed in PR", db_path=db_path)
+        out, err, code = run_cli(
+            "retract", "a", "--reason", "Fixed in PR", db_path=db_path
+        )
         assert code == 0
 
     def test_retract_missing(self, db_path):
@@ -172,7 +176,6 @@ class TestRetractAssert:
 
 
 class TestStatus:
-
     def test_status_empty(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("status", db_path=db_path)
@@ -202,14 +205,15 @@ class TestStatus:
         run_cli("init", db_path=db_path)
         run_cli("add", "pub", "Public", db_path=db_path)
         run_cli("add", "fin", "Finance", "--access-tags", "finance", db_path=db_path)
-        out, err, code = run_cli("status", "--all", "--visible-to", "public", db_path=db_path)
+        out, err, code = run_cli(
+            "status", "--all", "--visible-to", "public", db_path=db_path
+        )
         assert code == 0
         assert "pub" in out
         assert "fin" not in out
 
 
 class TestShow:
-
     def test_show_premise(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Premise A", db_path=db_path)
@@ -259,7 +263,6 @@ class TestShow:
 
 
 class TestExplain:
-
     def test_explain_premise(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -284,13 +287,14 @@ class TestExplain:
     def test_explain_access_denied(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "fin", "Finance", "--access-tags", "finance", db_path=db_path)
-        out, err, code = run_cli("explain", "fin", "--visible-to", "hr", db_path=db_path)
+        out, err, code = run_cli(
+            "explain", "fin", "--visible-to", "hr", db_path=db_path
+        )
         assert code == 1
         assert "Access denied" in err
 
 
 class TestTrace:
-
     def test_trace_premise(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -316,7 +320,6 @@ class TestTrace:
 
 
 class TestTraceAccessTags:
-
     def test_trace_access_tags(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", "--access-tags", "finance", db_path=db_path)
@@ -339,7 +342,6 @@ class TestTraceAccessTags:
 
 
 class TestList:
-
     def test_list_all(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -375,7 +377,6 @@ class TestList:
 
 
 class TestSearchLookup:
-
     def test_search(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "The quick brown fox", db_path=db_path)
@@ -392,7 +393,6 @@ class TestSearchLookup:
 
 
 class TestExport:
-
     def test_export_json(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -416,11 +416,11 @@ class TestExport:
         assert code == 0
         assert "Written to" in out
         from pathlib import Path
+
         assert "a" in Path(out_file).read_text()
 
 
 class TestCompact:
-
     def test_compact(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Premise A", db_path=db_path)
@@ -430,7 +430,6 @@ class TestCompact:
 
 
 class TestChallenge:
-
     def test_challenge_and_defend(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "claim", "A bold claim", db_path=db_path)
@@ -439,13 +438,14 @@ class TestChallenge:
         assert "Challenged claim" in out
         assert "challenge-claim" in out
 
-        out, err, code = run_cli("defend", "claim", "challenge-claim", "New evidence", db_path=db_path)
+        out, err, code = run_cli(
+            "defend", "claim", "challenge-claim", "New evidence", db_path=db_path
+        )
         assert code == 0
         assert "Defended claim" in out
 
 
 class TestNogood:
-
     def test_nogood(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -462,7 +462,6 @@ class TestNogood:
 
 
 class TestWhatIf:
-
     def test_what_if_retract(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -500,7 +499,6 @@ class TestWhatIf:
 
 
 class TestSupersede:
-
     def test_supersede(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "old", "Old belief", db_path=db_path)
@@ -512,14 +510,24 @@ class TestSupersede:
     def test_supersede_with_text(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "old", "Old belief", db_path=db_path)
-        out, err, code = run_cli("supersede", "old", "--text", "Corrected belief", db_path=db_path)
+        out, err, code = run_cli(
+            "supersede", "old", "--text", "Corrected belief", db_path=db_path
+        )
         assert code == 0
         assert "Superseded old by" in out
 
     def test_supersede_with_text_and_id(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "old", "Old belief", db_path=db_path)
-        out, err, code = run_cli("supersede", "old", "--text", "Corrected", "--id", "old-fixed", db_path=db_path)
+        out, err, code = run_cli(
+            "supersede",
+            "old",
+            "--text",
+            "Corrected",
+            "--id",
+            "old-fixed",
+            db_path=db_path,
+        )
         assert code == 0
         assert "Superseded old by old-fixed" in out
 
@@ -527,7 +535,9 @@ class TestSupersede:
         run_cli("init", db_path=db_path)
         run_cli("add", "old", "Old belief", db_path=db_path)
         run_cli("add", "new", "New belief", db_path=db_path)
-        out, err, code = run_cli("supersede", "old", "new", "--text", "Both", db_path=db_path)
+        out, err, code = run_cli(
+            "supersede", "old", "new", "--text", "Both", db_path=db_path
+        )
         assert code == 1
         assert "cannot specify both" in err
 
@@ -540,7 +550,6 @@ class TestSupersede:
 
 
 class TestCheckIntegrity:
-
     def test_clean(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "p1", "Premise", db_path=db_path)
@@ -555,6 +564,7 @@ class TestCheckIntegrity:
         run_cli("add", "d1", "Derived", "--sl", "p1", db_path=db_path)
         # Simulate unauthorized text mutation via Storage
         from reasonsforge.storage import Storage
+
         store = Storage(db_path)
         net = store.load()
         net.nodes["p1"].text = "Tampered"
@@ -566,12 +576,12 @@ class TestCheckIntegrity:
 
 
 class TestBackfillHashes:
-
     def test_backfill(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "p1", "Premise", db_path=db_path)
         # Strip hashes to simulate pre-existing data
         from reasonsforge.storage import Storage
+
         store = Storage(db_path)
         net = store.load()
         net.nodes["p1"].text_hash = ""
@@ -583,7 +593,6 @@ class TestBackfillHashes:
 
 
 class TestConvertToPremise:
-
     def test_convert_to_premise(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -595,7 +604,6 @@ class TestConvertToPremise:
 
 
 class TestPropagate:
-
     def test_propagate_current(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -605,7 +613,6 @@ class TestPropagate:
 
 
 class TestLog:
-
     def test_log_empty(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("log", db_path=db_path)
@@ -614,7 +621,6 @@ class TestLog:
 
 
 class TestRepos:
-
     def test_add_repo_and_list(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("add-repo", "myrepo", "/tmp/myrepo", db_path=db_path)
@@ -634,7 +640,6 @@ class TestRepos:
 
 
 class TestImportExportJson:
-
     def test_import_json_roundtrip(self, db_path, tmp_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -643,6 +648,7 @@ class TestImportExportJson:
         out, _, _ = run_cli("export", "--output=-", db_path=db_path)
         json_file = str(tmp_path / "export.json")
         from pathlib import Path
+
         Path(json_file).write_text(out)
 
         db2 = str(tmp_path / "test2.db")
@@ -653,19 +659,19 @@ class TestImportExportJson:
 
 
 class TestSummarize:
-
     def test_summarize(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
         run_cli("add", "b", "B", db_path=db_path)
-        out, err, code = run_cli("summarize", "s", "Summary of A and B", "--over", "a,b", db_path=db_path)
+        out, err, code = run_cli(
+            "summarize", "s", "Summary of A and B", "--over", "a,b", db_path=db_path
+        )
         assert code == 0
         assert "Created summary s" in out
         assert "2 nodes" in out
 
 
 class TestImportBeliefs:
-
     def test_import_beliefs(self, db_path, tmp_path):
         beliefs = tmp_path / "beliefs.md"
         beliefs.write_text("""\
@@ -690,13 +696,14 @@ Derived from both
 
     def test_import_beliefs_file_not_found(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("import-beliefs", "/nonexistent/beliefs.md", db_path=db_path)
+        out, err, code = run_cli(
+            "import-beliefs", "/nonexistent/beliefs.md", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
 
 class TestImportAgent:
-
     def test_import_agent(self, db_path, tmp_path):
         beliefs = tmp_path / "beliefs.md"
         beliefs.write_text("""\
@@ -708,14 +715,18 @@ class TestImportAgent:
 An observation from the agent
 """)
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("import-agent", "myagent", str(beliefs), db_path=db_path)
+        out, err, code = run_cli(
+            "import-agent", "myagent", str(beliefs), db_path=db_path
+        )
         assert code == 0
         assert "myagent" in out
         assert "Imported:" in out or "imported" in out.lower()
 
     def test_import_agent_file_not_found(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("import-agent", "myagent", "/nonexistent.md", db_path=db_path)
+        out, err, code = run_cli(
+            "import-agent", "myagent", "/nonexistent.md", db_path=db_path
+        )
         assert code == 1
 
     def test_sync_agent(self, db_path, tmp_path):
@@ -748,7 +759,6 @@ A new observation
 
 
 class TestNamespaces:
-
     def test_namespaces_empty(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("namespaces", db_path=db_path)
@@ -774,7 +784,6 @@ An observation
 
 
 class TestDeduplicate:
-
     def test_deduplicate_no_duplicates(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "alpha", "Something about alpha", db_path=db_path)
@@ -786,7 +795,9 @@ class TestDeduplicate:
     def test_deduplicate_finds_similar(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "propagation-is-bfs", "Propagation uses BFS", db_path=db_path)
-        run_cli("add", "propagation-uses-bfs", "Propagation is BFS-based", db_path=db_path)
+        run_cli(
+            "add", "propagation-uses-bfs", "Propagation is BFS-based", db_path=db_path
+        )
         out, err, code = run_cli("deduplicate", db_path=db_path)
         assert code == 0
         assert "Cluster" in out or "No duplicate" in out
@@ -794,7 +805,9 @@ class TestDeduplicate:
     def test_deduplicate_auto(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "propagation-is-bfs", "Propagation uses BFS", db_path=db_path)
-        run_cli("add", "propagation-uses-bfs", "Propagation is BFS-based", db_path=db_path)
+        run_cli(
+            "add", "propagation-uses-bfs", "Propagation is BFS-based", db_path=db_path
+        )
         out, err, code = run_cli("deduplicate", "--auto", db_path=db_path)
         assert code == 0
 
@@ -802,13 +815,17 @@ class TestDeduplicate:
         plan_file = tmp_path / "plan.md"
         plan_file.write_text("")
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("deduplicate", "--accept", str(plan_file), db_path=db_path)
+        out, err, code = run_cli(
+            "deduplicate", "--accept", str(plan_file), db_path=db_path
+        )
         assert code == 0
         assert "No clusters" in out
 
     def test_deduplicate_accept_missing_file(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("deduplicate", "--accept", "/nonexistent.md", db_path=db_path)
+        out, err, code = run_cli(
+            "deduplicate", "--accept", "/nonexistent.md", db_path=db_path
+        )
         assert code == 1
 
 
@@ -818,16 +835,24 @@ except ImportError:
     HAS_CLUSTER_DEPS = False
 
 
-@pytest.mark.skipif(not HAS_CLUSTER_DEPS,
-                    reason="sentence-transformers and scikit-learn not installed")
+@pytest.mark.skipif(
+    not HAS_CLUSTER_DEPS, reason="sentence-transformers and scikit-learn not installed"
+)
 class TestDeduplicateSemantic:
-
     def test_semantic_finds_similar(self, db_path):
         run_cli("init", db_path=db_path)
-        run_cli("add", "input-validation-at-boundaries",
-                "The system validates all inputs at system boundaries", db_path=db_path)
-        run_cli("add", "boundary-input-checking",
-                "Input validation occurs at system edges and boundaries", db_path=db_path)
+        run_cli(
+            "add",
+            "input-validation-at-boundaries",
+            "The system validates all inputs at system boundaries",
+            db_path=db_path,
+        )
+        run_cli(
+            "add",
+            "boundary-input-checking",
+            "Input validation occurs at system edges and boundaries",
+            db_path=db_path,
+        )
         out, err, code = run_cli("deduplicate", "--semantic", db_path=db_path)
         assert code == 0
         assert "Cluster" in out
@@ -835,15 +860,17 @@ class TestDeduplicateSemantic:
     def test_semantic_with_threshold(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "alpha", "Something about alpha", db_path=db_path)
-        run_cli("add", "beta", "Something completely unrelated about beta", db_path=db_path)
-        out, err, code = run_cli("deduplicate", "--semantic", "--threshold", "0.95",
-                                  db_path=db_path)
+        run_cli(
+            "add", "beta", "Something completely unrelated about beta", db_path=db_path
+        )
+        out, err, code = run_cli(
+            "deduplicate", "--semantic", "--threshold", "0.95", db_path=db_path
+        )
         assert code == 0
         assert "No duplicate" in out
 
 
 class TestCheckStale:
-
     def test_check_stale_all_fresh(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -877,7 +904,6 @@ class TestCheckStale:
 
 
 class TestHashSources:
-
     def test_hash_sources_nothing_to_hash(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -908,7 +934,6 @@ class TestHashSources:
 
 
 class TestDerive:
-
     def test_derive_dry_run(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A premise", db_path=db_path)
@@ -925,7 +950,6 @@ class TestDerive:
 
 
 class TestAccept:
-
     def test_accept_file_not_found(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("accept", "/nonexistent.md", db_path=db_path)
@@ -958,7 +982,6 @@ Combined from A and B
 
 
 class TestNoCommand:
-
     def test_no_command_prints_help(self):
         out, err, code = run_cli()
         assert code == 1
@@ -971,7 +994,6 @@ class TestNoCommand:
 
 
 class TestAddJustificationCascade:
-
     def test_add_justification_cascade(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -984,7 +1006,6 @@ class TestAddJustificationCascade:
 
 
 class TestRetractRestorationHints:
-
     def test_retract_restoration_hints(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "p1", "Premise 1", db_path=db_path)
@@ -998,7 +1019,6 @@ class TestRetractRestorationHints:
 
 
 class TestAssertMissing:
-
     def test_assert_missing(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("assert", "nonexistent", db_path=db_path)
@@ -1007,7 +1027,6 @@ class TestAssertMissing:
 
 
 class TestWhatIfEdgeCases:
-
     def test_what_if_assert_already_in(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -1029,7 +1048,6 @@ class TestWhatIfEdgeCases:
 
 
 class TestShowSource:
-
     def test_show_with_source(self, db_path, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         src = tmp_path / "source.py"
@@ -1044,7 +1062,6 @@ class TestShowSource:
 
 
 class TestExplainBranches:
-
     def test_explain_with_outlist(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "blocker", "Blocker", db_path=db_path)
@@ -1083,7 +1100,6 @@ class TestExplainBranches:
 
 
 class TestConvertToPremiseEdgeCases:
-
     def test_convert_to_premise_missing(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("convert-to-premise", "missing", db_path=db_path)
@@ -1092,16 +1108,19 @@ class TestConvertToPremiseEdgeCases:
 
 
 class TestErrorCases:
-
     def test_summarize_missing_node(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("summarize", "s", "Summary", "--over", "missing", db_path=db_path)
+        out, err, code = run_cli(
+            "summarize", "s", "Summary", "--over", "missing", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
     def test_supersede_missing(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("supersede", "missing-old", "missing-new", db_path=db_path)
+        out, err, code = run_cli(
+            "supersede", "missing-old", "missing-new", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
@@ -1113,13 +1132,14 @@ class TestErrorCases:
 
     def test_defend_missing(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("defend", "missing", "challenge-missing", "evidence", db_path=db_path)
+        out, err, code = run_cli(
+            "defend", "missing", "challenge-missing", "evidence", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
 
 class TestTraceEdgeCases:
-
     def test_trace_missing(self, db_path):
         run_cli("init", db_path=db_path)
         out, err, code = run_cli("trace", "missing", db_path=db_path)
@@ -1128,14 +1148,17 @@ class TestTraceEdgeCases:
 
     def test_trace_access_tags_denied(self, db_path):
         run_cli("init", db_path=db_path)
-        run_cli("add", "fin", "Finance data", "--access-tags", "finance", db_path=db_path)
-        out, err, code = run_cli("trace-access-tags", "fin", "--visible-to", "hr", db_path=db_path)
+        run_cli(
+            "add", "fin", "Finance data", "--access-tags", "finance", db_path=db_path
+        )
+        out, err, code = run_cli(
+            "trace-access-tags", "fin", "--visible-to", "hr", db_path=db_path
+        )
         assert code == 1
         assert "Access denied" in err
 
 
 class TestLogWithEntries:
-
     def test_log_with_entries(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -1147,13 +1170,13 @@ class TestLogWithEntries:
 
 
 class TestPropagateWithChanges:
-
     def test_propagate_with_changes(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
         run_cli("add", "b", "B", "--sl", "a", db_path=db_path)
         # Directly set b's truth_value to OUT without proper retraction
         from reasonsforge.storage import Storage
+
         store = Storage(db_path)
         net = store.load()
         net.nodes["b"].truth_value = "OUT"
@@ -1166,7 +1189,6 @@ class TestPropagateWithChanges:
 
 
 class TestImportAgentEdgeCases:
-
     def test_import_agent_existing_premise(self, db_path, tmp_path):
         beliefs = tmp_path / "beliefs.md"
         beliefs.write_text("""\
@@ -1179,7 +1201,9 @@ An observation from the agent
 """)
         run_cli("init", db_path=db_path)
         run_cli("import-agent", "myagent", str(beliefs), db_path=db_path)
-        out, err, code = run_cli("import-agent", "myagent", str(beliefs), db_path=db_path)
+        out, err, code = run_cli(
+            "import-agent", "myagent", str(beliefs), db_path=db_path
+        )
         assert code == 0
         assert "Premise exists:" in out
 
@@ -1195,13 +1219,17 @@ An observation
 """)
         run_cli("init", db_path=db_path)
         run_cli("import-agent", "myagent", str(beliefs), db_path=db_path)
-        out, err, code = run_cli("import-agent", "myagent", str(beliefs), db_path=db_path)
+        out, err, code = run_cli(
+            "import-agent", "myagent", str(beliefs), db_path=db_path
+        )
         assert code == 0
         assert "Skipped:" in out
 
     def test_sync_agent_file_not_found(self, db_path):
         run_cli("init", db_path=db_path)
-        out, err, code = run_cli("sync-agent", "myagent", "/nonexistent.md", db_path=db_path)
+        out, err, code = run_cli(
+            "sync-agent", "myagent", "/nonexistent.md", db_path=db_path
+        )
         assert code == 1
         assert "Error" in err
 
@@ -1229,13 +1257,14 @@ Second observation
 ### obs-one [IN] OBSERVATION
 First observation
 """)
-        out, err, code = run_cli("sync-agent", "myagent", str(beliefs_v1), db_path=db_path)
+        out, err, code = run_cli(
+            "sync-agent", "myagent", str(beliefs_v1), db_path=db_path
+        )
         assert code == 0
         assert "Removed:" in out
 
 
 class TestImportBeliefsEdgeCases:
-
     def test_import_beliefs_with_skipped(self, db_path, tmp_path):
         beliefs = tmp_path / "beliefs.md"
         beliefs.write_text("""\
@@ -1278,7 +1307,6 @@ Second premise
 
 
 class TestImportJsonWithNogoods:
-
     def test_import_json_with_nogoods(self, db_path, tmp_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "A", db_path=db_path)
@@ -1288,6 +1316,7 @@ class TestImportJsonWithNogoods:
         out, _, _ = run_cli("export", "--output=-", db_path=db_path)
         json_file = str(tmp_path / "export.json")
         from pathlib import Path
+
         Path(json_file).write_text(out)
 
         db2 = str(tmp_path / "test2.db")
@@ -1298,7 +1327,6 @@ class TestImportJsonWithNogoods:
 
 
 class TestDeduplicateAcceptPlan:
-
     def test_deduplicate_accept_with_retraction(self, db_path, tmp_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "prop-is-bfs", "Propagation uses BFS", db_path=db_path)
@@ -1307,15 +1335,17 @@ class TestDeduplicateAcceptPlan:
         run_cli("deduplicate", "--output", plan_file, db_path=db_path)
 
         from pathlib import Path
+
         plan_content = Path(plan_file).read_text() if Path(plan_file).exists() else ""
         if plan_content.strip():
-            out, err, code = run_cli("deduplicate", "--accept", plan_file, db_path=db_path)
+            out, err, code = run_cli(
+                "deduplicate", "--accept", plan_file, db_path=db_path
+            )
             assert code == 0
             assert "Retracted" in out or "No duplicates" in out
 
 
 class TestAcceptEdgeCases:
-
     def test_accept_with_skipped(self, db_path, tmp_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "fact-a", "Fact A", db_path=db_path)
@@ -1350,7 +1380,6 @@ Also from nothing
 
 
 class TestNamesOnlyFormat:
-
     def test_status_names_only(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "node-x", "X text", db_path=db_path)
@@ -1365,8 +1394,9 @@ class TestNamesOnlyFormat:
     def test_search_names_only(self, db_path):
         run_cli("init", db_path=db_path)
         run_cli("add", "alpha", "Alpha text", db_path=db_path)
-        out, _, code = run_cli("search", "alpha", "--format", "names-only",
-                               db_path=db_path)
+        out, _, code = run_cli(
+            "search", "alpha", "--format", "names-only", db_path=db_path
+        )
         assert code == 0
         assert "alpha" in out.strip().split("\n")
         assert "Status" not in out
@@ -1393,8 +1423,9 @@ class TestNamesOnlyFormat:
         run_cli("init", db_path=db_path)
         run_cli("add", "base", "Base premise", db_path=db_path)
         run_cli("add", "derived", "Derived node", "--sl", "base", db_path=db_path)
-        out, _, code = run_cli("trace", "derived", "--format", "names-only",
-                               db_path=db_path)
+        out, _, code = run_cli(
+            "trace", "derived", "--format", "names-only", db_path=db_path
+        )
         assert code == 0
         assert "base" in out.strip().split("\n")
         assert "rests on" not in out
@@ -1403,8 +1434,9 @@ class TestNamesOnlyFormat:
         run_cli("init", db_path=db_path)
         run_cli("add", "prem", "A premise", db_path=db_path)
         run_cli("add", "concl", "A conclusion", "--sl", "prem", db_path=db_path)
-        out, _, code = run_cli("explain", "concl", "--format", "names-only",
-                               db_path=db_path)
+        out, _, code = run_cli(
+            "explain", "concl", "--format", "names-only", db_path=db_path
+        )
         assert code == 0
         lines = out.strip().split("\n")
         assert "concl" in lines

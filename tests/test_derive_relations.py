@@ -12,14 +12,31 @@ from reasonsforge.derive_relations import (
     validate_proposals,
 )
 
-
 SAMPLE_NODES = {
-    "group-definition": {"truth_value": "IN", "text": "A group is a set with a binary operation"},
-    "ring-definition": {"truth_value": "IN", "text": "A ring is a group under addition with a second operation"},
-    "field-is-a-ring": {"truth_value": "IN", "text": "Every field is a ring with multiplicative inverses"},
-    "lagrange-theorem": {"truth_value": "IN", "text": "The order of a subgroup divides the order of the group"},
-    "integers-implement-ring-axioms": {"truth_value": "IN", "text": "The integers form a ring under addition and multiplication"},
-    "normal-subgroup": {"truth_value": "IN", "text": "A normal subgroup is invariant under conjugation"},
+    "group-definition": {
+        "truth_value": "IN",
+        "text": "A group is a set with a binary operation",
+    },
+    "ring-definition": {
+        "truth_value": "IN",
+        "text": "A ring is a group under addition with a second operation",
+    },
+    "field-is-a-ring": {
+        "truth_value": "IN",
+        "text": "Every field is a ring with multiplicative inverses",
+    },
+    "lagrange-theorem": {
+        "truth_value": "IN",
+        "text": "The order of a subgroup divides the order of the group",
+    },
+    "integers-implement-ring-axioms": {
+        "truth_value": "IN",
+        "text": "The integers form a ring under addition and multiplication",
+    },
+    "normal-subgroup": {
+        "truth_value": "IN",
+        "text": "A normal subgroup is invariant under conjugation",
+    },
 }
 
 
@@ -44,8 +61,8 @@ def test_sample_pairs_prefix():
     assert len(pairs) > 0
     has_intra = any(a.startswith("group") and b.startswith("group") for a, b in pairs)
     has_cross = any(
-        (a.startswith("group") and b.startswith("ring")) or
-        (a.startswith("ring") and b.startswith("group"))
+        (a.startswith("group") and b.startswith("ring"))
+        or (a.startswith("ring") and b.startswith("group"))
         for a, b in pairs
     )
     assert has_intra
@@ -167,60 +184,68 @@ Some text
 
 
 def test_validate_proposals_valid():
-    proposals = [{
-        "id": "ring-requires-group",
-        "text": "Ring requires group",
-        "subject_belief": "ring-definition",
-        "object_belief": "group-definition",
-        "relation": "requires",
-        "confidence": "HIGH",
-        "label": "test",
-    }]
+    proposals = [
+        {
+            "id": "ring-requires-group",
+            "text": "Ring requires group",
+            "subject_belief": "ring-definition",
+            "object_belief": "group-definition",
+            "relation": "requires",
+            "confidence": "HIGH",
+            "label": "test",
+        }
+    ]
     valid, skipped = validate_proposals(proposals, SAMPLE_NODES)
     assert len(valid) == 1
     assert len(skipped) == 0
 
 
 def test_validate_proposals_missing_subject():
-    proposals = [{
-        "id": "x-requires-group",
-        "text": "X requires group",
-        "subject_belief": "nonexistent",
-        "object_belief": "group-definition",
-        "relation": "requires",
-        "confidence": "HIGH",
-        "label": "test",
-    }]
+    proposals = [
+        {
+            "id": "x-requires-group",
+            "text": "X requires group",
+            "subject_belief": "nonexistent",
+            "object_belief": "group-definition",
+            "relation": "requires",
+            "confidence": "HIGH",
+            "label": "test",
+        }
+    ]
     valid, skipped = validate_proposals(proposals, SAMPLE_NODES)
     assert len(valid) == 0
     assert "subject not found" in skipped[0][1]
 
 
 def test_validate_proposals_missing_object():
-    proposals = [{
-        "id": "group-requires-x",
-        "text": "Group requires X",
-        "subject_belief": "group-definition",
-        "object_belief": "nonexistent",
-        "relation": "requires",
-        "confidence": "HIGH",
-        "label": "test",
-    }]
+    proposals = [
+        {
+            "id": "group-requires-x",
+            "text": "Group requires X",
+            "subject_belief": "group-definition",
+            "object_belief": "nonexistent",
+            "relation": "requires",
+            "confidence": "HIGH",
+            "label": "test",
+        }
+    ]
     valid, skipped = validate_proposals(proposals, SAMPLE_NODES)
     assert len(valid) == 0
     assert "object not found" in skipped[0][1]
 
 
 def test_validate_proposals_already_exists():
-    proposals = [{
-        "id": "field-is-a-ring",
-        "text": "Field is a ring",
-        "subject_belief": "group-definition",
-        "object_belief": "ring-definition",
-        "relation": "is-a",
-        "confidence": "HIGH",
-        "label": "test",
-    }]
+    proposals = [
+        {
+            "id": "field-is-a-ring",
+            "text": "Field is a ring",
+            "subject_belief": "group-definition",
+            "object_belief": "ring-definition",
+            "relation": "is-a",
+            "confidence": "HIGH",
+            "label": "test",
+        }
+    ]
     valid, skipped = validate_proposals(proposals, SAMPLE_NODES)
     assert len(valid) == 0
     assert "already exists" in skipped[0][1]
@@ -246,29 +271,28 @@ def test_validate_proposals_deduplicates():
 
 JUSTIFICATION_NODES = {
     "group-definition": {
-        "truth_value": "IN", "text": "A group is a set with a binary operation",
+        "truth_value": "IN",
+        "text": "A group is a set with a binary operation",
         "justifications": [],
     },
     "ring-definition": {
-        "truth_value": "IN", "text": "A ring is a group under addition",
-        "justifications": [
-            {"antecedents": ["group-definition"], "outlist": []}
-        ],
+        "truth_value": "IN",
+        "text": "A ring is a group under addition",
+        "justifications": [{"antecedents": ["group-definition"], "outlist": []}],
     },
     "field-definition": {
-        "truth_value": "IN", "text": "A field is a commutative ring with inverses",
-        "justifications": [
-            {"antecedents": ["ring-definition"], "outlist": []}
-        ],
+        "truth_value": "IN",
+        "text": "A field is a commutative ring with inverses",
+        "justifications": [{"antecedents": ["ring-definition"], "outlist": []}],
     },
     "integers-are-ring": {
-        "truth_value": "IN", "text": "The integers form a ring",
-        "justifications": [
-            {"antecedents": ["ring-definition"], "outlist": []}
-        ],
+        "truth_value": "IN",
+        "text": "The integers form a ring",
+        "justifications": [{"antecedents": ["ring-definition"], "outlist": []}],
     },
     "unrelated-premise": {
-        "truth_value": "IN", "text": "Something unrelated",
+        "truth_value": "IN",
+        "text": "Something unrelated",
         "justifications": [],
     },
 }
@@ -334,8 +358,9 @@ def test_pairs_by_justification_1hop_no_2hop():
 def test_pairs_by_justification_allowed_ids():
     """Only pairs beliefs in allowed_ids, even though graph walks through others."""
     allowed = {"ring-definition", "field-definition"}
-    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2,
-                                     allowed_ids=allowed)
+    pairs = _pairs_by_justification(
+        JUSTIFICATION_NODES, budget=100, max_hops=2, allowed_ids=allowed
+    )
     for a, b in pairs:
         assert a in allowed and b in allowed
 
@@ -343,15 +368,18 @@ def test_pairs_by_justification_allowed_ids():
 def test_pairs_by_justification_allowed_ids_uses_full_graph():
     """Allowed filter restricts output but walks the full graph for proximity."""
     allowed = {"group-definition", "field-definition"}
-    pairs = _pairs_by_justification(JUSTIFICATION_NODES, budget=100, max_hops=2,
-                                     allowed_ids=allowed)
+    pairs = _pairs_by_justification(
+        JUSTIFICATION_NODES, budget=100, max_hops=2, allowed_ids=allowed
+    )
     pair_set = set(pairs)
     assert ("field-definition", "group-definition") in pair_set
 
 
 def test_sample_pairs_justification_strategy():
     pairs = _sample_pairs(
-        list(JUSTIFICATION_NODES.keys()), budget=10, strategy="justification",
+        list(JUSTIFICATION_NODES.keys()),
+        budget=10,
+        strategy="justification",
         nodes=JUSTIFICATION_NODES,
     )
     assert len(pairs) > 0
@@ -370,25 +398,28 @@ import pytest
 
 EMBEDDING_NODES = {
     "group-definition": {
-        "truth_value": "IN", "text": "A group is a set with a binary operation satisfying closure, associativity, identity and inverses",
+        "truth_value": "IN",
+        "text": "A group is a set with a binary operation satisfying closure, associativity, identity and inverses",
         "justifications": [],
     },
     "ring-definition": {
-        "truth_value": "IN", "text": "A ring is an abelian group under addition with a second associative binary operation",
-        "justifications": [
-            {"antecedents": ["group-definition"], "outlist": []}
-        ],
+        "truth_value": "IN",
+        "text": "A ring is an abelian group under addition with a second associative binary operation",
+        "justifications": [{"antecedents": ["group-definition"], "outlist": []}],
     },
     "vector-space": {
-        "truth_value": "IN", "text": "A vector space is a set of vectors with scalar multiplication over a field",
+        "truth_value": "IN",
+        "text": "A vector space is a set of vectors with scalar multiplication over a field",
         "justifications": [],
     },
     "matrix-algebra": {
-        "truth_value": "IN", "text": "Matrix algebra studies rectangular arrays with addition and multiplication operations",
+        "truth_value": "IN",
+        "text": "Matrix algebra studies rectangular arrays with addition and multiplication operations",
         "justifications": [],
     },
     "topology-basics": {
-        "truth_value": "IN", "text": "Topology studies properties preserved under continuous deformations of space",
+        "truth_value": "IN",
+        "text": "Topology studies properties preserved under continuous deformations of space",
         "justifications": [],
     },
 }
@@ -397,6 +428,7 @@ EMBEDDING_NODES = {
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_pairs_by_embedding_returns_pairs():
     from reasonsforge.derive_relations import _pairs_by_embedding
+
     pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=5)
     assert len(pairs) > 0
     assert len(pairs) <= 5
@@ -408,6 +440,7 @@ def test_pairs_by_embedding_returns_pairs():
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_pairs_by_embedding_excludes_justification_connected():
     from reasonsforge.derive_relations import _pairs_by_embedding
+
     pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=100, cross_topic_only=True)
     pair_set = set(pairs)
     assert ("group-definition", "ring-definition") not in pair_set
@@ -417,6 +450,7 @@ def test_pairs_by_embedding_excludes_justification_connected():
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_pairs_by_embedding_includes_justification_connected_when_disabled():
     from reasonsforge.derive_relations import _pairs_by_embedding
+
     pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=100, cross_topic_only=False)
     pair_set = set(pairs)
     normalized = {(min(a, b), max(a, b)) for a, b in pair_set}
@@ -426,6 +460,7 @@ def test_pairs_by_embedding_includes_justification_connected_when_disabled():
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_pairs_by_embedding_respects_budget():
     from reasonsforge.derive_relations import _pairs_by_embedding
+
     pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=2)
     assert len(pairs) <= 2
 
@@ -433,6 +468,7 @@ def test_pairs_by_embedding_respects_budget():
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_pairs_by_embedding_allowed_ids():
     from reasonsforge.derive_relations import _pairs_by_embedding
+
     allowed = {"vector-space", "matrix-algebra"}
     pairs = _pairs_by_embedding(EMBEDDING_NODES, budget=10, allowed_ids=allowed)
     for a, b in pairs:
@@ -442,7 +478,9 @@ def test_pairs_by_embedding_allowed_ids():
 @pytest.mark.skipif(not HAS_CLUSTER_DEPS, reason="sentence-transformers not installed")
 def test_sample_pairs_embedding_strategy():
     pairs = _sample_pairs(
-        list(EMBEDDING_NODES.keys()), budget=5, strategy="embedding",
+        list(EMBEDDING_NODES.keys()),
+        budget=5,
+        strategy="embedding",
         nodes=EMBEDDING_NODES,
     )
     assert len(pairs) > 0

@@ -6,11 +6,15 @@ from pathlib import Path
 import pytest
 
 from reasonsforge.network import Network
-from reasonsforge.check_stale import check_stale, hash_file, hash_sources, resolve_source_path
+from reasonsforge.check_stale import (
+    check_stale,
+    hash_file,
+    hash_sources,
+    resolve_source_path,
+)
 
 
 class TestHashFile:
-
     def test_hashes_file(self, tmp_path):
         f = tmp_path / "test.md"
         f.write_text("hello world")
@@ -28,7 +32,6 @@ class TestHashFile:
 
 
 class TestResolveSourcePath:
-
     def test_resolve_with_repos(self, tmp_path):
         f = tmp_path / "entry.md"
         f.write_text("content")
@@ -60,7 +63,9 @@ class TestResolveSourcePath:
             d.mkdir(parents=True)
         (db_dir / "entries" / "topic.md").write_text("db version")
         (repo_dir / "entries" / "topic.md").write_text("repo version")
-        result = resolve_source_path("entries/topic.md", repos={"entries": repo_dir}, db_dir=db_dir)
+        result = resolve_source_path(
+            "entries/topic.md", repos={"entries": repo_dir}, db_dir=db_dir
+        )
         assert result == db_dir / "entries" / "topic.md"
 
     def test_resolve_via_agent_repo(self, tmp_path):
@@ -91,12 +96,13 @@ class TestResolveSourcePath:
         repo_dir.mkdir()
         f = repo_dir / "file.md"
         f.write_text("content")
-        result = resolve_source_path("myrepo/file.md", repos={"myrepo": repo_dir}, db_dir=db_dir)
+        result = resolve_source_path(
+            "myrepo/file.md", repos={"myrepo": repo_dir}, db_dir=db_dir
+        )
         assert result == f
 
 
 class TestCheckStale:
-
     def test_fresh_node_via_db_dir(self, tmp_path):
         entry_dir = tmp_path / "entries"
         entry_dir.mkdir()
@@ -179,8 +185,18 @@ class TestCheckStale:
         f2.write_text("old b")
 
         net = Network()
-        net.add_node("a", "Node A", source="r/a.md", source_hash=hashlib.sha256(b"old a").hexdigest())
-        net.add_node("b", "Node B", source="r/b.md", source_hash=hashlib.sha256(b"old b").hexdigest())
+        net.add_node(
+            "a",
+            "Node A",
+            source="r/a.md",
+            source_hash=hashlib.sha256(b"old a").hexdigest(),
+        )
+        net.add_node(
+            "b",
+            "Node B",
+            source="r/b.md",
+            source_hash=hashlib.sha256(b"old b").hexdigest(),
+        )
 
         f1.write_text("new a")
         f2.write_text("new b")
@@ -199,8 +215,10 @@ class TestCheckStale:
         net = Network()
         net.repos["code"] = str(agent_dir)
         net.add_node(
-            "code:topic-belief", "Topic belief",
-            source="entries/topic.md", source_hash=h,
+            "code:topic-belief",
+            "Topic belief",
+            source="entries/topic.md",
+            source_hash=h,
             metadata={"agent": "code"},
         )
 
@@ -218,8 +236,10 @@ class TestCheckStale:
         net = Network()
         net.repos["code"] = str(agent_dir)
         net.add_node(
-            "code:topic-belief", "Topic belief",
-            source="entries/topic.md", source_hash=h,
+            "code:topic-belief",
+            "Topic belief",
+            source="entries/topic.md",
+            source_hash=h,
             metadata={"agent": "code"},
         )
 
@@ -231,7 +251,6 @@ class TestCheckStale:
 
 
 class TestPrefixHashUpgrade:
-
     def test_prefix_hash_treated_as_fresh(self, tmp_path):
         f = tmp_path / "source.md"
         f.write_text("hello world")
@@ -241,8 +260,9 @@ class TestPrefixHashUpgrade:
         net = Network()
         net.add_node("a", "Premise A", source="myrepo/source.md", source_hash=truncated)
 
-        results, upgraded, *_ = check_stale(net, repos={"myrepo": tmp_path},
-                                        upgrade_hashes=True)
+        results, upgraded, *_ = check_stale(
+            net, repos={"myrepo": tmp_path}, upgrade_hashes=True
+        )
         assert results == []
         assert upgraded == 1
         assert net.nodes["a"].source_hash == full_hash
@@ -272,8 +292,9 @@ class TestPrefixHashUpgrade:
 
         f.write_text("different content")
 
-        results, upgraded, *_ = check_stale(net, repos={"myrepo": tmp_path},
-                                        upgrade_hashes=True)
+        results, upgraded, *_ = check_stale(
+            net, repos={"myrepo": tmp_path}, upgrade_hashes=True
+        )
         assert len(results) == 1
         assert results[0]["reason"] == "content_changed"
         assert upgraded == 0
@@ -286,15 +307,15 @@ class TestPrefixHashUpgrade:
         net = Network()
         net.add_node("a", "Premise A", source="myrepo/source.md", source_hash=full_hash)
 
-        results, upgraded, *_ = check_stale(net, repos={"myrepo": tmp_path},
-                                        upgrade_hashes=True)
+        results, upgraded, *_ = check_stale(
+            net, repos={"myrepo": tmp_path}, upgrade_hashes=True
+        )
         assert results == []
         assert upgraded == 0
         assert net.nodes["a"].source_hash == full_hash
 
 
 class TestHashSources:
-
     def test_backfills_via_db_dir(self, tmp_path):
         entry_dir = tmp_path / "entries"
         entry_dir.mkdir()

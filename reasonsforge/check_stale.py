@@ -92,14 +92,16 @@ def check_stale(
         agent = node.metadata.get("agent") if node.metadata else None
         path = resolve_source_path(node.source, repos, db_dir, agent=agent)
         if path is None:
-            results.append({
-                "node_id": nid,
-                "old_hash": node.source_hash,
-                "new_hash": None,
-                "source": node.source,
-                "source_path": None,
-                "reason": "source_deleted",
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "old_hash": node.source_hash,
+                    "new_hash": None,
+                    "source": node.source,
+                    "source_path": None,
+                    "reason": "source_deleted",
+                }
+            )
             continue
 
         pinned_sha = node.metadata.get("pinned_sha") if node.metadata else None
@@ -125,28 +127,34 @@ def check_stale(
 
         current_hash = hash_file(path)
         if current_hash != node.source_hash:
-            if len(node.source_hash) == 16 and current_hash.startswith(node.source_hash):
+            if len(node.source_hash) == 16 and current_hash.startswith(
+                node.source_hash
+            ):
                 if upgrade_hashes:
                     node.source_hash = current_hash
                     upgraded += 1
                     continue
-                results.append({
+                results.append(
+                    {
+                        "node_id": nid,
+                        "old_hash": node.source_hash,
+                        "new_hash": current_hash,
+                        "source": node.source,
+                        "source_path": str(path),
+                        "reason": "truncated_hash",
+                    }
+                )
+                continue
+            results.append(
+                {
                     "node_id": nid,
                     "old_hash": node.source_hash,
                     "new_hash": current_hash,
                     "source": node.source,
                     "source_path": str(path),
-                    "reason": "truncated_hash",
-                })
-                continue
-            results.append({
-                "node_id": nid,
-                "old_hash": node.source_hash,
-                "new_hash": current_hash,
-                "source": node.source,
-                "source_path": str(path),
-                "reason": "content_changed",
-            })
+                    "reason": "content_changed",
+                }
+            )
         elif git_aware and pinned_sha:
             new_sha = get_file_commit_sha(path)
             if new_sha and new_sha != pinned_sha:
@@ -190,12 +198,14 @@ def hash_sources(
         new_hash = hash_file(path)
         was_empty = not node.source_hash
         node.source_hash = new_hash
-        results.append({
-            "node_id": nid,
-            "source": node.source,
-            "hash": new_hash,
-            "was_empty": was_empty,
-        })
+        results.append(
+            {
+                "node_id": nid,
+                "source": node.source,
+                "hash": new_hash,
+                "was_empty": was_empty,
+            }
+        )
 
     return results
 
@@ -207,7 +217,8 @@ def get_file_commit_sha(filepath: Path) -> str | None:
     """Get the last commit SHA that touched this file."""
     result = subprocess.run(
         ["git", "log", "-1", "--format=%H", "--", str(filepath.name)],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=str(filepath.parent),
         timeout=30,
     )
@@ -224,9 +235,16 @@ def file_changed_since(filepath: Path, since_sha: str) -> bool:
     try:
         # Check committed changes
         result = subprocess.run(
-            ["git", "log", "--format=%H", f"{since_sha}..HEAD",
-             "--", str(filepath.name)],
-            capture_output=True, text=True,
+            [
+                "git",
+                "log",
+                "--format=%H",
+                f"{since_sha}..HEAD",
+                "--",
+                str(filepath.name),
+            ],
+            capture_output=True,
+            text=True,
             cwd=str(filepath.parent),
             timeout=30,
         )
@@ -237,7 +255,8 @@ def file_changed_since(filepath: Path, since_sha: str) -> bool:
         # Check uncommitted changes (staged + unstaged)
         result = subprocess.run(
             ["git", "diff", "--quiet", "HEAD", "--", str(filepath.name)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
             cwd=str(filepath.parent),
             timeout=30,
         )
@@ -254,7 +273,9 @@ def parse_diff_hunks(diff_output: str) -> list[tuple[int, int]]:
     Skips hunks with count=0 (pure insertions that don't affect old lines).
     """
     hunks = []
-    for m in re.finditer(r'^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@', diff_output, re.MULTILINE):
+    for m in re.finditer(
+        r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", diff_output, re.MULTILINE
+    ):
         start = int(m.group(1))
         count = int(m.group(2)) if m.group(2) is not None else 1
         if count == 0:
@@ -264,7 +285,10 @@ def parse_diff_hunks(diff_output: str) -> list[tuple[int, int]]:
 
 
 def file_lines_changed_since(
-    filepath: Path, since_sha: str, line_start: int, line_end: int,
+    filepath: Path,
+    since_sha: str,
+    line_start: int,
+    line_end: int,
 ) -> bool:
     """Check if specific lines were modified since since_sha.
 
@@ -275,7 +299,8 @@ def file_lines_changed_since(
     try:
         result = subprocess.run(
             ["git", "diff", "-U0", since_sha, "--", str(filepath.name)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
             cwd=str(filepath.parent),
             timeout=30,
         )
@@ -295,13 +320,13 @@ def pin_source_url(url: str, sha: str, source_path: str = "") -> str:
     If source_path is provided, uses it to locate the file path portion
     of the URL (handles branch names containing slashes).
     """
-    m = re.match(r'(https://github\.com/[^/]+/[^/]+/blob/).+', url)
+    m = re.match(r"(https://github\.com/[^/]+/[^/]+/blob/).+", url)
     if not m:
         return url
     prefix = m.group(1)
     if source_path and url.endswith(source_path):
         return f"{prefix}{sha}/{source_path}"
-    rest = url[len(prefix):]
+    rest = url[len(prefix) :]
     parts = rest.split("/", 1)
     if len(parts) == 2:
         return f"{prefix}{sha}/{parts[1]}"
@@ -355,12 +380,14 @@ def pin_sources(
         if pin_urls and node.source_url:
             node.source_url = pin_source_url(node.source_url, sha, node.source)
 
-        results.append({
-            "node_id": nid,
-            "source": node.source,
-            "pinned_sha": sha,
-            "was_empty": was_empty,
-        })
+        results.append(
+            {
+                "node_id": nid,
+                "source": node.source,
+                "pinned_sha": sha,
+                "was_empty": was_empty,
+            }
+        )
 
     return results
 
@@ -384,30 +411,42 @@ def pin_update(
     for nid in node_ids:
         node = network.nodes.get(nid)
         if node is None:
-            results.append({
-                "node_id": nid, "error": "not found",
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "error": "not found",
+                }
+            )
             continue
 
         if not node.source:
-            results.append({
-                "node_id": nid, "error": "no source",
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "error": "no source",
+                }
+            )
             continue
 
         agent = node.metadata.get("agent") if node.metadata else None
         path = resolve_source_path(node.source, repos, db_dir, agent=agent)
         if path is None:
-            results.append({
-                "node_id": nid, "error": "source not found",
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "error": "source not found",
+                }
+            )
             continue
 
         sha = get_file_commit_sha(path)
         if sha is None:
-            results.append({
-                "node_id": nid, "error": "not in git repo",
-            })
+            results.append(
+                {
+                    "node_id": nid,
+                    "error": "not in git repo",
+                }
+            )
             continue
 
         old_sha = node.metadata.get("pinned_sha", "")
@@ -415,12 +454,14 @@ def pin_update(
         node.metadata["verified_at"] = today
         node.source_hash = hash_file(path)
 
-        results.append({
-            "node_id": nid,
-            "old_sha": old_sha,
-            "new_sha": sha,
-            "source": node.source,
-        })
+        results.append(
+            {
+                "node_id": nid,
+                "old_sha": old_sha,
+                "new_sha": sha,
+                "source": node.source,
+            }
+        )
 
     return results
 

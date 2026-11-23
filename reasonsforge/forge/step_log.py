@@ -42,8 +42,9 @@ class _TeeWriter:
 
 
 @contextmanager
-def step_log(logs_dir: str | Path, pipeline: str, step_key: str,
-             round_number: int | None = None):
+def step_log(
+    logs_dir: str | Path, pipeline: str, step_key: str, round_number: int | None = None
+):
     """Context manager that tees stderr to a per-step log file.
 
     Usage::

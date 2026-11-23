@@ -33,7 +33,7 @@ def _prepare_source(source_path):
                         source_url = val
                 elif line.startswith("source_id:"):
                     source_id = line.split(":", 1)[1].strip()
-            content = content[end + 3:].strip()
+            content = content[end + 3 :].strip()
 
     if not content.strip():
         return None
@@ -42,11 +42,15 @@ def _prepare_source(source_path):
         original_len = len(content)
         content = content[:30000] + "\n\n[Truncated — original was longer]"
         if source_path.suffix == ".pdf":
-            print(f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
-                  f"Consider: reasonsforge forge chunk-pdf {source_path}")
+            print(
+                f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
+                f"Consider: reasonsforge forge chunk-pdf {source_path}"
+            )
         else:
-            print(f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
-                  f"Consider: reasonsforge forge chunk-docs --threshold 25000")
+            print(
+                f"  WARN: {source_path.name}: truncated from {original_len} to 30000 chars. "
+                f"Consider: reasonsforge forge chunk-docs --threshold 25000"
+            )
 
     template = SUMMARIZE_CODE if source_path.suffix == ".py" else SUMMARIZE
     prompt = template.format(content=content)
@@ -57,9 +61,12 @@ def _prepare_source(source_path):
 def _write_entry(source_path, summary, source_url, source_id, model=None):
     """Write summary file with provenance frontmatter."""
     from .utils import unique_path
+
     topic = source_path.stem
     today = date.today()
-    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir = (
+        Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    )
     summary_dir.mkdir(parents=True, exist_ok=True)
     entry_path = unique_path(summary_dir / f"{topic}.md")
 
@@ -88,7 +95,9 @@ async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=
         est_tokens = len(prompt) // 4
         if num_ctx:
             pct = est_tokens * 100 / num_ctx
-            print(f"Summarizing: {source_path.name} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)")
+            print(
+                f"Summarizing: {source_path.name} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)"
+            )
         else:
             print(f"Summarizing: {source_path.name} (~{est_tokens:,} tokens)")
 
@@ -100,7 +109,9 @@ async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=
             return False
         elapsed = time.monotonic() - t0
 
-        entry_path = _write_entry(source_path, summary, source_url, source_id, model=model)
+        entry_path = _write_entry(
+            source_path, summary, source_url, source_id, model=model
+        )
         print(f"  -> Created {entry_path} ({elapsed:.1f}s)")
 
         with manifest.open("a") as f:
@@ -112,6 +123,7 @@ async def _summarize_one(source_path, model, semaphore, manifest, done, num_ctx=
 def cmd_summarize(args):
     """Generate summaries from source documents."""
     from .caffeinate import hold as _caffeinate
+
     _caffeinate()
     input_dir = Path(args.input_dir)
     if not input_dir.exists():
@@ -134,7 +146,7 @@ def cmd_summarize(args):
         return
 
     if args.limit:
-        sources = sources[:args.limit]
+        sources = sources[: args.limit]
 
     manifest = Path(PROJECT_DIR) / "code" / "summarized"
     manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -167,8 +179,7 @@ def cmd_summarize(args):
     try:
         results = asyncio.run(run_all())
     except KeyboardInterrupt:
-        print(f"\n  Ending summarize early — partial results saved",
-              file=sys.stderr)
+        print(f"\n  Ending summarize early — partial results saved", file=sys.stderr)
         results = []
     processed = sum(1 for r in results if r)
 

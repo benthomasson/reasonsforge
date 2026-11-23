@@ -13,6 +13,7 @@ try:
     from sentence_transformers import SentenceTransformer
     import numpy as np
     from sklearn.cluster import KMeans
+
     HAS_CLUSTER_DEPS = True
 except ImportError:
     SentenceTransformer = None
@@ -87,8 +88,9 @@ def _auto_k(n_beliefs, n_clusters=None, max_k=20):
     return min(k, n_beliefs)
 
 
-def cluster_beliefs(beliefs, budget, seed=None, n_clusters=None,
-                    cache=None, model_name=DEFAULT_MODEL):
+def cluster_beliefs(
+    beliefs, budget, seed=None, n_clusters=None, cache=None, model_name=DEFAULT_MODEL
+):
     """Cluster beliefs and sample across cluster boundaries.
 
     Args:
@@ -147,9 +149,15 @@ def cluster_beliefs(beliefs, budget, seed=None, n_clusters=None,
     }
 
 
-def cluster_beliefs_intra(beliefs, budget, round_num=0, seed=None,
-                          n_clusters=None, cache=None,
-                          model_name=DEFAULT_MODEL):
+def cluster_beliefs_intra(
+    beliefs,
+    budget,
+    round_num=0,
+    seed=None,
+    n_clusters=None,
+    cache=None,
+    model_name=DEFAULT_MODEL,
+):
     """Cluster beliefs and focus budget on one cluster per round.
 
     Rotates through clusters via round_num % k, giving the LLM
@@ -201,8 +209,9 @@ def cluster_beliefs_intra(beliefs, budget, round_num=0, seed=None,
     }
 
 
-def list_clusters(beliefs, n_clusters=None, seed=None, cache=None,
-                  model_name=DEFAULT_MODEL):
+def list_clusters(
+    beliefs, n_clusters=None, seed=None, cache=None, model_name=DEFAULT_MODEL
+):
     """Cluster beliefs and return full cluster assignments.
 
     Args:
@@ -220,9 +229,15 @@ def list_clusters(beliefs, n_clusters=None, seed=None, cache=None,
 
     if len(beliefs) <= 3:
         return {
-            "clusters": [{"id": 0, "beliefs": [
-                {"id": nid, "text": text} for nid, text in sorted(beliefs.items())
-            ]}],
+            "clusters": [
+                {
+                    "id": 0,
+                    "beliefs": [
+                        {"id": nid, "text": text}
+                        for nid, text in sorted(beliefs.items())
+                    ],
+                }
+            ],
             "n_clusters": 1,
             "embedding_model": model_name,
         }
@@ -239,9 +254,7 @@ def list_clusters(beliefs, n_clusters=None, seed=None, cache=None,
 
     groups = {}
     for i, nid in enumerate(ids):
-        groups.setdefault(int(labels[i]), []).append(
-            {"id": nid, "text": beliefs[nid]}
-        )
+        groups.setdefault(int(labels[i]), []).append({"id": nid, "text": beliefs[nid]})
 
     clusters = [
         {"id": label, "beliefs": members}

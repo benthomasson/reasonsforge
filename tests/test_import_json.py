@@ -11,7 +11,6 @@ from reasonsforge import api
 
 
 class TestImportJson:
-
     def test_round_trip_premises(self, tmp_path):
         db1 = str(tmp_path / "src.db")
         db2 = str(tmp_path / "dst.db")

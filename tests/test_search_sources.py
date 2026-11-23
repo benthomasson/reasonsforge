@@ -20,7 +20,9 @@ def _create_fts_db(path):
             section TEXT
         )
     """)
-    conn.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(text, content=chunks, content_rowid=id)")
+    conn.execute(
+        "CREATE VIRTUAL TABLE chunks_fts USING fts5(text, content=chunks, content_rowid=id)"
+    )
     conn.execute("""
         INSERT INTO chunks (id, text, cluster, filename, section)
         VALUES (1, 'Retraction cascades propagate through the dependency graph',
@@ -54,7 +56,6 @@ def _create_fts_db(path):
 
 
 class TestSearchSourceChunks:
-
     def test_basic_search(self, tmp_path):
         db = _create_fts_db(tmp_path / "chunks.db")
         results = search_source_chunks("retraction", db)
@@ -106,16 +107,20 @@ class TestSearchSourceChunks:
 
 
 class TestSearchSourcesCli:
-
     def test_text_output(self, tmp_path, capsys):
         db = _create_fts_db(tmp_path / "chunks.db")
         from reasonsforge.cli import cmd_search_sources
-        args = type("Args", (), {
-            "query": "retraction",
-            "db": db,
-            "top_k": 10,
-            "format": "text",
-        })()
+
+        args = type(
+            "Args",
+            (),
+            {
+                "query": "retraction",
+                "db": db,
+                "top_k": 10,
+                "format": "text",
+            },
+        )()
         cmd_search_sources(args)
         out = capsys.readouterr().out
         assert "architecture.md" in out
@@ -124,12 +129,17 @@ class TestSearchSourcesCli:
     def test_json_output(self, tmp_path, capsys):
         db = _create_fts_db(tmp_path / "chunks.db")
         from reasonsforge.cli import cmd_search_sources
-        args = type("Args", (), {
-            "query": "retraction",
-            "db": db,
-            "top_k": 10,
-            "format": "json",
-        })()
+
+        args = type(
+            "Args",
+            (),
+            {
+                "query": "retraction",
+                "db": db,
+                "top_k": 10,
+                "format": "json",
+            },
+        )()
         cmd_search_sources(args)
         out = capsys.readouterr().out
         data = json.loads(out)
@@ -139,12 +149,17 @@ class TestSearchSourcesCli:
     def test_no_results_message(self, tmp_path, capsys):
         db = _create_fts_db(tmp_path / "chunks.db")
         from reasonsforge.cli import cmd_search_sources
-        args = type("Args", (), {
-            "query": "xyznonexistent",
-            "db": db,
-            "top_k": 10,
-            "format": "text",
-        })()
+
+        args = type(
+            "Args",
+            (),
+            {
+                "query": "xyznonexistent",
+                "db": db,
+                "top_k": 10,
+                "format": "text",
+            },
+        )()
         cmd_search_sources(args)
         out = capsys.readouterr().out
         assert "No matching chunks" in out

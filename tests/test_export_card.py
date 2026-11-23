@@ -21,6 +21,7 @@ def _make_network(nodes=None, project_name="test-project", nogoods=None):
     if nodes:
         for nid, data in nodes.items():
             from reasonsforge import Node
+
             node = Node(nid, data.get("text", f"Text for {nid}"))
             node.truth_value = data.get("truth_value", "IN")
             for jdata in data.get("justifications", []):
@@ -33,13 +34,13 @@ def _make_network(nodes=None, project_name="test-project", nogoods=None):
             net.nodes[nid] = node
     if nogoods:
         from reasonsforge import Nogood
+
         for ng in nogoods:
             net.nogoods.append(Nogood(**ng))
     return net
 
 
 class TestFrontmatter:
-
     def test_schema_version(self):
         net = _make_network()
         card = export_card(net)
@@ -108,12 +109,13 @@ class TestFrontmatter:
 
 
 class TestBeliefCounts:
-
     def test_all_in(self):
-        net = _make_network(nodes={
-            "a": {"text": "A"},
-            "b": {"text": "B"},
-        })
+        net = _make_network(
+            nodes={
+                "a": {"text": "A"},
+                "b": {"text": "B"},
+            }
+        )
         card = export_card(net)
         fm = _parse_frontmatter(card)
         assert fm["beliefs_total"] == 2
@@ -121,11 +123,13 @@ class TestBeliefCounts:
         assert fm["beliefs_out"] == 0
 
     def test_mixed_in_out(self):
-        net = _make_network(nodes={
-            "a": {"text": "A", "truth_value": "IN"},
-            "b": {"text": "B", "truth_value": "OUT"},
-            "c": {"text": "C", "truth_value": "IN"},
-        })
+        net = _make_network(
+            nodes={
+                "a": {"text": "A", "truth_value": "IN"},
+                "b": {"text": "B", "truth_value": "OUT"},
+                "c": {"text": "C", "truth_value": "IN"},
+            }
+        )
         card = export_card(net)
         fm = _parse_frontmatter(card)
         assert fm["beliefs_total"] == 3
@@ -133,14 +137,16 @@ class TestBeliefCounts:
         assert fm["beliefs_out"] == 1
 
     def test_premises_and_derived(self):
-        net = _make_network(nodes={
-            "premise-a": {"text": "A"},
-            "premise-b": {"text": "B"},
-            "derived-c": {
-                "text": "C",
-                "justifications": [{"antecedents": ["premise-a", "premise-b"]}],
-            },
-        })
+        net = _make_network(
+            nodes={
+                "premise-a": {"text": "A"},
+                "premise-b": {"text": "B"},
+                "derived-c": {
+                    "text": "C",
+                    "justifications": [{"antecedents": ["premise-a", "premise-b"]}],
+                },
+            }
+        )
         card = export_card(net)
         fm = _parse_frontmatter(card)
         assert fm["premises"] == 2
@@ -149,7 +155,9 @@ class TestBeliefCounts:
     def test_nogoods_count(self):
         net = _make_network(
             nodes={"a": {"text": "A"}, "b": {"text": "B"}},
-            nogoods=[{"id": "ng1", "nodes": ["a", "b"], "discovered": "", "resolution": ""}],
+            nogoods=[
+                {"id": "ng1", "nodes": ["a", "b"], "discovered": "", "resolution": ""}
+            ],
         )
         card = export_card(net)
         fm = _parse_frontmatter(card)
@@ -157,7 +165,6 @@ class TestBeliefCounts:
 
 
 class TestEmptyNetwork:
-
     def test_empty_produces_valid_card(self):
         net = _make_network()
         card = export_card(net)
@@ -175,32 +182,34 @@ class TestEmptyNetwork:
 
 
 class TestMaxDepth:
-
     def test_premises_only_depth_zero(self):
         net = _make_network(nodes={"a": {"text": "A"}, "b": {"text": "B"}})
         card = export_card(net)
         assert "| Max derivation depth | 0 |" in card
 
     def test_single_level_derivation(self):
-        net = _make_network(nodes={
-            "a": {"text": "A"},
-            "d": {"text": "D", "justifications": [{"antecedents": ["a"]}]},
-        })
+        net = _make_network(
+            nodes={
+                "a": {"text": "A"},
+                "d": {"text": "D", "justifications": [{"antecedents": ["a"]}]},
+            }
+        )
         card = export_card(net)
         assert "| Max derivation depth | 1 |" in card
 
     def test_multi_level_derivation(self):
-        net = _make_network(nodes={
-            "a": {"text": "A"},
-            "b": {"text": "B", "justifications": [{"antecedents": ["a"]}]},
-            "c": {"text": "C", "justifications": [{"antecedents": ["b"]}]},
-        })
+        net = _make_network(
+            nodes={
+                "a": {"text": "A"},
+                "b": {"text": "B", "justifications": [{"antecedents": ["a"]}]},
+                "c": {"text": "C", "justifications": [{"antecedents": ["b"]}]},
+            }
+        )
         card = export_card(net)
         assert "| Max derivation depth | 2 |" in card
 
 
 class TestMarkdownBody:
-
     def test_stats_table(self):
         net = _make_network(nodes={"x": {"text": "X"}})
         card = export_card(net)
@@ -208,10 +217,12 @@ class TestMarkdownBody:
         assert "| Premises (observations) | 1 |" in card
 
     def test_retraction_rate(self):
-        net = _make_network(nodes={
-            "a": {"text": "A", "truth_value": "IN"},
-            "b": {"text": "B", "truth_value": "OUT"},
-        })
+        net = _make_network(
+            nodes={
+                "a": {"text": "A", "truth_value": "IN"},
+                "b": {"text": "B", "truth_value": "OUT"},
+            }
+        )
         card = export_card(net)
         assert "| Retraction rate | 50% |" in card
 

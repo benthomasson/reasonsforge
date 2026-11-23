@@ -6,7 +6,6 @@ from reasonsforge.forge.step_log import step_log
 
 
 class TestStepLog:
-
     def test_creates_log_file(self, tmp_path):
         logs_dir = tmp_path / "logs"
         with step_log(logs_dir, "analyze", "explore") as log_path:

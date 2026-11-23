@@ -53,9 +53,13 @@ class TestShowSourceType:
         api.add_node("n1", "Code obs.", source_type="code", db_path=db)
         from reasonsforge.cli import cmd_show
         import argparse
+
         args = argparse.Namespace(
-            node_id="n1", db=db, visible_to=None,
-            pg_conninfo=None, pg_project=None,
+            node_id="n1",
+            db=db,
+            visible_to=None,
+            pg_conninfo=None,
+            pg_project=None,
         )
         cmd_show(args)
         captured = capsys.readouterr()
@@ -65,9 +69,13 @@ class TestShowSourceType:
         api.add_node("n1", "No type.", db_path=db)
         from reasonsforge.cli import cmd_show
         import argparse
+
         args = argparse.Namespace(
-            node_id="n1", db=db, visible_to=None,
-            pg_conninfo=None, pg_project=None,
+            node_id="n1",
+            db=db,
+            visible_to=None,
+            pg_conninfo=None,
+            pg_project=None,
         )
         cmd_show(args)
         captured = capsys.readouterr()
@@ -90,9 +98,11 @@ class TestListSourceType:
 
 class TestExportMarkdown:
     def test_exports_source_type(self, db):
-        api.add_node("n1", "Code obs.", source="repo/file.py",
-                      source_type="code", db_path=db)
+        api.add_node(
+            "n1", "Code obs.", source="repo/file.py", source_type="code", db_path=db
+        )
         from reasonsforge.storage import Storage
+
         storage = Storage(db)
         net = storage.load()
         storage.close()
@@ -102,6 +112,7 @@ class TestExportMarkdown:
     def test_omits_when_absent(self, db):
         api.add_node("n1", "No type.", source="repo/file.py", db_path=db)
         from reasonsforge.storage import Storage
+
         storage = Storage(db)
         net = storage.load()
         storage.close()
@@ -152,9 +163,11 @@ The API uses REST endpoints.
         assert node.metadata.get("source_type") == "document"
 
     def test_roundtrip_export_import(self, db):
-        api.add_node("n1", "Code obs.", source="repo/file.py",
-                      source_type="code", db_path=db)
+        api.add_node(
+            "n1", "Code obs.", source="repo/file.py", source_type="code", db_path=db
+        )
         from reasonsforge.storage import Storage
+
         storage = Storage(db)
         net = storage.load()
         storage.close()
@@ -172,13 +185,16 @@ class TestDeriveAutoSourceType:
         api.add_node("p2", "Premise two.", db_path=db)
 
         from reasonsforge.derive import apply_proposals
-        proposals = [{
-            "id": "d1",
-            "text": "Derived from p1 and p2.",
-            "antecedents": ["p1", "p2"],
-            "unless": [],
-            "label": "test derivation",
-        }]
+
+        proposals = [
+            {
+                "id": "d1",
+                "text": "Derived from p1 and p2.",
+                "antecedents": ["p1", "p2"],
+                "unless": [],
+                "label": "test derivation",
+            }
+        ]
         results = apply_proposals(proposals, db_path=db)
         assert len(results) == 1
         _, result = results[0]

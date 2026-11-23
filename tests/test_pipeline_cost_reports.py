@@ -10,7 +10,6 @@ from reasonsforge.forge.code.pipeline import (
 
 
 class TestWriteStepCostReport:
-
     def test_writes_report_and_resets(self, tmp_path):
         costs_dir = tmp_path / "costs"
         args = SimpleNamespace(costs_dir=str(costs_dir), domain="test", model="claude")
@@ -21,9 +20,10 @@ class TestWriteStepCostReport:
             "total_cost_usd": 0.012,
             "by_model": {},
         }
-        with patch("reasonsforge.forge.llm.get_cost_summary",
-                    return_value=fake_summary), \
-             patch("reasonsforge.forge.llm.reset_cost_tracker") as mock_reset:
+        with (
+            patch("reasonsforge.forge.llm.get_cost_summary", return_value=fake_summary),
+            patch("reasonsforge.forge.llm.reset_cost_tracker") as mock_reset,
+        ):
             _write_step_cost_report(args, "analyze", "explore", round_number=1)
             mock_reset.assert_called_once()
 
@@ -46,9 +46,10 @@ class TestWriteStepCostReport:
             "total_cost_usd": 0.0,
             "by_model": {},
         }
-        with patch("reasonsforge.forge.llm.get_cost_summary",
-                    return_value=fake_summary), \
-             patch("reasonsforge.forge.llm.reset_cost_tracker") as mock_reset:
+        with (
+            patch("reasonsforge.forge.llm.get_cost_summary", return_value=fake_summary),
+            patch("reasonsforge.forge.llm.reset_cost_tracker") as mock_reset,
+        ):
             _write_step_cost_report(args, "analyze", "init")
             mock_reset.assert_not_called()
 
@@ -64,9 +65,10 @@ class TestWriteStepCostReport:
             "total_cost_usd": 0.001,
             "by_model": {},
         }
-        with patch("reasonsforge.forge.llm.get_cost_summary",
-                    return_value=fake_summary), \
-             patch("reasonsforge.forge.llm.reset_cost_tracker"):
+        with (
+            patch("reasonsforge.forge.llm.get_cost_summary", return_value=fake_summary),
+            patch("reasonsforge.forge.llm.reset_cost_tracker"),
+        ):
             _write_step_cost_report(args, "update", "walk-commits")
 
         reports = list(costs_dir.glob("*.json"))
@@ -77,6 +79,8 @@ class TestWriteStepCostReport:
 
     def test_exception_does_not_propagate(self, tmp_path):
         args = SimpleNamespace(costs_dir="/nonexistent/path", domain=None, model=None)
-        with patch("reasonsforge.forge.llm.get_cost_summary",
-                    side_effect=ImportError("no module")):
+        with patch(
+            "reasonsforge.forge.llm.get_cost_summary",
+            side_effect=ImportError("no module"),
+        ):
             _write_step_cost_report(args, "analyze", "scan")

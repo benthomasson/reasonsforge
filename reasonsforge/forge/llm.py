@@ -15,13 +15,23 @@ import urllib.error
 
 try:
     import openai as _openai_mod
+
     _HAS_OPENAI = True
 except ImportError:
     _openai_mod = None
     _HAS_OPENAI = False
 
 MODEL_COMMANDS: dict[str, list[str]] = {
-    "claude": ["claude", "-p", "--max-turns", "1", "--output-format", "json", "--tools", ""],
+    "claude": [
+        "claude",
+        "-p",
+        "--max-turns",
+        "1",
+        "--output-format",
+        "json",
+        "--tools",
+        "",
+    ],
     "gemini": ["gemini", "--skip-trust", "-o", "json", "-p", ""],
 }
 
@@ -45,6 +55,7 @@ def _ollama_base_url() -> str:
         return _ollama_hosts[0]
     if _ollama_host_lock is None:
         import threading
+
         _ollama_host_lock = threading.Lock()
     with _ollama_host_lock:
         url = _ollama_hosts[_ollama_host_index % len(_ollama_hosts)]
@@ -63,7 +74,18 @@ def resolve_model_cmd(model: str) -> list[str]:
         return MODEL_COMMANDS[model]
     if model.startswith("claude:"):
         submodel = model.split(":", 1)[1]
-        return ["claude", "-p", "--model", submodel, "--max-turns", "1", "--output-format", "json", "--tools", ""]
+        return [
+            "claude",
+            "-p",
+            "--model",
+            submodel,
+            "--max-turns",
+            "1",
+            "--output-format",
+            "json",
+            "--tools",
+            "",
+        ]
     if model.startswith("gemini:"):
         submodel = model.split(":", 1)[1]
         return ["gemini", "--skip-trust", "-m", submodel, "-o", "json", "-p", ""]
@@ -73,12 +95,15 @@ def resolve_model_cmd(model: str) -> list[str]:
         raise ValueError(f"OpenAI models use the API directly: {model}")
     if model.startswith("cursor:"):
         raise ValueError(f"Cursor models use the cursor-agent CLI directly: {model}")
-    available = (
-        list(MODEL_COMMANDS)
-        + ["claude:<model>", "gemini:<model>", "ollama:<model>",
-           "openai:<model>", "cursor:<model>"]
-    )
+    available = list(MODEL_COMMANDS) + [
+        "claude:<model>",
+        "gemini:<model>",
+        "ollama:<model>",
+        "openai:<model>",
+        "cursor:<model>",
+    ]
     raise ValueError(f"Unknown model: {model}. Available: {available}")
+
 
 DEFAULT_TIMEOUT = 600
 
@@ -127,7 +152,10 @@ def _record_cost(model: str, input_tokens: int, output_tokens: int, cost_usd: fl
 
     if model not in _cost_tracker["by_model"]:
         _cost_tracker["by_model"][model] = {
-            "calls": 0, "input_tokens": 0, "output_tokens": 0, "total_cost_usd": 0.0,
+            "calls": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_cost_usd": 0.0,
         }
     m = _cost_tracker["by_model"][model]
     m["calls"] += 1
@@ -140,11 +168,13 @@ async def _invoke_ollama(prompt: str, model: str, timeout: int) -> str:
     """Invoke an Ollama model via the HTTP API."""
     ollama_model = model.split(":", 1)[1]
     url = f"{_ollama_base_url()}/api/generate"
-    payload = json.dumps({
-        "model": ollama_model,
-        "prompt": prompt,
-        "stream": False,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": ollama_model,
+            "prompt": prompt,
+            "stream": False,
+        }
+    ).encode()
     req = urllib.request.Request(
         url,
         data=payload,
@@ -183,8 +213,15 @@ async def _invoke_cursor(prompt: str, model: str, timeout: int) -> str:
     cursor_model = model.split(":", 1)[1]
     binary = "cursor-agent"
     cmd = [
-        binary, "--print", "--output-format", "json",
-        "--trust", "--mode", "ask", "--model", cursor_model,
+        binary,
+        "--print",
+        "--output-format",
+        "json",
+        "--trust",
+        "--mode",
+        "ask",
+        "--model",
+        cursor_model,
     ]
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     proc = await asyncio.create_subprocess_exec(
@@ -243,9 +280,11 @@ def _parse_cli_json(output: str, model: str) -> str:
 
     text = data.get("result") or output
     usage = data.get("usage", {})
-    input_tokens = (usage.get("input_tokens", 0)
-                    + usage.get("cache_creation_input_tokens", 0)
-                    + usage.get("cache_read_input_tokens", 0))
+    input_tokens = (
+        usage.get("input_tokens", 0)
+        + usage.get("cache_creation_input_tokens", 0)
+        + usage.get("cache_read_input_tokens", 0)
+    )
     output_tokens = usage.get("output_tokens", 0)
     cost_usd = data.get("total_cost_usd", 0.0)
     _record_cost(model, input_tokens, output_tokens, cost_usd)
@@ -298,7 +337,9 @@ async def _invoke_openai(prompt: str, model: str, timeout: int) -> str:
     return text
 
 
-async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
+async def invoke(
+    prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT
+) -> str:
     """Invoke model via CLI or HTTP API.
 
     Ollama models use the HTTP API for clean JSON responses.
@@ -346,7 +387,11 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
                         _parse_cli_json(raw, model)
                         if attempt < max_retries:
                             import sys
-                            print(f"  (retry {attempt + 1}/{max_retries}: tool_use stop_reason)", file=sys.stderr)
+
+                            print(
+                                f"  (retry {attempt + 1}/{max_retries}: tool_use stop_reason)",
+                                file=sys.stderr,
+                            )
                             continue
                         return _parse_cli_json(raw, model)
                 except (json.JSONDecodeError, ValueError):
@@ -363,7 +408,9 @@ async def invoke(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIME
         return _parse_cli_json(stdout.decode(), model)
 
 
-def invoke_sync(prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT) -> str:
+def invoke_sync(
+    prompt: str, model: str = "claude", timeout: int = DEFAULT_TIMEOUT
+) -> str:
     """Synchronous wrapper for invoke."""
     return asyncio.run(invoke(prompt, model, timeout))
 
@@ -417,14 +464,14 @@ def extract_json(response: str) -> dict | list | None:
         end = text.rfind("]")
         if end > start_arr:
             try:
-                return json.loads(text[start_arr:end + 1])
+                return json.loads(text[start_arr : end + 1])
             except (json.JSONDecodeError, ValueError):
                 pass
     if start != -1:
         end = text.rfind("}")
         if end > start:
             try:
-                return json.loads(text[start:end + 1])
+                return json.loads(text[start : end + 1])
             except (json.JSONDecodeError, ValueError):
                 pass
     return None

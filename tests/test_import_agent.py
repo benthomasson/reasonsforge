@@ -7,7 +7,6 @@ import pytest
 
 from reasonsforge import api
 
-
 SAMPLE_BELIEFS = """\
 ## Beliefs
 
@@ -273,12 +272,14 @@ def test_import_agent_json(db, tmp_path):
             "derived-b": {
                 "text": "Derived from A unless C",
                 "truth_value": "IN",
-                "justifications": [{
-                    "type": "SL",
-                    "antecedents": ["premise-a"],
-                    "outlist": ["blocker-c"],
-                    "label": "test justification",
-                }],
+                "justifications": [
+                    {
+                        "type": "SL",
+                        "antecedents": ["premise-a"],
+                        "outlist": ["blocker-c"],
+                        "label": "test justification",
+                    }
+                ],
                 "source": "test.md",
             },
             "blocker-c": {
@@ -332,12 +333,14 @@ def test_import_agent_json_outlist_blocks(db, tmp_path):
             "gated": {
                 "text": "Gated on blocker being OUT",
                 "truth_value": "IN",
-                "justifications": [{
-                    "type": "SL",
-                    "antecedents": ["fact"],
-                    "outlist": ["blocker"],
-                    "label": "gated",
-                }],
+                "justifications": [
+                    {
+                        "type": "SL",
+                        "antecedents": ["fact"],
+                        "outlist": ["blocker"],
+                        "label": "gated",
+                    }
+                ],
             },
         },
         "nogoods": [],
@@ -417,10 +420,12 @@ def test_retracted_json_belief_survives_propagate(db, tmp_path):
             "derived-b": {
                 "text": "Depends on A",
                 "truth_value": "IN",
-                "justifications": [{
-                    "type": "SL",
-                    "antecedents": ["premise-a"],
-                }],
+                "justifications": [
+                    {
+                        "type": "SL",
+                        "antecedents": ["premise-a"],
+                    }
+                ],
             },
         },
         "nogoods": [],
@@ -464,11 +469,13 @@ def test_out_with_satisfied_justifications_stays_out(db, tmp_path):
             "derived-out": {
                 "text": "Derived from A but marked OUT in source",
                 "truth_value": "OUT",
-                "justifications": [{
-                    "type": "SL",
-                    "antecedents": ["fact-a"],
-                    "label": "would be satisfied",
-                }],
+                "justifications": [
+                    {
+                        "type": "SL",
+                        "antecedents": ["fact-a"],
+                        "label": "would be satisfied",
+                    }
+                ],
             },
         },
         "nogoods": [],
@@ -490,6 +497,7 @@ def test_import_agent_registers_repo(db, beliefs_file):
     repos = api.list_repos(db_path=db)["repos"]
     assert "test-agent" in repos
     from pathlib import Path
+
     assert repos["test-agent"] == str(Path(beliefs_file).resolve().parent)
 
 

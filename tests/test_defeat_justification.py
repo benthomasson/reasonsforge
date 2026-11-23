@@ -12,7 +12,9 @@ def test_defeat_justification_basic(tmp_path):
     # Add premises and derived belief
     api.add_node("premise-a", "Premise A", db_path=str(db))
     api.add_node("premise-b", "Premise B", db_path=str(db))
-    api.add_node("belief", "Derived from A and B", sl="premise-a,premise-b", db_path=str(db))
+    api.add_node(
+        "belief", "Derived from A and B", sl="premise-a,premise-b", db_path=str(db)
+    )
 
     # Verify belief is IN
     node = api.show_node("belief", db_path=str(db))
@@ -20,9 +22,11 @@ def test_defeat_justification_basic(tmp_path):
 
     # Defeat the justification
     result = api.defeat_justification(
-        "belief", 0, "Over-generalizes",
+        "belief",
+        0,
+        "Over-generalizes",
         defeater_type="over-generalizes",
-        db_path=str(db)
+        db_path=str(db),
     )
 
     assert result["node_id"] == "belief"
@@ -52,10 +56,7 @@ def test_defeat_justification_added_to_outlist(tmp_path):
     api.add_node("b", "Belief", sl="p", db_path=str(db))
 
     # Defeat the justification
-    result = api.defeat_justification(
-        "b", 0, "Invalid inference",
-        db_path=str(db)
-    )
+    result = api.defeat_justification("b", 0, "Invalid inference", db_path=str(db))
 
     # Check justification's outlist
     node = api.show_node("b", db_path=str(db))
@@ -154,9 +155,7 @@ def test_defeat_custom_id(tmp_path):
 
     # Use custom defeater ID
     result = api.defeat_justification(
-        "b", 0, "Custom defeat",
-        defeater_id="my-custom-defeater",
-        db_path=str(db)
+        "b", 0, "Custom defeat", defeater_id="my-custom-defeater", db_path=str(db)
     )
 
     assert result["defeater_id"] == "my-custom-defeater"
@@ -194,14 +193,17 @@ def test_defeater_types(tmp_path):
 
     api.add_node("p", "Premise", db_path=str(db))
 
-    for dtype in ["invalid-inference", "over-generalizes", "duplicate-of", "superseded-by"]:
+    for dtype in [
+        "invalid-inference",
+        "over-generalizes",
+        "duplicate-of",
+        "superseded-by",
+    ]:
         belief_id = f"belief-{dtype}"
         api.add_node(belief_id, f"Belief {dtype}", sl="p", db_path=str(db))
 
         result = api.defeat_justification(
-            belief_id, 0, f"Test {dtype}",
-            defeater_type=dtype,
-            db_path=str(db)
+            belief_id, 0, f"Test {dtype}", defeater_type=dtype, db_path=str(db)
         )
 
         assert result["defeater_type"] == dtype
@@ -218,9 +220,7 @@ def test_defeater_in_export(tmp_path):
     api.add_node("b", "Belief", sl="p", db_path=str(db))
 
     result = api.defeat_justification(
-        "b", 0, "Test defeat",
-        defeater_type="over-generalizes",
-        db_path=str(db)
+        "b", 0, "Test defeat", defeater_type="over-generalizes", db_path=str(db)
     )
 
     # Export and verify

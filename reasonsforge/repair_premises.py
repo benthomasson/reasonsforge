@@ -94,12 +94,14 @@ def parse_repair_response(response):
         for item in items:
             if not isinstance(item, dict) or "id" not in item:
                 continue
-            results.append({
-                "id": item["id"],
-                "action": item.get("action", "retract"),
-                "corrected_text": item.get("corrected_text"),
-                "rationale": item.get("rationale", ""),
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "action": item.get("action", "retract"),
+                    "corrected_text": item.get("corrected_text"),
+                    "rationale": item.get("rationale", ""),
+                }
+            )
         if results:
             return results
     return []
@@ -119,15 +121,31 @@ def _repair_one(node_id, nodes, source_contents, review_results, model, timeout)
         parsed = parse_repair_response(response)
         if parsed:
             return parsed[0]
-        return {"id": node_id, "action": "retract", "corrected_text": None,
-                "rationale": "Could not parse repair response"}
+        return {
+            "id": node_id,
+            "action": "retract",
+            "corrected_text": None,
+            "rationale": "Could not parse repair response",
+        }
     except Exception as e:
-        return {"id": node_id, "action": "error", "corrected_text": None,
-                "rationale": str(e)}
+        return {
+            "id": node_id,
+            "action": "error",
+            "corrected_text": None,
+            "rationale": str(e),
+        }
 
 
-def repair_premises(nodes, premise_ids, source_contents, review_results,
-                    model="claude", timeout=300, parallel=0, on_result=None):
+def repair_premises(
+    nodes,
+    premise_ids,
+    source_contents,
+    review_results,
+    model="claude",
+    timeout=300,
+    parallel=0,
+    on_result=None,
+):
     """Repair inaccurate premises by rewriting or retracting.
 
     Args:
@@ -151,8 +169,13 @@ def repair_premises(nodes, premise_ids, source_contents, review_results,
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = {
                 executor.submit(
-                    _repair_one, pid, nodes, source_contents,
-                    review_results, model, timeout
+                    _repair_one,
+                    pid,
+                    nodes,
+                    source_contents,
+                    review_results,
+                    model,
+                    timeout,
                 ): pid
                 for pid in premise_ids
             }
@@ -166,8 +189,9 @@ def repair_premises(nodes, premise_ids, source_contents, review_results,
     else:
         for i, pid in enumerate(premise_ids, 1):
             print(f"  Repairing {i}/{len(premise_ids)}: {pid}...", file=sys.stderr)
-            result = _repair_one(pid, nodes, source_contents,
-                                 review_results, model, timeout)
+            result = _repair_one(
+                pid, nodes, source_contents, review_results, model, timeout
+            )
             all_results.append(result)
             if on_result is not None:
                 on_result(all_results)

@@ -23,10 +23,10 @@ from . import Justification, Nogood
 from .import_beliefs import parse_beliefs, parse_nogoods
 from .network import Network
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _fixup_dependents(network):
     """Re-register dependents for all nodes.
@@ -59,7 +59,9 @@ def _ensure_agent_nodes(network, agent_name, source_path=""):
         network.add_node(
             id=inactive_id,
             text=f"Agent '{agent_name}' kill switch — IN when active is OUT",
-            justifications=[Justification(type="SL", antecedents=[], outlist=[active_id])],
+            justifications=[
+                Justification(type="SL", antecedents=[], outlist=[active_id])
+            ],
             source=source_path,
             metadata={"agent": agent_name, "role": "agent_inactive"},
         )
@@ -72,8 +74,12 @@ def _justifications_match(old, new):
     if len(old) != len(new):
         return False
     for a, b in zip(old, new):
-        if (a.type != b.type or a.antecedents != b.antecedents
-                or a.outlist != b.outlist or a.label != b.label):
+        if (
+            a.type != b.type
+            or a.antecedents != b.antecedents
+            or a.outlist != b.outlist
+            or a.label != b.label
+        ):
             return False
     return True
 
@@ -91,6 +97,7 @@ def _update_node_justifications(network, node_id, new_justifications):
 # unprefixed IDs.  Filtering (which antecedents/outlist to keep) is done
 # here so the shared logic just prefixes everything.
 # ---------------------------------------------------------------------------
+
 
 def _normalize_markdown(beliefs_text, only_in=False):
     """Convert markdown beliefs to normalized claim dicts."""
@@ -112,19 +119,27 @@ def _normalize_markdown(beliefs_text, only_in=False):
         else:
             antecedents = [d for d in c["depends_on"] if d in claim_ids]
             outlist = [o for o in c.get("unless", []) if o in claim_ids]
-            raw_justs = [{"type": "SL", "antecedents": antecedents,
-                          "outlist": outlist, "label": None}]
+            raw_justs = [
+                {
+                    "type": "SL",
+                    "antecedents": antecedents,
+                    "outlist": outlist,
+                    "label": None,
+                }
+            ]
 
-        normalized.append({
-            "id": c["id"],
-            "text": c["text"],
-            "is_out": is_out,
-            "source": c["source"],
-            "source_hash": c["source_hash"],
-            "date": c["date"],
-            "metadata": meta,
-            "raw_justifications": raw_justs,
-        })
+        normalized.append(
+            {
+                "id": c["id"],
+                "text": c["text"],
+                "is_out": is_out,
+                "source": c["source"],
+                "source_hash": c["source_hash"],
+                "date": c["date"],
+                "metadata": meta,
+                "raw_justifications": raw_justs,
+            }
+        )
     return normalized
 
 
@@ -143,24 +158,28 @@ def _normalize_json(data, only_in=False):
 
         raw_justs = []
         for j in ndata.get("justifications", []):
-            raw_justs.append({
-                "type": j.get("type", "SL"),
-                "antecedents": list(j.get("antecedents", [])),
-                "outlist": [o for o in j.get("outlist", []) if o in node_ids],
-                "label": j.get("label"),
-            })
+            raw_justs.append(
+                {
+                    "type": j.get("type", "SL"),
+                    "antecedents": list(j.get("antecedents", [])),
+                    "outlist": [o for o in j.get("outlist", []) if o in node_ids],
+                    "label": j.get("label"),
+                }
+            )
 
-        normalized.append({
-            "id": nid,
-            "text": ndata.get("text", ""),
-            "is_out": is_out,
-            "source": ndata.get("source", ""),
-            "source_url": ndata.get("source_url", ""),
-            "source_hash": ndata.get("source_hash", ""),
-            "date": ndata.get("date", ""),
-            "metadata": meta,
-            "raw_justifications": raw_justs,
-        })
+        normalized.append(
+            {
+                "id": nid,
+                "text": ndata.get("text", ""),
+                "is_out": is_out,
+                "source": ndata.get("source", ""),
+                "source_url": ndata.get("source_url", ""),
+                "source_hash": ndata.get("source_hash", ""),
+                "date": ndata.get("date", ""),
+                "metadata": meta,
+                "raw_justifications": raw_justs,
+            }
+        )
     return normalized
 
 
@@ -169,8 +188,12 @@ def _normalize_nogoods_markdown(nogoods_text):
     if not nogoods_text:
         return []
     return [
-        {"id": ng["id"], "nodes": ng["affects"],
-         "discovered": ng["discovered"], "resolution": ng["resolution"]}
+        {
+            "id": ng["id"],
+            "nodes": ng["affects"],
+            "discovered": ng["discovered"],
+            "resolution": ng["resolution"],
+        }
         for ng in parse_nogoods(nogoods_text)
     ]
 
@@ -178,8 +201,12 @@ def _normalize_nogoods_markdown(nogoods_text):
 def _normalize_nogoods_json(data):
     """Convert JSON nogoods to normalized dicts."""
     return [
-        {"id": ng["id"], "nodes": ng.get("nodes", []),
-         "discovered": ng.get("discovered", ""), "resolution": ng.get("resolution", "")}
+        {
+            "id": ng["id"],
+            "nodes": ng.get("nodes", []),
+            "discovered": ng.get("discovered", ""),
+            "resolution": ng.get("resolution", ""),
+        }
         for ng in data.get("nogoods", [])
     ]
 
@@ -187,6 +214,7 @@ def _normalize_nogoods_json(data):
 # ---------------------------------------------------------------------------
 # Shared operations
 # ---------------------------------------------------------------------------
+
 
 def _topo_sort_claims(claims):
     """Topological sort claims by antecedent dependencies."""
@@ -222,16 +250,24 @@ def _build_justifications(claim, prefix, inactive_id, agent_name):
         antecedents = [f"{prefix}{a}" for a in rj["antecedents"]]
         outlist = [inactive_id] + [f"{prefix}{o}" for o in rj["outlist"]]
         label = rj["label"] or f"imported from agent: {agent_name}"
-        justs.append(Justification(
-            type=rj["type"], antecedents=antecedents,
-            outlist=outlist, label=label,
-        ))
+        justs.append(
+            Justification(
+                type=rj["type"],
+                antecedents=antecedents,
+                outlist=outlist,
+                label=label,
+            )
+        )
 
     if not justs:
-        justs = [Justification(
-            type="SL", antecedents=[], outlist=[inactive_id],
-            label=f"imported from agent: {agent_name}",
-        )]
+        justs = [
+            Justification(
+                type="SL",
+                antecedents=[],
+                outlist=[inactive_id],
+                label=f"imported from agent: {agent_name}",
+            )
+        ]
 
     return justs
 
@@ -245,12 +281,14 @@ def _import_nogoods(network, prefix, nogoods):
         valid_nodes = [n for n in prefixed_nodes if n in network.nodes]
         nogood_id = f"{prefix}{ng['id']}"
         if len(valid_nodes) >= 2 and nogood_id not in existing_ids:
-            network.nogoods.append(Nogood(
-                id=nogood_id,
-                nodes=valid_nodes,
-                discovered=ng.get("discovered", ""),
-                resolution=ng.get("resolution", ""),
-            ))
+            network.nogoods.append(
+                Nogood(
+                    id=nogood_id,
+                    nodes=valid_nodes,
+                    discovered=ng.get("discovered", ""),
+                    resolution=ng.get("resolution", ""),
+                )
+            )
             existing_ids.add(nogood_id)
             count += 1
     return count
@@ -259,6 +297,7 @@ def _import_nogoods(network, prefix, nogoods):
 # ---------------------------------------------------------------------------
 # Shared import / sync logic
 # ---------------------------------------------------------------------------
+
 
 def _import_claims(network, agent_name, claims, source_path, nogoods):
     """Import normalized claims into the network."""
@@ -287,11 +326,13 @@ def _import_claims(network, agent_name, claims, source_path, nogoods):
         justifications = _build_justifications(claim, prefix, inactive_id, agent_name)
 
         metadata = claim["metadata"].copy()
-        metadata.update({
-            "agent": agent_name,
-            "original_id": claim["id"],
-            "imported_from": source_path,
-        })
+        metadata.update(
+            {
+                "agent": agent_name,
+                "original_id": claim["id"],
+                "imported_from": source_path,
+            }
+        )
 
         network.add_node(
             id=node_id,
@@ -347,8 +388,7 @@ def _sync_claims(network, agent_name, claims, source_path, nogoods):
 
     infra_ids = {active_id, inactive_id}
     local_agent_ids = {
-        nid for nid in network.nodes
-        if nid.startswith(prefix) and nid not in infra_ids
+        nid for nid in network.nodes if nid.startswith(prefix) and nid not in infra_ids
     }
 
     ordered = _topo_sort_claims(claims)
@@ -440,11 +480,13 @@ def _sync_claims(network, agent_name, claims, source_path, nogoods):
             )
 
             metadata = claim["metadata"].copy()
-            metadata.update({
-                "agent": agent_name,
-                "original_id": claim["id"],
-                "imported_from": source_path,
-            })
+            metadata.update(
+                {
+                    "agent": agent_name,
+                    "original_id": claim["id"],
+                    "imported_from": source_path,
+                }
+            )
 
             network.add_node(
                 id=node_id,
@@ -518,6 +560,7 @@ def _sync_claims(network, agent_name, claims, source_path, nogoods):
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def import_agent(
     network: Network,

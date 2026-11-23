@@ -27,7 +27,6 @@ from reasonsforge.storage import Storage
 
 
 class TestBuildMetaEdgeCases:
-
     def test_node_count_zero(self):
         meta = build_meta("proj", node_count=0)
         assert meta["node_count"] == 0
@@ -59,7 +58,6 @@ class TestBuildMetaEdgeCases:
 
 
 class TestJsonRoundTripMeta:
-
     def test_full_roundtrip_preserves_meta(self, tmp_path):
         """Export→file→import→re-export: project_name and schema_version survive."""
         db1 = str(tmp_path / "src.db")
@@ -120,8 +118,11 @@ class TestJsonRoundTripMeta:
                     "text": "Old node",
                     "truth_value": "IN",
                     "justifications": [],
-                    "source": "", "source_url": "", "source_hash": "",
-                    "date": "", "metadata": {},
+                    "source": "",
+                    "source_url": "",
+                    "source_hash": "",
+                    "date": "",
+                    "metadata": {},
                 }
             },
             "nogoods": [],
@@ -144,7 +145,6 @@ class TestJsonRoundTripMeta:
 
 
 class TestSqliteMetaExtended:
-
     def test_created_at_preserved_across_saves(self, tmp_path):
         """Multiple add_node calls should not change created_at."""
         db = str(tmp_path / "test.db")
@@ -203,7 +203,6 @@ class TestSqliteMetaExtended:
 
 
 class TestMarkdownExportMetaExtended:
-
     def test_frontmatter_is_first_block(self):
         net = Network()
         net.add_node("a", "A")
@@ -241,7 +240,6 @@ class TestMarkdownExportMetaExtended:
 
 
 class TestStripFrontmatterEdgeCases:
-
     def test_incomplete_frontmatter_no_closing(self):
         """Missing closing --- returns original text."""
         text = "---\nschema_version: 1.0\nSome body"
@@ -273,7 +271,6 @@ class TestStripFrontmatterEdgeCases:
 
 
 class TestMarkdownRoundTripExtended:
-
     def test_project_name_roundtrip(self, tmp_path):
         """Export with project_name → import → network.meta has project_name."""
         db1 = str(tmp_path / "src.db")
@@ -310,7 +307,9 @@ class TestMarkdownRoundTripExtended:
         data = api.export_network(db_path=db2)
         assert data["meta"]["schema_version"] == SCHEMA_VERSION
 
-    def test_import_markdown_without_frontmatter_preserves_existing_meta(self, tmp_path):
+    def test_import_markdown_without_frontmatter_preserves_existing_meta(
+        self, tmp_path
+    ):
         """Importing old-style beliefs.md without frontmatter doesn't clobber existing meta."""
         db = str(tmp_path / "test.db")
         md_file = str(tmp_path / "old.md")
@@ -318,8 +317,7 @@ class TestMarkdownRoundTripExtended:
         api.init_db(db_path=db, project_name="existing-proj")
 
         Path(md_file).write_text(
-            "# Belief Registry\n\n## Claims\n\n"
-            "### x [IN] OBSERVATION\nSome belief\n"
+            "# Belief Registry\n\n## Claims\n\n### x [IN] OBSERVATION\nSome belief\n"
         )
         api.import_beliefs(md_file, db_path=db)
 

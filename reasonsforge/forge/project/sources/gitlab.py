@@ -32,7 +32,7 @@ class GitLabSource:
 
     def __init__(self, repo: str):
         """Args:
-            repo: group/project slug (e.g., "mygroup/myproject")
+        repo: group/project slug (e.g., "mygroup/myproject")
         """
         self.repo = repo
         self.platform = "gitlab"
@@ -47,13 +47,21 @@ class GitLabSource:
     ) -> list[Issue]:
         """List issues from the project."""
         cmd = [
-            "glab", "issue", "list",
-            "--repo", self.repo,
-            "--per-page", str(limit),
-            "--page", str(page),
-            "--output", "json",
-            "--order", "updated_at",
-            "--sort", "desc",
+            "glab",
+            "issue",
+            "list",
+            "--repo",
+            self.repo,
+            "--per-page",
+            str(limit),
+            "--page",
+            str(page),
+            "--output",
+            "json",
+            "--order",
+            "updated_at",
+            "--sort",
+            "desc",
         ]
         if state:
             if state == "closed":
@@ -78,9 +86,14 @@ class GitLabSource:
     def get_issue(self, iid: int) -> Issue:
         """Get a single issue with comments."""
         cmd = [
-            "glab", "issue", "view", str(iid),
-            "--repo", self.repo,
-            "--output", "json",
+            "glab",
+            "issue",
+            "view",
+            str(iid),
+            "--repo",
+            self.repo,
+            "--output",
+            "json",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -91,20 +104,28 @@ class GitLabSource:
 
         # Fetch comments separately
         comments_cmd = [
-            "glab", "issue", "note", "list", str(iid),
-            "--repo", self.repo,
-            "--output", "json",
+            "glab",
+            "issue",
+            "note",
+            "list",
+            str(iid),
+            "--repo",
+            self.repo,
+            "--output",
+            "json",
         ]
         comments_result = subprocess.run(comments_cmd, capture_output=True, text=True)
         if comments_result.returncode == 0 and comments_result.stdout.strip():
             try:
                 raw_comments = json.loads(comments_result.stdout)
                 for c in raw_comments:
-                    issue.comments.append(IssueComment(
-                        author=c.get("author", {}).get("username", ""),
-                        body=c.get("body", ""),
-                        created=c.get("created_at", ""),
-                    ))
+                    issue.comments.append(
+                        IssueComment(
+                            author=c.get("author", {}).get("username", ""),
+                            body=c.get("body", ""),
+                            created=c.get("created_at", ""),
+                        )
+                    )
                 issue.comment_count = len(issue.comments)
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -119,10 +140,15 @@ class GitLabSource:
     ) -> list[PullRequest]:
         """List merge requests from the project."""
         cmd = [
-            "glab", "mr", "list",
-            "--repo", self.repo,
-            "--per-page", str(limit),
-            "--output", "json",
+            "glab",
+            "mr",
+            "list",
+            "--repo",
+            self.repo,
+            "--per-page",
+            str(limit),
+            "--output",
+            "json",
         ]
         if state == "merged":
             cmd.append("--merged")
@@ -164,17 +190,22 @@ class GitLabSource:
         reviews = []
         for r in raw.get("reviewers", []):
             if isinstance(r, dict):
-                reviews.append({
-                    "author": r.get("username", ""),
-                    "state": "reviewer",
-                    "body": "",
-                })
+                reviews.append(
+                    {
+                        "author": r.get("username", ""),
+                        "state": "reviewer",
+                        "body": "",
+                    }
+                )
 
         # Extract linked issues from source branch name (convention: issue-NNN)
         linked_issues = []
         source_branch = raw.get("source_branch", "")
         import re
-        issue_refs = re.findall(r"(?:issue[s]?[-_]?)(\d+)", source_branch, re.IGNORECASE)
+
+        issue_refs = re.findall(
+            r"(?:issue[s]?[-_]?)(\d+)", source_branch, re.IGNORECASE
+        )
         for ref in issue_refs:
             linked_issues.append(f"GL-{ref}")
 

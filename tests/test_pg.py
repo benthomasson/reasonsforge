@@ -10,7 +10,6 @@ pytestmark = [pytest.mark.pg, skip_no_pg]
 
 
 class TestAddNode:
-
     def test_add_premise(self, pg_api):
         result = pg_api.add_node("a", "Alpha premise")
         assert result["node_id"] == "a"
@@ -61,7 +60,6 @@ class TestAddNode:
 
 
 class TestRefIntegrity:
-
     def test_add_node_phantom_antecedent(self, pg_api):
         with pytest.raises(KeyError, match="ghost"):
             pg_api.add_node("b", "Derived B", sl="ghost")
@@ -98,7 +96,6 @@ class TestRefIntegrity:
 
 
 class TestRetractNode:
-
     def test_retract_premise(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.retract_node("a")
@@ -134,7 +131,6 @@ class TestRetractNode:
 
 
 class TestAssertNode:
-
     def test_assert_restores(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.retract_node("a")
@@ -161,7 +157,6 @@ class TestAssertNode:
 
 
 class TestPropagation:
-
     def test_diamond_dependency(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta", sl="a")
@@ -225,7 +220,6 @@ class TestPropagation:
 
 
 class TestGetStatus:
-
     def test_empty(self, pg_api):
         result = pg_api.get_status()
         assert result["nodes"] == []
@@ -248,7 +242,6 @@ class TestGetStatus:
 
 
 class TestShowNode:
-
     def test_show_premise(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.show_node("a")
@@ -281,7 +274,6 @@ class TestShowNode:
 
 
 class TestSearch:
-
     def test_search_by_text(self, pg_api):
         pg_api.add_node("a", "Propagation uses breadth-first search")
         pg_api.add_node("b", "Retraction cascades through dependents")
@@ -333,7 +325,6 @@ class TestSearch:
 
 
 class TestListNodes:
-
     def test_list_all(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta")
@@ -372,7 +363,6 @@ class TestListNodes:
 
 
 class TestListGated:
-
     def test_no_gates(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.list_gated()
@@ -382,7 +372,9 @@ class TestListGated:
     def test_active_gate(self, pg_api):
         pg_api.add_node("premise", "Supporting premise")
         pg_api.add_node("blocker", "Defect premise")
-        pg_api.add_node("gated", "Conclusion unless blocker", sl="premise", unless="blocker")
+        pg_api.add_node(
+            "gated", "Conclusion unless blocker", sl="premise", unless="blocker"
+        )
         result = pg_api.list_gated()
         assert result["blocker_count"] == 1
         assert result["gated_count"] == 1
@@ -392,7 +384,9 @@ class TestListGated:
     def test_satisfied_gate(self, pg_api):
         pg_api.add_node("premise", "Supporting premise")
         pg_api.add_node("blocker", "Defect premise")
-        pg_api.add_node("gated", "Conclusion unless blocker", sl="premise", unless="blocker")
+        pg_api.add_node(
+            "gated", "Conclusion unless blocker", sl="premise", unless="blocker"
+        )
         pg_api.retract_node("blocker")
         result = pg_api.list_gated()
         assert result["blockers"] == {}
@@ -415,7 +409,6 @@ class TestListGated:
 
 
 class TestGetLog:
-
     def test_log_after_add(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.get_log()
@@ -431,7 +424,6 @@ class TestGetLog:
 
 
 class TestAddJustification:
-
     def test_add_justification_changes_truth(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta")
@@ -446,7 +438,6 @@ class TestAddJustification:
 
 
 class TestNogood:
-
     def test_add_nogood_active(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta")
@@ -471,7 +462,6 @@ class TestNogood:
 
 
 class TestFindCulprits:
-
     def test_find_culprits(self, pg_api):
         pg_api.add_node("premise-a", "Alpha", source="code.py")
         pg_api.add_node("premise-b", "Beta")
@@ -483,7 +473,6 @@ class TestFindCulprits:
 
 
 class TestExplainNode:
-
     def test_explain_premise(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.explain_node("a")
@@ -507,7 +496,6 @@ class TestExplainNode:
 
 
 class TestTraceAssumptions:
-
     def test_trace_premise(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.trace_assumptions("a")
@@ -531,7 +519,6 @@ class TestTraceAssumptions:
 
 
 class TestMultiTenancy:
-
     def test_projects_isolated(self, pg_api):
         import os
         import uuid
@@ -554,15 +541,21 @@ class TestMultiTenancy:
             assert p2["text"] == "Project 2 data"
         finally:
             with api2.conn.cursor() as cur:
-                for table in ("rms_propagation_log", "rms_justifications",
-                              "rms_nogoods", "rms_network_meta", "rms_nodes"):
-                    cur.execute(f"DELETE FROM {table} WHERE project_id = %s", (project2,))
+                for table in (
+                    "rms_propagation_log",
+                    "rms_justifications",
+                    "rms_nogoods",
+                    "rms_network_meta",
+                    "rms_nodes",
+                ):
+                    cur.execute(
+                        f"DELETE FROM {table} WHERE project_id = %s", (project2,)
+                    )
             api2.conn.commit()
             api2.close()
 
 
 class TestWhatIf:
-
     def test_what_if_retract_cascade(self, pg_api):
         pg_api.add_node("a", "Premise A")
         pg_api.add_node("b", "Derived B", sl="a")
@@ -647,7 +640,6 @@ class TestWhatIf:
 
 
 class TestChallenge:
-
     def test_challenge_premise(self, pg_api):
         pg_api.add_node("a", "Alpha premise")
         result = pg_api.challenge("a", "Alpha is wrong")
@@ -717,7 +709,6 @@ class TestChallenge:
 
 
 class TestDefend:
-
     def test_defend_restores_target(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.challenge("a", "Alpha is wrong")
@@ -754,7 +745,9 @@ class TestDefend:
     def test_defend_custom_id(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.challenge("a", "Alpha is wrong")
-        result = pg_api.defend("a", "challenge-a", "Alpha is right", defense_id="my-defense")
+        result = pg_api.defend(
+            "a", "challenge-a", "Alpha is right", defense_id="my-defense"
+        )
         assert result["defense_id"] == "my-defense"
         assert pg_api.show_node("my-defense")["truth_value"] == "IN"
 
@@ -782,7 +775,6 @@ class TestDefend:
 
 
 class TestCompact:
-
     def test_compact_empty(self, pg_api):
         result = pg_api.compact()
         assert "0 nodes tracked" in result
@@ -809,7 +801,9 @@ class TestCompact:
 
     def test_compact_budget(self, pg_api):
         for i in range(20):
-            pg_api.add_node(f"node-{i:02d}", f"This is belief number {i} with some text")
+            pg_api.add_node(
+                f"node-{i:02d}", f"This is belief number {i} with some text"
+            )
         result_small = pg_api.compact(budget=50)
         result_large = pg_api.compact(budget=5000)
         assert len(result_small) < len(result_large)
@@ -873,7 +867,6 @@ class TestCompact:
 
 
 class TestExportNetwork:
-
     def test_export_empty(self, pg_api):
         result = pg_api.export_network()
         assert result["nodes"] == {}
@@ -916,7 +909,9 @@ class TestExportNetwork:
         assert set(result["nogoods"][0]["nodes"]) == {"a", "b"}
 
     def test_export_source_fields(self, pg_api):
-        pg_api.add_node("a", "Alpha", source="test.py", source_url="https://example.com")
+        pg_api.add_node(
+            "a", "Alpha", source="test.py", source_url="https://example.com"
+        )
         result = pg_api.export_network()
         assert result["nodes"]["a"]["source"] == "test.py"
         assert result["nodes"]["a"]["source_url"] == "https://example.com"
@@ -936,7 +931,6 @@ class TestExportNetwork:
 
 
 class TestRemoveJustification:
-
     def test_remove_one_of_two(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta")
@@ -995,7 +989,6 @@ class TestRemoveJustification:
 
 
 class TestUpdateNode:
-
     def test_update_text_rejected(self, pg_api):
         pg_api.add_node("a", "Alpha")
         with pytest.raises(ValueError, match="immutable"):
@@ -1003,7 +996,9 @@ class TestUpdateNode:
 
     def test_update_source(self, pg_api):
         pg_api.add_node("a", "Alpha")
-        result = pg_api.update_node("a", source="test.py", source_url="https://example.com")
+        result = pg_api.update_node(
+            "a", source="test.py", source_url="https://example.com"
+        )
         assert "source" in result["updated_fields"]
         assert "source_url" in result["updated_fields"]
         node = pg_api.show_node("a")
@@ -1021,7 +1016,6 @@ class TestUpdateNode:
 
 
 class TestConvertToPremise:
-
     def test_convert_derived_to_premise(self, pg_api):
         pg_api.add_node("a", "Alpha")
         pg_api.add_node("b", "Beta", sl="a")
@@ -1062,7 +1056,6 @@ class TestConvertToPremise:
 
 
 class TestGetBeliefSet:
-
     def test_empty(self, pg_api):
         result = pg_api.get_belief_set()
         assert result == []
@@ -1081,7 +1074,6 @@ class TestGetBeliefSet:
 
 
 class TestPropagate:
-
     def test_no_changes(self, pg_api):
         pg_api.add_node("a", "Alpha")
         result = pg_api.propagate()
@@ -1121,7 +1113,6 @@ class TestPropagate:
 
 
 class TestSupersede:
-
     def test_makes_old_out(self, pg_api):
         pg_api.add_node("old", "Old belief")
         pg_api.add_node("new", "New belief")
@@ -1165,7 +1156,6 @@ class TestSupersede:
 
 
 class TestSummarize:
-
     def test_create_summary(self, pg_api):
         pg_api.add_node("a", "Premise A")
         pg_api.add_node("b", "Premise B")
@@ -1203,7 +1193,6 @@ class TestSummarize:
 
 
 class TestTraceAccessTags:
-
     def test_premise_returns_own_tags(self, pg_api):
         pg_api.add_node("a", "A", access_tags=["finance"])
         result = pg_api.trace_access_tags("a")
@@ -1232,7 +1221,6 @@ class TestTraceAccessTags:
 
 
 class TestEnsureNamespace:
-
     def test_creates_active_node(self, pg_api):
         result = pg_api.ensure_namespace("agent1")
         assert result["namespace"] == "agent1"
@@ -1260,7 +1248,6 @@ class TestEnsureNamespace:
 
 
 class TestListNamespaces:
-
     def test_empty(self, pg_api):
         result = pg_api.list_namespaces()
         assert result["namespaces"] == []
@@ -1288,7 +1275,6 @@ class TestListNamespaces:
 
 
 class TestNamespaceAddNode:
-
     def test_prefixes_node_id(self, pg_api):
         result = pg_api.add_node("belief1", "A belief", namespace="agent1")
         assert result["node_id"] == "agent1:belief1"
@@ -1306,7 +1292,9 @@ class TestNamespaceAddNode:
         assert pg_api.show_node("agent1:belief1")["truth_value"] == "OUT"
 
     def test_no_double_prefix(self, pg_api):
-        result = pg_api.add_node("agent1:belief1", "Already prefixed", namespace="agent1")
+        result = pg_api.add_node(
+            "agent1:belief1", "Already prefixed", namespace="agent1"
+        )
         assert result["node_id"] == "agent1:belief1"
 
     def test_resolves_antecedent_ids(self, pg_api):
@@ -1321,7 +1309,6 @@ class TestNamespaceAddNode:
 
 
 class TestNamespaceAddJustification:
-
     def test_prefixes_ids(self, pg_api):
         pg_api.add_node("a", "A", namespace="ns1")
         pg_api.add_node("b", "B", namespace="ns1")

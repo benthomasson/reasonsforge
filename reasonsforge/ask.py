@@ -14,7 +14,6 @@ import sys
 from . import api
 from .llm import invoke_model
 
-
 _CITE_RULE = "- Cite belief IDs in [brackets] when referencing specific beliefs."
 _CITE_RULE_NATURAL = "- Do not cite belief IDs. Answer in plain natural language."
 
@@ -127,18 +126,23 @@ def extract_tool_call(text):
     return None
 
 
-def build_ask_prompt(question, beliefs_context, tool_history=None, natural=False,
-                     tools_section=None, mcp_instructions=""):
+def build_ask_prompt(
+    question,
+    beliefs_context,
+    tool_history=None,
+    natural=False,
+    tools_section=None,
+    mcp_instructions="",
+):
     """Build the full prompt for LLM synthesis."""
     history_section = ""
     if tool_history:
         parts = []
         for entry in tool_history:
-            parts.append(
-                f"### Tool call: {entry['tool_label']}\n\n"
-                f"{entry['result']}"
-            )
-        history_section = "\n\n## Additional search results\n\n" + "\n\n---\n\n".join(parts)
+            parts.append(f"### Tool call: {entry['tool_label']}\n\n{entry['result']}")
+        history_section = "\n\n## Additional search results\n\n" + "\n\n---\n\n".join(
+            parts
+        )
 
     if mcp_instructions:
         mcp_instructions = f"\n## Data Source Instructions\n\n{mcp_instructions}\n"
@@ -159,11 +163,10 @@ def build_final_prompt(question, beliefs_context, tool_history=None, natural=Fal
     if tool_history:
         parts = []
         for entry in tool_history:
-            parts.append(
-                f"### Tool call: {entry['tool_label']}\n\n"
-                f"{entry['result']}"
-            )
-        history_section = "\n\n## Additional search results\n\n" + "\n\n---\n\n".join(parts)
+            parts.append(f"### Tool call: {entry['tool_label']}\n\n{entry['result']}")
+        history_section = "\n\n## Additional search results\n\n" + "\n\n---\n\n".join(
+            parts
+        )
 
     return FINAL_ASK_PROMPT.format(
         question=question,
@@ -206,13 +209,13 @@ def _strip_belief_metadata(beliefs_context):
             continue
         if line.startswith("**Related nodes:**"):
             continue
-        if re.match(r'^- \*\*\S+\*\* \((?:IN|OUT)\):', line):
+        if re.match(r"^- \*\*\S+\*\* \((?:IN|OUT)\):", line):
             continue
         if line.strip() == "---":
             continue
         out.append(line)
     result = "\n".join(out).strip()
-    result = re.sub(r'\n{3,}', '\n\n', result)
+    result = re.sub(r"\n{3,}", "\n\n", result)
     return result
 
 
@@ -223,7 +226,7 @@ def search_source_chunks(query, sources_db, top_k=10):
     """
     from .api import _STOP_WORDS
 
-    raw_words = re.findall(r'\w+', query)
+    raw_words = re.findall(r"\w+", query)
     words = [w for w in raw_words if w.lower() not in _STOP_WORDS and len(w) > 1]
     if not words:
         words = [w for w in raw_words if len(w) > 1]
@@ -235,14 +238,17 @@ def search_source_chunks(query, sources_db, top_k=10):
     try:
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             SELECT c.text, c.cluster, c.filename, c.section
             FROM chunks_fts
             JOIN chunks c ON c.id = chunks_fts.rowid
             WHERE chunks_fts MATCH ?
             ORDER BY chunks_fts.rank
             LIMIT ?
-        """, (fts_query, top_k))
+        """,
+            (fts_query, top_k),
+        )
         return [dict(row) for row in cur.fetchall()]
     finally:
         conn.close()
@@ -331,7 +337,9 @@ def _fts_rag_answer(question, sources_db, model="claude", timeout=300):
 def _merge_answers(question, answer_tms, answer_fts, model="claude", timeout=300):
     """Merge two answers from different retrieval paths."""
     prompt = MERGE_PROMPT.format(
-        question=question, answer_tms=answer_tms, answer_fts=answer_fts,
+        question=question,
+        answer_tms=answer_tms,
+        answer_fts=answer_fts,
     )
     return invoke_model(prompt, model=model, timeout=timeout).strip()
 
@@ -349,8 +357,11 @@ def _beliefs_or_no_match(beliefs_context):
 
 def _build_tools_section(mcp_servers):
     """Build the tools section for the prompt, including MCP server tools."""
-    lines = ["You have the following tools available:", "",
-             '{"tool": "search_beliefs", "query": "search terms"}']
+    lines = [
+        "You have the following tools available:",
+        "",
+        '{"tool": "search_beliefs", "query": "search terms"}',
+    ]
     if mcp_servers:
         for bridge in mcp_servers:
             for tool in bridge.list_tools():
@@ -358,8 +369,10 @@ def _build_tools_section(mcp_servers):
                 props = schema.get("properties", {})
                 param_parts = []
                 for pname, pinfo in props.items():
-                    param_parts.append(f'"{pname}": "<{pinfo.get("description", pname)}>"')
-                example = ', '.join(param_parts)
+                    param_parts.append(
+                        f'"{pname}": "<{pinfo.get("description", pname)}>"'
+                    )
+                example = ", ".join(param_parts)
                 if example:
                     lines.append(f'{{"tool": "{tool["name"]}", {example}}}')
                 else:
@@ -380,9 +393,19 @@ def _build_mcp_instructions(mcp_servers):
     return "\n\n".join(parts)
 
 
-def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None,
-        model="claude", simple=False, sources_db=None, natural=False, dual=False,
-        mcp_servers=None):
+def ask(
+    question,
+    db_path="reasons.db",
+    timeout=300,
+    no_synth=False,
+    format=None,
+    model="claude",
+    simple=False,
+    sources_db=None,
+    natural=False,
+    dual=False,
+    mcp_servers=None,
+):
     """Answer a question using FTS5 belief search and optional LLM synthesis.
 
     Args:
@@ -405,15 +428,22 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
 
     if dual and sources_db:
         print("Dual path: running TMS...", file=sys.stderr)
-        answer_tms = ask(question, db_path=db_path, timeout=timeout,
-                         model=model, simple=simple, natural=natural,
-                         mcp_servers=mcp_servers)
+        answer_tms = ask(
+            question,
+            db_path=db_path,
+            timeout=timeout,
+            model=model,
+            simple=simple,
+            natural=natural,
+            mcp_servers=mcp_servers,
+        )
         print("Dual path: running FTS RAG...", file=sys.stderr)
-        answer_fts = _fts_rag_answer(question, sources_db, model=model,
-                                     timeout=timeout)
-        tms_empty = (answer_tms.strip() == NO_BELIEFS_MSG
-                     or "don't have enough beliefs" in answer_tms.lower())
-        fts_empty = (answer_fts.strip().startswith("No relevant documents"))
+        answer_fts = _fts_rag_answer(question, sources_db, model=model, timeout=timeout)
+        tms_empty = (
+            answer_tms.strip() == NO_BELIEFS_MSG
+            or "don't have enough beliefs" in answer_tms.lower()
+        )
+        fts_empty = answer_fts.strip().startswith("No relevant documents")
         if tms_empty and not fts_empty:
             print("Dual path: TMS empty, using FTS answer directly.", file=sys.stderr)
             return answer_fts
@@ -423,16 +453,18 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
         if tms_empty and fts_empty:
             return NO_BELIEFS_MSG
         print("Dual path: merging answers...", file=sys.stderr)
-        return _merge_answers(question, answer_tms, answer_fts, model=model,
-                              timeout=timeout)
+        return _merge_answers(
+            question, answer_tms, answer_fts, model=model, timeout=timeout
+        )
 
     if no_synth:
         fmt = format or "compact"
         return api.search(question, db_path=db_path, format=fmt)
 
     if simple:
-        beliefs_context = api.search(question, db_path=db_path, format="markdown",
-                                     depth=2)
+        beliefs_context = api.search(
+            question, db_path=db_path, format="markdown", depth=2
+        )
         if not beliefs_context or beliefs_context.strip() == "No results found.":
             beliefs_context = ""
 
@@ -442,7 +474,9 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
         if sources_db:
             sources_context = _search_source_chunks(question, sources_db)
             if sources_context:
-                beliefs_context = beliefs_context + "\n\n## Source Documents\n\n" + sources_context
+                beliefs_context = (
+                    beliefs_context + "\n\n## Source Documents\n\n" + sources_context
+                )
 
         if not beliefs_context.strip():
             return NO_BELIEFS_MSG
@@ -495,12 +529,16 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
         if iteration == max_iters - 1:
             prompt = build_final_prompt(question, ctx, tool_history, natural=natural)
         else:
-            prompt = build_ask_prompt(question, ctx, tool_history, natural=natural,
-                                      tools_section=tools_section,
-                                      mcp_instructions=mcp_instructions)
+            prompt = build_ask_prompt(
+                question,
+                ctx,
+                tool_history,
+                natural=natural,
+                tools_section=tools_section,
+                mcp_instructions=mcp_instructions,
+            )
 
-        print(f"Synthesizing (round {iteration + 1}/{max_iters})...",
-              file=sys.stderr)
+        print(f"Synthesizing (round {iteration + 1}/{max_iters})...", file=sys.stderr)
 
         try:
             response = invoke_model(prompt, model=model, timeout=timeout)
@@ -522,11 +560,15 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
             query = tool_call.get("query", "")
             print(f"  Searching: {query}", file=sys.stderr)
             result = api.search(query, db_path=db_path, format="markdown")
-            history_result = _strip_belief_metadata(result) if natural and result else result
-            tool_history.append({
-                "tool_label": f'search_beliefs("{query}")',
-                "result": history_result,
-            })
+            history_result = (
+                _strip_belief_metadata(result) if natural and result else result
+            )
+            tool_history.append(
+                {
+                    "tool_label": f'search_beliefs("{query}")',
+                    "result": history_result,
+                }
+            )
             if result and result.strip() != "No results found.":
                 beliefs_context = result
                 if natural:
@@ -539,10 +581,12 @@ def ask(question, db_path="reasons.db", timeout=300, no_synth=False, format=None
                 result = bridge.call_tool(tool_name, args)
             except Exception as e:
                 result = f"Error calling {tool_name}: {e}"
-            tool_history.append({
-                "tool_label": f"{tool_name}(...)",
-                "result": result,
-            })
+            tool_history.append(
+                {
+                    "tool_label": f"{tool_name}(...)",
+                    "result": result,
+                }
+            )
         else:
             return response.strip()
 
@@ -659,7 +703,9 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
 
     if tool_name == "search":
         result = api.search(tool_arg, db_path=db_path, format="compact", depth=0)
-        return result if result and result != "No results found." else "No results found."
+        return (
+            result if result and result != "No results found." else "No results found."
+        )
 
     if tool_name == "list":
         try:
@@ -701,7 +747,11 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
         if not row:
             return f"No belief found: {tool_arg}"
         result = api.search(tool_arg, db_path=db_path, format="markdown", depth=1)
-        return result if result and result != "No results found." else f"- `{row['id']}` — {row['text']}"
+        return (
+            result
+            if result and result != "No results found."
+            else f"- `{row['id']}` — {row['text']}"
+        )
 
     return f"Unknown tool: {tool_name}"
 
@@ -709,8 +759,13 @@ def _execute_elevate_tool(tool_name, tool_arg, db_path):
 MAX_ELEVATE_ROUNDS = 10
 
 
-def elevate_prompt(question, db_path="reasons.db", model="claude", timeout=300,
-                   max_rounds=MAX_ELEVATE_ROUNDS):
+def elevate_prompt(
+    question,
+    db_path="reasons.db",
+    model="claude",
+    timeout=300,
+    max_rounds=MAX_ELEVATE_ROUNDS,
+):
     """Elevate a naive question into an expert question using EEM beliefs.
 
     Returns (elevated_question, search_count) or (original_question, 0) on failure.
@@ -730,14 +785,18 @@ def elevate_prompt(question, db_path="reasons.db", model="claude", timeout=300,
 
         elevated = _extract_elevated(response)
         if elevated:
-            print(f"Elevated in {round_num} round(s), {total_searches} search(es)",
-                  file=sys.stderr)
+            print(
+                f"Elevated in {round_num} round(s), {total_searches} search(es)",
+                file=sys.stderr,
+            )
             return elevated, total_searches
 
         tool_calls = _parse_elevate_tool_calls(response)
         if not tool_calls:
-            print(f"Elevate: model produced output without tools or ELEVATED tag",
-                  file=sys.stderr)
+            print(
+                f"Elevate: model produced output without tools or ELEVATED tag",
+                file=sys.stderr,
+            )
             return question, 0
 
         transcript += f"\n\nAssistant: {response}\n\n"
@@ -745,12 +804,15 @@ def elevate_prompt(question, db_path="reasons.db", model="claude", timeout=300,
         for tool_name, tool_arg in tool_calls:
             print(f"  {tool_name}({tool_arg})", file=sys.stderr)
             result = _execute_elevate_tool(tool_name, tool_arg, db_path)
-            transcript += (f"Result of {tool_name}(\"{tool_arg}\"):\n"
-                           f"```\n{result}\n```\n\n")
+            transcript += (
+                f'Result of {tool_name}("{tool_arg}"):\n```\n{result}\n```\n\n'
+            )
             total_searches += 1
 
-    print(f"Elevate: reached max rounds ({max_rounds}), using original question",
-          file=sys.stderr)
+    print(
+        f"Elevate: reached max rounds ({max_rounds}), using original question",
+        file=sys.stderr,
+    )
     return question, total_searches
 
 

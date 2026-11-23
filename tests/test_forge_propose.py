@@ -26,7 +26,9 @@ def work_dir(tmp_path, monkeypatch):
     return wd
 
 
-def make_args(input_dir, output="proposed-beliefs.md", batch_size=2, model="test", parallel=1):
+def make_args(
+    input_dir, output="proposed-beliefs.md", batch_size=2, model="test", parallel=1
+):
     return types.SimpleNamespace(
         input_dir=str(input_dir),
         output=output,
@@ -39,10 +41,18 @@ def make_args(input_dir, output="proposed-beliefs.md", batch_size=2, model="test
 
 def _json_beliefs(*beliefs, accept=True):
     """Helper to build a JSON response from (id, claim) tuples."""
-    return json.dumps([
-        {"id": b[0], "claim": b[1], "accept": accept, "source": "entry.md", "source_url": ""}
-        for b in beliefs
-    ])
+    return json.dumps(
+        [
+            {
+                "id": b[0],
+                "claim": b[1],
+                "accept": accept,
+                "source": "entry.md",
+                "source_url": "",
+            }
+            for b in beliefs
+        ]
+    )
 
 
 def test_proposals_written_after_each_batch(entries_dir, work_dir):
@@ -54,6 +64,7 @@ def test_proposals_written_after_each_batch(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=2)
 
     call_count = 0
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal call_count
         call_count += 1
@@ -61,10 +72,16 @@ def test_proposals_written_after_each_batch(entries_dir, work_dir):
             raise RuntimeError("simulated crash")
         return _json_beliefs((f"belief-from-batch-{call_count}", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -80,15 +97,22 @@ def test_all_batches_written_on_success(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=2)
 
     call_count = 0
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal call_count
         call_count += 1
         return _json_beliefs((f"belief-{call_count}", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -110,10 +134,18 @@ def test_existing_beliefs_filtered_per_batch(entries_dir, work_dir):
             ("new-belief", "Fresh."),
         )
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=existing), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch(
+            "reasonsforge.forge.propose._load_existing_beliefs", return_value=existing
+        ),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -130,6 +162,7 @@ def test_failed_batch_entries_not_marked_processed(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=2)
 
     call_count = 0
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal call_count
         call_count += 1
@@ -137,10 +170,16 @@ def test_failed_batch_entries_not_marked_processed(entries_dir, work_dir):
             raise RuntimeError("simulated crash")
         return _json_beliefs((f"belief-{call_count}", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     processed_path = work_dir / ".forge" / "proposed-entries.json"
@@ -161,6 +200,7 @@ def test_json_retry_on_bad_response(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=5)
 
     call_count = 0
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal call_count
         call_count += 1
@@ -168,10 +208,16 @@ def test_json_retry_on_bad_response(entries_dir, work_dir):
             return "Here are some beliefs about the code..."
         return _json_beliefs(("retried-belief", "A belief from retry."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -187,12 +233,18 @@ def test_json_with_code_fence(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=5)
 
     def invoke_side_effect(prompt, model=None, timeout=None):
-        return '```json\n' + _json_beliefs(("fenced-belief", "A belief.")) + '\n```'
+        return "```json\n" + _json_beliefs(("fenced-belief", "A belief.")) + "\n```"
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -208,15 +260,22 @@ def test_source_url_extracted_from_entry_frontmatter(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=5)
 
     captured_prompt = None
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal captured_prompt
         captured_prompt = prompt
         return _json_beliefs(("test-belief", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     assert "SOURCE_URL: https://example.com/doc" in captured_prompt
@@ -231,15 +290,22 @@ def test_source_key_url_extracted_from_entry_frontmatter(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=5)
 
     captured_prompt = None
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal captured_prompt
         captured_prompt = prompt
         return _json_beliefs(("test-belief", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     assert "SOURCE_URL: https://example.com/page" in captured_prompt
@@ -254,15 +320,22 @@ def test_source_key_local_path_not_used_as_url(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=5)
 
     captured_prompt = None
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal captured_prompt
         captured_prompt = prompt
         return _json_beliefs(("test-belief", "A belief."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     assert "| SOURCE_URL:" not in captured_prompt
@@ -279,10 +352,16 @@ def test_appends_to_existing_output_file(entries_dir, work_dir):
     def invoke_side_effect(prompt, model=None, timeout=None):
         return _json_beliefs(("new-belief", "Fresh."))
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -299,15 +378,24 @@ def test_parallel_processes_all_batches(entries_dir, work_dir):
     args = make_args(entries_dir, output=str(output), batch_size=2, parallel=2)
 
     call_count = 0
+
     def invoke_side_effect(prompt, model=None, timeout=None):
         nonlocal call_count
         call_count += 1
-        return _json_beliefs((f"belief-{call_count}", f"A belief from batch {call_count}."))
+        return _json_beliefs(
+            (f"belief-{call_count}", f"A belief from batch {call_count}.")
+        )
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -327,10 +415,16 @@ def test_accept_verdict_from_llm(entries_dir, work_dir):
     def invoke_side_effect(prompt, model=None, timeout=None):
         return _json_beliefs(("good-belief", "A solid claim."), accept=True)
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()
@@ -348,10 +442,16 @@ def test_reject_verdict_from_llm(entries_dir, work_dir):
     def invoke_side_effect(prompt, model=None, timeout=None):
         return _json_beliefs(("weak-belief", "A vague claim."), accept=False)
 
-    with patch("reasonsforge.forge.propose.check_model_available", return_value=True), \
-         patch("reasonsforge.forge.propose.invoke", new_callable=AsyncMock, side_effect=invoke_side_effect), \
-         patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]), \
-         patch("reasonsforge.forge.propose._has_embeddings", return_value=False):
+    with (
+        patch("reasonsforge.forge.propose.check_model_available", return_value=True),
+        patch(
+            "reasonsforge.forge.propose.invoke",
+            new_callable=AsyncMock,
+            side_effect=invoke_side_effect,
+        ),
+        patch("reasonsforge.forge.propose._load_existing_beliefs", return_value=[]),
+        patch("reasonsforge.forge.propose._has_embeddings", return_value=False),
+    ):
         cmd_propose_beliefs(args)
 
     content = output.read_text()

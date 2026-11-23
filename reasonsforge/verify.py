@@ -129,8 +129,7 @@ def verify_beliefs(beliefs_with_sources, model="claude", timeout=120):
     from .llm import invoke_model
 
     beliefs_text = "\n\n---\n\n".join(
-        format_belief_for_verify(b, src)
-        for b, src in beliefs_with_sources
+        format_belief_for_verify(b, src) for b, src in beliefs_with_sources
     )
     prompt = VERIFY_PROMPT.format(beliefs=beliefs_text)
     response = invoke_model(prompt, model=model, timeout=timeout)

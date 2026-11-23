@@ -29,9 +29,13 @@ class TestChallenge:
     def test_challenge_derived(self):
         net = Network()
         net.add_node("p", "Premise P")
-        net.add_node("a", "Derived A", justifications=[
-            Justification(type="SL", antecedents=["p"]),
-        ])
+        net.add_node(
+            "a",
+            "Derived A",
+            justifications=[
+                Justification(type="SL", antecedents=["p"]),
+            ],
+        )
         result = net.challenge("a", "A is wrong")
         assert net.nodes["a"].truth_value == "OUT"
 
@@ -39,9 +43,13 @@ class TestChallenge:
         """Challenging A should cascade to B which depends on A."""
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         result = net.challenge("a", "A is wrong")
         assert net.nodes["a"].truth_value == "OUT"
         assert net.nodes["b"].truth_value == "OUT"
@@ -124,9 +132,13 @@ class TestDefend:
         """Defense restores target, which restores dependents."""
         net = Network()
         net.add_node("a", "Premise A")
-        net.add_node("b", "Derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "Derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         net.challenge("a", "wrong")
         assert net.nodes["b"].truth_value == "OUT"
 

@@ -14,15 +14,20 @@ from reasonsforge import api
 
 
 class TestSummarizeBasic:
-
     def test_create_summary(self):
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("b", "Premise B")
-        net.add_node("c", "Derived C", justifications=[
-            Justification(type="SL", antecedents=["a", "b"]),
-        ])
-        result = net.summarize("summary-abc", "A, B, and C together", over=["a", "b", "c"])
+        net.add_node(
+            "c",
+            "Derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a", "b"]),
+            ],
+        )
+        result = net.summarize(
+            "summary-abc", "A, B, and C together", over=["a", "b", "c"]
+        )
         assert result["summary_id"] == "summary-abc"
         assert result["truth_value"] == "IN"
         assert net.nodes["summary-abc"].metadata["summarizes"] == ["a", "b", "c"]
@@ -139,7 +144,6 @@ class TestSummarizeInCompact:
 
 
 class TestSummarizePersistence:
-
     def test_round_trip(self, tmp_path):
         db = tmp_path / "test.db"
         net = Network()
@@ -162,7 +166,6 @@ class TestSummarizePersistence:
 
 
 class TestSummarizeAPI:
-
     def test_summarize_api(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.init_db(db_path=db)

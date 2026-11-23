@@ -10,13 +10,13 @@ def _setup_mixed_db(tmp_path):
     api.add_node("premise-in", "Retraction cascades propagate correctly", db_path=db)
     api.add_node("premise-out", "Retraction cascades are broken", db_path=db)
     api.retract_node("premise-out", db_path=db)
-    api.add_node("derived-in", "System handles retraction well",
-                 sl="premise-in", db_path=db)
+    api.add_node(
+        "derived-in", "System handles retraction well", sl="premise-in", db_path=db
+    )
     return db
 
 
 class TestSearchHidesOut:
-
     def test_default_excludes_out(self, tmp_path):
         db = _setup_mixed_db(tmp_path)
         result = api.search("retraction", db_path=db)
@@ -49,8 +49,7 @@ class TestSearchHidesOut:
         db = str(tmp_path / "test.db")
         api.init_db(db)
         api.add_node("root", "root premise", db_path=db)
-        api.add_node("derived-out", "derived from root",
-                     sl="root", db_path=db)
+        api.add_node("derived-out", "derived from root", sl="root", db_path=db)
         api.retract_node("derived-out", db_path=db)
         result = api.search("root premise", db_path=db)
         assert "### root" in result
@@ -58,7 +57,6 @@ class TestSearchHidesOut:
 
 
 class TestLookupHidesOut:
-
     def test_default_excludes_out(self, tmp_path):
         db = _setup_mixed_db(tmp_path)
         result = api.lookup("retraction", db_path=db)
@@ -81,7 +79,6 @@ class TestLookupHidesOut:
 
 
 class TestCompactHidesOut:
-
     def test_default_excludes_out_section(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.init_db(db)

@@ -30,7 +30,9 @@ class Topic:
     # Status: pending, done, skipped, failed, pruned
     status: str = "pending"
     # When it was added
-    added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    added: str = field(
+        default_factory=lambda: datetime.now().isoformat(timespec="seconds")
+    )
 
 
 TOPIC_KINDS = {"file", "function", "repo", "diff", "general"}
@@ -56,6 +58,7 @@ def load_queue(project_dir: str | None = None) -> list[Topic]:
             print(f"WARN: corrupt topics.json ({path}): {e}", file=sys.stderr)
             print("  Backing up to topics.json.bak and starting fresh", file=sys.stderr)
             import shutil
+
             shutil.copy2(path, path + ".bak")
             return []
     return [Topic(**item) for item in data]
@@ -90,8 +93,7 @@ def add_topics(topics: list[Topic], project_dir: str | None = None) -> int:
     return added
 
 
-def pop_next(project_dir: str | None = None,
-             kind: str | None = None) -> Topic | None:
+def pop_next(project_dir: str | None = None, kind: str | None = None) -> Topic | None:
     """
     Get the next pending topic and mark it as done.
 
@@ -123,7 +125,9 @@ def pop_at(index: int, project_dir: str | None = None) -> Topic | None:
     return queue[pending[index]]
 
 
-def pop_multiple(indices: list[int], project_dir: str | None = None) -> list[Topic | None]:
+def pop_multiple(
+    indices: list[int], project_dir: str | None = None
+) -> list[Topic | None]:
     """Get multiple pending topics by index and mark them all as done.
 
     Resolves all indices against the current pending list before marking
@@ -152,8 +156,9 @@ def pop_multiple(indices: list[int], project_dir: str | None = None) -> list[Top
     return results
 
 
-def pop_batch(n: int, project_dir: str | None = None,
-              kind: str | None = None) -> list[Topic]:
+def pop_batch(
+    n: int, project_dir: str | None = None, kind: str | None = None
+) -> list[Topic]:
     """Pop up to n pending topics and mark them as done.
 
     If kind is given, only pop topics matching that kind.
@@ -224,10 +229,10 @@ def pending_count(project_dir: str | None = None) -> int:
 
 TOPIC_LINE_PATTERN = re.compile(
     r"^[-*]\s+"
-    r"\[(\w+)\]\s+"       # [kind]
-    r"`([^`]+)`"           # `target`
-    r"\s*(?:—|-|:)\s*"    # separator
-    r"(.+)$",              # title/description
+    r"\[(\w+)\]\s+"  # [kind]
+    r"`([^`]+)`"  # `target`
+    r"\s*(?:—|-|:)\s*"  # separator
+    r"(.+)$",  # title/description
     re.MULTILINE,
 )
 
@@ -258,11 +263,13 @@ def parse_topics_from_response(response: str, source: str = "") -> list[Topic]:
         if kind not in TOPIC_KINDS:
             kind = "general"
 
-        topics.append(Topic(
-            title=title,
-            kind=kind,
-            target=target,
-            source=source,
-        ))
+        topics.append(
+            Topic(
+                title=title,
+                kind=kind,
+                target=target,
+                source=source,
+            )
+        )
 
     return topics

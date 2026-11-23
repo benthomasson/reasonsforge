@@ -99,13 +99,15 @@ def parse_premise_review_response(response):
         for item in items:
             if not isinstance(item, dict) or "id" not in item:
                 continue
-            results.append({
-                "id": item["id"],
-                "accurate": item.get("accurate", True),
-                "well_scoped": item.get("well_scoped", True),
-                "error_type": item.get("error_type"),
-                "comment": item.get("comment", ""),
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "accurate": item.get("accurate", True),
+                    "well_scoped": item.get("well_scoped", True),
+                    "error_type": item.get("error_type"),
+                    "comment": item.get("comment", ""),
+                }
+            )
         if results:
             return results
     return []
@@ -115,8 +117,9 @@ def _process_batch(batch, nodes, source_contents, model, timeout):
     """Process a single review batch. Returns (batch_results, error_or_None)."""
     premises_text = "\n\n".join(
         format_premise_for_review(
-            pid, nodes,
-            source_contents.get(nodes[pid].get("source", ""), "(source not available)")
+            pid,
+            nodes,
+            source_contents.get(nodes[pid].get("source", ""), "(source not available)"),
         )
         for pid in batch
     )
@@ -125,9 +128,16 @@ def _process_batch(batch, nodes, source_contents, model, timeout):
     return parse_premise_review_response(response)
 
 
-def review_premises(nodes, premise_ids, source_contents, model="claude",
-                    timeout=300, batch_size=REVIEW_BATCH_SIZE, on_batch=None,
-                    parallel=0):
+def review_premises(
+    nodes,
+    premise_ids,
+    source_contents,
+    model="claude",
+    timeout=300,
+    batch_size=REVIEW_BATCH_SIZE,
+    on_batch=None,
+    parallel=0,
+):
     """Review premises against their source material.
 
     Args:
@@ -162,13 +172,14 @@ def review_premises(nodes, premise_ids, source_contents, model="claude",
 
     batches = []
     for i in range(0, len(ordered_ids), batch_size):
-        batches.append(ordered_ids[i:i + batch_size])
+        batches.append(ordered_ids[i : i + batch_size])
 
     all_results = []
     total_batches = len(batches)
 
     if parallel > 0:
         from concurrent.futures import ThreadPoolExecutor, as_completed
+
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = {
                 executor.submit(
@@ -181,16 +192,22 @@ def review_premises(nodes, premise_ids, source_contents, model="claude",
                 try:
                     results = future.result()
                     all_results.extend(results)
-                    print(f"  Batch {batch_num}/{total_batches} complete "
-                          f"({len(results)} results)", file=sys.stderr)
+                    print(
+                        f"  Batch {batch_num}/{total_batches} complete "
+                        f"({len(results)} results)",
+                        file=sys.stderr,
+                    )
                     if on_batch is not None:
                         on_batch(all_results)
                 except Exception as e:
                     print(f"  WARN: batch {batch_num} failed: {e}", file=sys.stderr)
     else:
         for batch_num, batch in enumerate(batches, 1):
-            print(f"  Reviewing batch {batch_num}/{total_batches} "
-                  f"({len(batch)} premises)...", file=sys.stderr)
+            print(
+                f"  Reviewing batch {batch_num}/{total_batches} "
+                f"({len(batch)} premises)...",
+                file=sys.stderr,
+            )
             try:
                 results = _process_batch(batch, nodes, source_contents, model, timeout)
                 all_results.extend(results)

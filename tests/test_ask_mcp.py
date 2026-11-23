@@ -36,50 +36,71 @@ class FakeBridge:
 
 
 class TestBuildToolsSection:
-
     def test_no_mcp_servers(self):
         section = _build_tools_section([])
         assert "search_beliefs" in section
 
     def test_includes_mcp_tools(self):
-        bridge = FakeBridge(tools=[
-            {
-                "name": "execute_query",
-                "description": "Execute a read-only SQL query",
-                "input_schema": {
-                    "properties": {
-                        "sql": {"description": "A single SELECT statement", "type": "string"}
-                    }
-                },
-            }
-        ])
+        bridge = FakeBridge(
+            tools=[
+                {
+                    "name": "execute_query",
+                    "description": "Execute a read-only SQL query",
+                    "input_schema": {
+                        "properties": {
+                            "sql": {
+                                "description": "A single SELECT statement",
+                                "type": "string",
+                            }
+                        }
+                    },
+                }
+            ]
+        )
         section = _build_tools_section([bridge])
         assert "search_beliefs" in section
         assert "execute_query" in section
         assert "SELECT" in section
 
     def test_multiple_servers(self):
-        b1 = FakeBridge(tools=[
-            {"name": "tool_a", "description": "Tool A", "input_schema": {"properties": {}}},
-        ])
-        b2 = FakeBridge(tools=[
-            {"name": "tool_b", "description": "Tool B", "input_schema": {"properties": {}}},
-        ])
+        b1 = FakeBridge(
+            tools=[
+                {
+                    "name": "tool_a",
+                    "description": "Tool A",
+                    "input_schema": {"properties": {}},
+                },
+            ]
+        )
+        b2 = FakeBridge(
+            tools=[
+                {
+                    "name": "tool_b",
+                    "description": "Tool B",
+                    "input_schema": {"properties": {}},
+                },
+            ]
+        )
         section = _build_tools_section([b1, b2])
         assert "tool_a" in section
         assert "tool_b" in section
 
     def test_no_params_no_trailing_comma(self):
-        bridge = FakeBridge(tools=[
-            {"name": "list_tables", "description": "List tables", "input_schema": {"properties": {}}},
-        ])
+        bridge = FakeBridge(
+            tools=[
+                {
+                    "name": "list_tables",
+                    "description": "List tables",
+                    "input_schema": {"properties": {}},
+                },
+            ]
+        )
         section = _build_tools_section([bridge])
         assert '{"tool": "list_tables"}' in section
         assert '{"tool": "list_tables", }' not in section
 
 
 class TestBuildMcpInstructions:
-
     def test_no_instructions(self):
         bridge = FakeBridge(instructions="")
         result = _build_mcp_instructions([bridge])
@@ -94,22 +115,23 @@ class TestBuildMcpInstructions:
 
 
 class TestAskPromptWithMcp:
-
     def test_default_tools_section(self):
         prompt = build_ask_prompt("question", "context")
         assert "one tool available" in prompt
         assert '{"tool": "search_beliefs"' in prompt
-        assert '{{' not in prompt
+        assert "{{" not in prompt
 
     def test_custom_tools_section(self):
-        prompt = build_ask_prompt("question", "context",
-                                  tools_section="Custom tools here")
+        prompt = build_ask_prompt(
+            "question", "context", tools_section="Custom tools here"
+        )
         assert "Custom tools here" in prompt
         assert "one tool available" not in prompt
 
     def test_mcp_instructions_injected(self):
-        prompt = build_ask_prompt("question", "context",
-                                  mcp_instructions="Use snowflake for queries")
+        prompt = build_ask_prompt(
+            "question", "context", mcp_instructions="Use snowflake for queries"
+        )
         assert "Data Source Instructions" in prompt
         assert "Use snowflake for queries" in prompt
 
@@ -119,7 +141,6 @@ class TestAskPromptWithMcp:
 
 
 class TestExtractToolCallMcp:
-
     def test_mcp_tool_call(self):
         text = '{"tool": "execute_query", "sql": "SELECT 1"}'
         result = extract_tool_call(text)
@@ -144,9 +165,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit:
@@ -154,15 +177,21 @@ def run_cli(*args, db_path=None):
 
 
 class TestAskWithMcpDispatch:
-
     def test_mcp_tool_dispatched(self, db_path):
         """ask() dispatches MCP tool calls to the bridge."""
         run_cli("init", db_path=db_path)
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
         bridge = FakeBridge(
-            tools=[{"name": "run_query", "description": "Run SQL",
-                    "input_schema": {"properties": {"sql": {"description": "SQL", "type": "string"}}}}],
+            tools=[
+                {
+                    "name": "run_query",
+                    "description": "Run SQL",
+                    "input_schema": {
+                        "properties": {"sql": {"description": "SQL", "type": "string"}}
+                    },
+                }
+            ],
         )
         calls = []
         orig_call = bridge.call_tool
@@ -197,11 +226,17 @@ class TestAskWithMcpDispatch:
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
         bridge = FakeBridge(
-            tools=[{"name": "bad_tool", "description": "Fails",
-                    "input_schema": {"properties": {}}}],
+            tools=[
+                {
+                    "name": "bad_tool",
+                    "description": "Fails",
+                    "input_schema": {"properties": {}},
+                }
+            ],
         )
         bridge.call_tool = lambda name, args: (_ for _ in ()).throw(
-            RuntimeError("connection lost"))
+            RuntimeError("connection lost")
+        )
 
         responses = [
             '{"tool": "bad_tool"}',
@@ -225,8 +260,13 @@ class TestAskWithMcpDispatch:
         run_cli("add", "a", "Alpha belief", db_path=db_path)
 
         bridge = FakeBridge(
-            tools=[{"name": "some_tool", "description": "A tool",
-                    "input_schema": {"properties": {}}}],
+            tools=[
+                {
+                    "name": "some_tool",
+                    "description": "A tool",
+                    "input_schema": {"properties": {}},
+                }
+            ],
         )
 
         calls = [0]

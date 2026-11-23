@@ -83,13 +83,15 @@ def parse_justification_review(response):
             cls = item.get("classification")
             req = item.get("required_antecedents")
             ind = item.get("independent_antecedents")
-            results.append({
-                "id": item["id"],
-                "classification": cls.upper() if isinstance(cls, str) else "ALL",
-                "required_antecedents": req if isinstance(req, list) else [],
-                "independent_antecedents": ind if isinstance(ind, list) else [],
-                "comment": item.get("comment") or "",
-            })
+            results.append(
+                {
+                    "id": item["id"],
+                    "classification": cls.upper() if isinstance(cls, str) else "ALL",
+                    "required_antecedents": req if isinstance(req, list) else [],
+                    "independent_antecedents": ind if isinstance(ind, list) else [],
+                    "comment": item.get("comment") or "",
+                }
+            )
         if results:
             return results
     return []
@@ -97,9 +99,7 @@ def parse_justification_review(response):
 
 def _process_batch(batch, nodes, model, timeout):
     """Process a single batch of beliefs through the LLM."""
-    beliefs_text = "\n\n".join(
-        format_belief_for_review(nid, nodes) for nid in batch
-    )
+    beliefs_text = "\n\n".join(format_belief_for_review(nid, nodes) for nid in batch)
     prompt = REVIEW_JUSTIFICATIONS_PROMPT.format(beliefs=beliefs_text)
     response = invoke_model(prompt, model=model, timeout=timeout)
     results = parse_justification_review(response)
@@ -108,9 +108,16 @@ def _process_batch(batch, nodes, model, timeout):
     return results
 
 
-def review_justifications(nodes, belief_ids=None, model="claude", timeout=300,
-                          batch_size=REVIEW_BATCH_SIZE, min_antecedents=2,
-                          on_batch=None, parallel=0):
+def review_justifications(
+    nodes,
+    belief_ids=None,
+    model="claude",
+    timeout=300,
+    batch_size=REVIEW_BATCH_SIZE,
+    min_antecedents=2,
+    on_batch=None,
+    parallel=0,
+):
     """Review SL justifications for ALL vs ANY classification.
 
     Args:
@@ -126,13 +133,15 @@ def review_justifications(nodes, belief_ids=None, model="claude", timeout=300,
     """
     if belief_ids is None:
         belief_ids = sorted(
-            nid for nid, node in nodes.items()
+            nid
+            for nid, node in nodes.items()
             if node.get("truth_value") == "IN"
             and _has_multi_antecedent_sl(node, min_antecedents)
         )
     else:
         belief_ids = [
-            nid for nid in belief_ids
+            nid
+            for nid in belief_ids
             if nid in nodes
             and nodes[nid].get("truth_value") == "IN"
             and _has_multi_antecedent_sl(nodes[nid], min_antecedents)
@@ -143,18 +152,17 @@ def review_justifications(nodes, belief_ids=None, model="claude", timeout=300,
 
     batches = []
     for i in range(0, len(belief_ids), batch_size):
-        batches.append(belief_ids[i:i + batch_size])
+        batches.append(belief_ids[i : i + batch_size])
 
     all_results = []
     total_batches = len(batches)
 
     if parallel > 0:
         from concurrent.futures import ThreadPoolExecutor, as_completed
+
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = {
-                executor.submit(
-                    _process_batch, batch, nodes, model, timeout
-                ): batch_num
+                executor.submit(_process_batch, batch, nodes, model, timeout): batch_num
                 for batch_num, batch in enumerate(batches, 1)
             }
             for future in as_completed(futures):
@@ -162,16 +170,22 @@ def review_justifications(nodes, belief_ids=None, model="claude", timeout=300,
                 try:
                     results = future.result()
                     all_results.extend(results)
-                    print(f"  Batch {batch_num}/{total_batches} complete "
-                          f"({len(results)} results)", file=sys.stderr)
+                    print(
+                        f"  Batch {batch_num}/{total_batches} complete "
+                        f"({len(results)} results)",
+                        file=sys.stderr,
+                    )
                     if on_batch is not None:
                         on_batch(all_results)
                 except Exception as e:
                     print(f"  WARN: batch {batch_num} failed: {e}", file=sys.stderr)
     else:
         for batch_num, batch in enumerate(batches, 1):
-            print(f"  Reviewing batch {batch_num}/{total_batches} "
-                  f"({len(batch)} beliefs)...", file=sys.stderr)
+            print(
+                f"  Reviewing batch {batch_num}/{total_batches} "
+                f"({len(batch)} beliefs)...",
+                file=sys.stderr,
+            )
             try:
                 results = _process_batch(batch, nodes, model, timeout)
                 all_results.extend(results)

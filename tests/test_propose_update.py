@@ -126,10 +126,24 @@ class TestFormatBeliefForUpdate:
                 "dependents": [],
                 "metadata": {},
             },
-            "a": {"text": "Ant A.", "truth_value": "IN", "justifications": [],
-                   "source": "", "source_url": "", "dependents": [], "metadata": {}},
-            "b": {"text": "Ant B.", "truth_value": "IN", "justifications": [],
-                   "source": "", "source_url": "", "dependents": [], "metadata": {}},
+            "a": {
+                "text": "Ant A.",
+                "truth_value": "IN",
+                "justifications": [],
+                "source": "",
+                "source_url": "",
+                "dependents": [],
+                "metadata": {},
+            },
+            "b": {
+                "text": "Ant B.",
+                "truth_value": "IN",
+                "justifications": [],
+                "source": "",
+                "source_url": "",
+                "dependents": [],
+                "metadata": {},
+            },
         }
         result = format_belief_for_update("multi-just", nodes)
         assert "Justification 1/2:" in result
@@ -164,29 +178,47 @@ class TestParseUpdateProposals:
         assert results[0]["basis"] == "prior-knowledge"
 
     def test_retract_proposal(self):
-        response = json.dumps([{
-            "id": "bad-belief",
-            "action": "retract",
-            "proposed_text": None,
-            "failure_mode": "contradicted-by-source",
-            "basis": "source-divergence",
-            "evidence": "Source changed.",
-            "comment": "No longer supported.",
-        }])
+        response = json.dumps(
+            [
+                {
+                    "id": "bad-belief",
+                    "action": "retract",
+                    "proposed_text": None,
+                    "failure_mode": "contradicted-by-source",
+                    "basis": "source-divergence",
+                    "evidence": "Source changed.",
+                    "comment": "No longer supported.",
+                }
+            ]
+        )
         results = parse_update_proposals(response)
         assert len(results) == 1
         assert results[0]["action"] == "retract"
         assert results[0]["proposed_text"] is None
 
     def test_multiple_proposals(self):
-        response = json.dumps([
-            {"id": "a", "action": "update", "proposed_text": "new a",
-             "failure_mode": "stale", "basis": "source-divergence",
-             "evidence": "", "comment": "stale"},
-            {"id": "b", "action": "retract", "proposed_text": None,
-             "failure_mode": "contradicted-by-source", "basis": "detected-contradiction",
-             "evidence": "", "comment": "wrong"},
-        ])
+        response = json.dumps(
+            [
+                {
+                    "id": "a",
+                    "action": "update",
+                    "proposed_text": "new a",
+                    "failure_mode": "stale",
+                    "basis": "source-divergence",
+                    "evidence": "",
+                    "comment": "stale",
+                },
+                {
+                    "id": "b",
+                    "action": "retract",
+                    "proposed_text": None,
+                    "failure_mode": "contradicted-by-source",
+                    "basis": "detected-contradiction",
+                    "evidence": "",
+                    "comment": "wrong",
+                },
+            ]
+        )
         results = parse_update_proposals(response)
         assert len(results) == 2
         assert results[0]["id"] == "a"
@@ -201,49 +233,93 @@ class TestParseUpdateProposals:
         assert results == []
 
     def test_invalid_basis_defaults(self):
-        response = json.dumps([{
-            "id": "x", "action": "update", "proposed_text": "new",
-            "failure_mode": "stale", "basis": "invalid-basis",
-            "evidence": "", "comment": "",
-        }])
+        response = json.dumps(
+            [
+                {
+                    "id": "x",
+                    "action": "update",
+                    "proposed_text": "new",
+                    "failure_mode": "stale",
+                    "basis": "invalid-basis",
+                    "evidence": "",
+                    "comment": "",
+                }
+            ]
+        )
         results = parse_update_proposals(response)
         assert results[0]["basis"] == "prior-knowledge"
 
     def test_invalid_failure_mode_defaults(self):
-        response = json.dumps([{
-            "id": "x", "action": "update", "proposed_text": "new",
-            "failure_mode": "made-up-mode", "basis": "source-divergence",
-            "evidence": "", "comment": "",
-        }])
+        response = json.dumps(
+            [
+                {
+                    "id": "x",
+                    "action": "update",
+                    "proposed_text": "new",
+                    "failure_mode": "made-up-mode",
+                    "basis": "source-divergence",
+                    "evidence": "",
+                    "comment": "",
+                }
+            ]
+        )
         results = parse_update_proposals(response)
         assert results[0]["failure_mode"] == ""
 
     def test_invalid_action_defaults(self):
-        response = json.dumps([{
-            "id": "x", "action": "invalid",
-            "proposed_text": "new", "failure_mode": "stale",
-            "basis": "source-divergence", "evidence": "", "comment": "",
-        }])
+        response = json.dumps(
+            [
+                {
+                    "id": "x",
+                    "action": "invalid",
+                    "proposed_text": "new",
+                    "failure_mode": "stale",
+                    "basis": "source-divergence",
+                    "evidence": "",
+                    "comment": "",
+                }
+            ]
+        )
         results = parse_update_proposals(response)
         assert results[0]["action"] == "update"
 
     def test_prose_around_json(self):
-        response = "I found issues with these beliefs:\n" + json.dumps([{
-            "id": "x", "action": "retract", "proposed_text": None,
-            "failure_mode": "stale", "basis": "source-divergence",
-            "evidence": "", "comment": "stale",
-        }]) + "\n\nThat's all I found."
+        response = (
+            "I found issues with these beliefs:\n"
+            + json.dumps(
+                [
+                    {
+                        "id": "x",
+                        "action": "retract",
+                        "proposed_text": None,
+                        "failure_mode": "stale",
+                        "basis": "source-divergence",
+                        "evidence": "",
+                        "comment": "stale",
+                    }
+                ]
+            )
+            + "\n\nThat's all I found."
+        )
         results = parse_update_proposals(response)
         assert len(results) == 1
         assert results[0]["id"] == "x"
 
     def test_skips_items_without_id(self):
-        response = json.dumps([
-            {"action": "update", "proposed_text": "missing id"},
-            {"id": "x", "action": "update", "proposed_text": "has id",
-             "failure_mode": "stale", "basis": "source-divergence",
-             "evidence": "", "comment": ""},
-        ])
+        response = json.dumps(
+            [
+                {"action": "update", "proposed_text": "missing id"},
+                {
+                    "id": "x",
+                    "action": "update",
+                    "proposed_text": "has id",
+                    "failure_mode": "stale",
+                    "basis": "source-divergence",
+                    "evidence": "",
+                    "comment": "",
+                },
+            ]
+        )
         results = parse_update_proposals(response)
         assert len(results) == 1
         assert results[0]["id"] == "x"
@@ -296,7 +372,12 @@ class TestFormatProposalMarkdown:
         }
         cascade = {
             "retracted": [
-                {"id": "derived-b", "text": "Blue skies indicate clear weather.", "depth": 1, "dependents": 1},
+                {
+                    "id": "derived-b",
+                    "text": "Blue skies indicate clear weather.",
+                    "depth": 1,
+                    "dependents": 1,
+                },
             ],
             "restored": [],
             "total_affected": 1,
@@ -317,7 +398,12 @@ class TestFormatProposalMarkdown:
         }
         cascade = {
             "retracted": [
-                {"id": "derived-b", "text": "Blue skies indicate clear weather.", "depth": 1, "dependents": 1},
+                {
+                    "id": "derived-b",
+                    "text": "Blue skies indicate clear weather.",
+                    "depth": 1,
+                    "dependents": 1,
+                },
             ],
             "restored": [],
             "total_affected": 1,
@@ -380,15 +466,19 @@ class TestFormatProposalsFile:
 class TestProposeUpdates:
     @patch("reasonsforge.propose_update.invoke_model")
     def test_basic_flow(self, mock_invoke, sample_nodes):
-        mock_invoke.return_value = json.dumps([{
-            "id": "premise-a",
-            "action": "update",
-            "proposed_text": "Updated sky claim.",
-            "failure_mode": "smuggled-premise",
-            "basis": "prior-knowledge",
-            "evidence": "Too simple.",
-            "comment": "Improved.",
-        }])
+        mock_invoke.return_value = json.dumps(
+            [
+                {
+                    "id": "premise-a",
+                    "action": "update",
+                    "proposed_text": "Updated sky claim.",
+                    "failure_mode": "smuggled-premise",
+                    "basis": "prior-knowledge",
+                    "evidence": "Too simple.",
+                    "comment": "Improved.",
+                }
+            ]
+        )
         results = propose_updates(
             sample_nodes,
             belief_ids=["premise-a"],
@@ -437,11 +527,19 @@ class TestProposeUpdates:
 
     @patch("reasonsforge.propose_update.invoke_model")
     def test_on_batch_callback(self, mock_invoke, sample_nodes):
-        mock_invoke.return_value = json.dumps([{
-            "id": "premise-a", "action": "update",
-            "proposed_text": "new", "failure_mode": "stale",
-            "basis": "source-divergence", "evidence": "", "comment": "",
-        }])
+        mock_invoke.return_value = json.dumps(
+            [
+                {
+                    "id": "premise-a",
+                    "action": "update",
+                    "proposed_text": "new",
+                    "failure_mode": "stale",
+                    "basis": "source-divergence",
+                    "evidence": "",
+                    "comment": "",
+                }
+            ]
+        )
         batches_seen = []
         propose_updates(
             sample_nodes,

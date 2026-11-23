@@ -44,7 +44,8 @@ class TestRoundTrip:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"], label="test")],
         )
 
@@ -66,7 +67,8 @@ class TestRoundTrip:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
         net.retract("a")
@@ -104,8 +106,13 @@ class TestRoundTrip:
 
     def test_metadata_persisted(self, db_path):
         net = Network()
-        net.add_node("a", "Premise A", source="repo:file.py", source_hash="abc123",
-                      metadata={"confidence": 0.9})
+        net.add_node(
+            "a",
+            "Premise A",
+            source="repo:file.py",
+            source_hash="abc123",
+            metadata={"confidence": 0.9},
+        )
 
         store = Storage(db_path)
         store.save(net)
@@ -120,7 +127,8 @@ class TestRoundTrip:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node(
-            "b", "Derived B",
+            "b",
+            "Derived B",
             justifications=[Justification(type="SL", antecedents=["a"])],
         )
 

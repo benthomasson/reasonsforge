@@ -6,7 +6,6 @@ from pathlib import Path
 
 from .chunk_docs import chunk_markdown, chunk_python, chunk_fixed, _strip_frontmatter
 
-
 DEFAULT_DB = "rag_fts.db"
 DEFAULT_CHUNK_SIZE = 2000
 
@@ -104,8 +103,9 @@ def cmd_index_sources(args):
             else:
                 chunks = chunk_fixed(content, max_chars=max_chars)
 
-            _insert_chunks(conn, chunks, source_path, chunk_type=chunk_type,
-                           source_url=source_url)
+            _insert_chunks(
+                conn, chunks, source_path, chunk_type=chunk_type, source_url=source_url
+            )
             indexed += 1
             print(f"  {source_path.name} -> {len(chunks)} chunk(s)")
 

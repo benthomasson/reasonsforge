@@ -23,7 +23,11 @@ def export_markdown(network: Network, repos: dict[str, str] | None = None) -> st
     lines = [
         "---",
         f'schema_version: "{meta["schema_version"]}"',
-        f"project_name: \"{meta['project_name']}\"" if meta["project_name"] else "project_name:",
+        (
+            f'project_name: "{meta["project_name"]}"'
+            if meta["project_name"]
+            else "project_name:"
+        ),
         f'updated_at: "{meta["updated_at"]}"',
         f"node_count: {meta['node_count']}",
         f"generator: {meta['generator']}",
@@ -40,10 +44,12 @@ def export_markdown(network: Network, repos: dict[str, str] | None = None) -> st
             lines.append(f"- {name}: {path}")
         lines.append("")
 
-    lines.extend([
-        "## Claims",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Claims",
+            "",
+        ]
+    )
 
     # Sort: IN first, then OUT, alphabetical within each group
     nodes = sorted(network.nodes.values(), key=lambda n: (n.truth_value != "IN", n.id))
@@ -51,7 +57,9 @@ def export_markdown(network: Network, repos: dict[str, str] | None = None) -> st
     for node in nodes:
         # Map truth value to beliefs status
         status = node.truth_value
-        if status == "OUT" and (node.metadata.get("stale_reason") or node.metadata.get("retract_reason")):
+        if status == "OUT" and (
+            node.metadata.get("stale_reason") or node.metadata.get("retract_reason")
+        ):
             status = "STALE"
 
         # Get beliefs_type from metadata, default to DERIVED or OBSERVATION
@@ -100,7 +108,9 @@ def export_markdown(network: Network, repos: dict[str, str] | None = None) -> st
                 lines.append(f"- Defeated by: {d_id} ({label})")
 
         # Retraction reason — from retract --reason or imported stale_reason
-        retract_reason = node.metadata.get("retract_reason") or node.metadata.get("stale_reason")
+        retract_reason = node.metadata.get("retract_reason") or node.metadata.get(
+            "stale_reason"
+        )
         if status in ("STALE", "OUT") and retract_reason:
             lines.append(f"- Stale reason: {retract_reason}")
         if node.metadata.get("duplicate_of"):

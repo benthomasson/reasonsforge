@@ -12,21 +12,27 @@ def _lazy(module_name, func_name):
 def _add_common_pipeline_args(p):
     """Add args shared by all forge type commands."""
     p.add_argument("--model", default="claude", help="LLM model to use")
-    p.add_argument("--rounds", type=int, default=1,
-                   help="Convergence loop cycles")
-    p.add_argument("--max-derive-rounds", type=int, default=10,
-                   help="Max derive rounds per cycle")
-    p.add_argument("--search-rounds", type=int, default=0,
-                   help="Tool-call search rounds per derive (0=disabled)")
+    p.add_argument("--rounds", type=int, default=1, help="Convergence loop cycles")
+    p.add_argument(
+        "--max-derive-rounds", type=int, default=10, help="Max derive rounds per cycle"
+    )
+    p.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     p.add_argument("--timeout", type=int, default=600, help="LLM timeout (s)")
-    p.add_argument("--output", default="reasons.db",
-                   help="Output database path")
-    p.add_argument("--no-auto-accept", action="store_true",
-                   help="Pause after proposing beliefs for manual review")
-    p.add_argument("--resume", action="store_true",
-                   help="Resume a previously interrupted pipeline")
-    p.add_argument("--parallel", type=int, default=1,
-                   help="Parallel LLM calls")
+    p.add_argument("--output", default="reasons.db", help="Output database path")
+    p.add_argument(
+        "--no-auto-accept",
+        action="store_true",
+        help="Pause after proposing beliefs for manual review",
+    )
+    p.add_argument(
+        "--resume", action="store_true", help="Resume a previously interrupted pipeline"
+    )
+    p.add_argument("--parallel", type=int, default=1, help="Parallel LLM calls")
 
 
 def register_forge_type_commands(parent_subparsers):
@@ -37,27 +43,29 @@ def register_forge_type_commands(parent_subparsers):
 
     # document — general document/PDF ingestion (the base forge)
     p = parent_subparsers.add_parser(
-        "document",
-        help="Build beliefs from documents (PDFs, markdown, code files)")
-    p.add_argument("--sources-dir", default="sources",
-                   help="Directory containing source documents")
-    p.add_argument("--pdf", action="append",
-                   help="PDF files to ingest (repeatable)")
+        "document", help="Build beliefs from documents (PDFs, markdown, code files)"
+    )
+    p.add_argument(
+        "--sources-dir", default="sources", help="Directory containing source documents"
+    )
+    p.add_argument("--pdf", action="append", help="PDF files to ingest (repeatable)")
     p.add_argument("--domain", help="Domain description for derive context")
-    p.add_argument("--recursive", "-r", action="store_true",
-                   help="Recurse into subdirectories")
+    p.add_argument(
+        "--recursive", "-r", action="store_true", help="Recurse into subdirectories"
+    )
     p.add_argument("--namespace", default=None)
     _add_common_pipeline_args(p)
 
     # code — codebase analysis
     p = parent_subparsers.add_parser(
-        "code",
-        help="Analyze a codebase and extract architectural beliefs")
+        "code", help="Analyze a codebase and extract architectural beliefs"
+    )
     p.add_argument("--repo", default=".", help="Path to git repository")
     p.add_argument("--domain", help="Domain description")
     p.add_argument("--since", help="Analyze commits since this date or SHA")
-    p.add_argument("--limit", type=int, default=500,
-                   help="Max files to explore (0 = unlimited)")
+    p.add_argument(
+        "--limit", type=int, default=500, help="Max files to explore (0 = unlimited)"
+    )
     _add_common_pipeline_args(p)
 
     code_sub = p.add_subparsers(dest="code_command")
@@ -69,7 +77,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--description", help="What this domain covers")
 
     # code scan
-    cs = code_sub.add_parser("scan", help="Scan repo structure and populate topic queue")
+    cs = code_sub.add_parser(
+        "scan", help="Scan repo structure and populate topic queue"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
@@ -81,17 +91,24 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--kind", default=None,
-                    choices=["file", "function", "repo", "diff", "general"],
-                    help="Only explore topics of this kind")
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--kind",
+        default=None,
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Only explore topics of this kind",
+    )
 
     # code explain
     cs = code_sub.add_parser("explain", help="Explain a file, function, or diff")
-    cs.add_argument("kind", choices=["file", "function", "diff"],
-                    help="What to explain")
+    cs.add_argument(
+        "kind", choices=["file", "function", "diff"], help="What to explain"
+    )
     cs.add_argument("target", nargs="?", help="File path or file:symbol")
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--branch", default=None)
@@ -103,8 +120,9 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
 
     # code walk-commits
-    cs = code_sub.add_parser("walk-commits",
-                             help="Walk recent commits and explore changed files")
+    cs = code_sub.add_parser(
+        "walk-commits", help="Walk recent commits and explore changed files"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--since", default=None)
     cs.add_argument("--since-commit", default=None)
@@ -113,13 +131,18 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
-    cs.add_argument("--no-diffs", action="store_true", dest="no_diffs",
-                    help="Skip per-file diff processing (only explore full files)")
+    cs.add_argument(
+        "--no-diffs",
+        action="store_true",
+        dest="no_diffs",
+        help="Skip per-file diff processing (only explore full files)",
+    )
     cs.add_argument("--output", default="reasons.db")
 
     # code propose-beliefs
-    cs = code_sub.add_parser("propose-beliefs",
-                             help="Extract candidate beliefs from entries")
+    cs = code_sub.add_parser(
+        "propose-beliefs", help="Extract candidate beliefs from entries"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--batch-size", type=int, default=5)
     cs.add_argument("--proposals-output", default="proposed-beliefs.md")
@@ -130,23 +153,34 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--parse-only", action="store_true",
-                    help="Only extract beliefs from ## Beliefs sections (no LLM)")
-    cs.add_argument("--no-embeddings", action="store_true",
-                    help="Disable semantic dedup (use keyword dedup instead)")
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--parse-only",
+        action="store_true",
+        help="Only extract beliefs from ## Beliefs sections (no LLM)",
+    )
+    cs.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Disable semantic dedup (use keyword dedup instead)",
+    )
 
     # code accept-beliefs
-    cs = code_sub.add_parser("accept-beliefs",
-                             help="Import accepted beliefs from proposals file")
+    cs = code_sub.add_parser(
+        "accept-beliefs", help="Import accepted beliefs from proposals file"
+    )
     cs.add_argument("--proposals-file", default="proposed-beliefs.md")
     cs.add_argument("--output", default="reasons.db")
 
     # code review-proposals
-    cs = code_sub.add_parser("review-proposals",
-                             help="Filter low-quality proposals using LLM review")
+    cs = code_sub.add_parser(
+        "review-proposals", help="Filter low-quality proposals using LLM review"
+    )
     cs.add_argument("--proposals-file", default="proposed-beliefs.md")
     cs.add_argument("--batch-size", type=int, default=20)
     cs.add_argument("--parallel", type=int, default=1)
@@ -155,8 +189,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
 
     # code verify
-    cs = code_sub.add_parser("verify",
-                             help="Check beliefs against current source code")
+    cs = code_sub.add_parser("verify", help="Check beliefs against current source code")
     cs.add_argument("belief_ids", nargs="*", default=[])
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--category", default=None)
@@ -164,57 +197,92 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--retract", action="store_true")
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--batch-size", type=int, default=10)
-    cs.add_argument("--no-observe", action="store_true", dest="no_observe",
-                    help="Skip observation pipeline, use simple context gathering")
+    cs.add_argument(
+        "--no-observe",
+        action="store_true",
+        dest="no_observe",
+        help="Skip observation pipeline, use simple context gathering",
+    )
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code verify-fix
-    cs = code_sub.add_parser("verify-fix",
-                             help="Verify a fix addresses a blocker belief and retract it")
+    cs = code_sub.add_parser(
+        "verify-fix", help="Verify a fix addresses a blocker belief and retract it"
+    )
     cs.add_argument("belief_id", help="Belief ID to verify was fixed")
     fix_source = cs.add_mutually_exclusive_group(required=True)
-    fix_source.add_argument("--pr", default=None, help="PR number or URL (requires gh CLI)")
-    fix_source.add_argument("--commit", default=None, help="Commit SHA or range (e.g. abc1234 or abc..def)")
+    fix_source.add_argument(
+        "--pr", default=None, help="PR number or URL (requires gh CLI)"
+    )
+    fix_source.add_argument(
+        "--commit", default=None, help="Commit SHA or range (e.g. abc1234 or abc..def)"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--dry-run", action="store_true", dest="dry_run")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--output-json", default=None, dest="output_json",
-                    help="Write structured JSON result (verdict, reason, gap_description, affected_files) to this file")
+    cs.add_argument(
+        "--output-json",
+        default=None,
+        dest="output_json",
+        help="Write structured JSON result (verdict, reason, gap_description, affected_files) to this file",
+    )
 
     # code research
-    cs = code_sub.add_parser("research",
-                             help="Evidence-driven exploration from belief review gaps")
-    cs.add_argument("--review-file", required=True, dest="review_file",
-                    help="Path to review JSON file (from review-beliefs)")
+    cs = code_sub.add_parser(
+        "research", help="Evidence-driven exploration from belief review gaps"
+    )
+    cs.add_argument(
+        "--review-file",
+        required=True,
+        dest="review_file",
+        help="Path to review JSON file (from review-beliefs)",
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
-    cs.add_argument("--limit", type=int, default=None,
-                    help="Max candidates to research")
-    cs.add_argument("--dry-run", action="store_true", dest="dry_run",
-                    help="Show candidates and inferred files without exploring")
+    cs.add_argument(
+        "--limit", type=int, default=None, help="Max candidates to research"
+    )
+    cs.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Show candidates and inferred files without exploring",
+    )
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code derive
-    cs = code_sub.add_parser("derive",
-                             help="Derive reasoning chains from existing beliefs")
+    cs = code_sub.add_parser(
+        "derive", help="Derive reasoning chains from existing beliefs"
+    )
     cs.add_argument("--auto", action="store_true")
     cs.add_argument("--exhaust", action="store_true")
     cs.add_argument("--max-derive-rounds", type=int, default=10)
-    cs.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
+    cs.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     cs.add_argument("--budget", type=int, default=300)
     cs.add_argument("--domain", default=None)
-    cs.add_argument("--source-path", default=None, dest="source_path",
-                    help="Only derive from beliefs matching this source path prefix")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
+    cs.add_argument(
+        "--source-path",
+        default=None,
+        dest="source_path",
+        help="Only derive from beliefs matching this source path prefix",
+    )
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
@@ -227,16 +295,26 @@ def register_forge_type_commands(parent_subparsers):
     # topics list (default)
     ts = topics_sub.add_parser("list", help="List topics (default)")
     ts.add_argument("--all", action="store_true", help="Show all statuses")
-    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed", "pruned"],
-                    help="Filter by status")
-    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
-                    help="Filter by kind")
+    ts.add_argument(
+        "--status",
+        choices=["pending", "done", "skipped", "failed", "pruned"],
+        help="Filter by status",
+    )
+    ts.add_argument(
+        "--kind",
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Filter by kind",
+    )
 
     # topics add
     ts = topics_sub.add_parser("add", help="Add a topic to the queue")
     ts.add_argument("target", help="Topic target (file path, file:symbol, etc.)")
-    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
-                    default="file", help="Topic kind (default: file)")
+    ts.add_argument(
+        "--kind",
+        choices=["file", "function", "repo", "diff", "general"],
+        default="file",
+        help="Topic kind (default: file)",
+    )
     ts.add_argument("--title", help="Topic title (default: target)")
     ts.add_argument("--source", default="manual", help="Source label")
 
@@ -244,27 +322,49 @@ def register_forge_type_commands(parent_subparsers):
     ts = topics_sub.add_parser("remove", help="Remove topics from the queue")
     ts.add_argument("--target", help="Remove by target string")
     ts.add_argument("--index", type=int, help="Remove pending topic by index")
-    ts.add_argument("--status", choices=["pending", "done", "skipped", "failed", "pruned"],
-                    help="Remove all with this status")
-    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
-                    help="Remove all with this kind")
+    ts.add_argument(
+        "--status",
+        choices=["pending", "done", "skipped", "failed", "pruned"],
+        help="Remove all with this status",
+    )
+    ts.add_argument(
+        "--kind",
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Remove all with this kind",
+    )
 
     # topics requeue
     ts = topics_sub.add_parser("requeue", help="Set topics back to pending")
     ts.add_argument("--target", help="Requeue a specific target")
-    ts.add_argument("--status", choices=["done", "skipped", "failed", "pruned"],
-                    default="failed", help="Requeue all with this status (default: failed)")
-    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
-                    help="Filter by kind")
+    ts.add_argument(
+        "--status",
+        choices=["done", "skipped", "failed", "pruned"],
+        default="failed",
+        help="Requeue all with this status (default: failed)",
+    )
+    ts.add_argument(
+        "--kind",
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Filter by kind",
+    )
 
     # topics prune
-    ts = topics_sub.add_parser("prune", help="Prune irrelevant topics using LLM evaluation")
+    ts = topics_sub.add_parser(
+        "prune", help="Prune irrelevant topics using LLM evaluation"
+    )
     ts.add_argument("--model", default="claude", help="Model to use for evaluation")
     ts.add_argument("--timeout", type=int, default=300)
     ts.add_argument("--batch-size", type=int, default=30, help="Topics per LLM batch")
-    ts.add_argument("--kind", choices=["file", "function", "repo", "diff", "general"],
-                    help="Only prune topics of this kind")
-    ts.add_argument("--dry-run", action="store_true", help="Show what would be pruned without changing anything")
+    ts.add_argument(
+        "--kind",
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Only prune topics of this kind",
+    )
+    ts.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be pruned without changing anything",
+    )
 
     # code status
     cs = code_sub.add_parser("status", help="Show code forge dashboard")
@@ -272,36 +372,59 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
 
     # code analyze
-    cs = code_sub.add_parser("analyze",
-                             help="Full pipeline: scan + explore + propose + review + accept + derive")
+    cs = code_sub.add_parser(
+        "analyze",
+        help="Full pipeline: scan + explore + propose + review + accept + derive",
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--domain", help="Domain description")
-    cs.add_argument("--limit", type=int, default=500,
-                    help="Max files to explore (0 = unlimited)")
+    cs.add_argument(
+        "--limit", type=int, default=500, help="Max files to explore (0 = unlimited)"
+    )
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
-    cs.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
+    cs.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     cs.add_argument("--no-auto-accept", action="store_true", dest="no_auto_accept")
-    cs.add_argument("--resume", action="store_true",
-                    help="Resume a previously interrupted analysis")
-    cs.add_argument("--source-path", default=None, dest="source_path",
-                    help="Only derive from beliefs matching this source path prefix")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
-                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
-    cs.add_argument("--no-embeddings", action="store_true",
-                    help="Disable semantic dedup (use keyword dedup instead)")
+    cs.add_argument(
+        "--resume", action="store_true", help="Resume a previously interrupted analysis"
+    )
+    cs.add_argument(
+        "--source-path",
+        default=None,
+        dest="source_path",
+        help="Only derive from beliefs matching this source path prefix",
+    )
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--no-verify-dedup",
+        action="store_false",
+        dest="verify_dedup",
+        help="Skip LLM verification of dedup candidates (faster, less accurate)",
+    )
+    cs.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Disable semantic dedup (use keyword dedup instead)",
+    )
 
     # code update
-    cs = code_sub.add_parser("update",
-                             help="Incremental update: walk-commits + propose + derive")
+    cs = code_sub.add_parser(
+        "update", help="Incremental update: walk-commits + propose + derive"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--since", default=None)
     cs.add_argument("--since-commit", default=None)
@@ -312,134 +435,241 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--output", default="reasons.db")
     cs.add_argument("--rounds", type=int, default=1)
     cs.add_argument("--max-derive-rounds", type=int, default=10)
-    cs.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
-    cs.add_argument("--resume", action="store_true",
-                    help="Resume a previously interrupted update")
-    cs.add_argument("--source-path", default=None, dest="source_path",
-                    help="Only derive from beliefs matching this source path prefix")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
-                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
-    cs.add_argument("--no-embeddings", action="store_true",
-                    help="Disable semantic dedup (use keyword dedup instead)")
+    cs.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
+    cs.add_argument(
+        "--resume", action="store_true", help="Resume a previously interrupted update"
+    )
+    cs.add_argument(
+        "--source-path",
+        default=None,
+        dest="source_path",
+        help="Only derive from beliefs matching this source path prefix",
+    )
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--no-verify-dedup",
+        action="store_false",
+        dest="verify_dedup",
+        help="Skip LLM verification of dedup candidates (faster, less accurate)",
+    )
+    cs.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Disable semantic dedup (use keyword dedup instead)",
+    )
 
     # code file-issues
-    cs = code_sub.add_parser("file-issues",
-                             help="File issues from gated blockers and negative beliefs")
-    cs.add_argument("--repo-slug", default=None,
-                    help="Target repo (owner/repo). Auto-detected from git remote if omitted.")
-    cs.add_argument("--platform", default=None, choices=["github", "gitlab"],
-                    help="Force platform (auto-detected if omitted)")
-    cs.add_argument("--label", dest="labels", action="append", default=[],
-                    help="Extra labels to add (repeatable)")
-    cs.add_argument("--dry-run", action="store_true", default=False,
-                    help="Show what would be filed without creating issues")
-    cs.add_argument("--skip-confirm", action="store_true", default=False,
-                    help="Skip LLM confirmation that issues still exist in code")
-    cs.add_argument("--no-negative", action="store_true", default=False,
-                    help="Skip negative IN beliefs (only file gated blockers)")
+    cs = code_sub.add_parser(
+        "file-issues", help="File issues from gated blockers and negative beliefs"
+    )
+    cs.add_argument(
+        "--repo-slug",
+        default=None,
+        help="Target repo (owner/repo). Auto-detected from git remote if omitted.",
+    )
+    cs.add_argument(
+        "--platform",
+        default=None,
+        choices=["github", "gitlab"],
+        help="Force platform (auto-detected if omitted)",
+    )
+    cs.add_argument(
+        "--label",
+        dest="labels",
+        action="append",
+        default=[],
+        help="Extra labels to add (repeatable)",
+    )
+    cs.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Show what would be filed without creating issues",
+    )
+    cs.add_argument(
+        "--skip-confirm",
+        action="store_true",
+        default=False,
+        help="Skip LLM confirmation that issues still exist in code",
+    )
+    cs.add_argument(
+        "--no-negative",
+        action="store_true",
+        default=False,
+        help="Skip negative IN beliefs (only file gated blockers)",
+    )
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
 
     # code explore-propose-accept
-    cs = code_sub.add_parser("explore-propose-accept",
-                             help="Knowledge acquisition: explore + propose + accept loop")
+    cs = code_sub.add_parser(
+        "explore-propose-accept",
+        help="Knowledge acquisition: explore + propose + accept loop",
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--rounds", type=int, default=1,
-                    help="Number of explore/propose/accept rounds")
-    cs.add_argument("--limit", type=int, default=0,
-                    help="Max topics to explore per round (0=all pending)")
+    cs.add_argument(
+        "--rounds", type=int, default=1, help="Number of explore/propose/accept rounds"
+    )
+    cs.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Max topics to explore per round (0=all pending)",
+    )
     cs.add_argument("--parallel", type=int, default=1)
     cs.add_argument("--batch-size", type=int, default=5, dest="batch_size")
-    cs.add_argument("--kind", default=None, action="append",
-                    choices=["file", "function", "repo", "diff", "general"],
-                    help="Topic kind(s) to explore, in order (repeatable)")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--no-review", action="store_true",
-                    help="Skip review-proposals step (accept all proposals directly)")
-    cs.add_argument("--no-embeddings", action="store_true",
-                    help="Disable semantic dedup (use keyword dedup instead)")
+    cs.add_argument(
+        "--kind",
+        default=None,
+        action="append",
+        choices=["file", "function", "repo", "diff", "general"],
+        help="Topic kind(s) to explore, in order (repeatable)",
+    )
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--no-review",
+        action="store_true",
+        help="Skip review-proposals step (accept all proposals directly)",
+    )
+    cs.add_argument(
+        "--no-embeddings",
+        action="store_true",
+        help="Disable semantic dedup (use keyword dedup instead)",
+    )
 
     # code refine
-    cs = code_sub.add_parser("refine",
-                             help="Iterative refinement: derive + review-beliefs + repair loop")
+    cs = code_sub.add_parser(
+        "refine", help="Iterative refinement: derive + review-beliefs + repair loop"
+    )
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--model", default="claude")
     cs.add_argument("--timeout", type=int, default=600)
     cs.add_argument("--output", default="reasons.db")
-    cs.add_argument("--rounds", type=int, default=1,
-                    help="Number of derive/review/repair rounds")
-    cs.add_argument("--max-derive-rounds", type=int, default=10,
-                    help="Max derive sub-rounds per refine round")
-    cs.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
-    cs.add_argument("--budget", type=int, default=300,
-                    help="Max beliefs to include in derive prompt")
+    cs.add_argument(
+        "--rounds", type=int, default=1, help="Number of derive/review/repair rounds"
+    )
+    cs.add_argument(
+        "--max-derive-rounds",
+        type=int,
+        default=10,
+        help="Max derive sub-rounds per refine round",
+    )
+    cs.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
+    cs.add_argument(
+        "--budget",
+        type=int,
+        default=300,
+        help="Max beliefs to include in derive prompt",
+    )
     cs.add_argument("--domain", help="Domain description")
-    cs.add_argument("--source-path", default=None, dest="source_path",
-                    help="Only derive from beliefs matching this source path prefix")
-    cs.add_argument("--mode", default=None,
-                    choices=["discover", "security", "performance"],
-                    help="Analysis mode (default: discover)")
-    cs.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
-                    help="Skip LLM verification of dedup candidates (faster, less accurate)")
+    cs.add_argument(
+        "--source-path",
+        default=None,
+        dest="source_path",
+        help="Only derive from beliefs matching this source path prefix",
+    )
+    cs.add_argument(
+        "--mode",
+        default=None,
+        choices=["discover", "security", "performance"],
+        help="Analysis mode (default: discover)",
+    )
+    cs.add_argument(
+        "--no-verify-dedup",
+        action="store_false",
+        dest="verify_dedup",
+        help="Skip LLM verification of dedup candidates (faster, less accurate)",
+    )
 
     # code review
-    cs = code_sub.add_parser("review",
-                             help="Multi-model code review with observation tools")
-    cs.add_argument("-b", "--branch", default=None,
-                    help="Branch to review (default: staged changes)")
-    cs.add_argument("--base", default="main",
-                    help="Base branch to diff against")
-    cs.add_argument("--pr", default=None,
-                    help="PR URL or number to review")
-    cs.add_argument("--repo", default=".",
-                    help="Repository directory")
-    cs.add_argument("-m", "--model", action="append", default=None,
-                    help="Model(s) to use (repeatable, default: claude)")
-    cs.add_argument("-s", "--spec", default=None,
-                    help="Spec file for compliance checking")
-    cs.add_argument("-o", "--output", default="full",
-                    choices=["full", "summary"],
-                    help="Output format")
-    cs.add_argument("-d", "--output-dir", default=None,
-                    help="Directory to save review artifacts")
-    cs.add_argument("--max-iterations", type=int, default=2,
-                    help="Max observe/review iterations")
-    cs.add_argument("--beliefs", default=None,
-                    help="Beliefs file for compliance checking")
-    cs.add_argument("--issue", default=None,
-                    help="Issue file to check changes against")
-    cs.add_argument("--github-issue", default=None,
-                    help="GitHub issue URL or number")
-    cs.add_argument("--comment", action="store_true",
-                    help="Post review as PR comment (requires --pr)")
-    cs.add_argument("--run-tests", action="store_true",
-                    help="Run related tests before review")
-    cs.add_argument("--coverage-map", action="store_true",
-                    help="Use coverage-map for test discovery")
-    cs.add_argument("--reasons-db", default=None,
-                    help="Path to reasons.db for belief lookup")
+    cs = code_sub.add_parser(
+        "review", help="Multi-model code review with observation tools"
+    )
+    cs.add_argument(
+        "-b",
+        "--branch",
+        default=None,
+        help="Branch to review (default: staged changes)",
+    )
+    cs.add_argument("--base", default="main", help="Base branch to diff against")
+    cs.add_argument("--pr", default=None, help="PR URL or number to review")
+    cs.add_argument("--repo", default=".", help="Repository directory")
+    cs.add_argument(
+        "-m",
+        "--model",
+        action="append",
+        default=None,
+        help="Model(s) to use (repeatable, default: claude)",
+    )
+    cs.add_argument(
+        "-s", "--spec", default=None, help="Spec file for compliance checking"
+    )
+    cs.add_argument(
+        "-o",
+        "--output",
+        default="full",
+        choices=["full", "summary"],
+        help="Output format",
+    )
+    cs.add_argument(
+        "-d", "--output-dir", default=None, help="Directory to save review artifacts"
+    )
+    cs.add_argument(
+        "--max-iterations", type=int, default=2, help="Max observe/review iterations"
+    )
+    cs.add_argument(
+        "--beliefs", default=None, help="Beliefs file for compliance checking"
+    )
+    cs.add_argument("--issue", default=None, help="Issue file to check changes against")
+    cs.add_argument("--github-issue", default=None, help="GitHub issue URL or number")
+    cs.add_argument(
+        "--comment",
+        action="store_true",
+        help="Post review as PR comment (requires --pr)",
+    )
+    cs.add_argument(
+        "--run-tests", action="store_true", help="Run related tests before review"
+    )
+    cs.add_argument(
+        "--coverage-map",
+        action="store_true",
+        help="Use coverage-map for test discovery",
+    )
+    cs.add_argument(
+        "--reasons-db", default=None, help="Path to reasons.db for belief lookup"
+    )
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(
-        "product",
-        help="Analyze product data from issue trackers")
-    p.add_argument("--github", metavar="OWNER/REPO",
-                   help="GitHub repository")
-    p.add_argument("--gitlab", metavar="OWNER/REPO",
-                   help="GitLab repository")
-    p.add_argument("--jira", metavar="PROJECT_KEY",
-                   help="Jira project key")
+        "product", help="Analyze product data from issue trackers"
+    )
+    p.add_argument("--github", metavar="OWNER/REPO", help="GitHub repository")
+    p.add_argument("--gitlab", metavar="OWNER/REPO", help="GitLab repository")
+    p.add_argument("--jira", metavar="PROJECT_KEY", help="Jira project key")
     p.add_argument("--jira-url", help="Jira base URL")
     p.add_argument("--domain", help="Domain description")
     p.add_argument("--since", help="Analyze issues since this date")
@@ -458,8 +688,7 @@ def register_forge_type_commands(parent_subparsers):
 
     # product scan
     ps = product_sub.add_parser("scan", help="Scan issues")
-    ps.add_argument("--state", default="open",
-                    choices=["open", "closed", "all"])
+    ps.add_argument("--state", default="open", choices=["open", "closed", "all"])
     ps.add_argument("--labels", default=None)
     ps.add_argument("--limit", type=int, default=100)
     ps.add_argument("--page", type=int, default=1)
@@ -472,8 +701,9 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # product ingest
-    ps = product_sub.add_parser("ingest",
-                                help="Ingest markdown documents for product analysis")
+    ps = product_sub.add_parser(
+        "ingest", help="Ingest markdown documents for product analysis"
+    )
     ps.add_argument("docs_dir", help="Directory containing documents")
     ps.add_argument("--glob-pattern", default="**/*.md", dest="glob_pattern")
     ps.add_argument("--model", default="claude")
@@ -489,8 +719,9 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--timeout", type=int, default=300)
 
     # product propose-beliefs
-    ps = product_sub.add_parser("propose-beliefs",
-                                help="Extract candidate beliefs from entries")
+    ps = product_sub.add_parser(
+        "propose-beliefs", help="Extract candidate beliefs from entries"
+    )
     ps.add_argument("--batch-size", type=int, default=5)
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
     ps.add_argument("--all", action="store_true")
@@ -501,14 +732,16 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # product accept-beliefs
-    ps = product_sub.add_parser("accept-beliefs",
-                                help="Import accepted beliefs from proposals")
+    ps = product_sub.add_parser(
+        "accept-beliefs", help="Import accepted beliefs from proposals"
+    )
     ps.add_argument("--proposals-file", default="proposed-beliefs.md")
     ps.add_argument("--output", default="reasons.db")
 
     # product review-proposals
-    ps = product_sub.add_parser("review-proposals",
-                                help="Filter low-quality proposals using LLM review")
+    ps = product_sub.add_parser(
+        "review-proposals", help="Filter low-quality proposals using LLM review"
+    )
     ps.add_argument("--proposals-file", default="proposed-beliefs.md")
     ps.add_argument("--batch-size", type=int, default=20)
     ps.add_argument("--parallel", type=int, default=1)
@@ -517,13 +750,18 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # product derive
-    ps = product_sub.add_parser("derive",
-                                help="Derive reasoning chains from existing beliefs")
+    ps = product_sub.add_parser(
+        "derive", help="Derive reasoning chains from existing beliefs"
+    )
     ps.add_argument("--auto", action="store_true")
     ps.add_argument("--exhaust", action="store_true")
     ps.add_argument("--max-derive-rounds", type=int, default=10)
-    ps.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
+    ps.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     ps.add_argument("--budget", type=int, default=300)
     ps.add_argument("--domain", default=None)
     ps.add_argument("--model", default="claude")
@@ -531,13 +769,15 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # product generate-summary
-    ps = product_sub.add_parser("generate-summary",
-                                help="Programmatic summary of belief state (no LLM)")
+    ps = product_sub.add_parser(
+        "generate-summary", help="Programmatic summary of belief state (no LLM)"
+    )
     ps.add_argument("--output", default="reasons.db")
 
     # product summary
-    ps = product_sub.add_parser("summary",
-                                help="LLM-synthesized product summary from beliefs")
+    ps = product_sub.add_parser(
+        "summary", help="LLM-synthesized product summary from beliefs"
+    )
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
@@ -551,8 +791,7 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # product update
-    ps = product_sub.add_parser("update",
-                                help="Incremental update pipeline")
+    ps = product_sub.add_parser("update", help="Incremental update pipeline")
     ps.add_argument("--since", default=None)
     ps.add_argument("--since-last", action="store_true", dest="since_last")
     ps.add_argument("--limit", type=int, default=100)
@@ -564,14 +803,11 @@ def register_forge_type_commands(parent_subparsers):
 
     # project — project management from issue trackers
     p = parent_subparsers.add_parser(
-        "project",
-        help="Analyze project state from issue trackers")
-    p.add_argument("--github", metavar="OWNER/REPO",
-                   help="GitHub repository")
-    p.add_argument("--gitlab", metavar="OWNER/REPO",
-                   help="GitLab repository")
-    p.add_argument("--jira", metavar="PROJECT_KEY",
-                   help="Jira project key")
+        "project", help="Analyze project state from issue trackers"
+    )
+    p.add_argument("--github", metavar="OWNER/REPO", help="GitHub repository")
+    p.add_argument("--gitlab", metavar="OWNER/REPO", help="GitLab repository")
+    p.add_argument("--jira", metavar="PROJECT_KEY", help="Jira project key")
     p.add_argument("--jira-url", help="Jira base URL")
     p.add_argument("--domain", help="Domain description")
     p.add_argument("--since", help="Analyze issues since this date")
@@ -590,16 +826,18 @@ def register_forge_type_commands(parent_subparsers):
 
     # project scan
     ps = project_sub.add_parser("scan", help="Scan issues/PRs")
-    ps.add_argument("--state", default="open",
-                    choices=["open", "closed", "all"])
+    ps.add_argument("--state", default="open", choices=["open", "closed", "all"])
     ps.add_argument("--labels", default=None)
     ps.add_argument("--limit", type=int, default=100)
     ps.add_argument("--page", type=int, default=1)
     ps.add_argument("--all-pages", action="store_true", dest="all_pages")
     ps.add_argument("--jql", default=None)
     ps.add_argument("--per-issue", action="store_true", dest="per_issue")
-    ps.add_argument("--resume", action="store_true",
-                    help="Resume an interrupted --all-pages scan from last completed page")
+    ps.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume an interrupted --all-pages scan from last completed page",
+    )
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
@@ -609,16 +847,20 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--skip", type=int, default=None)
     ps.add_argument("--pick", type=int, nargs="*", default=None)
     ps.add_argument("--loop", type=int, default=None)
-    ps.add_argument("--kind", nargs="+",
-                    choices=["issue", "epic", "milestone", "general"],
-                    help="Only explore topics of these kind(s)")
+    ps.add_argument(
+        "--kind",
+        nargs="+",
+        choices=["issue", "epic", "milestone", "general"],
+        help="Only explore topics of these kind(s)",
+    )
     ps.add_argument("--parallel", type=int, default=1)
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
 
     # project propose-beliefs
-    ps = project_sub.add_parser("propose-beliefs",
-                                help="Extract candidate beliefs from entries")
+    ps = project_sub.add_parser(
+        "propose-beliefs", help="Extract candidate beliefs from entries"
+    )
     ps.add_argument("--batch-size", type=int, default=5)
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
     ps.add_argument("--all", action="store_true")
@@ -630,14 +872,16 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project accept-beliefs
-    ps = project_sub.add_parser("accept-beliefs",
-                                help="Import accepted beliefs from proposals")
+    ps = project_sub.add_parser(
+        "accept-beliefs", help="Import accepted beliefs from proposals"
+    )
     ps.add_argument("--proposals-file", default="proposed-beliefs.md")
     ps.add_argument("--output", default="reasons.db")
 
     # project review-proposals
-    ps = project_sub.add_parser("review-proposals",
-                                help="Filter low-quality proposals using LLM review")
+    ps = project_sub.add_parser(
+        "review-proposals", help="Filter low-quality proposals using LLM review"
+    )
     ps.add_argument("--proposals-file", default="proposed-beliefs.md")
     ps.add_argument("--batch-size", type=int, default=20)
     ps.add_argument("--parallel", type=int, default=1)
@@ -646,8 +890,9 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project research
-    ps = project_sub.add_parser("research",
-                                help="Verify beliefs against live tracker data")
+    ps = project_sub.add_parser(
+        "research", help="Verify beliefs against live tracker data"
+    )
     ps.add_argument("belief_id", nargs="?", default=None)
     ps.add_argument("--negative", action="store_true")
     ps.add_argument("--high-impact", action="store_true", dest="high_impact")
@@ -658,29 +903,44 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project analyze-issue
-    ps = project_sub.add_parser("analyze-issue",
-                                help="Fetch a single issue and extract beliefs")
-    ps.add_argument("issue_key", nargs="+", metavar="ISSUE",
-                    help="Issue key(s) (e.g. PROJ-123 PROJ-456)")
-    ps.add_argument("--auto", action="store_true",
-                    help="Auto-accept proposed beliefs")
-    ps.add_argument("--walk", action="store_true",
-                    help="Also analyze all child/subtask issues recursively")
-    ps.add_argument("--force", action="store_true",
-                    help="Re-analyze even if issue has not changed since last run")
+    ps = project_sub.add_parser(
+        "analyze-issue", help="Fetch a single issue and extract beliefs"
+    )
+    ps.add_argument(
+        "issue_key",
+        nargs="+",
+        metavar="ISSUE",
+        help="Issue key(s) (e.g. PROJ-123 PROJ-456)",
+    )
+    ps.add_argument("--auto", action="store_true", help="Auto-accept proposed beliefs")
+    ps.add_argument(
+        "--walk",
+        action="store_true",
+        help="Also analyze all child/subtask issues recursively",
+    )
+    ps.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-analyze even if issue has not changed since last run",
+    )
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
 
     # project derive
-    ps = project_sub.add_parser("derive",
-                                help="Derive reasoning chains from existing beliefs")
+    ps = project_sub.add_parser(
+        "derive", help="Derive reasoning chains from existing beliefs"
+    )
     ps.add_argument("--auto", action="store_true")
     ps.add_argument("--exhaust", action="store_true")
     ps.add_argument("--max-derive-rounds", type=int, default=10)
-    ps.add_argument("--search-rounds", type=int, default=0,
-                    help="Tool-call search rounds per derive (0=disabled)")
+    ps.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     ps.add_argument("--budget", type=int, default=300)
     ps.add_argument("--domain", default=None)
     ps.add_argument("--model", default="claude")
@@ -688,8 +948,9 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project review-beliefs
-    ps = project_sub.add_parser("review-beliefs",
-                                help="Review derived beliefs for quality")
+    ps = project_sub.add_parser(
+        "review-beliefs", help="Review derived beliefs for quality"
+    )
     ps.add_argument("--auto-retract", action="store_true", dest="auto_retract")
     ps.add_argument("--sample", type=int, default=None)
     ps.add_argument("--min-depth", type=int, default=None, dest="min_depth")
@@ -700,8 +961,7 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project repair
-    ps = project_sub.add_parser("repair",
-                                help="Repair flagged beliefs")
+    ps = project_sub.add_parser("repair", help="Repair flagged beliefs")
     ps.add_argument("--review-file", default=None, dest="review_file")
     ps.add_argument("--dry-run", action="store_true", dest="dry_run")
     ps.add_argument("--model", default="claude")
@@ -709,15 +969,15 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project summary
-    ps = project_sub.add_parser("summary",
-                                help="Synthesize project summary from beliefs")
+    ps = project_sub.add_parser(
+        "summary", help="Synthesize project summary from beliefs"
+    )
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
 
     # project sprint-plan
-    ps = project_sub.add_parser("sprint-plan",
-                                help="Generate prioritized sprint plan")
+    ps = project_sub.add_parser("sprint-plan", help="Generate prioritized sprint plan")
     ps.add_argument("--sprint-length", default="2w", dest="sprint_length")
     ps.add_argument("--team-size", type=int, default=None, dest="team_size")
     ps.add_argument("--dry-run", action="store_true", dest="dry_run")
@@ -735,12 +995,10 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project update
-    ps = project_sub.add_parser("update",
-                                help="Incremental update pipeline")
+    ps = project_sub.add_parser("update", help="Incremental update pipeline")
     ps.add_argument("--since", default=None)
     ps.add_argument("--since-last", action="store_true", dest="since_last")
-    ps.add_argument("--state", default=None,
-                    choices=["open", "closed", "all"])
+    ps.add_argument("--state", default=None, choices=["open", "closed", "all"])
     ps.add_argument("--limit", type=int, default=100)
     ps.add_argument("--all-pages", action="store_true", dest="all_pages")
     ps.add_argument("--max-explore", type=int, default=None, dest="max_explore")
@@ -750,47 +1008,70 @@ def register_forge_type_commands(parent_subparsers):
     ps.add_argument("--output", default="reasons.db")
 
     # project track — recurring issue watchlist
-    ps = project_sub.add_parser("track",
-                                help="Process issues from a watchlist")
+    ps = project_sub.add_parser("track", help="Process issues from a watchlist")
     ps.add_argument("--model", default="claude")
     ps.add_argument("--timeout", type=int, default=300)
     ps.add_argument("--output", default="reasons.db")
-    ps.add_argument("--force", action="store_true",
-                    help="Re-analyze even if unchanged")
-    ps.add_argument("--auto", action="store_true", default=True, dest="auto",
-                    help="Auto-accept proposed beliefs (default)")
-    ps.add_argument("--no-auto", action="store_false", dest="auto",
-                    help="Write proposals to file instead of auto-accepting")
+    ps.add_argument("--force", action="store_true", help="Re-analyze even if unchanged")
+    ps.add_argument(
+        "--auto",
+        action="store_true",
+        default=True,
+        dest="auto",
+        help="Auto-accept proposed beliefs (default)",
+    )
+    ps.add_argument(
+        "--no-auto",
+        action="store_false",
+        dest="auto",
+        help="Write proposals to file instead of auto-accepting",
+    )
     ps.add_argument("--proposals-output", default="proposed-beliefs.md")
-    ps.add_argument("--no-derive", action="store_true",
-                    help="Skip the derive phase (faster)")
-    ps.add_argument("--parallel", type=int, default=1,
-                    help="Number of issues to analyze concurrently")
-    ps.add_argument("--walk", action="store_true",
-                    help="Walk children/subtasks of all tracked issues and add to watchlist")
-    ps.add_argument("--walk-depth", type=int, default=0,
-                    help="Max depth for --walk (0=unlimited)")
-    ps.add_argument("--allowed-projects", nargs="+", default=None,
-                    help="Only walk children whose key starts with these project prefixes (e.g. PROJ AAP)")
+    ps.add_argument(
+        "--no-derive", action="store_true", help="Skip the derive phase (faster)"
+    )
+    ps.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of issues to analyze concurrently",
+    )
+    ps.add_argument(
+        "--walk",
+        action="store_true",
+        help="Walk children/subtasks of all tracked issues and add to watchlist",
+    )
+    ps.add_argument(
+        "--walk-depth", type=int, default=0, help="Max depth for --walk (0=unlimited)"
+    )
+    ps.add_argument(
+        "--allowed-projects",
+        nargs="+",
+        default=None,
+        help="Only walk children whose key starts with these project prefixes (e.g. PROJ AAP)",
+    )
 
     track_sub = ps.add_subparsers(dest="track_command")
 
     ts = track_sub.add_parser("add", help="Add issues to the watchlist")
-    ts.add_argument("issue_key", nargs="+", metavar="ISSUE",
-                    help="Issue key(s) to track")
-    ts.add_argument("--walk", action="store_true",
-                    help="Also track child/subtask issues")
+    ts.add_argument(
+        "issue_key", nargs="+", metavar="ISSUE", help="Issue key(s) to track"
+    )
+    ts.add_argument(
+        "--walk", action="store_true", help="Also track child/subtask issues"
+    )
 
     ts = track_sub.add_parser("remove", help="Remove issues from the watchlist")
-    ts.add_argument("issue_key", nargs="+", metavar="ISSUE",
-                    help="Issue key(s) to remove")
+    ts.add_argument(
+        "issue_key", nargs="+", metavar="ISSUE", help="Issue key(s) to remove"
+    )
 
     ts = track_sub.add_parser("list", help="Show tracked issues")
 
     # meta — cross-domain reasoning
     p = parent_subparsers.add_parser(
-        "meta",
-        help="Cross-domain reasoning across expert belief networks")
+        "meta", help="Cross-domain reasoning across expert belief networks"
+    )
     p.add_argument("--domain", help="Domain description")
     _add_common_pipeline_args(p)
 
@@ -798,22 +1079,27 @@ def register_forge_type_commands(parent_subparsers):
 
     # meta init
     ms = meta_sub.add_parser("init", help="Initialize meta forge with expert repos")
-    ms.add_argument("experts", nargs="+", metavar="NAME=PATH",
-                    help="Expert repos as NAME=PATH pairs")
+    ms.add_argument(
+        "experts",
+        nargs="+",
+        metavar="NAME=PATH",
+        help="Expert repos as NAME=PATH pairs",
+    )
     ms.add_argument("--domain", help="Domain description")
     ms.add_argument("--output", default="reasons.db")
 
     # meta import
     ms = meta_sub.add_parser("import", help="Import beliefs from expert repos")
-    ms.add_argument("--expert", default=None,
-                    help="Import from a single expert only")
-    ms.add_argument("--only-in", action="store_true", dest="only_in",
-                    help="Only import IN beliefs")
+    ms.add_argument("--expert", default=None, help="Import from a single expert only")
+    ms.add_argument(
+        "--only-in", action="store_true", dest="only_in", help="Only import IN beliefs"
+    )
     ms.add_argument("--output", default="reasons.db")
 
     # meta derive
-    ms = meta_sub.add_parser("derive",
-                              help="Cross-domain derivation from combined beliefs")
+    ms = meta_sub.add_parser(
+        "derive", help="Cross-domain derivation from combined beliefs"
+    )
     ms.add_argument("--auto", action="store_true")
     ms.add_argument("--exhaust", action="store_true")
     ms.add_argument("--dry-run", action="store_true", dest="dry_run")
@@ -831,16 +1117,16 @@ def register_forge_type_commands(parent_subparsers):
     ms.add_argument("--output", default="reasons.db")
 
     # meta contradictions
-    ms = meta_sub.add_parser("contradictions",
-                              help="Detect cross-domain contradictions")
+    ms = meta_sub.add_parser(
+        "contradictions", help="Detect cross-domain contradictions"
+    )
     ms.add_argument("--auto", action="store_true")
     ms.add_argument("--model", default="claude")
     ms.add_argument("--timeout", type=int, default=600)
     ms.add_argument("--output", default="reasons.db")
 
     # meta summary
-    ms = meta_sub.add_parser("summary",
-                              help="Executive synthesis across all domains")
+    ms = meta_sub.add_parser("summary", help="Executive synthesis across all domains")
     ms.add_argument("--model", default="claude")
     ms.add_argument("--timeout", type=int, default=600)
     ms.add_argument("--output", default="reasons.db")
@@ -854,10 +1140,15 @@ def register_forge_type_commands(parent_subparsers):
     ms.add_argument("--output", default="reasons.db")
 
     # meta update
-    ms = meta_sub.add_parser("update",
-                              help="Pipeline: import → derive → contradictions → summary")
-    ms.add_argument("--skip", nargs="*", default=[],
-                    help="Steps to skip (import, derive, contradictions, summary)")
+    ms = meta_sub.add_parser(
+        "update", help="Pipeline: import → derive → contradictions → summary"
+    )
+    ms.add_argument(
+        "--skip",
+        nargs="*",
+        default=[],
+        help="Steps to skip (import, derive, contradictions, summary)",
+    )
     ms.add_argument("--budget", type=int, default=300)
     ms.add_argument("--seed", type=int, default=None)
     ms.add_argument("--model", default="claude")
@@ -866,32 +1157,41 @@ def register_forge_type_commands(parent_subparsers):
 
     # diary — extract beliefs from diary entries and session notes
     p = parent_subparsers.add_parser(
-        "diary",
-        help="Extract beliefs from diary entries and session notes")
+        "diary", help="Extract beliefs from diary entries and session notes"
+    )
     p.add_argument("--domain", help="Domain description")
     _add_common_pipeline_args(p)
 
     diary_sub = p.add_subparsers(dest="diary_command")
 
-    ds = diary_sub.add_parser("update",
-                               help="Extract beliefs from new/changed entries")
+    ds = diary_sub.add_parser("update", help="Extract beliefs from new/changed entries")
     ds.add_argument("--input-dir", default="entries")
     ds.add_argument("--model", default="claude")
     ds.add_argument("--parallel", type=int, default=1)
     ds.add_argument("--batch-size", type=int, default=5)
-    ds.add_argument("--all", action="store_true",
-                    help="Reprocess all entries, not just new/changed")
-    ds.add_argument("--no-auto-accept", action="store_true",
-                    help="Pause after proposing beliefs for manual review")
+    ds.add_argument(
+        "--all", action="store_true", help="Reprocess all entries, not just new/changed"
+    )
+    ds.add_argument(
+        "--no-auto-accept",
+        action="store_true",
+        help="Pause after proposing beliefs for manual review",
+    )
     ds.add_argument("--output", default="reasons.db")
-    ds.add_argument("--mode", default=None,
-                    choices=["general", "academic", "security"],
-                    help="Extraction mode (default: general)")
-    ds.add_argument("--num-ctx", type=int, default=None,
-                    help="Model context window size in tokens (enables %% usage logging)")
+    ds.add_argument(
+        "--mode",
+        default=None,
+        choices=["general", "academic", "security"],
+        help="Extraction mode (default: general)",
+    )
+    ds.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Model context window size in tokens (enables %% usage logging)",
+    )
 
-    ds = diary_sub.add_parser("accept",
-                               help="Import accepted beliefs from proposals")
+    ds = diary_sub.add_parser("accept", help="Import accepted beliefs from proposals")
     ds.add_argument("--file", default="proposed-beliefs.md")
 
     ds = diary_sub.add_parser("status", help="Show diary forge status")
@@ -900,16 +1200,16 @@ def register_forge_type_commands(parent_subparsers):
 
     # data — build EEMs from database schemas
     p = parent_subparsers.add_parser(
-        "data",
-        help="Build beliefs from database schemas and semantic context")
+        "data", help="Build beliefs from database schemas and semantic context"
+    )
     p.add_argument("--ddl", action="append", help="SQL DDL files (repeatable)")
     p.add_argument("--csv", action="append", help="CSV files (repeatable)")
     p.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
     p.add_argument("--connection", help="Database connection URL")
-    p.add_argument("--context", action="append",
-                   help="Context files/dirs (repeatable)")
-    p.add_argument("--profile", action="store_true",
-                   help="Include statistical profiling")
+    p.add_argument("--context", action="append", help="Context files/dirs (repeatable)")
+    p.add_argument(
+        "--profile", action="store_true", help="Include statistical profiling"
+    )
     p.add_argument("--domain", help="Domain description")
     _add_common_pipeline_args(p)
 
@@ -937,10 +1237,12 @@ def register_forge_type_commands(parent_subparsers):
     ds.add_argument("--csv", action="append", help="CSV files (repeatable)")
     ds.add_argument("--parquet", action="append", help="Parquet files (repeatable)")
     ds.add_argument("--connection", help="Database connection URL")
-    ds.add_argument("--context", action="append",
-                    help="Context files/dirs (repeatable)")
-    ds.add_argument("--profile", action="store_true",
-                    help="Include statistical profiling")
+    ds.add_argument(
+        "--context", action="append", help="Context files/dirs (repeatable)"
+    )
+    ds.add_argument(
+        "--profile", action="store_true", help="Include statistical profiling"
+    )
     ds.add_argument("--model", default="claude")
     ds.add_argument("--timeout", type=int, default=600)
     ds.add_argument("--output", default="reasons.db")
@@ -951,43 +1253,48 @@ def register_forge_type_commands(parent_subparsers):
 
     # routing — build routing EEMs from domain EEMs
     p = parent_subparsers.add_parser(
-        "routing",
-        help="Build routing EEMs from domain EEMs for query routing")
+        "routing", help="Build routing EEMs from domain EEMs for query routing"
+    )
     p.add_argument("--model", default="claude", help="LLM model to use")
     p.add_argument("--timeout", type=int, default=600, help="LLM timeout (s)")
-    p.add_argument("--output", default="routing.db",
-                   help="Output routing database path")
+    p.add_argument(
+        "--output", default="routing.db", help="Output routing database path"
+    )
 
     routing_sub = p.add_subparsers(dest="routing_command")
 
     # routing extract
-    rs = routing_sub.add_parser("extract",
-                                help="Extract routing beliefs from a domain EEM")
-    rs.add_argument("--input", required=True,
-                    help="Path to domain EEM (reasons.db)")
+    rs = routing_sub.add_parser(
+        "extract", help="Extract routing beliefs from a domain EEM"
+    )
+    rs.add_argument("--input", required=True, help="Path to domain EEM (reasons.db)")
     rs.add_argument("--model", default="claude")
     rs.add_argument("--timeout", type=int, default=600)
     rs.add_argument("--output", default="routing.db")
 
     # routing extract-all
-    rs = routing_sub.add_parser("extract-all",
-                                help="Extract routing beliefs from multiple domain EEMs")
-    rs.add_argument("inputs", nargs="+", metavar="DOMAIN_DB",
-                    help="Paths to domain EEMs")
+    rs = routing_sub.add_parser(
+        "extract-all", help="Extract routing beliefs from multiple domain EEMs"
+    )
+    rs.add_argument(
+        "inputs", nargs="+", metavar="DOMAIN_DB", help="Paths to domain EEMs"
+    )
     rs.add_argument("--model", default="claude")
     rs.add_argument("--timeout", type=int, default=600)
     rs.add_argument("--output", default="routing.db")
 
     # routing derive
-    rs = routing_sub.add_parser("derive",
-                                help="Derive cross-domain routing relationships")
+    rs = routing_sub.add_parser(
+        "derive", help="Derive cross-domain routing relationships"
+    )
     rs.add_argument("--model", default="claude")
     rs.add_argument("--timeout", type=int, default=600)
     rs.add_argument("--output", default="routing.db")
 
     # routing query
-    rs = routing_sub.add_parser("query",
-                                help="Test routing by searching the routing EEM")
+    rs = routing_sub.add_parser(
+        "query", help="Test routing by searching the routing EEM"
+    )
     rs.add_argument("query", help="Natural language query to route")
     rs.add_argument("--output", default="routing.db")
 
@@ -997,13 +1304,16 @@ def register_forge_type_commands(parent_subparsers):
 
     # user-guide — extract API documentation beliefs from codebases
     p = parent_subparsers.add_parser(
-        "user-guide",
-        help="Extract API documentation and usage beliefs from codebases")
+        "user-guide", help="Extract API documentation and usage beliefs from codebases"
+    )
     p.add_argument("--repo", required=True, help="Path to repository")
     p.add_argument("--language", help="Language (auto-detected if omitted)")
     p.add_argument("--components", help="Comma-separated component names to extract")
-    p.add_argument("--domain", default="component-api",
-                   help="Domain description for derive context")
+    p.add_argument(
+        "--domain",
+        default="component-api",
+        help="Domain description for derive context",
+    )
     _add_common_pipeline_args(p)
 
     ug_sub = p.add_subparsers(dest="ug_command")
@@ -1016,17 +1326,29 @@ def register_forge_type_commands(parent_subparsers):
     us.add_argument("--output", default="reasons.db")
 
     # run — sandbox wrapper (Phase 3)
-    p = parent_subparsers.add_parser(
-        "run",
-        help="Run a forge in a sandbox environment")
-    p.add_argument("--sandbox", default="none",
-                   choices=["none", "container", "vm", "lightweight"],
-                   help="Sandbox tier")
-    p.add_argument("forge_type",
-                   choices=["document", "code", "product", "project", "meta", "diary", "data", "routing", "user-guide"],
-                   help="Forge type to run")
-    p.add_argument("forge_args", nargs="*",
-                   help="Arguments passed to the forge")
+    p = parent_subparsers.add_parser("run", help="Run a forge in a sandbox environment")
+    p.add_argument(
+        "--sandbox",
+        default="none",
+        choices=["none", "container", "vm", "lightweight"],
+        help="Sandbox tier",
+    )
+    p.add_argument(
+        "forge_type",
+        choices=[
+            "document",
+            "code",
+            "product",
+            "project",
+            "meta",
+            "diary",
+            "data",
+            "routing",
+            "user-guide",
+        ],
+        help="Forge type to run",
+    )
+    p.add_argument("forge_args", nargs="*", help="Arguments passed to the forge")
 
     return {
         "document": _cmd_document,
@@ -1051,6 +1373,7 @@ def _cmd_document(args):
         forge.REASONS_DB = args.output
 
     from .pipeline import cmd_pipeline
+
     args.sources_dir = getattr(args, "sources_dir", "sources")
     args.index_db = "rag_fts.db"
     try:
@@ -1063,6 +1386,7 @@ def _print_cost(args=None, operation=None):
     """Print accumulated LLM cost summary and write cost report."""
     try:
         from .llm import format_cost_summary, get_cost_summary
+
         cost = format_cost_summary()
         if cost:
             print(f"  {cost}", file=sys.stderr)
@@ -1070,6 +1394,7 @@ def _print_cost(args=None, operation=None):
             cost_summary = get_cost_summary()
             if cost_summary["calls"] > 0:
                 from ..cost_report import write_cost_report
+
                 op = operation or getattr(args, "code_command", None) or "forge"
                 write_cost_report(
                     costs_dir=getattr(args, "costs_dir", "costs/"),
@@ -1104,7 +1429,10 @@ def _cmd_code(args):
         cmd_walk_commits as _code_walk,
     )
     from .code.pipeline import (
-        cmd_analyze, cmd_explore_propose_accept, cmd_refine, cmd_update,
+        cmd_analyze,
+        cmd_explore_propose_accept,
+        cmd_refine,
+        cmd_update,
     )
     from .code.review.commands import cmd_review as _code_review_code
 
@@ -1305,7 +1633,6 @@ def _cmd_meta(args):
         _print_cost(args, operation=meta_command)
 
 
-
 def _cmd_diary(args):
     """Run the diary forge or dispatch to a subcommand."""
     from .diary.commands import (
@@ -1391,8 +1718,10 @@ def _cmd_routing(args):
             return
 
         # No subcommand — show help
-        print("Usage: reasonsforge routing {extract,extract-all,derive,query,status}",
-              file=sys.stderr)
+        print(
+            "Usage: reasonsforge routing {extract,extract-all,derive,query,status}",
+            file=sys.stderr,
+        )
         print("Run 'reasonsforge routing --help' for details.", file=sys.stderr)
     finally:
         _print_cost(args, operation=routing_command or "routing")
@@ -1427,11 +1756,16 @@ def _cmd_user_guide(args):
 def _cmd_run(args):
     """Run a forge inside a sandbox."""
     if args.sandbox == "none":
-        print("Error: --sandbox=none is the default; use the forge "
-              "command directly instead of 'run'", file=sys.stderr)
+        print(
+            "Error: --sandbox=none is the default; use the forge "
+            "command directly instead of 'run'",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    print(f"Sandbox ({args.sandbox}): {args.forge_type} "
-          f"{' '.join(args.forge_args)}", file=sys.stderr)
+    print(
+        f"Sandbox ({args.sandbox}): {args.forge_type} {' '.join(args.forge_args)}",
+        file=sys.stderr,
+    )
     print("Not yet implemented — coming in Phase 3.", file=sys.stderr)
     sys.exit(1)
 
@@ -1469,12 +1803,17 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--parallel", type=int, default=1)
     p.add_argument("--limit", type=int)
     p.add_argument("--model", default="claude")
-    p.add_argument("--num-ctx", type=int, default=None,
-                   help="Model context window size in tokens (enables %% usage logging)")
+    p.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Model context window size in tokens (enables %% usage logging)",
+    )
 
     # propose-beliefs
-    p = sub.add_parser("propose-beliefs",
-                       help="Extract candidate beliefs from summaries")
+    p = sub.add_parser(
+        "propose-beliefs", help="Extract candidate beliefs from summaries"
+    )
     p.add_argument("--input-dir", default="summaries")
     p.add_argument("--output", default="proposed-beliefs.md")
     p.add_argument("--model", default="claude")
@@ -1482,27 +1821,36 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--batch-size", type=int, default=5)
     p.add_argument("--entry", action="append")
     p.add_argument("--all", action="store_true")
-    p.add_argument("--mode", default=None,
-                   choices=["general", "academic", "security"],
-                   help="Extraction mode (default: general)")
-    p.add_argument("--num-ctx", type=int, default=None,
-                   help="Model context window size in tokens (enables %% usage logging)")
+    p.add_argument(
+        "--mode",
+        default=None,
+        choices=["general", "academic", "security"],
+        help="Extraction mode (default: general)",
+    )
+    p.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Model context window size in tokens (enables %% usage logging)",
+    )
 
     # accept-beliefs
-    p = sub.add_parser("accept-beliefs",
-                       help="Import accepted beliefs from proposals")
+    p = sub.add_parser("accept-beliefs", help="Import accepted beliefs from proposals")
     p.add_argument("--file", default="proposed-beliefs.md")
 
     # pipeline
-    p = sub.add_parser("pipeline",
-                       help="Run end-to-end belief construction pipeline")
+    p = sub.add_parser("pipeline", help="Run end-to-end belief construction pipeline")
     p.add_argument("--pdf", action="append")
     p.add_argument("--sources-dir", default="sources")
     p.add_argument("--model", default="claude")
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--max-derive-rounds", type=int, default=10)
-    p.add_argument("--search-rounds", type=int, default=0,
-                   help="Tool-call search rounds per derive (0=disabled)")
+    p.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     p.add_argument("--no-auto-accept", action="store_true")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--domain", help="Domain description for derive context")
@@ -1510,56 +1858,84 @@ def register_forge_commands(parent_subparsers):
     p.add_argument("--recursive", "-r", action="store_true")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--namespace", default=None)
-    p.add_argument("--mode", default=None,
-                   choices=["general", "academic", "security"],
-                   help="Extraction mode (default: general)")
-    p.add_argument("--num-ctx", type=int, default=None,
-                   help="Model context window size in tokens (enables %% usage logging)")
+    p.add_argument(
+        "--mode",
+        default=None,
+        choices=["general", "academic", "security"],
+        help="Extraction mode (default: general)",
+    )
+    p.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Model context window size in tokens (enables %% usage logging)",
+    )
 
     # derive-review-repair
-    p = sub.add_parser("derive-review-repair",
-                       help="Run derive/review/repair convergence loop")
+    p = sub.add_parser(
+        "derive-review-repair", help="Run derive/review/repair convergence loop"
+    )
     p.add_argument("--model", default="claude")
     p.add_argument("--rounds", type=int, default=3)
     p.add_argument("--max-derive-rounds", type=int, default=10)
-    p.add_argument("--search-rounds", type=int, default=0,
-                   help="Tool-call search rounds per derive (0=disabled)")
+    p.add_argument(
+        "--search-rounds",
+        type=int,
+        default=0,
+        help="Tool-call search rounds per derive (0=disabled)",
+    )
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--domain", help="Domain description for derive context")
     p.add_argument("--namespace", default=None)
-    p.add_argument("--no-verify-dedup", action="store_false", dest="verify_dedup",
-                   help="Skip LLM verification of dedup candidates (faster, less accurate)")
+    p.add_argument(
+        "--no-verify-dedup",
+        action="store_false",
+        dest="verify_dedup",
+        help="Skip LLM verification of dedup candidates (faster, less accurate)",
+    )
 
     # index-sources
     p = sub.add_parser("index-sources", help="Build FTS5 search index")
     p.add_argument("--input-dir", default="sources")
     p.add_argument("--recursive", "-r", action="store_true")
     p.add_argument("--db", default="rag_fts.db")
-    p.add_argument("--type", default="source",
-                   choices=["source", "summary", "chunked-summary"])
+    p.add_argument(
+        "--type", default="source", choices=["source", "summary", "chunked-summary"]
+    )
     p.add_argument("--chunk-size", type=int, default=2000)
     p.add_argument("--rebuild", action="store_true")
 
     # gaps
-    p = sub.add_parser("gaps",
-                       help="Analyze belief network for coverage gaps")
+    p = sub.add_parser("gaps", help="Analyze belief network for coverage gaps")
     p.add_argument("--domain", help="Domain description (e.g., 'abstract algebra')")
     p.add_argument("--model", default="claude")
-    p.add_argument("--output", "-o", default=None,
-                   help="Write gap list to JSON file")
-    p.add_argument("--extract", action="store_true",
-                   help="Run targeted extraction to fill gaps")
-    p.add_argument("--input-dir", default="summaries",
-                   help="Directory to re-read for targeted extraction")
-    p.add_argument("--db", default=None,
-                   help="Belief database path (default: reasons.db)")
-    p.add_argument("--budget", type=int, default=2000,
-                   help="Token budget for belief summary sent to LLM (default: 2000)")
+    p.add_argument("--output", "-o", default=None, help="Write gap list to JSON file")
+    p.add_argument(
+        "--extract", action="store_true", help="Run targeted extraction to fill gaps"
+    )
+    p.add_argument(
+        "--input-dir",
+        default="summaries",
+        help="Directory to re-read for targeted extraction",
+    )
+    p.add_argument(
+        "--db", default=None, help="Belief database path (default: reasons.db)"
+    )
+    p.add_argument(
+        "--budget",
+        type=int,
+        default=2000,
+        help="Token budget for belief summary sent to LLM (default: 2000)",
+    )
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--parallel", type=int, default=1)
     p.add_argument("--batch-size", type=int, default=5)
-    p.add_argument("--num-ctx", type=int, default=None,
-                   help="Model context window size in tokens (enables %% usage logging)")
+    p.add_argument(
+        "--num-ctx",
+        type=int,
+        default=None,
+        help="Model context window size in tokens (enables %% usage logging)",
+    )
 
     # status
     sub.add_parser("status", help="Show forge pipeline progress")
@@ -1572,10 +1948,10 @@ def register_forge_commands(parent_subparsers):
         "propose-beliefs": lambda a: _lazy("propose", "cmd_propose_beliefs")(a),
         "accept-beliefs": lambda a: _lazy("propose", "cmd_accept_beliefs")(a),
         "pipeline": lambda a: _lazy("pipeline", "cmd_pipeline")(a),
-        "derive-review-repair": lambda a: _lazy("pipeline",
-                                                 "cmd_derive_review_repair")(a),
-        "index-sources": lambda a: _lazy("index_sources",
-                                         "cmd_index_sources")(a),
+        "derive-review-repair": lambda a: _lazy("pipeline", "cmd_derive_review_repair")(
+            a
+        ),
+        "index-sources": lambda a: _lazy("index_sources", "cmd_index_sources")(a),
         "gaps": lambda a: _lazy("gaps", "cmd_gaps")(a),
         "status": lambda a: _lazy("init_cmd", "cmd_status")(a),
     }

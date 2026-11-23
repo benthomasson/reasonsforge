@@ -18,7 +18,6 @@ from itertools import combinations
 
 from .relations import RELATION_TYPES, extract_triple
 
-
 DERIVE_RELATIONS_PROMPT = """\
 You are a knowledge architect analyzing a belief network for structural \
 relationships between concepts.
@@ -175,7 +174,11 @@ def _pairs_by_justification(
 
     all_in = set()
     for nid, node in nodes.items():
-        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        tv = (
+            node.get("truth_value", "IN")
+            if isinstance(node, dict)
+            else getattr(node, "truth_value", "IN")
+        )
         if tv == "IN":
             all_in.add(nid)
 
@@ -258,6 +261,7 @@ def _pairs_by_embedding(
         cross_topic_only: If True, exclude justification-connected pairs.
     """
     from .cluster import ClusterCache, HAS_CLUSTER_DEPS
+
     if not HAS_CLUSTER_DEPS:
         raise ImportError(
             "sentence-transformers and scikit-learn are required for embedding strategy. "
@@ -267,12 +271,20 @@ def _pairs_by_embedding(
 
     beliefs = {}
     for nid, node in nodes.items():
-        tv = node.get("truth_value", "IN") if isinstance(node, dict) else getattr(node, "truth_value", "IN")
+        tv = (
+            node.get("truth_value", "IN")
+            if isinstance(node, dict)
+            else getattr(node, "truth_value", "IN")
+        )
         if tv != "IN":
             continue
         if allowed_ids is not None and nid not in allowed_ids:
             continue
-        text = node.get("text", "") if isinstance(node, dict) else getattr(node, "text", "")
+        text = (
+            node.get("text", "")
+            if isinstance(node, dict)
+            else getattr(node, "text", "")
+        )
         if text:
             beliefs[nid] = text
 
@@ -309,7 +321,7 @@ def _pairs_by_embedding(
         return [p for _, p in scored_pairs]
 
     rng = random.Random(seed)
-    top_pool = scored_pairs[:budget * 2]
+    top_pool = scored_pairs[: budget * 2]
     selected = rng.sample(top_pool, min(budget, len(top_pool)))
     selected.sort(key=lambda x: -x[0])
     return [p for _, p in selected]
@@ -339,14 +351,20 @@ def _sample_pairs(
     """
     if strategy == "embedding" and nodes:
         return _pairs_by_embedding(
-            nodes, budget, seed=seed,
+            nodes,
+            budget,
+            seed=seed,
             allowed_ids=set(belief_ids) if belief_ids else None,
             embedding_model=embedding_model,
         )
 
     if strategy == "justification" and nodes:
-        return _pairs_by_justification(nodes, budget, seed=seed,
-                                       allowed_ids=set(belief_ids) if belief_ids else None)
+        return _pairs_by_justification(
+            nodes,
+            budget,
+            seed=seed,
+            allowed_ids=set(belief_ids) if belief_ids else None,
+        )
 
     if strategy == "all" or len(belief_ids) <= 1:
         pairs = list(combinations(sorted(belief_ids), 2))
@@ -399,7 +417,10 @@ def _filter_existing_relations(pairs, nodes):
     for a, b in pairs:
         a_short = a.split("-")[0] if "-" in a else a
         b_short = b.split("-")[0] if "-" in b else b
-        if (a_short, b_short) not in existing_subjects and (b_short, a_short) not in existing_subjects:
+        if (a_short, b_short) not in existing_subjects and (
+            b_short,
+            a_short,
+        ) not in existing_subjects:
             filtered.append((a, b))
     return filtered
 
@@ -411,9 +432,17 @@ def build_pairs_section(pairs, nodes):
         a_text = ""
         b_text = ""
         if a in nodes:
-            a_text = nodes[a].get("text", "")[:150] if isinstance(nodes[a], dict) else getattr(nodes[a], "text", "")[:150]
+            a_text = (
+                nodes[a].get("text", "")[:150]
+                if isinstance(nodes[a], dict)
+                else getattr(nodes[a], "text", "")[:150]
+            )
         if b in nodes:
-            b_text = nodes[b].get("text", "")[:150] if isinstance(nodes[b], dict) else getattr(nodes[b], "text", "")[:150]
+            b_text = (
+                nodes[b].get("text", "")[:150]
+                if isinstance(nodes[b], dict)
+                else getattr(nodes[b], "text", "")[:150]
+            )
         lines.append(f"### Pair {i}")
         lines.append(f"- **A**: `{a}` — {a_text}")
         lines.append(f"- **B**: `{b}` — {b_text}")
@@ -427,7 +456,9 @@ def build_existing_relations_section(nodes):
     for nid in sorted(nodes.keys()):
         triple = extract_triple(nid)
         if triple:
-            lines.append(f"- `{nid}`: {triple.subject} —[{triple.relation}]→ {triple.object}")
+            lines.append(
+                f"- `{nid}`: {triple.subject} —[{triple.relation}]→ {triple.object}"
+            )
     return "\n".join(lines) if lines else "(None found)"
 
 
@@ -574,6 +605,7 @@ def apply_proposals(valid, db_path="reasons.db", model=""):
 def write_proposals_file(valid, output_path):
     """Write proposals to a markdown file for human review."""
     from pathlib import Path
+
     lines = [
         "# Derived Relations",
         "",

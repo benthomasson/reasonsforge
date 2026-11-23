@@ -31,38 +31,46 @@ def build_file_prompt(
     ]
 
     if repo_context:
-        sections.extend([
-            "## Repository Context",
-            "",
-            "```",
-            repo_context,
-            "```",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Repository Context",
+                "",
+                "```",
+                repo_context,
+                "```",
+                "",
+            ]
+        )
 
-    sections.extend([
-        "## File Content",
-        "",
-        f"```{_guess_language(file_path)}",
-        file_content,
-        "```",
-        "",
-    ])
+    sections.extend(
+        [
+            "## File Content",
+            "",
+            f"```{_guess_language(file_path)}",
+            file_content,
+            "```",
+            "",
+        ]
+    )
 
     if imports:
-        sections.extend([
-            "## Imports",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Imports",
+                "",
+            ]
+        )
         for imp in imports:
             sections.append(f"- `{imp}`")
         sections.append("")
 
     if imported_by:
-        sections.extend([
-            "## Imported By",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Imported By",
+                "",
+            ]
+        )
         for f in imported_by:
             sections.append(f"- `{f}`")
         sections.append("")
@@ -70,25 +78,27 @@ def build_file_prompt(
     if m["explore_extra"]:
         sections.append(m["explore_extra"])
 
-    sections.extend([
-        "## Instructions",
-        "",
-        "Explain this file covering:",
-        "",
-        "1. **Purpose**: What is this file's role in the project? What responsibility does it own?",
-        "2. **Key Components**: Important classes, functions, and constants — with their contracts",
-        "3. **Patterns**: Design patterns, idioms, or architectural conventions used",
-        "4. **Dependencies**: What it depends on (imports) and what depends on it (imported_by)",
-        "5. **Flow**: How the code executes (control flow, data transformations)",
-        "6. **Invariants**: Any rules this code enforces — preconditions, validation, ordering constraints",
-        "7. **Error Handling**: How errors are produced, propagated, or swallowed",
-        "",
-        "Format your response as markdown.",
-        "Be concrete — reference specific functions, classes, and line-level details.",
-        "Focus on what a developer maintaining this code needs to know.",
-        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
-        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
-    ])
+    sections.extend(
+        [
+            "## Instructions",
+            "",
+            "Explain this file covering:",
+            "",
+            "1. **Purpose**: What is this file's role in the project? What responsibility does it own?",
+            "2. **Key Components**: Important classes, functions, and constants — with their contracts",
+            "3. **Patterns**: Design patterns, idioms, or architectural conventions used",
+            "4. **Dependencies**: What it depends on (imports) and what depends on it (imported_by)",
+            "5. **Flow**: How the code executes (control flow, data transformations)",
+            "6. **Invariants**: Any rules this code enforces — preconditions, validation, ordering constraints",
+            "7. **Error Handling**: How errors are produced, propagated, or swallowed",
+            "",
+            "Format your response as markdown.",
+            "Be concrete — reference specific functions, classes, and line-level details.",
+            "Focus on what a developer maintaining this code needs to know.",
+            TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+            BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
+        ]
+    )
 
     return "\n".join(sections)
 

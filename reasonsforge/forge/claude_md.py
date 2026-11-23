@@ -112,9 +112,12 @@ def generate_claude_md(domain: str, repo_path: str = "", expert_dir: str = "") -
     )
 
 
-def write_claude_md_if_missing(domain: str, repo_path: str = "", expert_dir: str = "") -> bool:
+def write_claude_md_if_missing(
+    domain: str, repo_path: str = "", expert_dir: str = ""
+) -> bool:
     """Write CLAUDE.md to cwd if it doesn't exist. Returns True if written."""
     import os
+
     path = os.path.join(expert_dir or ".", "CLAUDE.md")
     if os.path.exists(path):
         return False

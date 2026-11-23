@@ -58,7 +58,9 @@ def export_card(
     nogood_count = len(network.nogoods)
 
     memo = {}
-    max_depth = max((_node_depth(nid, network.nodes, memo) for nid in network.nodes), default=0)
+    max_depth = max(
+        (_node_depth(nid, network.nodes, memo) for nid in network.nodes), default=0
+    )
 
     retraction_pct = f"{out_count / total * 100:.0f}%" if total > 0 else "0%"
 
@@ -91,75 +93,79 @@ def export_card(
     else:
         lines.append("source_repos: []")
 
-    lines.extend([
-        f"beliefs_total: {total}",
-        f"beliefs_in: {in_count}",
-        f"beliefs_out: {out_count}",
-        f"premises: {premises}",
-        f"derived: {derived}",
-        f"nogoods: {nogood_count}",
-        f"generator: {meta['generator']}",
-        "---",
-        "",
-    ])
+    lines.extend(
+        [
+            f"beliefs_total: {total}",
+            f"beliefs_in: {in_count}",
+            f"beliefs_out: {out_count}",
+            f"premises: {premises}",
+            f"derived: {derived}",
+            f"nogoods: {nogood_count}",
+            f"generator: {meta['generator']}",
+            "---",
+            "",
+        ]
+    )
 
     # --- Markdown body ---
     title = project_name.replace("-", " ").replace("_", " ").title()
-    lines.extend([
-        f"# {title}",
-        "",
-        "## Stats",
-        "",
-        "| Metric | Value |",
-        "|--------|-------|",
-        f"| Total beliefs | {total} |",
-        f"| Status | {in_count} IN / {out_count} OUT |",
-        f"| Premises (observations) | {premises} |",
-        f"| Derived (justified conclusions) | {derived} |",
-        f"| Nogoods (contradictions) | {nogood_count} |",
-        f"| Retraction rate | {retraction_pct} |",
-        f"| Max derivation depth | {max_depth} |",
-        "",
-        "## How to Use",
-        "",
-        "### Import into a reasons database",
-        "",
-        "```bash",
-        "reasons init",
-        "reasons import-json network.json",
-        "```",
-        "",
-        "### Query beliefs",
-        "",
-        "```bash",
-        'reasons search "your query"',
-        "reasons explain <node-id>",
-        "reasons show <node-id>",
-        "```",
-        "",
-        "## Files",
-        "",
-        "| File | Description |",
-        "|------|-------------|",
-        "| `network.json` | Full belief network (machine-readable, portable) |",
-        "| `reasons.db` | SQLite database (gitignored, regenerate with `reasons import-json network.json`) |",
-        "| `README.md` | This EEM card |",
-        "",
-        "## Quality",
-        "",
-        f"- {in_count} beliefs IN, {out_count} OUT",
-        f"- {premises} premises grounded in direct observations",
-        f"- {derived} derived beliefs justified via SL justifications",
-        f"- {nogood_count} nogoods detected",
-        "",
-        "## Limitations",
-        "",
-        "- Auto-generated card — review and customize for your use case",
-        "",
-        "## License",
-        "",
-        license,
-        "",
-    ])
+    lines.extend(
+        [
+            f"# {title}",
+            "",
+            "## Stats",
+            "",
+            "| Metric | Value |",
+            "|--------|-------|",
+            f"| Total beliefs | {total} |",
+            f"| Status | {in_count} IN / {out_count} OUT |",
+            f"| Premises (observations) | {premises} |",
+            f"| Derived (justified conclusions) | {derived} |",
+            f"| Nogoods (contradictions) | {nogood_count} |",
+            f"| Retraction rate | {retraction_pct} |",
+            f"| Max derivation depth | {max_depth} |",
+            "",
+            "## How to Use",
+            "",
+            "### Import into a reasons database",
+            "",
+            "```bash",
+            "reasons init",
+            "reasons import-json network.json",
+            "```",
+            "",
+            "### Query beliefs",
+            "",
+            "```bash",
+            'reasons search "your query"',
+            "reasons explain <node-id>",
+            "reasons show <node-id>",
+            "```",
+            "",
+            "## Files",
+            "",
+            "| File | Description |",
+            "|------|-------------|",
+            "| `network.json` | Full belief network (machine-readable, portable) |",
+            "| `reasons.db` | SQLite database (gitignored, regenerate with `reasons import-json network.json`) |",
+            "| `README.md` | This EEM card |",
+            "",
+            "## Quality",
+            "",
+            f"- {in_count} beliefs IN, {out_count} OUT",
+            f"- {premises} premises grounded in direct observations",
+            f"- {derived} derived beliefs justified via SL justifications",
+            f"- {nogood_count} nogoods detected",
+            "",
+            "## Limitations",
+            "",
+            "- Auto-generated card — review and customize for your use case",
+            "",
+            "## License",
+            "",
+            license,
+            "",
+        ]
+    )
 
     return "\n".join(lines)

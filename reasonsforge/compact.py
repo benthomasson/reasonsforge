@@ -97,7 +97,9 @@ def compact(
         added_out = 0
         for node in out_nodes:
             reason = ""
-            retract_reason = node.metadata.get("retract_reason") or node.metadata.get("stale_reason")
+            retract_reason = node.metadata.get("retract_reason") or node.metadata.get(
+                "stale_reason"
+            )
             if retract_reason:
                 reason = f" (stale: {retract_reason[:60]})"
             elif node.metadata.get("superseded_by"):

@@ -12,12 +12,15 @@ from datetime import datetime
 @dataclass
 class Topic:
     """A queued exploration topic."""
+
     title: str
-    kind: str       # feature, epic, roadmap, user-story, feedback, general
-    target: str     # issue ID, feature name, or slug
+    kind: str  # feature, epic, roadmap, user-story, feedback, general
+    target: str  # issue ID, feature name, or slug
     source: str = ""
     status: str = "pending"
-    added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    added: str = field(
+        default_factory=lambda: datetime.now().isoformat(timespec="seconds")
+    )
 
 
 TOPIC_KINDS = {"feature", "epic", "roadmap", "user-story", "feedback", "general"}
@@ -83,7 +86,9 @@ def pop_at(index: int, product_dir: str | None = None) -> Topic | None:
     return queue[pending[index]]
 
 
-def pop_multiple(indices: list[int], product_dir: str | None = None) -> list[Topic | None]:
+def pop_multiple(
+    indices: list[int], product_dir: str | None = None
+) -> list[Topic | None]:
     queue = load_queue(product_dir)
     pending = [i for i, t in enumerate(queue) if t.status == "pending"]
     results = []
@@ -119,11 +124,7 @@ def pending_count(product_dir: str | None = None) -> int:
 # --- Parsing topics from model output ---
 
 TOPIC_LINE_PATTERN = re.compile(
-    r"^[-*]\s+"
-    r"\[(\w[\w-]*)\]\s+"
-    r"`([^`]+)`"
-    r"\s*(?:—|-|:)\s*"
-    r"(.+)$",
+    r"^[-*]\s+" r"\[(\w[\w-]*)\]\s+" r"`([^`]+)`" r"\s*(?:—|-|:)\s*" r"(.+)$",
     re.MULTILINE,
 )
 
@@ -148,11 +149,13 @@ def parse_topics_from_response(response: str, source: str = "") -> list[Topic]:
         if kind not in TOPIC_KINDS:
             kind = "general"
 
-        topics.append(Topic(
-            title=title,
-            kind=kind,
-            target=target,
-            source=source,
-        ))
+        topics.append(
+            Topic(
+                title=title,
+                kind=kind,
+                target=target,
+                source=source,
+            )
+        )
 
     return topics

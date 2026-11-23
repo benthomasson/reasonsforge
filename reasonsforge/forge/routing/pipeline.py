@@ -21,16 +21,18 @@ def _load_domain_beliefs(db_path: str, max_beliefs: int = 200) -> list[dict]:
     for nid, node in sorted(nodes.items()):
         if node.get("truth_value") != "IN":
             continue
-        beliefs.append({
-            "id": nid,
-            "text": node.get("text", ""),
-            "source": node.get("source", ""),
-        })
+        beliefs.append(
+            {
+                "id": nid,
+                "text": node.get("text", ""),
+                "source": node.get("source", ""),
+            }
+        )
 
     if len(beliefs) > max_beliefs:
         high_level = [b for b in beliefs if "." not in b["id"]]
         detailed = [b for b in beliefs if "." in b["id"]]
-        beliefs = high_level + detailed[:max_beliefs - len(high_level)]
+        beliefs = high_level + detailed[: max_beliefs - len(high_level)]
 
     return beliefs
 
@@ -154,8 +156,10 @@ def stage_derive(args, routing_db: str) -> int:
     routing_only = [b for b in beliefs if b["id"].startswith("routing:")]
 
     if len(routing_only) < 2:
-        print("  Need routing beliefs from at least 2 domains to derive relationships.",
-              file=sys.stderr)
+        print(
+            "  Need routing beliefs from at least 2 domains to derive relationships.",
+            file=sys.stderr,
+        )
         return 0
 
     domains_seen = set()
@@ -166,8 +170,11 @@ def stage_derive(args, routing_db: str) -> int:
             if domain_part != "cross":
                 domains_seen.add(domain_part)
 
-    print(f"  Deriving relationships across {len(domains_seen)} domain(s) "
-          f"({len(routing_only)} routing beliefs)...", file=sys.stderr)
+    print(
+        f"  Deriving relationships across {len(domains_seen)} domain(s) "
+        f"({len(routing_only)} routing beliefs)...",
+        file=sys.stderr,
+    )
 
     routing_beliefs_text = _beliefs_to_text(routing_only)
     prompt = DERIVE_ROUTING_PROMPT.format(routing_beliefs_text=routing_beliefs_text)
@@ -213,11 +220,11 @@ def stage_query(args, routing_db: str, query: str) -> list[dict]:
     beliefs = _load_domain_beliefs(routing_db, max_beliefs=1000)
     routing_only = [b for b in beliefs if b["id"].startswith("routing:")]
 
-    query_terms = set(re.findall(r'[a-z]{3,}', query.lower()))
+    query_terms = set(re.findall(r"[a-z]{3,}", query.lower()))
     scored = []
     for belief in routing_only:
-        belief_terms = set(re.findall(r'[a-z]{3,}', belief["text"].lower()))
-        belief_terms |= set(re.findall(r'[a-z]{3,}', belief["id"].lower()))
+        belief_terms = set(re.findall(r"[a-z]{3,}", belief["text"].lower()))
+        belief_terms |= set(re.findall(r"[a-z]{3,}", belief["id"].lower()))
         overlap = len(query_terms & belief_terms)
         if overlap > 0:
             scored.append((overlap, belief))

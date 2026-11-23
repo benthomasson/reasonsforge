@@ -52,4 +52,6 @@ Now output your observation requests as JSON:
 
 def build_observe_prompt(question: str, tree: str, default_glob: str = "*.py") -> str:
     """Build the observation-gathering prompt."""
-    return OBSERVE_PROMPT.format(question=question, tree=tree, default_glob=default_glob)
+    return OBSERVE_PROMPT.format(
+        question=question, tree=tree, default_glob=default_glob
+    )

@@ -24,6 +24,7 @@ def _has_embeddings() -> bool:
     try:
         import numpy  # noqa: F401
         from fastembed import TextEmbedding  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -37,6 +38,7 @@ def _get_embed_model():
     global _embed_model
     if _embed_model is None:
         from fastembed import TextEmbedding
+
         _embed_model = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
     return _embed_model
 
@@ -47,14 +49,17 @@ def _load_existing_beliefs(db_path: str = REASONS_DB) -> list[dict]:
         return []
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         beliefs = []
         for nid, ndata in network.get("nodes", {}).items():
-            beliefs.append({
-                "id": nid,
-                "text": ndata.get("text", ""),
-                "source": ndata.get("source", ""),
-            })
+            beliefs.append(
+                {
+                    "id": nid,
+                    "text": ndata.get("text", ""),
+                    "source": ndata.get("source", ""),
+                }
+            )
         return beliefs
     except Exception:
         return []
@@ -120,7 +125,8 @@ def _save_belief_vectors(cache_path: Path, vectors: dict[str, list[float]]):
 
 
 def _get_belief_embeddings(
-    beliefs: list[dict], cache_path: Path,
+    beliefs: list[dict],
+    cache_path: Path,
 ) -> dict[str, list[float]]:
     """Get embeddings for all beliefs, using cache for known ones."""
     model = _get_embed_model()
@@ -179,8 +185,9 @@ def _score_by_embedding(
         dot = np.dot(query_vec, belief_vec)
         norm = np.linalg.norm(query_vec) * np.linalg.norm(belief_vec)
         similarity = float(dot / norm) if norm > 0 else 0.0
-        if belief["source"] and any(belief["source"] in p or p in belief["source"]
-                                     for p in batch_entry_paths):
+        if belief["source"] and any(
+            belief["source"] in p or p in belief["source"] for p in batch_entry_paths
+        ):
             similarity += 1.0
         scored.append((similarity, belief))
 
@@ -194,15 +201,16 @@ def _score_by_keywords(
     batch_entry_paths: list[str],
 ) -> list[tuple[float, dict]]:
     """Score beliefs by keyword overlap (fallback when embeddings unavailable)."""
-    batch_words = set(re.findall(r'[a-z]{3,}', batch_text.lower()))
+    batch_words = set(re.findall(r"[a-z]{3,}", batch_text.lower()))
 
     scored = []
     for belief in beliefs:
         score = 0.0
-        if belief["source"] and any(belief["source"] in p or p in belief["source"]
-                                     for p in batch_entry_paths):
+        if belief["source"] and any(
+            belief["source"] in p or p in belief["source"] for p in batch_entry_paths
+        ):
             score += 1000
-        belief_words = set(re.findall(r'[a-z]{3,}', belief["text"].lower()))
+        belief_words = set(re.findall(r"[a-z]{3,}", belief["text"].lower()))
         belief_words |= set(belief["id"].replace("-", " ").lower().split())
         overlap = len(batch_words & belief_words)
         score += overlap
@@ -226,15 +234,20 @@ def _build_dedup_context(
 
     if belief_vectors:
         scored = _score_by_embedding(
-            existing_beliefs, belief_vectors, batch_text, batch_entry_paths,
+            existing_beliefs,
+            belief_vectors,
+            batch_text,
+            batch_entry_paths,
         )
     else:
         scored = _score_by_keywords(
-            existing_beliefs, batch_text, batch_entry_paths,
+            existing_beliefs,
+            batch_text,
+            batch_entry_paths,
         )
 
     detailed = scored[:max_detailed]
-    compact = scored[max_detailed:max_detailed + max_compact]
+    compact = scored[max_detailed : max_detailed + max_compact]
 
     parts = [
         "\n\n## Already Accepted Beliefs\n\n"
@@ -261,14 +274,15 @@ def auto_accept_proposals(filepath: str):
     """Rewrite all [ACCEPT/REJECT] and [REJECT] markers to [ACCEPT] in a proposals file."""
     path = Path(filepath)
     text = path.read_text()
-    text = re.sub(r'\[ACCEPT/REJECT\]', '[ACCEPT]', text)
-    text = re.sub(r'\[REJECT\]', '[ACCEPT]', text)
+    text = re.sub(r"\[ACCEPT/REJECT\]", "[ACCEPT]", text)
+    text = re.sub(r"\[REJECT\]", "[ACCEPT]", text)
     path.write_text(text)
 
 
 def cmd_propose_beliefs(args):
     """Extract candidate beliefs from summaries for human review."""
     from .caffeinate import hold as _caffeinate
+
     _caffeinate()
     input_dir = Path(args.input_dir)
     if not input_dir.exists():
@@ -280,7 +294,7 @@ def cmd_propose_beliefs(args):
         sys.exit(1)
 
     # Collect entries
-    if hasattr(args, 'entry') and args.entry:
+    if hasattr(args, "entry") and args.entry:
         entries = [Path(p) for p in args.entry]
     else:
         entries = sorted(input_dir.rglob("*.md"))
@@ -292,15 +306,17 @@ def cmd_propose_beliefs(args):
     # Filter out already-processed entries (unless --all or --entry)
     processed_path = Path(PROJECT_DIR) / "proposed-entries.json"
     processed = _load_processed(processed_path)
-    process_all = getattr(args, 'all', False)
-    has_entry_flag = hasattr(args, 'entry') and args.entry
+    process_all = getattr(args, "all", False)
+    has_entry_flag = hasattr(args, "entry") and args.entry
 
     if not process_all and not has_entry_flag:
         total = len(entries)
         entries = _filter_unprocessed(entries, processed)
         skipped = total - len(entries)
         if skipped:
-            print(f"Skipping {skipped} already-processed entries (use --all to reprocess)")
+            print(
+                f"Skipping {skipped} already-processed entries (use --all to reprocess)"
+            )
         if not entries:
             print("No new entries to process.")
             return
@@ -320,7 +336,9 @@ def cmd_propose_beliefs(args):
         belief_vectors = _get_belief_embeddings(existing_beliefs, cache_path)
         print(f"  {len(belief_vectors)} belief vectors ready")
     elif existing_beliefs:
-        print("(install fastembed for semantic dedup: uv pip install 'reasonsforge[forge-embeddings]')")
+        print(
+            "(install fastembed for semantic dedup: uv pip install 'reasonsforge[forge-embeddings]')"
+        )
 
     print(f"Reading {len(entries)} entries...")
 
@@ -361,9 +379,11 @@ def cmd_propose_beliefs(args):
 
     print(f"Processing {len(batches)} batches (batch size: {args.batch_size})...")
 
-    source_desc = (", ".join(str(e) for e in entries)
-                   if has_entry_flag
-                   else f"{len(entries)} entries from {input_dir}/")
+    source_desc = (
+        ", ".join(str(e) for e in entries)
+        if has_entry_flag
+        else f"{len(entries)} entries from {input_dir}/"
+    )
     output = Path(args.output)
 
     # Write header before first batch if starting a new file
@@ -371,7 +391,9 @@ def cmd_propose_beliefs(args):
     if not appended:
         with output.open("w") as f:
             f.write("# Proposed Beliefs\n\n")
-            f.write("Review each entry: change `[REJECT]` to `[ACCEPT]` to keep, or vice versa.\n")
+            f.write(
+                "Review each entry: change `[REJECT]` to `[ACCEPT]` to keep, or vice versa.\n"
+            )
             f.write("Then run: `reasonsforge forge accept-beliefs`\n\n")
             f.write("---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
@@ -392,7 +414,9 @@ def cmd_propose_beliefs(args):
         nonlocal total_skipped
         async with semaphore:
             existing_context = _build_dedup_context(
-                existing_beliefs, batch_paths[i], batch_text,
+                existing_beliefs,
+                batch_paths[i],
+                batch_text,
                 belief_vectors=belief_vectors,
             )
             mode = getattr(args, "mode", None) or "general"
@@ -405,7 +429,9 @@ def cmd_propose_beliefs(args):
             num_ctx = getattr(args, "num_ctx", None)
             if num_ctx:
                 pct = est_tokens * 100 / num_ctx
-                print(f"  Batch {i + 1}/{len(batches)} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)...")
+                print(
+                    f"  Batch {i + 1}/{len(batches)} (~{est_tokens:,} tokens, {pct:.0f}% of {num_ctx:,} ctx)..."
+                )
             else:
                 print(f"  Batch {i + 1}/{len(batches)} (~{est_tokens:,} tokens)...")
             try:
@@ -420,13 +446,17 @@ def cmd_propose_beliefs(args):
                 try:
                     retry_response = await invoke(
                         prompt + "\n\n" + result + "\n\n" + RETRY_JSON,
-                        model=args.model, timeout=600,
+                        model=args.model,
+                        timeout=600,
                     )
                     beliefs = extract_json(retry_response)
                 except Exception:
                     pass
             if not isinstance(beliefs, list):
-                print("    WARN: could not parse beliefs JSON, skipping batch", file=sys.stderr)
+                print(
+                    "    WARN: could not parse beliefs JSON, skipping batch",
+                    file=sys.stderr,
+                )
                 return
 
             filtered = []
@@ -466,8 +496,7 @@ def cmd_propose_beliefs(args):
     try:
         asyncio.run(run_batches())
     except KeyboardInterrupt:
-        print(f"\n  Ending extraction early — partial results saved",
-              file=sys.stderr)
+        print(f"\n  Ending extraction early — partial results saved", file=sys.stderr)
 
     if total_skipped:
         print(f"  Filtered {total_skipped} already-accepted beliefs")
@@ -509,8 +538,10 @@ def cmd_accept_beliefs(args):
     t_load = time.monotonic()
     store = Storage(REASONS_DB)
     net = store.load()
-    print(f"  Load: {time.monotonic() - t_load:.1f}s ({len(net.nodes)} nodes)",
-          file=sys.stderr)
+    print(
+        f"  Load: {time.monotonic() - t_load:.1f}s ({len(net.nodes)} nodes)",
+        file=sys.stderr,
+    )
 
     added = 0
     skipped = 0
@@ -546,18 +577,26 @@ def cmd_accept_beliefs(args):
         if (i + 1) % 1000 == 0:
             elapsed = time.monotonic() - t_loop
             rate = (i + 1) / elapsed
-            print(f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
-                  f"{elapsed:.0f}s elapsed)", file=sys.stderr)
+            print(
+                f"  Progress: {i + 1}/{total} ({rate:.1f} nodes/s, "
+                f"{elapsed:.0f}s elapsed)",
+                file=sys.stderr,
+            )
 
-    print(f"  Add loop: {time.monotonic() - t_loop:.1f}s for {added} added, "
-          f"{skipped} skipped", file=sys.stderr)
+    print(
+        f"  Add loop: {time.monotonic() - t_loop:.1f}s for {added} added, "
+        f"{skipped} skipped",
+        file=sys.stderr,
+    )
 
     if added > 0:
         t_save = time.monotonic()
         print(f"Saving {added} new beliefs...", file=sys.stderr)
         store.save(net)
-        print(f"  Save: {time.monotonic() - t_save:.1f}s ({len(net.nodes)} nodes)",
-              file=sys.stderr)
+        print(
+            f"  Save: {time.monotonic() - t_save:.1f}s ({len(net.nodes)} nodes)",
+            file=sys.stderr,
+        )
     store.close()
 
     print(f"\nAccepted {added} beliefs ({skipped} existing, {failed} failed)")

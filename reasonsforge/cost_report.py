@@ -105,9 +105,14 @@ def summarize_costs(reports: list[dict]) -> dict:
         op = r.get("operation", "unknown")
         if op not in by_operation:
             by_operation[op] = {
-                "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "cost_dollars": 0.0, "wall_clock_seconds": 0.0,
-                "beliefs_added": 0, "beliefs_retracted": 0, "reports": 0,
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_dollars": 0.0,
+                "wall_clock_seconds": 0.0,
+                "beliefs_added": 0,
+                "beliefs_retracted": 0,
+                "reports": 0,
             }
         by_operation[op]["calls"] += r.get("calls", 0)
         by_operation[op]["input_tokens"] += r.get("input_tokens", 0)
@@ -121,9 +126,14 @@ def summarize_costs(reports: list[dict]) -> dict:
         domain = r.get("domain") or "unknown"
         if domain not in by_domain:
             by_domain[domain] = {
-                "calls": 0, "input_tokens": 0, "output_tokens": 0,
-                "cost_dollars": 0.0, "wall_clock_seconds": 0.0,
-                "beliefs_added": 0, "beliefs_retracted": 0, "reports": 0,
+                "calls": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_dollars": 0.0,
+                "wall_clock_seconds": 0.0,
+                "beliefs_added": 0,
+                "beliefs_retracted": 0,
+                "reports": 0,
             }
         by_domain[domain]["calls"] += r.get("calls", 0)
         by_domain[domain]["input_tokens"] += r.get("input_tokens", 0)

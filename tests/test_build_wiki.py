@@ -9,21 +9,29 @@ import pytest
 
 from reasonsforge import api
 from reasonsforge.build_wiki import (
-    _assign_topics, _format_beliefs_for_prompt, _format_node, _linkify,
-    _page_name, build_wiki, generate_wiki_page,
+    _assign_topics,
+    _format_beliefs_for_prompt,
+    _format_node,
+    _linkify,
+    _page_name,
+    build_wiki,
+    generate_wiki_page,
 )
 
 
 def run_cli(*args, db_path=None):
     from reasonsforge.cli import main
+
     argv = ["reasons"]
     if db_path:
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
             code = 0
@@ -37,15 +45,24 @@ def db(tmp_path):
     db_path = str(tmp_path / "test.db")
     api.add_node("caching-strategy-redis", "Use Redis for caching", db_path=db_path)
     api.add_node("caching-ttl-policy", "Set TTL on cache keys", db_path=db_path)
-    api.add_node("testing-unit-coverage", "Aim for high unit test coverage", db_path=db_path)
-    api.add_node("testing-integration-api", "Integration tests for API endpoints", db_path=db_path)
-    api.add_node("deploy-ci-pipeline", "CI pipeline runs on every push",
-                 sl="testing-unit-coverage", db_path=db_path)
+    api.add_node(
+        "testing-unit-coverage", "Aim for high unit test coverage", db_path=db_path
+    )
+    api.add_node(
+        "testing-integration-api",
+        "Integration tests for API endpoints",
+        db_path=db_path,
+    )
+    api.add_node(
+        "deploy-ci-pipeline",
+        "CI pipeline runs on every push",
+        sl="testing-unit-coverage",
+        db_path=db_path,
+    )
     return db_path
 
 
 class TestAssignTopics:
-
     def test_assigns_to_matching_topic(self):
         topics = [{"topic": "caching", "count": 3}, {"topic": "testing", "count": 2}]
         node_ids = ["caching-strategy-redis", "testing-unit-coverage"]
@@ -70,7 +87,6 @@ class TestAssignTopics:
 
 
 class TestPageName:
-
     def test_simple(self):
         assert _page_name("caching") == "caching"
 
@@ -85,7 +101,6 @@ class TestPageName:
 
 
 class TestFormatNode:
-
     def test_basic_output(self):
         detail = {
             "text": "Use Redis for caching",
@@ -197,9 +212,13 @@ class TestFormatNode:
             "defeater-1": defeater_detail,
         }
         node_to_page = {"defeater-1": "misc.md"}
-        result = _format_node("target-node", target_detail, node_to_page,
-                              all_details=all_details)
-        assert "**Defeated by:** [defeater-1](misc.md#defeater-1) (invalid-inference)" in result
+        result = _format_node(
+            "target-node", target_detail, node_to_page, all_details=all_details
+        )
+        assert (
+            "**Defeated by:** [defeater-1](misc.md#defeater-1) (invalid-inference)"
+            in result
+        )
 
     def test_defeated_by_no_page(self):
         defeater_detail = {
@@ -216,8 +235,7 @@ class TestFormatNode:
             "dependents": [],
         }
         all_details = {"target-node": target_detail, "def-1": defeater_detail}
-        result = _format_node("target-node", target_detail, {},
-                              all_details=all_details)
+        result = _format_node("target-node", target_detail, {}, all_details=all_details)
         assert "**Defeated by:** def-1 (defeater)" in result
 
     def test_defeated_by_with_reason_type(self):
@@ -243,9 +261,13 @@ class TestFormatNode:
             "defeater-1": defeater_detail,
         }
         node_to_page = {"defeater-1": "misc.md"}
-        result = _format_node("target-node", target_detail, node_to_page,
-                              all_details=all_details)
-        assert "**Defeated by:** [defeater-1](misc.md#defeater-1) (invalid-inference, scope-mismatch)" in result
+        result = _format_node(
+            "target-node", target_detail, node_to_page, all_details=all_details
+        )
+        assert (
+            "**Defeated by:** [defeater-1](misc.md#defeater-1) (invalid-inference, scope-mismatch)"
+            in result
+        )
 
     def test_no_defeaters_without_all_details(self):
         detail = {
@@ -259,12 +281,21 @@ class TestFormatNode:
 
 
 class TestBuildWiki:
-
     def test_creates_files(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN", "justifications": [], "dependents": []},
-            "node-b": {"text": "B", "truth_value": "IN", "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
+            "node-b": {
+                "text": "B",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"alpha": ["node-a"], "beta": ["node-b"]}
         result = build_wiki(details, groups, output_dir)
@@ -277,7 +308,12 @@ class TestBuildWiki:
     def test_index_has_links(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN", "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"mytopic": ["node-a"]}
         build_wiki(details, groups, output_dir)
@@ -288,7 +324,12 @@ class TestBuildWiki:
     def test_page_has_back_link(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN", "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"topic": ["node-a"]}
         build_wiki(details, groups, output_dir)
@@ -298,7 +339,12 @@ class TestBuildWiki:
     def test_index_slug_collision(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN", "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"index": ["node-a"]}
         result = build_wiki(details, groups, output_dir)
@@ -311,19 +357,31 @@ class TestBuildWiki:
     def test_duplicate_slug_collision(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN", "justifications": [], "dependents": []},
-            "node-b": {"text": "B", "truth_value": "IN", "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
+            "node-b": {
+                "text": "B",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"My Topic": ["node-a"], "My-Topic!": ["node-b"]}
         result = build_wiki(details, groups, output_dir)
         assert result["pages"] == 2
-        files = [f for f in os.listdir(output_dir)
-                 if f not in ("index.md", ".topic_cache.json")]
+        files = [
+            f
+            for f in os.listdir(output_dir)
+            if f not in ("index.md", ".topic_cache.json")
+        ]
         assert len(files) == 2
 
 
 class TestBuildWikiApi:
-
     def test_creates_wiki_directory(self, db, tmp_path):
         output_dir = str(tmp_path / "wiki_out")
         result = api.build_wiki(output_dir=output_dir, db_path=db)
@@ -360,7 +418,6 @@ class TestBuildWikiApi:
 
 
 class TestBuildWikiCli:
-
     def test_help(self):
         stdout, stderr, code = run_cli("build-wiki", "--help")
         assert code == 0
@@ -375,32 +432,30 @@ class TestBuildWikiCli:
 
     def test_status_filter(self, db, tmp_path):
         output_dir = str(tmp_path / "cli_wiki_in")
-        stdout, stderr, code = run_cli("build-wiki", "-o", output_dir, "--status", "IN", db_path=db)
+        stdout, stderr, code = run_cli(
+            "build-wiki", "-o", output_dir, "--status", "IN", db_path=db
+        )
         assert code == 0
 
 
 class TestLinkify:
-
     def test_creates_cross_page_links(self):
         content = "depends on node-alpha and node-beta"
         node_to_page = {"node-alpha": "page-a.md", "node-beta": "page-b.md"}
-        result = _linkify(content, "page-c.md", node_to_page,
-                          node_to_page.keys())
+        result = _linkify(content, "page-c.md", node_to_page, node_to_page.keys())
         assert "[node-alpha](page-a.md#node-alpha)" in result
         assert "[node-beta](page-b.md#node-beta)" in result
 
     def test_skips_same_page(self):
         content = "mentions node-alpha"
         node_to_page = {"node-alpha": "page-a.md"}
-        result = _linkify(content, "page-a.md", node_to_page,
-                          node_to_page.keys())
+        result = _linkify(content, "page-a.md", node_to_page, node_to_page.keys())
         assert result == content
 
     def test_skips_already_linked(self):
         content = "see [node-alpha](page-a.md#node-alpha)"
         node_to_page = {"node-alpha": "page-a.md"}
-        result = _linkify(content, "page-b.md", node_to_page,
-                          node_to_page.keys())
+        result = _linkify(content, "page-b.md", node_to_page, node_to_page.keys())
         assert result.count("[node-alpha]") == 1
 
     def test_longest_first(self):
@@ -414,7 +469,6 @@ class TestLinkify:
 
 
 class TestFormatBeliefsForPrompt:
-
     def test_formats_beliefs(self):
         details = {
             "node-a": {
@@ -437,7 +491,6 @@ class TestFormatBeliefsForPrompt:
 
 
 class TestGenerateWikiPage:
-
     def test_calls_invoke_model(self):
         details = {
             "node-a": {
@@ -447,10 +500,10 @@ class TestGenerateWikiPage:
                 "dependents": [],
             },
         }
-        with patch("reasonsforge.llm.invoke_model",
-                    return_value="Generated wiki content") as mock:
-            result = generate_wiki_page("mytopic", ["node-a"], details,
-                                        "claude", 300)
+        with patch(
+            "reasonsforge.llm.invoke_model", return_value="Generated wiki content"
+        ) as mock:
+            result = generate_wiki_page("mytopic", ["node-a"], details, "claude", 300)
             assert result == "Generated wiki content"
             mock.assert_called_once()
             prompt = mock.call_args[0][0]
@@ -459,16 +512,21 @@ class TestGenerateWikiPage:
 
 
 class TestBuildWikiLlm:
-
     def test_llm_mode_uses_generated_content(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN",
-                       "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"alpha": ["node-a"]}
-        with patch("reasonsforge.build_wiki.generate_wiki_page",
-                    return_value="LLM wrote this page"):
+        with patch(
+            "reasonsforge.build_wiki.generate_wiki_page",
+            return_value="LLM wrote this page",
+        ):
             result = build_wiki(details, groups, output_dir, model="claude")
         page = open(os.path.join(output_dir, "alpha.md")).read()
         assert "LLM wrote this page" in page
@@ -477,8 +535,12 @@ class TestBuildWikiLlm:
     def test_no_llm_mode_no_invoke(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN",
-                       "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"alpha": ["node-a"]}
         with patch("reasonsforge.build_wiki.generate_wiki_page") as mock:
@@ -488,38 +550,53 @@ class TestBuildWikiLlm:
     def test_llm_failure_falls_back(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN",
-                       "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"alpha": ["node-a"]}
-        with patch("reasonsforge.build_wiki.generate_wiki_page",
-                    side_effect=RuntimeError("LLM failed")):
+        with patch(
+            "reasonsforge.build_wiki.generate_wiki_page",
+            side_effect=RuntimeError("LLM failed"),
+        ):
             build_wiki(details, groups, output_dir, model="claude")
         page = open(os.path.join(output_dir, "alpha.md")).read()
         assert "### node-a" in page
 
     def test_api_passes_model_through(self, db, tmp_path):
         output_dir = str(tmp_path / "wiki_llm")
-        with patch("reasonsforge.build_wiki.generate_wiki_page",
-                    return_value="Generated page") as mock:
-            result = api.build_wiki(output_dir=output_dir, model="claude",
-                                    db_path=db)
+        with patch(
+            "reasonsforge.build_wiki.generate_wiki_page", return_value="Generated page"
+        ) as mock:
+            result = api.build_wiki(output_dir=output_dir, model="claude", db_path=db)
         assert result["pages"] > 0
         assert mock.call_count == result["pages"]
 
     def test_parallel_generates_all_pages(self, tmp_path):
         output_dir = str(tmp_path / "wiki")
         details = {
-            "node-a": {"text": "A", "truth_value": "IN",
-                       "justifications": [], "dependents": []},
-            "node-b": {"text": "B", "truth_value": "IN",
-                       "justifications": [], "dependents": []},
+            "node-a": {
+                "text": "A",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
+            "node-b": {
+                "text": "B",
+                "truth_value": "IN",
+                "justifications": [],
+                "dependents": [],
+            },
         }
         groups = {"alpha": ["node-a"], "beta": ["node-b"]}
-        with patch("reasonsforge.build_wiki.generate_wiki_page",
-                    return_value="Parallel content"):
-            result = build_wiki(details, groups, output_dir,
-                                model="claude", parallel=2)
+        with patch(
+            "reasonsforge.build_wiki.generate_wiki_page",
+            return_value="Parallel content",
+        ):
+            result = build_wiki(details, groups, output_dir, model="claude", parallel=2)
         assert result["pages"] == 2
         for name in ["alpha.md", "beta.md"]:
             page = open(os.path.join(output_dir, name)).read()

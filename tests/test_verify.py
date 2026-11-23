@@ -23,9 +23,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -38,21 +40,32 @@ def _mock_result(stdout):
 
 
 class TestParseVerifyResponse:
-
     def test_valid_response(self):
-        response = json.dumps({
-            "p1": {"verdict": "CONFIRMED", "reason": "matches", "quote": "exact text"},
-            "p2": {"verdict": "STALE", "reason": "not found", "quote": None},
-        })
+        response = json.dumps(
+            {
+                "p1": {
+                    "verdict": "CONFIRMED",
+                    "reason": "matches",
+                    "quote": "exact text",
+                },
+                "p2": {"verdict": "STALE", "reason": "not found", "quote": None},
+            }
+        )
         results = parse_verify_response(response)
         assert results["p1"]["verdict"] == "CONFIRMED"
         assert results["p1"]["quote"] == "exact text"
         assert results["p2"]["verdict"] == "STALE"
 
     def test_json_in_prose(self):
-        response = 'Here is my analysis:\n' + json.dumps({
-            "p1": {"verdict": "PARTIAL", "reason": "differs", "quote": "close"},
-        }) + '\nDone.'
+        response = (
+            "Here is my analysis:\n"
+            + json.dumps(
+                {
+                    "p1": {"verdict": "PARTIAL", "reason": "differs", "quote": "close"},
+                }
+            )
+            + "\nDone."
+        )
         results = parse_verify_response(response)
         assert results["p1"]["verdict"] == "PARTIAL"
 
@@ -63,27 +76,34 @@ class TestParseVerifyResponse:
         assert parse_verify_response("") == {}
 
     def test_missing_verdict_skipped(self):
-        response = json.dumps({
-            "p1": {"reason": "no verdict field"},
-            "p2": {"verdict": "confirmed", "reason": "ok", "quote": None},
-        })
+        response = json.dumps(
+            {
+                "p1": {"reason": "no verdict field"},
+                "p2": {"verdict": "confirmed", "reason": "ok", "quote": None},
+            }
+        )
         results = parse_verify_response(response)
         assert "p1" not in results
         assert results["p2"]["verdict"] == "CONFIRMED"
 
     def test_case_insensitive(self):
-        response = json.dumps({
-            "p1": {"verdict": "confirmed", "reason": "ok", "quote": None},
-        })
+        response = json.dumps(
+            {
+                "p1": {"verdict": "confirmed", "reason": "ok", "quote": None},
+            }
+        )
         results = parse_verify_response(response)
         assert results["p1"]["verdict"] == "CONFIRMED"
 
 
 class TestFormatBeliefForVerify:
-
     def test_basic_format(self):
-        belief = {"id": "p1", "text": "A claim", "source": "doc.md",
-                  "source_url": "https://example.com"}
+        belief = {
+            "id": "p1",
+            "text": "A claim",
+            "source": "doc.md",
+            "source_url": "https://example.com",
+        }
         result = format_belief_for_verify(belief, "Source document content here.")
         assert "### `p1`" in result
         assert "**Claim:** A claim" in result
@@ -98,7 +118,6 @@ class TestFormatBeliefForVerify:
 
 
 class TestReadSource:
-
     def test_reads_file(self, tmp_path):
         source_file = tmp_path / "doc.md"
         source_file.write_text("Important evidence here.")
@@ -127,21 +146,31 @@ class TestReadSource:
 
 
 class TestApiVerifyBelief:
-
     def test_premise_verified(self, tmp_path):
         db = str(tmp_path / "test.db")
         source_file = tmp_path / "doc.md"
         source_file.write_text("PostgreSQL is the primary database.")
-        api.add_node("p1", "PostgreSQL is the primary database",
-                     source=str(source_file), db_path=db)
+        api.add_node(
+            "p1",
+            "PostgreSQL is the primary database",
+            source=str(source_file),
+            db_path=db,
+        )
 
-        llm_resp = json.dumps({
-            "p1": {"verdict": "CONFIRMED", "reason": "exact match",
-                   "quote": "PostgreSQL is the primary database."},
-        })
+        llm_resp = json.dumps(
+            {
+                "p1": {
+                    "verdict": "CONFIRMED",
+                    "reason": "exact match",
+                    "quote": "PostgreSQL is the primary database.",
+                },
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             result = api.verify_belief("p1", db_path=db)
 
         assert result["verified"] == ["p1"]
@@ -152,16 +181,27 @@ class TestApiVerifyBelief:
         db = str(tmp_path / "test.db")
         source_file = tmp_path / "doc.md"
         source_file.write_text("PostgreSQL is the primary database.")
-        api.add_node("p1", "PostgreSQL is the primary database",
-                     source=str(source_file), db_path=db)
+        api.add_node(
+            "p1",
+            "PostgreSQL is the primary database",
+            source=str(source_file),
+            db_path=db,
+        )
 
-        llm_resp = json.dumps({
-            "p1": {"verdict": "CONFIRMED", "reason": "exact match",
-                   "quote": "PostgreSQL is the primary database."},
-        })
+        llm_resp = json.dumps(
+            {
+                "p1": {
+                    "verdict": "CONFIRMED",
+                    "reason": "exact match",
+                    "quote": "PostgreSQL is the primary database.",
+                },
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             api.verify_belief("p1", db_path=db)
 
         node = api.show_node("p1", db_path=db)
@@ -171,16 +211,24 @@ class TestApiVerifyBelief:
         db = str(tmp_path / "test.db")
         source_file = tmp_path / "doc.md"
         source_file.write_text("Redis is used for caching only.")
-        api.add_node("p1", "Redis is the primary database",
-                     source=str(source_file), db_path=db)
+        api.add_node(
+            "p1", "Redis is the primary database", source=str(source_file), db_path=db
+        )
 
-        llm_resp = json.dumps({
-            "p1": {"verdict": "STALE", "reason": "source says caching only",
-                   "quote": "Redis is used for caching only."},
-        })
+        llm_resp = json.dumps(
+            {
+                "p1": {
+                    "verdict": "STALE",
+                    "reason": "source says caching only",
+                    "quote": "Redis is used for caching only.",
+                },
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             result = api.verify_belief("p1", db_path=db)
 
         assert result["stale"] == ["p1"]
@@ -190,15 +238,18 @@ class TestApiVerifyBelief:
         db = str(tmp_path / "test.db")
         source_file = tmp_path / "doc.md"
         source_file.write_text("No mention of this claim.")
-        api.add_node("p1", "Unsupported claim",
-                     source=str(source_file), db_path=db)
+        api.add_node("p1", "Unsupported claim", source=str(source_file), db_path=db)
 
-        llm_resp = json.dumps({
-            "p1": {"verdict": "STALE", "reason": "not in source", "quote": None},
-        })
+        llm_resp = json.dumps(
+            {
+                "p1": {"verdict": "STALE", "reason": "not in source", "quote": None},
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             result = api.verify_belief("p1", retract=True, db_path=db)
 
         assert result["stale"] == ["p1"]
@@ -228,13 +279,25 @@ class TestApiVerifyBelief:
         api.add_node("p-b", "Premise B", source=str(source_b), db_path=db)
         api.add_node("d1", "Derived from A and B", sl="p-a,p-b", db_path=db)
 
-        llm_resp = json.dumps({
-            "p-a": {"verdict": "CONFIRMED", "reason": "matches", "quote": "Evidence for A."},
-            "p-b": {"verdict": "CONFIRMED", "reason": "matches", "quote": "Evidence for B."},
-        })
+        llm_resp = json.dumps(
+            {
+                "p-a": {
+                    "verdict": "CONFIRMED",
+                    "reason": "matches",
+                    "quote": "Evidence for A.",
+                },
+                "p-b": {
+                    "verdict": "CONFIRMED",
+                    "reason": "matches",
+                    "quote": "Evidence for B.",
+                },
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             result = api.verify_belief("d1", trace=True, db_path=db)
 
         assert len(result["beliefs_checked"]) == 2
@@ -246,12 +309,16 @@ class TestApiVerifyBelief:
         api.add_node("p1", "Premise", db_path=db)
         api.add_node("d1", "Derived", sl="p1", db_path=db)
 
-        llm_resp = json.dumps({
-            "d1": {"verdict": "INCONCLUSIVE", "reason": "no source", "quote": None},
-        })
+        llm_resp = json.dumps(
+            {
+                "d1": {"verdict": "INCONCLUSIVE", "reason": "no source", "quote": None},
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             result = api.verify_belief("d1", trace=False, db_path=db)
 
         assert len(result["beliefs_checked"]) == 1
@@ -266,7 +333,6 @@ class TestApiVerifyBelief:
 
 
 class TestCliVerify:
-
     def test_help(self):
         stdout, stderr, code = run_cli("verify", "--help")
         assert code == 0
@@ -279,7 +345,10 @@ class TestCliVerify:
         api.add_node("p1", "A claim", source=str(source_file), db_path=db)
 
         stdout, stderr, code = run_cli(
-            "verify", "p1", "--dry-run", db_path=db,
+            "verify",
+            "p1",
+            "--dry-run",
+            db_path=db,
         )
 
         assert code == 0
@@ -290,16 +359,24 @@ class TestCliVerify:
         db = str(tmp_path / "test.db")
         source_file = tmp_path / "doc.md"
         source_file.write_text("The system uses PostgreSQL.")
-        api.add_node("p1", "The system uses PostgreSQL",
-                     source=str(source_file), db_path=db)
+        api.add_node(
+            "p1", "The system uses PostgreSQL", source=str(source_file), db_path=db
+        )
 
-        llm_resp = json.dumps({
-            "p1": {"verdict": "CONFIRMED", "reason": "exact match",
-                   "quote": "The system uses PostgreSQL."},
-        })
+        llm_resp = json.dumps(
+            {
+                "p1": {
+                    "verdict": "CONFIRMED",
+                    "reason": "exact match",
+                    "quote": "The system uses PostgreSQL.",
+                },
+            }
+        )
         mock = _mock_result(llm_resp)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock),
+        ):
             stdout, stderr, code = run_cli("verify", "p1", db_path=db)
 
         assert code == 0

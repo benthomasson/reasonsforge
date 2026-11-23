@@ -34,57 +34,65 @@ def build_repo_prompt(
     ]
 
     if config_content:
-        sections.extend([
-            "",
-            "## Project Configuration",
-            "",
-            "```",
-            config_content,
-            "```",
-        ])
+        sections.extend(
+            [
+                "",
+                "## Project Configuration",
+                "",
+                "```",
+                config_content,
+                "```",
+            ]
+        )
 
     if readme_content:
-        sections.extend([
-            "",
-            "## README",
-            "",
-            readme_content,
-        ])
+        sections.extend(
+            [
+                "",
+                "## README",
+                "",
+                readme_content,
+            ]
+        )
 
     if entry_points:
-        sections.extend([
-            "",
-            "## Entry Points",
-            "",
-        ])
+        sections.extend(
+            [
+                "",
+                "## Entry Points",
+                "",
+            ]
+        )
         for ep in entry_points:
             sections.append(f"- {ep}")
 
     if m["explore_extra"]:
         sections.extend(["", m["explore_extra"]])
 
-    sections.extend([
-        "",
-        "## Instructions",
-        "",
-        "Write a comprehensive overview covering:",
-        "",
-        "1. **Purpose**: What does this project do? What problem does it solve?",
-        "2. **Architecture**: High-level architecture, design patterns, and module boundaries",
-        "3. **Key Components**: The most important modules/packages and their responsibilities",
-        "4. **Data Flow**: How data flows through the system — inputs, transformations, outputs",
-        "5. **Dependencies**: Notable external dependencies and why they're used",
-        "6. **Entry Points**: How the application is started/invoked",
-        "7. **Configuration**: How the project is configured and what can be changed",
-        "8. **Module Boundaries**: What are the rules about which modules can import from which?",
-        "9. **Extension Points**: Where would a developer add new functionality?",
-        "10. **Known Constraints**: Concurrency model, deployment requirements, platform assumptions",
-        "",
-        "Format your response as markdown with clear sections and headers.",
-        "Be specific — reference actual file and directory names from the tree.",
-        "Focus on architectural decisions and their rationale, not just structure.",
-        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
-        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
-    ])
+    sections.extend(
+        [
+            "",
+            "## Instructions",
+            "",
+            "Write a comprehensive overview covering:",
+            "",
+            "1. **Purpose**: What does this project do? What problem does it solve?",
+            "2. **Architecture**: High-level architecture, design patterns, and module boundaries",
+            "3. **Key Components**: The most important modules/packages and their responsibilities",
+            "4. **Data Flow**: How data flows through the system — inputs, transformations, outputs",
+            "5. **Dependencies**: Notable external dependencies and why they're used",
+            "6. **Entry Points**: How the application is started/invoked",
+            "7. **Configuration**: How the project is configured and what can be changed",
+            "8. **Module Boundaries**: What are the rules about which modules can import from which?",
+            "9. **Extension Points**: Where would a developer add new functionality?",
+            "10. **Known Constraints**: Concurrency model, deployment requirements, platform assumptions",
+            "",
+            "Format your response as markdown with clear sections and headers.",
+            "Be specific — reference actual file and directory names from the tree.",
+            "Focus on architectural decisions and their rationale, not just structure.",
+            TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+            BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
+        ]
+    )
 
     return "\n".join(sections)

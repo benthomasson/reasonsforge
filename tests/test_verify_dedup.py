@@ -10,8 +10,16 @@ def _make_db_with_dupes(tmp_path):
     db = str(tmp_path / "test.db")
     api.init_db(db)
     api.add_node("widget-uses-react", "The widget component uses React", db_path=db)
-    api.add_node("widget-uses-react-framework", "The widget component uses the React framework", db_path=db)
-    api.add_node("widget-is-stateful", "The widget component maintains internal state", db_path=db)
+    api.add_node(
+        "widget-uses-react-framework",
+        "The widget component uses the React framework",
+        db_path=db,
+    )
+    api.add_node(
+        "widget-is-stateful",
+        "The widget component maintains internal state",
+        db_path=db,
+    )
     return db
 
 
@@ -22,8 +30,7 @@ def test_verify_same_claim(tmp_path):
 
     with patch("reasonsforge.llm.invoke_model") as mock_llm:
         mock_llm.return_value = (
-            "VERDICT: SAME_CLAIM\n"
-            "REASON: Both state that the widget uses React."
+            "VERDICT: SAME_CLAIM\nREASON: Both state that the widget uses React."
         )
         vresult = api.verify_dedup_clusters(result["clusters"], model="claude")
 
@@ -53,8 +60,12 @@ def test_verify_different_claims(tmp_path):
 def test_verify_contradiction(tmp_path):
     db = str(tmp_path / "test.db")
     api.init_db(db)
-    api.add_node("hook-is-invoked", "console_error_panic_hook is invoked at startup", db_path=db)
-    api.add_node("hook-is-never-invoked", "console_error_panic_hook is never invoked", db_path=db)
+    api.add_node(
+        "hook-is-invoked", "console_error_panic_hook is invoked at startup", db_path=db
+    )
+    api.add_node(
+        "hook-is-never-invoked", "console_error_panic_hook is never invoked", db_path=db
+    )
 
     result = api.deduplicate(threshold=0.4, db_path=db)
     assert len(result["clusters"]) > 0
@@ -102,10 +113,7 @@ def test_verify_auto_applies_verified_only(tmp_path):
     verified_clusters = result["clusters"]
 
     with patch("reasonsforge.llm.invoke_model") as mock_llm:
-        mock_llm.return_value = (
-            "VERDICT: SAME_CLAIM\n"
-            "REASON: Same claim."
-        )
+        mock_llm.return_value = "VERDICT: SAME_CLAIM\nREASON: Same claim."
         vresult = api.verify_dedup_clusters(verified_clusters, model="claude")
 
     plan = []

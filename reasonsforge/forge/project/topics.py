@@ -12,12 +12,15 @@ from datetime import datetime
 @dataclass
 class Topic:
     """A queued exploration topic."""
+
     title: str
-    kind: str       # issue, epic, milestone, general
-    target: str     # issue ID, milestone name, or slug
+    kind: str  # issue, epic, milestone, general
+    target: str  # issue ID, milestone name, or slug
     source: str = ""
     status: str = "pending"
-    added: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    added: str = field(
+        default_factory=lambda: datetime.now().isoformat(timespec="seconds")
+    )
 
 
 TOPIC_KINDS = {"issue", "epic", "milestone", "general"}
@@ -63,7 +66,9 @@ def add_topics(topics: list[Topic], project_dir: str | None = None) -> int:
     return added
 
 
-def pop_next(project_dir: str | None = None, kinds: set[str] | None = None) -> Topic | None:
+def pop_next(
+    project_dir: str | None = None, kinds: set[str] | None = None
+) -> Topic | None:
     queue = load_queue(project_dir)
     for topic in queue:
         if topic.status == "pending":
@@ -85,7 +90,9 @@ def pop_at(index: int, project_dir: str | None = None) -> Topic | None:
     return queue[pending[index]]
 
 
-def pop_multiple(indices: list[int], project_dir: str | None = None) -> list[Topic | None]:
+def pop_multiple(
+    indices: list[int], project_dir: str | None = None
+) -> list[Topic | None]:
     queue = load_queue(project_dir)
     pending = [i for i, t in enumerate(queue) if t.status == "pending"]
     results = []
@@ -116,7 +123,8 @@ def skip_topic(index: int, project_dir: str | None = None) -> bool:
 
 def pending_count(project_dir: str | None = None, kinds: set[str] | None = None) -> int:
     return sum(
-        1 for t in load_queue(project_dir)
+        1
+        for t in load_queue(project_dir)
         if t.status == "pending" and (not kinds or t.kind in kinds)
     )
 
@@ -124,11 +132,7 @@ def pending_count(project_dir: str | None = None, kinds: set[str] | None = None)
 # --- Parsing topics from model output ---
 
 TOPIC_LINE_PATTERN = re.compile(
-    r"^[-*]\s+"
-    r"\[(\w+)\]\s+"
-    r"`([^`]+)`"
-    r"\s*(?:—|-|:)\s*"
-    r"(.+)$",
+    r"^[-*]\s+" r"\[(\w+)\]\s+" r"`([^`]+)`" r"\s*(?:—|-|:)\s*" r"(.+)$",
     re.MULTILINE,
 )
 
@@ -153,11 +157,13 @@ def parse_topics_from_response(response: str, source: str = "") -> list[Topic]:
         if kind not in TOPIC_KINDS:
             kind = "general"
 
-        topics.append(Topic(
-            title=title,
-            kind=kind,
-            target=target,
-            source=source,
-        ))
+        topics.append(
+            Topic(
+                title=title,
+                kind=kind,
+                target=target,
+                source=source,
+            )
+        )
 
     return topics

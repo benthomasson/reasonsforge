@@ -96,15 +96,18 @@ def _get_source(config: dict) -> GitHubSource | GitLabSource | JiraSource:
 def _create_entry(topic: str, title: str, content: str, model: str = "") -> Path | None:
     """Write an entry file directly (replaces subprocess call to entry CLI)."""
     from ..utils import unique_path
+
     today = date.today()
-    summary_dir = Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    summary_dir = (
+        Path("summaries") / str(today.year) / f"{today.month:02d}" / f"{today.day:02d}"
+    )
     summary_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%H%M")
     entry_name = f"{topic}-{timestamp}"
     entry_path = unique_path(summary_dir / f"{entry_name}.md")
     parts = []
     if model:
-        parts.append(f"---\nmodel: \"{model}\"\ndate: {today.isoformat()}\n---\n\n")
+        parts.append(f'---\nmodel: "{model}"\ndate: {today.isoformat()}\n---\n\n')
     parts.append(f"# {title}\n\n{content}\n")
     entry_path.write_text("".join(parts))
     print(f"Entry: {entry_path}", file=sys.stderr)
@@ -123,7 +126,8 @@ def _enqueue_topics(response: str, source: str, project_dir: str | None = None) 
 def _parse_beliefs_from_response(response: str) -> list[dict]:
     section_match = re.search(
         r"#+\s*Beliefs?\s*\n(.*?)(?=\n#|\Z)",
-        response, re.DOTALL | re.IGNORECASE,
+        response,
+        re.DOTALL | re.IGNORECASE,
     )
     if not section_match:
         return []
@@ -231,7 +235,9 @@ def _build_topic_prompt(topic: Topic, config: dict | None, project_dir: str) -> 
                 _save_analyzed_issue(issue.id, issue.updated)
 
         except Exception as e:
-            print(f"Warning: Could not fetch issue {topic.target}: {e}", file=sys.stderr)
+            print(
+                f"Warning: Could not fetch issue {topic.target}: {e}", file=sys.stderr
+            )
 
     if not issue_text:
         cached = _load_cached_issues(project_dir)
@@ -282,14 +288,22 @@ def _run_topic(args, topic: Topic) -> None:
         return
 
     safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-    _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
+    _create_entry(
+        f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model
+    )
     _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
     _report_beliefs(result)
 
     print(result)
 
 
-def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1, kinds: set[str] | None = None) -> None:
+def _explore_loop(
+    args,
+    project_dir: str,
+    max_topics: int,
+    max_parallel: int = 1,
+    kinds: set[str] | None = None,
+) -> None:
     """Continuously explore topics up to max_topics."""
     if max_parallel > 1:
         _explore_loop_parallel(args, project_dir, max_topics, max_parallel, kinds=kinds)
@@ -304,15 +318,23 @@ def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1
         if topic is None:
             if explored == 0:
                 kind_label = f" of kind(s) {kinds}" if kinds else ""
-                print(f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics.")
+                print(
+                    f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics."
+                )
             else:
-                print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
+                print(
+                    f"\nNo more topics after {explored} exploration(s).",
+                    file=sys.stderr,
+                )
             return
 
         explored += 1
         remaining = pending_count(project_dir, kinds=kinds)
         print(f"\n{'=' * 40}", file=sys.stderr)
-        print(f"[{explored}/{max_topics}] ({remaining} remaining in queue)", file=sys.stderr)
+        print(
+            f"[{explored}/{max_topics}] ({remaining} remaining in queue)",
+            file=sys.stderr,
+        )
         print(f"{'=' * 40}", file=sys.stderr)
 
         _run_topic(args, topic)
@@ -321,7 +343,13 @@ def _explore_loop(args, project_dir: str, max_topics: int, max_parallel: int = 1
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
-def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel: int, kinds: set[str] | None = None) -> None:
+def _explore_loop_parallel(
+    args,
+    project_dir: str,
+    max_topics: int,
+    max_parallel: int,
+    kinds: set[str] | None = None,
+) -> None:
     """Explore topics in parallel batches."""
     from ..llm import check_model_available, invoke
 
@@ -347,12 +375,19 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
         if not batch_topics:
             if explored == 0:
                 kind_label = f" of kind(s) {kinds}" if kinds else ""
-                print(f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics.")
+                print(
+                    f"No pending topics{kind_label}. Run `reasonsforge project scan` to discover topics."
+                )
             else:
-                print(f"\nNo more topics after {explored} exploration(s).", file=sys.stderr)
+                print(
+                    f"\nNo more topics after {explored} exploration(s).",
+                    file=sys.stderr,
+                )
             return
 
-        print(f"\nExploring {len(batch_topics)} topic(s) in parallel...", file=sys.stderr)
+        print(
+            f"\nExploring {len(batch_topics)} topic(s) in parallel...", file=sys.stderr
+        )
         for t in batch_topics:
             print(f"  [{t.kind}] {t.target}: {t.title}", file=sys.stderr)
 
@@ -378,8 +413,15 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
-            _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
+            _create_entry(
+                f"explore-{safe_target}",
+                f"Explore: {topic.target}",
+                result,
+                model=model,
+            )
+            _enqueue_topics(
+                result, source=f"explore:{topic.target}", project_dir=project_dir
+            )
             _report_beliefs(result)
             print(result)
 
@@ -387,8 +429,12 @@ def _explore_loop_parallel(args, project_dir: str, max_topics: int, max_parallel
     print(f"\nExplored {explored} topic(s). {remaining} remaining.", file=sys.stderr)
 
 
-def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
-                           model: str = "", source_url: str = "") -> None:
+def _auto_accept_proposals(
+    proposals: list[str],
+    db_path: str = REASONS_DB,
+    model: str = "",
+    source_url: str = "",
+) -> None:
     """Parse LLM proposals and accept all beliefs directly via reasonsforge.api."""
     from reasonsforge.api import add_node, set_metadata
 
@@ -413,8 +459,14 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
     skipped = 0
     for belief_id, claim_text, source in matches:
         try:
-            add_node(belief_id, claim_text.strip(), source=source.strip(),
-                     source_url=source_url, model=model, db_path=db_path)
+            add_node(
+                belief_id,
+                claim_text.strip(),
+                source=source.strip(),
+                source_url=source_url,
+                model=model,
+                db_path=db_path,
+            )
             print(f"  Added: {belief_id}", file=sys.stderr)
             added += 1
             now = datetime.now().isoformat(timespec="seconds")
@@ -434,7 +486,10 @@ def _auto_accept_proposals(proposals: list[str], db_path: str = REASONS_DB,
                 print(f"  FAIL: {belief_id}: {e}", file=sys.stderr)
                 failed += 1
 
-    print(f"Accepted {added} belief(s) ({skipped} existing, {failed} failed)", file=sys.stderr)
+    print(
+        f"Accepted {added} belief(s) ({skipped} existing, {failed} failed)",
+        file=sys.stderr,
+    )
 
 
 def _entry_date(path: Path) -> str | None:
@@ -544,8 +599,7 @@ def _extract_issue_refs(text: str) -> list[dict]:
     return refs
 
 
-def _fetch_artifacts(refs: list[dict], source, config: dict,
-                     github_source=None) -> str:
+def _fetch_artifacts(refs: list[dict], source, config: dict, github_source=None) -> str:
     """Fetch current state for each issue/PR reference."""
     parts = []
     platform = config["platform"]
@@ -567,14 +621,18 @@ def _fetch_artifacts(refs: list[dict], source, config: dict,
                     pr = github_source.get_pr(ref["number"])
                     parts.append(pr.to_prompt_text())
                 else:
-                    parts.append(f"(Could not fetch pr {ref_label} -- no GitHub repo configured)")
+                    parts.append(
+                        f"(Could not fetch pr {ref_label} -- no GitHub repo configured)"
+                    )
             elif ref["type"] == "issue":
                 if platform == "jira" and isinstance(ref.get("number"), int):
                     if github_source:
                         issue = github_source.get_issue(ref["number"])
                         parts.append(issue.to_prompt_text())
                     else:
-                        parts.append(f"(Skipping numeric ref #{ref['number']} on Jira -- no GitHub repo configured)")
+                        parts.append(
+                            f"(Skipping numeric ref #{ref['number']} on Jira -- no GitHub repo configured)"
+                        )
                 else:
                     issue = source.get_issue(ref["number"])
                     parts.append(issue.to_prompt_text())
@@ -604,9 +662,9 @@ def _get_dependent_beliefs(belief_id: str, network: dict) -> str:
     return "\n".join(lines)
 
 
-def _select_beliefs_for_research(network: dict, negative: bool = False,
-                                  high_impact: bool = False,
-                                  limit: int = 10) -> list[str]:
+def _select_beliefs_for_research(
+    network: dict, negative: bool = False, high_impact: bool = False, limit: int = 10
+) -> list[str]:
     """Select belief IDs for research based on criteria."""
     nodes = network.get("nodes", {})
     candidates = []
@@ -663,7 +721,9 @@ def _load_network(db_path: str = REASONS_DB) -> dict:
         return {"nodes": {}}
 
 
-def _get_depth(node_id: str, nodes: dict, derived: dict, memo: dict | None = None) -> int:
+def _get_depth(
+    node_id: str, nodes: dict, derived: dict, memo: dict | None = None
+) -> int:
     """Compute the depth of a node in the reasoning chain."""
     if memo is None:
         memo = {}
@@ -683,8 +743,11 @@ def _get_depth(node_id: str, nodes: dict, derived: dict, memo: dict | None = Non
 def _build_beliefs_section(nodes: dict, derived: dict, max_beliefs: int = 300) -> str:
     """Build a compact beliefs section for the derive prompt."""
     lines = []
-    in_nodes = {k: v for k, v in nodes.items()
-                if v.get("truth_value") == "IN" and k not in derived}
+    in_nodes = {
+        k: v
+        for k, v in nodes.items()
+        if v.get("truth_value") == "IN" and k not in derived
+    }
     groups = defaultdict(list)
     for k, v in in_nodes.items():
         prefix = k.split("-")[0] if "-" in k else k
@@ -742,7 +805,11 @@ def _parse_derive_proposals(response: str) -> list[dict]:
             "id": match.group(2).strip("`"),
             "text": match.group(3).strip(),
             "antecedents": [a.strip().strip("`") for a in match.group(4).split(",")],
-            "unless": [u.strip().strip("`") for u in match.group(5).split(",")] if match.group(5) else [],
+            "unless": (
+                [u.strip().strip("`") for u in match.group(5).split(",")]
+                if match.group(5)
+                else []
+            ),
             "label": match.group(6).strip(),
         }
         proposals.append(proposal)
@@ -762,13 +829,19 @@ def _derive_once(model: str, timeout: int, db_path: str = REASONS_DB) -> int:
     if not nodes:
         return 0
 
-    derived = {k: v for k, v in nodes.items()
-               if v.get("justifications") and len(v["justifications"]) > 0}
+    derived = {
+        k: v
+        for k, v in nodes.items()
+        if v.get("justifications") and len(v["justifications"]) > 0
+    }
     in_nodes = {k: v for k, v in nodes.items() if v.get("truth_value") == "IN"}
     memo = {}
     max_depth = max((_get_depth(k, nodes, derived, memo) for k in derived), default=0)
 
-    print(f"Network: {len(in_nodes)} IN, {len(derived)} derived, depth {max_depth}", file=sys.stderr)
+    print(
+        f"Network: {len(in_nodes)} IN, {len(derived)} derived, depth {max_depth}",
+        file=sys.stderr,
+    )
 
     beliefs_section = _build_beliefs_section(nodes, derived)
     derived_section = _build_derived_section(nodes, derived)
@@ -793,7 +866,10 @@ def _derive_once(model: str, timeout: int, db_path: str = REASONS_DB) -> int:
         missing = [a for a in p["antecedents"] if a not in nodes]
         missing_unless = [u for u in p["unless"] if u not in nodes]
         if missing or missing_unless:
-            print(f"  SKIP {p['id']}: missing nodes {missing + missing_unless}", file=sys.stderr)
+            print(
+                f"  SKIP {p['id']}: missing nodes {missing + missing_unless}",
+                file=sys.stderr,
+            )
             continue
         if p["id"] in nodes:
             print(f"  SKIP {p['id']}: already exists", file=sys.stderr)
@@ -809,7 +885,8 @@ def _derive_once(model: str, timeout: int, db_path: str = REASONS_DB) -> int:
             sl = ",".join(p["antecedents"])
             unless = ",".join(p["unless"]) if p["unless"] else ""
             add_node(
-                p["id"], p["text"],
+                p["id"],
+                p["text"],
                 sl=sl,
                 unless=unless,
                 label=p["label"],
@@ -860,13 +937,15 @@ def _compute_gating_analysis(network: dict) -> list[dict]:
         downstream = _transitive_count(node_id)
         if downstream == 0:
             continue
-        results.append({
-            "id": node_id,
-            "text": node.get("text", ""),
-            "truth_value": node.get("truth_value", "?"),
-            "downstream_count": downstream,
-            "gated_conclusions": list(outlist_gates.get(node_id, [])),
-        })
+        results.append(
+            {
+                "id": node_id,
+                "text": node.get("text", ""),
+                "truth_value": node.get("truth_value", "?"),
+                "downstream_count": downstream,
+                "gated_conclusions": list(outlist_gates.get(node_id, [])),
+            }
+        )
 
     results.sort(key=lambda x: x["downstream_count"], reverse=True)
     return results
@@ -874,10 +953,14 @@ def _compute_gating_analysis(network: dict) -> list[dict]:
 
 def _compute_team_signals(cached_issues: dict) -> dict:
     """Infer team composition and capacity from cached issues."""
-    team = defaultdict(lambda: {
-        "open": 0, "closed_recent": 0, "total": 0,
-        "priorities": defaultdict(int),
-    })
+    team = defaultdict(
+        lambda: {
+            "open": 0,
+            "closed_recent": 0,
+            "total": 0,
+            "priorities": defaultdict(int),
+        }
+    )
     total_open = 0
     unassigned_open = 0
     now = datetime.now()
@@ -907,13 +990,19 @@ def _compute_team_signals(cached_issues: dict) -> dict:
             closed_str = issue.get("closed") or issue.get("updated") or ""
             if closed_str:
                 try:
-                    closed_dt = datetime.fromisoformat(closed_str.replace("Z", "+00:00"))
+                    closed_dt = datetime.fromisoformat(
+                        closed_str.replace("Z", "+00:00")
+                    )
                     is_recent_close = (now - closed_dt.replace(tzinfo=None)).days <= 30
                 except (ValueError, TypeError):
                     pass
 
         for assignee in assignees:
-            name = assignee if isinstance(assignee, str) else assignee.get("login", assignee.get("name", "unknown"))
+            name = (
+                assignee
+                if isinstance(assignee, str)
+                else assignee.get("login", assignee.get("name", "unknown"))
+            )
             team[name]["total"] += 1
             if is_open:
                 team[name]["open"] += 1
@@ -923,13 +1012,15 @@ def _compute_team_signals(cached_issues: dict) -> dict:
 
     members = []
     for name, data in sorted(team.items(), key=lambda x: x[1]["open"], reverse=True):
-        members.append({
-            "name": name,
-            "open_issues": data["open"],
-            "closed_recent": data["closed_recent"],
-            "total": data["total"],
-            "priorities": dict(data["priorities"]),
-        })
+        members.append(
+            {
+                "name": name,
+                "open_issues": data["open"],
+                "closed_recent": data["closed_recent"],
+                "total": data["total"],
+                "priorities": dict(data["priorities"]),
+            }
+        )
 
     return {
         "team_members": members,
@@ -944,7 +1035,11 @@ def _format_gating_section(gating_analysis: list[dict], max_items: int = 30) -> 
         return "No gating analysis available."
     lines = []
     for item in gating_analysis[:max_items]:
-        gated = ", ".join(item["gated_conclusions"][:5]) if item["gated_conclusions"] else "indirect"
+        gated = (
+            ", ".join(item["gated_conclusions"][:5])
+            if item["gated_conclusions"]
+            else "indirect"
+        )
         lines.append(
             f"- `{item['id']}` [{item['truth_value']}] "
             f"(downstream: {item['downstream_count']}) -- {item['text'][:120]}"
@@ -966,7 +1061,9 @@ def _format_team_section(team_signals: dict) -> str:
         "",
     ]
     for m in team_signals["team_members"]:
-        prio_str = ", ".join(f"{k}: {v}" for k, v in m["priorities"].items() if k != "none")
+        prio_str = ", ".join(
+            f"{k}: {v}" for k, v in m["priorities"].items() if k != "none"
+        )
         lines.append(
             f"- **{m['name']}**: {m['open_issues']} open, "
             f"{m['closed_recent']} closed (last 30d)"
@@ -1018,11 +1115,13 @@ def _format_backlog_section(
         prio = (issue.get("priority") or "medium").lower()
         prio_rank = priority_order.get(prio, 3)
 
-        open_issues.append({
-            "issue": issue,
-            "priority_rank": prio_rank,
-            "belief_impact": belief_impact,
-        })
+        open_issues.append(
+            {
+                "issue": issue,
+                "priority_rank": prio_rank,
+                "belief_impact": belief_impact,
+            }
+        )
 
     open_issues.sort(key=lambda x: (-x["belief_impact"], x["priority_rank"]))
 
@@ -1066,6 +1165,7 @@ def _load_processed(path: Path) -> dict[str, str]:
 
 def _save_processed(path: Path, entries: list[Path], existing: dict[str, str]):
     import hashlib
+
     updated = dict(existing)
     for entry_path in entries:
         content = entry_path.read_text()
@@ -1077,6 +1177,7 @@ def _save_processed(path: Path, entries: list[Path], existing: dict[str, str]):
 
 def _filter_unprocessed(entries: list[Path], processed: dict[str, str]) -> list[Path]:
     import hashlib
+
     unprocessed = []
     for entry_path in entries:
         key = str(entry_path)
@@ -1093,6 +1194,7 @@ def _filter_unprocessed(entries: list[Path], processed: dict[str, str]) -> list[
 def _load_existing_beliefs(db_path: str) -> list[dict]:
     try:
         from reasonsforge.api import export_network
+
         network = export_network(db_path=db_path)
         nodes = network.get("nodes", {})
         return [
@@ -1116,7 +1218,7 @@ def _build_dedup_context(
 
     scored = _score_by_keywords(existing_beliefs, batch_text, batch_entry_paths)
     detailed = scored[:max_detailed]
-    compact = scored[max_detailed:max_detailed + max_compact]
+    compact = scored[max_detailed : max_detailed + max_compact]
 
     parts = [
         "\n\n## Already Accepted Beliefs\n\n"
@@ -1139,14 +1241,15 @@ def _score_by_keywords(
     batch_text: str,
     batch_entry_paths: list[str],
 ) -> list[tuple[float, dict]]:
-    batch_words = set(re.findall(r'[a-z]{3,}', batch_text.lower()))
+    batch_words = set(re.findall(r"[a-z]{3,}", batch_text.lower()))
     scored = []
     for belief in beliefs:
         score = 0.0
-        if belief["source"] and any(belief["source"] in p or p in belief["source"]
-                                     for p in batch_entry_paths):
+        if belief["source"] and any(
+            belief["source"] in p or p in belief["source"] for p in batch_entry_paths
+        ):
             score += 1000
-        belief_words = set(re.findall(r'[a-z]{3,}', belief["text"].lower()))
+        belief_words = set(re.findall(r"[a-z]{3,}", belief["text"].lower()))
         belief_words |= set(belief["id"].replace("-", " ").lower().split())
         overlap = len(batch_words & belief_words)
         score += overlap
@@ -1155,7 +1258,9 @@ def _score_by_keywords(
     return scored
 
 
-def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tuple[int, int, int]:
+def _accept_proposals(
+    matches: list[tuple[str, str, str]], db_path: str
+) -> tuple[int, int, int]:
     """Accept a list of (belief_id, claim_text, source) tuples via reasonsforge.api."""
     from reasonsforge.api import add_node, set_metadata
 
@@ -1165,7 +1270,9 @@ def _accept_proposals(matches: list[tuple[str, str, str]], db_path: str) -> tupl
     skipped = 0
     for belief_id, claim_text, source in matches:
         try:
-            add_node(belief_id, claim_text.strip(), source=source.strip(), db_path=db_path)
+            add_node(
+                belief_id, claim_text.strip(), source=source.strip(), db_path=db_path
+            )
             print(f"  Added: {belief_id}")
             added += 1
             now = datetime.now().isoformat(timespec="seconds")
@@ -1212,18 +1319,29 @@ def _fetch_issues(source, config, state, labels, limit, page, since):
     """Fetch issues from source with since filtering."""
     platform = config["platform"]
     if platform == "jira":
-        return source.list_issues(state=state, labels=labels, limit=limit,
-                                  page=page, since=since)
+        return source.list_issues(
+            state=state, labels=labels, limit=limit, page=page, since=since
+        )
     elif platform == "gitlab":
-        return source.list_issues(state=state, labels=labels, limit=limit,
-                                  page=page, since=since)
+        return source.list_issues(
+            state=state, labels=labels, limit=limit, page=page, since=since
+        )
     else:
-        return source.list_issues(state=state, labels=labels, limit=limit,
-                                  since=since)
+        return source.list_issues(state=state, labels=labels, limit=limit, since=since)
 
 
-def _run_scan_step(config, source, issues, project_name,
-                   state, limit, page, project_dir, model, timeout):
+def _run_scan_step(
+    config,
+    source,
+    issues,
+    project_name,
+    state,
+    limit,
+    page,
+    project_dir,
+    model,
+    timeout,
+):
     """Run the scan LLM step on a batch of fetched issues."""
     from ..llm import invoke
 
@@ -1261,8 +1379,12 @@ def _run_scan_step(config, source, issues, project_name,
     safe_name = short_name.replace("/", "-")
     state_suffix = f"-{state}" if state and state not in ("open", "opened") else ""
     page_suffix = f"-p{page}" if page > 1 else ""
-    _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
-                  f"Scan: {project_name} ({state or 'open'}, page {page})", result, model=model)
+    _create_entry(
+        f"scan-{safe_name}{state_suffix}{page_suffix}",
+        f"Scan: {project_name} ({state or 'open'}, page {page})",
+        result,
+        model=model,
+    )
     _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
     _report_beliefs(result)
     _cache_issues(issues, project_dir)
@@ -1307,7 +1429,10 @@ def cmd_init(args):
     # Validate platform prerequisites
     if platform == "jira":
         if not jira_url and not os.environ.get("JIRA_URL"):
-            print("Error: --jira-url or JIRA_URL env var required for Jira", file=sys.stderr)
+            print(
+                "Error: --jira-url or JIRA_URL env var required for Jira",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
     # Create project dir
@@ -1348,6 +1473,7 @@ def cmd_init(args):
         print("Created .gitignore")
 
     from ..claude_md import write_claude_md_if_missing
+
     if write_claude_md_if_missing(domain):
         print("Created CLAUDE.md")
 
@@ -1398,6 +1524,7 @@ def cmd_scan(args):
     """Scan project issues and create an overview."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     config = _load_config()
@@ -1415,7 +1542,9 @@ def cmd_scan(args):
 
     source = _get_source(config)
     labels_raw = getattr(args, "labels", None)
-    label_list = [l.strip() for l in labels_raw.split(",") if l.strip()] if labels_raw else None
+    label_list = (
+        [l.strip() for l in labels_raw.split(",") if l.strip()] if labels_raw else None
+    )
 
     state = getattr(args, "state", None)
     limit = getattr(args, "limit", 100)
@@ -1439,8 +1568,13 @@ def cmd_scan(args):
 
     project_name = config.get("repo", config.get("project", "unknown"))
 
-    scan_params = {"state": state, "labels": label_list, "jql": jql,
-                   "per_issue": per_issue, "limit": limit}
+    scan_params = {
+        "state": state,
+        "labels": label_list,
+        "jql": jql,
+        "per_issue": per_issue,
+        "limit": limit,
+    }
 
     if all_pages:
         current_page = 1
@@ -1451,17 +1585,24 @@ def cmd_scan(args):
             if progress:
                 saved_params = progress.get("params", {})
                 if saved_params != scan_params:
-                    print("Warning: scan parameters changed since last run. "
-                          "Starting from page 1.", file=sys.stderr)
+                    print(
+                        "Warning: scan parameters changed since last run. "
+                        "Starting from page 1.",
+                        file=sys.stderr,
+                    )
                 else:
                     current_page = progress["last_completed_page"] + 1
                     total_scanned = progress["total_scanned"]
-                    print(f"Resuming from page {current_page} "
-                          f"({total_scanned} issues already scanned)",
-                          file=sys.stderr)
+                    print(
+                        f"Resuming from page {current_page} "
+                        f"({total_scanned} issues already scanned)",
+                        file=sys.stderr,
+                    )
             else:
-                print("No previous scan progress found. Starting from page 1.",
-                      file=sys.stderr)
+                print(
+                    "No previous scan progress found. Starting from page 1.",
+                    file=sys.stderr,
+                )
 
         while True:
             print(f"\n{'=' * 40}", file=sys.stderr)
@@ -1470,13 +1611,21 @@ def cmd_scan(args):
 
             try:
                 if config["platform"] == "jira":
-                    issues = source.list_issues(jql=jql, state=state, labels=label_list,
-                                                limit=limit, page=current_page)
+                    issues = source.list_issues(
+                        jql=jql,
+                        state=state,
+                        labels=label_list,
+                        limit=limit,
+                        page=current_page,
+                    )
                 elif config["platform"] == "gitlab":
-                    issues = source.list_issues(state=state, labels=label_list,
-                                                limit=limit, page=current_page)
+                    issues = source.list_issues(
+                        state=state, labels=label_list, limit=limit, page=current_page
+                    )
                 else:
-                    issues = source.list_issues(state=state, labels=label_list, limit=limit)
+                    issues = source.list_issues(
+                        state=state, labels=label_list, limit=limit
+                    )
             except Exception as e:
                 print(f"Error fetching issues: {e}", file=sys.stderr)
                 sys.exit(1)
@@ -1485,8 +1634,10 @@ def cmd_scan(args):
                 if total_scanned == 0:
                     print("No issues found.")
                 else:
-                    print(f"\nDone. Scanned {total_scanned} issues across {current_page - 1} pages.",
-                          file=sys.stderr)
+                    print(
+                        f"\nDone. Scanned {total_scanned} issues across {current_page - 1} pages.",
+                        file=sys.stderr,
+                    )
                 _clear_scan_progress(args)
                 break
 
@@ -1504,13 +1655,18 @@ def cmd_scan(args):
                 ]
                 added = add_topics(topics, project_dir)
                 _cache_issues(issues, project_dir)
-                print(f"Queued {added} topic(s) from {len(issues)} issues", file=sys.stderr)
+                print(
+                    f"Queued {added} topic(s) from {len(issues)} issues",
+                    file=sys.stderr,
+                )
                 total_scanned += len(issues)
                 _save_scan_progress(current_page, total_scanned, scan_params, args)
             else:
                 # Fetch PRs for platforms that support them
                 prs = []
-                if config["platform"] in ("github", "gitlab") and hasattr(source, "list_prs"):
+                if config["platform"] in ("github", "gitlab") and hasattr(
+                    source, "list_prs"
+                ):
                     try:
                         prs = source.list_prs(state=state or "open", limit=limit)
                         if prs:
@@ -1540,14 +1696,25 @@ def cmd_scan(args):
                     print(f"Error: {e}", file=sys.stderr)
                     sys.exit(1)
 
-                short_name = project_name.split("//")[-1] if "//" in project_name else project_name
+                short_name = (
+                    project_name.split("//")[-1]
+                    if "//" in project_name
+                    else project_name
+                )
                 safe_name = short_name.replace("/", "-")
-                state_suffix = f"-{state}" if state and state not in ("open", "opened") else ""
+                state_suffix = (
+                    f"-{state}" if state and state not in ("open", "opened") else ""
+                )
                 page_suffix = f"-p{current_page}" if current_page > 1 else ""
-                _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
-                              f"Scan: {project_name} ({state or 'open'}, page {current_page})",
-                              result, model=model)
-                _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
+                _create_entry(
+                    f"scan-{safe_name}{state_suffix}{page_suffix}",
+                    f"Scan: {project_name} ({state or 'open'}, page {current_page})",
+                    result,
+                    model=model,
+                )
+                _enqueue_topics(
+                    result, source=f"scan:{project_name}", project_dir=project_dir
+                )
                 _report_beliefs(result)
                 _cache_issues(issues, project_dir)
                 total_scanned += len(issues)
@@ -1556,8 +1723,10 @@ def cmd_scan(args):
                 print(result)
 
             if len(issues) < limit:
-                print(f"\nDone. Scanned {total_scanned} issues across {current_page} pages.",
-                      file=sys.stderr)
+                print(
+                    f"\nDone. Scanned {total_scanned} issues across {current_page} pages.",
+                    file=sys.stderr,
+                )
                 _clear_scan_progress(args)
                 break
             current_page += 1
@@ -1567,11 +1736,13 @@ def cmd_scan(args):
 
         try:
             if config["platform"] == "jira":
-                issues = source.list_issues(jql=jql, state=state, labels=label_list,
-                                            limit=limit, page=page)
+                issues = source.list_issues(
+                    jql=jql, state=state, labels=label_list, limit=limit, page=page
+                )
             elif config["platform"] == "gitlab":
-                issues = source.list_issues(state=state, labels=label_list,
-                                            limit=limit, page=page)
+                issues = source.list_issues(
+                    state=state, labels=label_list, limit=limit, page=page
+                )
             else:
                 issues = source.list_issues(state=state, labels=label_list, limit=limit)
         except Exception as e:
@@ -1631,12 +1802,18 @@ def cmd_scan(args):
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
-        short_name = project_name.split("//")[-1] if "//" in project_name else project_name
+        short_name = (
+            project_name.split("//")[-1] if "//" in project_name else project_name
+        )
         safe_name = short_name.replace("/", "-")
         state_suffix = f"-{state}" if state and state not in ("open", "opened") else ""
         page_suffix = f"-p{page}" if page > 1 else ""
-        _create_entry(f"scan-{safe_name}{state_suffix}{page_suffix}",
-                      f"Scan: {project_name} ({state or 'open'}, page {page})", result, model=model)
+        _create_entry(
+            f"scan-{safe_name}{state_suffix}{page_suffix}",
+            f"Scan: {project_name} ({state or 'open'}, page {page})",
+            result,
+            model=model,
+        )
         _enqueue_topics(result, source=f"scan:{project_name}", project_dir=project_dir)
         _report_beliefs(result)
         _cache_issues(issues, project_dir)
@@ -1653,6 +1830,7 @@ def cmd_explore(args):
     """Explore the next topic in the queue."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available
+
     _caffeinate()
 
     project_dir = _get_project_dir(args)
@@ -1666,7 +1844,10 @@ def cmd_explore(args):
 
     if loop_max is not None:
         if do_skip or pick_index:
-            print("Error: --loop cannot be combined with --skip or --pick", file=sys.stderr)
+            print(
+                "Error: --loop cannot be combined with --skip or --pick",
+                file=sys.stderr,
+            )
             sys.exit(1)
         _explore_loop(args, project_dir, loop_max, max_parallel, kinds=kind_filter)
         return
@@ -1696,10 +1877,14 @@ def cmd_explore(args):
     else:
         topic_list = [pop_next(project_dir, kinds=kind_filter)]
 
-    valid_topics = [(i, t) for i, t in zip(
-        indices if pick_index is not None else [0],
-        topic_list,
-    ) if t is not None]
+    valid_topics = [
+        (i, t)
+        for i, t in zip(
+            indices if pick_index is not None else [0],
+            topic_list,
+        )
+        if t is not None
+    ]
 
     if not valid_topics:
         print("No pending topics. Run `reasonsforge project scan` to discover topics.")
@@ -1707,7 +1892,10 @@ def cmd_explore(args):
 
     invalid_count = len(topic_list) - len(valid_topics)
     if invalid_count:
-        print(f"Warning: {invalid_count} index(es) out of bounds, skipped.", file=sys.stderr)
+        print(
+            f"Warning: {invalid_count} index(es) out of bounds, skipped.",
+            file=sys.stderr,
+        )
 
     if not check_model_available(model):
         print(f"Error: Model '{model}' CLI not available", file=sys.stderr)
@@ -1743,8 +1931,15 @@ def cmd_explore(args):
                 print(f"  ERROR [{topic.target}]: {result}", file=sys.stderr)
                 continue
             safe_target = re.sub(r"[^a-zA-Z0-9_-]", "-", topic.target)[:80]
-            _create_entry(f"explore-{safe_target}", f"Explore: {topic.target}", result, model=model)
-            _enqueue_topics(result, source=f"explore:{topic.target}", project_dir=project_dir)
+            _create_entry(
+                f"explore-{safe_target}",
+                f"Explore: {topic.target}",
+                result,
+                model=model,
+            )
+            _enqueue_topics(
+                result, source=f"explore:{topic.target}", project_dir=project_dir
+            )
             _report_beliefs(result)
             print(result)
     else:
@@ -1772,12 +1967,15 @@ def cmd_propose_beliefs(args):
     """Extract candidate beliefs from entries."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
     batch_size = getattr(args, "batch_size", 5)
-    output = getattr(args, "proposals_output", None) or getattr(args, "output_file", "proposed-beliefs.md")
+    output = getattr(args, "proposals_output", None) or getattr(
+        args, "output_file", "proposed-beliefs.md"
+    )
     process_all = getattr(args, "all", False)
     auto_accept = getattr(args, "auto", False)
     since = getattr(args, "since", None)
@@ -1801,7 +1999,10 @@ def cmd_propose_beliefs(args):
     if since:
         before = len(entries)
         entries = [e for e in entries if (_entry_date(e) or "") >= since]
-        print(f"Filtered to {len(entries)} entries since {since} (from {before} total)", file=sys.stderr)
+        print(
+            f"Filtered to {len(entries)} entries since {since} (from {before} total)",
+            file=sys.stderr,
+        )
         if not entries:
             print("No entries found since that date.")
             return
@@ -1814,7 +2015,9 @@ def cmd_propose_beliefs(args):
         entries = _filter_unprocessed(entries, processed)
         skipped_count = total - len(entries)
         if skipped_count:
-            print(f"Skipping {skipped_count} already-processed entries (use --all to reprocess)")
+            print(
+                f"Skipping {skipped_count} already-processed entries (use --all to reprocess)"
+            )
         if not entries:
             print("No new entries to process.")
             return
@@ -1886,7 +2089,9 @@ def cmd_propose_beliefs(args):
         else:
             with output_path.open("w") as f:
                 f.write("# Proposed Beliefs\n\n")
-                f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
+                f.write(
+                    "Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n"
+                )
                 f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
                 f.write("---\n\n")
                 f.write(f"**Generated:** {date.today().isoformat()}\n")
@@ -1902,6 +2107,7 @@ def cmd_propose_beliefs(args):
     def _save_batch_progress(batch_entry_paths):
         """Mark this batch's entries as processed and persist."""
         import hashlib as _hl
+
         batch_entries = [Path(p) for p in batch_entry_paths]
         for ep in batch_entries:
             content = ep.read_text()
@@ -1918,8 +2124,12 @@ def cmd_propose_beliefs(args):
     if parallel > 1 and len(batches) > 1:
         prompts = []
         for i, batch_text in enumerate(batches):
-            existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
-            prompts.append(PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context)
+            existing_context = _build_dedup_context(
+                existing_beliefs, batch_paths[i], batch_text
+            )
+            prompts.append(
+                PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context
+            )
 
         done_count = 0
 
@@ -1941,8 +2151,10 @@ def cmd_propose_beliefs(args):
                         _append_proposal(filtered)
                     _save_batch_progress(batch_paths[idx])
                     done_count += 1
-                    print(f"  Batch {idx + 1}/{len(batches)} done "
-                          f"({done_count} completed, saved)")
+                    print(
+                        f"  Batch {idx + 1}/{len(batches)} done "
+                        f"({done_count} completed, saved)"
+                    )
 
             tasks = [_invoke_one(i, p) for i, p in enumerate(prompts)]
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -1952,11 +2164,17 @@ def cmd_propose_beliefs(args):
 
         asyncio.run(_invoke_all())
     else:
+
         async def _run_sequential():
             nonlocal total_dup_skipped
             for i, batch_text in enumerate(batches):
-                existing_context = _build_dedup_context(existing_beliefs, batch_paths[i], batch_text)
-                prompt = PROPOSE_BELIEFS_PROJECT.format(entries=batch_text) + existing_context
+                existing_context = _build_dedup_context(
+                    existing_beliefs, batch_paths[i], batch_text
+                )
+                prompt = (
+                    PROPOSE_BELIEFS_PROJECT.format(entries=batch_text)
+                    + existing_context
+                )
 
                 print(f"  Batch {i + 1}/{len(batches)}...", file=sys.stderr)
                 try:
@@ -2004,15 +2222,15 @@ def cmd_accept_beliefs(args):
 
     text = proposals_path.read_text()
     pattern = re.compile(
-        r"### \[?ACCEPT\]? (\S+)\n"
-        r"(.+?)\n"
-        r"- Source: (.+?)(?:\n|$)"
+        r"### \[?ACCEPT\]? (\S+)\n" r"(.+?)\n" r"- Source: (.+?)(?:\n|$)"
     )
     matches = pattern.findall(text)
 
     if not matches:
         print("No [ACCEPT] entries found in proposals file.")
-        print("Edit the file and change [ACCEPT/REJECT] to [ACCEPT] for beliefs to keep.")
+        print(
+            "Edit the file and change [ACCEPT/REJECT] to [ACCEPT] for beliefs to keep."
+        )
         return
 
     print(f"Found {len(matches)} accepted beliefs")
@@ -2076,20 +2294,24 @@ def cmd_review_proposals(args):
         if "[REJECT]" in header and "[ACCEPT" not in header:
             already_rejected += 1
             continue
-        to_review.append({
-            "match": match,
-            "header": header,
-            "id": match.group(2),
-            "text": match.group(3).strip(),
-            "source": match.group(4).strip().removeprefix("- Source: "),
-        })
+        to_review.append(
+            {
+                "match": match,
+                "header": header,
+                "id": match.group(2),
+                "text": match.group(3).strip(),
+                "source": match.group(4).strip().removeprefix("- Source: "),
+            }
+        )
 
     if not to_review:
         print("No proposals to review (all already rejected).", file=sys.stderr)
         return
 
-    print(f"Reviewing {len(to_review)} proposals ({already_rejected} already rejected)...",
-          file=sys.stderr)
+    print(
+        f"Reviewing {len(to_review)} proposals ({already_rejected} already rejected)...",
+        file=sys.stderr,
+    )
 
     # Build context sections (shared across batches)
     issue_state = _build_issue_state_section(cached_issues)
@@ -2097,7 +2319,9 @@ def cmd_review_proposals(args):
 
     # Batch and review
     all_decisions: dict[str, tuple[bool, str | None]] = {}
-    review_batches = [to_review[i:i + batch_size] for i in range(0, len(to_review), batch_size)]
+    review_batches = [
+        to_review[i : i + batch_size] for i in range(0, len(to_review), batch_size)
+    ]
 
     prompts = [
         REVIEW_PROMPT.format(
@@ -2108,9 +2332,12 @@ def cmd_review_proposals(args):
         for batch in review_batches
     ]
 
-    print(f"  {len(review_batches)} batch(es) (parallel={parallel})...", file=sys.stderr)
+    print(
+        f"  {len(review_batches)} batch(es) (parallel={parallel})...", file=sys.stderr
+    )
 
     if parallel > 1 and len(prompts) > 1:
+
         async def _invoke_all():
             sem = asyncio.Semaphore(parallel)
 
@@ -2132,8 +2359,10 @@ def cmd_review_proposals(args):
                 all_decisions.update(decisions)
     else:
         for i, prompt in enumerate(prompts):
-            print(f"  Batch {i + 1}/{len(review_batches)} ({len(review_batches[i])} proposals)...",
-                  file=sys.stderr)
+            print(
+                f"  Batch {i + 1}/{len(review_batches)} ({len(review_batches[i])} proposals)...",
+                file=sys.stderr,
+            )
             try:
                 result = asyncio.run(invoke(prompt, model, timeout=timeout))
                 decisions = _parse_review_response(result)
@@ -2183,8 +2412,10 @@ def cmd_review_proposals(args):
             kept += 1
 
     # Summary
-    print(f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected",
-          file=sys.stderr)
+    print(
+        f"\nReviewed {len(to_review)} proposals: {kept} kept, {rejected} rejected",
+        file=sys.stderr,
+    )
     if categories:
         print("Rejections by category:", file=sys.stderr)
         for cat, count in sorted(categories.items(), key=lambda x: -x[1]):
@@ -2208,6 +2439,7 @@ def cmd_research(args):
     """Verify beliefs against their source system (live issue tracker)."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     config = _load_config()
@@ -2234,7 +2466,9 @@ def cmd_research(args):
         belief_ids = [belief_id]
     else:
         belief_ids = _select_beliefs_for_research(
-            network, negative=negative, high_impact=high_impact,
+            network,
+            negative=negative,
+            high_impact=high_impact,
             limit=select_limit,
         )
         if not belief_ids:
@@ -2316,6 +2550,7 @@ def cmd_research(args):
     print(f"\nRunning {model} on {len(prompts)} belief(s)...", file=sys.stderr)
 
     if parallel > 1 and len(prompts) > 1:
+
         async def _invoke_all():
             sem = asyncio.Semaphore(parallel)
 
@@ -2359,7 +2594,9 @@ def cmd_research(args):
         print(f"{'=' * 40}", file=sys.stderr)
 
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "-", bid)[:80]
-        _create_entry(f"research-{safe_id}", f"Research: {bid} [{verdict}]", result, model=model)
+        _create_entry(
+            f"research-{safe_id}", f"Research: {bid} [{verdict}]", result, model=model
+        )
 
         print(result)
 
@@ -2404,6 +2641,7 @@ Issue API-55 reports a 2x latency regression in the v3 endpoint since the March 
 
 def _analyzed_issues_path() -> Path:
     from .. import PROJECT_DIR as FORGE_DIR
+
     return Path(FORGE_DIR) / "analyzed-issues.json"
 
 
@@ -2427,7 +2665,9 @@ def _save_analyzed_issue(issue_key: str, issue_updated: str):
         json.dump(record, f, indent=2)
 
 
-def _issue_needs_analysis(issue_key: str, issue_updated: str, force: bool = False) -> bool:
+def _issue_needs_analysis(
+    issue_key: str, issue_updated: str, force: bool = False
+) -> bool:
     if force:
         return True
     record = _load_analyzed_issues()
@@ -2481,10 +2721,13 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
                 parts.append(f"- `{belief['id']}`: {belief['text']}")
             dedup_context = "\n".join(parts) + "\n"
 
-    prompt = ANALYZE_ISSUE_PROMPT.format(
-        issue_id=issue.id,
-        issue_text=issue_text,
-    ) + dedup_context
+    prompt = (
+        ANALYZE_ISSUE_PROMPT.format(
+            issue_id=issue.id,
+            issue_text=issue_text,
+        )
+        + dedup_context
+    )
 
     print(f"Analyzing with {model}...", file=sys.stderr)
     try:
@@ -2520,8 +2763,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
         print(f"  Filtered {dup_skipped} already-accepted beliefs", file=sys.stderr)
 
     if auto_accept:
-        _auto_accept_proposals([filtered], db_path, model=model,
-                               source_url=issue.url)
+        _auto_accept_proposals([filtered], db_path, model=model, source_url=issue.url)
         _save_analyzed_issue(issue.id, issue.updated)
         return 1
 
@@ -2538,7 +2780,9 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
     else:
         with output_path.open("w") as f:
             f.write("# Proposed Beliefs\n\n")
-            f.write("Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n")
+            f.write(
+                "Edit each entry: change `[ACCEPT/REJECT]` to `[ACCEPT]` or `[REJECT]`.\n"
+            )
             f.write("Then run: `reasonsforge project accept-beliefs`\n\n")
             f.write("---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
@@ -2554,8 +2798,17 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
     return 1
 
 
-def _walk_children(issue, source, platform, model, timeout, db_path,
-                   auto_accept, proposals_output, force):
+def _walk_children(
+    issue,
+    source,
+    platform,
+    model,
+    timeout,
+    db_path,
+    auto_accept,
+    proposals_output,
+    force,
+):
     """Walk child issues recursively, skipping unchanged ones."""
     if not (issue.children or issue.linked):
         return
@@ -2570,8 +2823,10 @@ def _walk_children(issue, source, platform, model, timeout, db_path,
         if child_key in seen:
             continue
         seen.add(child_key)
-        print(f"\n[{analyzed + skipped + 1}/{total}] Fetching {child_key}...",
-              file=sys.stderr)
+        print(
+            f"\n[{analyzed + skipped + 1}/{total}] Fetching {child_key}...",
+            file=sys.stderr,
+        )
         try:
             child = _fetch_issue(source, platform, child_key)
         except Exception as e:
@@ -2579,25 +2834,35 @@ def _walk_children(issue, source, platform, model, timeout, db_path,
             continue
         if _issue_needs_analysis(child.id, child.updated, force):
             _analyze_one_issue(
-                child, model, timeout, db_path, auto_accept, proposals_output,
+                child,
+                model,
+                timeout,
+                db_path,
+                auto_accept,
+                proposals_output,
             )
             analyzed += 1
         else:
-            print(f"  Skipping {child.id} (unchanged since last analysis)",
-                  file=sys.stderr)
+            print(
+                f"  Skipping {child.id} (unchanged since last analysis)",
+                file=sys.stderr,
+            )
             skipped += 1
         for gc in child.children:
             if gc not in seen:
                 queue.append(gc)
                 total += 1
-    print(f"\nWalk complete: analyzed {analyzed}, skipped {skipped} child issue(s)",
-          file=sys.stderr)
+    print(
+        f"\nWalk complete: analyzed {analyzed}, skipped {skipped} child issue(s)",
+        file=sys.stderr,
+    )
 
 
 def cmd_analyze_issue(args):
     """Fetch one or more issues and extract beliefs from them."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available
+
     _caffeinate()
 
     config = _load_config()
@@ -2635,8 +2900,10 @@ def cmd_analyze_issue(args):
     fetched_issues = []
     for i, issue_key in enumerate(issue_keys):
         if len(issue_keys) > 1:
-            print(f"\n=== Issue {i + 1}/{len(issue_keys)}: {issue_key} ===",
-                  file=sys.stderr)
+            print(
+                f"\n=== Issue {i + 1}/{len(issue_keys)}: {issue_key} ===",
+                file=sys.stderr,
+            )
 
         print(f"Fetching {issue_key}...", file=sys.stderr)
         try:
@@ -2655,12 +2922,15 @@ def cmd_analyze_issue(args):
     t0 = time.monotonic()
     for issue in fetched_issues:
         if _issue_needs_analysis(issue.id, issue.updated, force):
-            _analyze_one_issue(issue, model, timeout, db_path, auto_accept,
-                               proposals_output)
+            _analyze_one_issue(
+                issue, model, timeout, db_path, auto_accept, proposals_output
+            )
             analyzed += 1
         else:
-            print(f"  Skipping {issue.id} (unchanged since last analysis)",
-                  file=sys.stderr)
+            print(
+                f"  Skipping {issue.id} (unchanged since last analysis)",
+                file=sys.stderr,
+            )
             skipped += 1
     report.complete_step(
         f"analyzed {analyzed}, skipped {skipped}",
@@ -2672,24 +2942,36 @@ def cmd_analyze_issue(args):
         report.start_step("walk-children")
         t0 = time.monotonic()
         for issue in fetched_issues:
-            _walk_children(issue, source, platform, model, timeout, db_path,
-                           auto_accept, proposals_output, force)
+            _walk_children(
+                issue,
+                source,
+                platform,
+                model,
+                timeout,
+                db_path,
+                auto_accept,
+                proposals_output,
+                force,
+            )
         report.complete_step(
             duration_seconds=round(time.monotonic() - t0, 2),
         )
 
-    report.complete(summary={
-        "issues": len(fetched_issues),
-        "analyzed": analyzed,
-        "skipped": skipped,
-        "errors": errors,
-        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
-    })
+    report.complete(
+        summary={
+            "issues": len(fetched_issues),
+            "analyzed": analyzed,
+            "skipped": skipped,
+            "errors": errors,
+            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # track — recurring issue watchlist
 # ---------------------------------------------------------------------------
+
 
 def _watchlist_path() -> Path:
     return Path.cwd() / PROJECT_DIR / "watchlist.json"
@@ -2747,10 +3029,13 @@ def _extract_proposals(issue, model, timeout, db_path):
                 parts.append(f"- `{belief['id']}`: {belief['text']}")
             dedup_context = "\n".join(parts) + "\n"
 
-    prompt = ANALYZE_ISSUE_PROMPT.format(
-        issue_id=issue.id,
-        issue_text=issue_text,
-    ) + dedup_context
+    prompt = (
+        ANALYZE_ISSUE_PROMPT.format(
+            issue_id=issue.id,
+            issue_text=issue_text,
+        )
+        + dedup_context
+    )
 
     result = asyncio.run(invoke(prompt, model, timeout=timeout))
 
@@ -2764,11 +3049,13 @@ def _extract_proposals(issue, model, timeout, db_path):
     for m in accept_pattern.finditer(result):
         belief_id = m.group(1)
         if belief_id not in existing_ids:
-            proposals.append({
-                "belief_id": belief_id,
-                "text": m.group(2).strip(),
-                "source": m.group(3).strip(),
-            })
+            proposals.append(
+                {
+                    "belief_id": belief_id,
+                    "text": m.group(2).strip(),
+                    "source": m.group(3).strip(),
+                }
+            )
 
     return proposals
 
@@ -2804,16 +3091,20 @@ def _walk_watchlist(entries, source, platform, max_depth=0, allowed_projects=Non
             if child_key in existing_keys:
                 continue
             if prefixes and not child_key.upper().startswith(prefixes):
-                print(f"  Walk: skipped {child_key} (project not in allowed list)",
-                      file=sys.stderr)
+                print(
+                    f"  Walk: skipped {child_key} (project not in allowed list)",
+                    file=sys.stderr,
+                )
                 continue
             existing_keys.add(child_key)
             new_entry = {"key": child_key}
             entries.append(new_entry)
             queue.append((new_entry, depth + 1))
             added += 1
-            print(f"  Walk: added child {child_key} (from {issue_key}, depth {depth + 1})",
-                  file=sys.stderr)
+            print(
+                f"  Walk: added child {child_key} (from {issue_key}, depth {depth + 1})",
+                file=sys.stderr,
+            )
 
     return entries, added
 
@@ -2858,8 +3149,7 @@ def _phase_fetch(entries, source, platform, force):
                 try:
                     child = _fetch_issue(source, platform, child_key)
                 except Exception as e:
-                    print(f"    Error fetching child {child_key}: {e}",
-                          file=sys.stderr)
+                    print(f"    Error fetching child {child_key}: {e}", file=sys.stderr)
                     errors.append(child_key)
                     continue
                 if _issue_needs_analysis(child.id, child.updated, force):
@@ -2883,8 +3173,7 @@ def _write_proposals_to_file(proposals_file, issue_id, proposals):
             f.write(f"- Source: {p['source']}\n\n")
 
 
-def _phase_analyze(changed, model, timeout, db_path, parallel=1,
-                   proposals_file=None):
+def _phase_analyze(changed, model, timeout, db_path, parallel=1, proposals_file=None):
     """Phase 2 — Analyze: run LLM on changed issues, return proposals.
 
     Returns dict mapping issue_id -> list of proposal dicts.
@@ -2892,14 +3181,14 @@ def _phase_analyze(changed, model, timeout, db_path, parallel=1,
     reconciliation doesn't retract their existing beliefs.
     """
     if parallel > 1 and len(changed) > 1:
-        return _phase_analyze_parallel(changed, model, timeout, db_path,
-                                       parallel, proposals_file=proposals_file)
+        return _phase_analyze_parallel(
+            changed, model, timeout, db_path, parallel, proposals_file=proposals_file
+        )
 
     all_proposals: dict[str, list[dict]] = {}
 
     for i, (issue, _entry) in enumerate(changed):
-        print(f"  [{i + 1}/{len(changed)}] {issue.id}: {issue.title}",
-              file=sys.stderr)
+        print(f"  [{i + 1}/{len(changed)}] {issue.id}: {issue.title}", file=sys.stderr)
         try:
             proposals = _extract_proposals(issue, model, timeout, db_path)
             for p in proposals:
@@ -2910,23 +3199,27 @@ def _phase_analyze(changed, model, timeout, db_path, parallel=1,
             print(f"    {len(proposals)} proposal(s)", file=sys.stderr)
             _save_analyzed_issue(issue.id, issue.updated)
         except Exception as e:
-            print(f"    Error (skipping reconcile for this issue): {e}",
-                  file=sys.stderr)
+            print(
+                f"    Error (skipping reconcile for this issue): {e}", file=sys.stderr
+            )
 
     return all_proposals
 
 
-def _phase_analyze_parallel(changed, model, timeout, db_path, parallel,
-                            proposals_file=None):
+def _phase_analyze_parallel(
+    changed, model, timeout, db_path, parallel, proposals_file=None
+):
     """Analyze issues concurrently in batches."""
     all_proposals: dict[str, list[dict]] = {}
     analyzed = 0
 
     while analyzed < len(changed):
-        batch = changed[analyzed:analyzed + parallel]
-        print(f"\n  Analyzing {len(batch)} issue(s) in parallel "
-              f"[{analyzed + 1}-{analyzed + len(batch)}/{len(changed)}]...",
-              file=sys.stderr)
+        batch = changed[analyzed : analyzed + parallel]
+        print(
+            f"\n  Analyzing {len(batch)} issue(s) in parallel "
+            f"[{analyzed + 1}-{analyzed + len(batch)}/{len(changed)}]...",
+            file=sys.stderr,
+        )
 
         async def _invoke_batch():
             sem = asyncio.Semaphore(parallel)
@@ -2934,8 +3227,17 @@ def _phase_analyze_parallel(changed, model, timeout, db_path, parallel,
             async def _analyze_one(issue, entry):
                 async with sem:
                     loop = asyncio.get_event_loop()
-                    return issue, entry, await loop.run_in_executor(
-                        None, _extract_proposals, issue, model, timeout, db_path,
+                    return (
+                        issue,
+                        entry,
+                        await loop.run_in_executor(
+                            None,
+                            _extract_proposals,
+                            issue,
+                            model,
+                            timeout,
+                            db_path,
+                        ),
                     )
 
             return await asyncio.gather(
@@ -2988,8 +3290,9 @@ Respond with one line per belief, nothing else.
 """
 
 
-def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
-                     timeout=300, batch_size=20):
+def _phase_reconcile(
+    all_proposals, db_path, issues=None, model="claude", timeout=300, batch_size=20
+):
     """Phase 3 — Reconcile: ask the LLM which existing beliefs still apply.
 
     For each issue that was re-analyzed, gather its existing beliefs from the
@@ -3031,7 +3334,7 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
         issue_text = issue.to_prompt_text()
 
         for batch_start in range(0, len(existing), batch_size):
-            batch = existing[batch_start:batch_start + batch_size]
+            batch = existing[batch_start : batch_start + batch_size]
             beliefs_lines = []
             for nid, text in batch:
                 beliefs_lines.append(f"- `{nid}`: {text}")
@@ -3045,8 +3348,7 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
             try:
                 result = asyncio.run(invoke(prompt, model, timeout=timeout))
             except Exception as e:
-                print(f"    Reconcile LLM error for {issue_id}: {e}",
-                      file=sys.stderr)
+                print(f"    Reconcile LLM error for {issue_id}: {e}", file=sys.stderr)
                 kept += len(batch)
                 continue
 
@@ -3060,7 +3362,8 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
             for nid, _text in batch:
                 if nid in retract_ids:
                     retract_decisions.append(
-                        (nid, f"No longer reflects current state of {issue_id}"))
+                        (nid, f"No longer reflects current state of {issue_id}")
+                    )
                 else:
                     kept += 1
 
@@ -3073,8 +3376,7 @@ def _phase_reconcile(all_proposals, db_path, issues=None, model="claude",
                     print(f"    Retracted stale: {nid}", file=sys.stderr)
                     retracted += 1
                 except Exception as e:
-                    print(f"    Error retracting {nid}: {e}",
-                          file=sys.stderr)
+                    print(f"    Error retracting {nid}: {e}", file=sys.stderr)
 
     return retracted, kept
 
@@ -3117,8 +3419,7 @@ def _phase_accept(all_proposals, db_path, model=""):
                     if "already exists" in str(e):
                         existed += 1
                     else:
-                        print(f"    FAIL: {p['belief_id']}: {e}",
-                              file=sys.stderr)
+                        print(f"    FAIL: {p['belief_id']}: {e}", file=sys.stderr)
                         failed += 1
                 except Exception as e:
                     print(f"    FAIL: {p['belief_id']}: {e}", file=sys.stderr)
@@ -3130,7 +3431,10 @@ def _phase_accept(all_proposals, db_path, model=""):
 def _phase_derive(args, db_path):
     """Phase 5 — Derive: run cross-issue reasoning."""
     from reasonsforge.derive import (
-        apply_proposals, build_prompt, parse_proposals, validate_proposals,
+        apply_proposals,
+        build_prompt,
+        parse_proposals,
+        validate_proposals,
     )
     from reasonsforge.api import export_network
     from ..llm import invoke_sync
@@ -3171,12 +3475,15 @@ def cmd_track(args):
     """Process issues from the watchlist configuration."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available
+
     _caffeinate()
 
     config = _load_config()
     if not config:
-        print("Not initialized. Run: reasonsforge project init --github <owner/repo>",
-              file=sys.stderr)
+        print(
+            "Not initialized. Run: reasonsforge project init --github <owner/repo>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     sub = getattr(args, "track_command", None)
@@ -3220,7 +3527,9 @@ def cmd_track(args):
         watchlist = _load_watchlist()
         issues = watchlist.get("issues", [])
         if not issues:
-            print("Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123")
+            print(
+                "Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123"
+            )
             return
         analyzed = _load_analyzed_issues()
         for entry in issues:
@@ -3238,8 +3547,10 @@ def cmd_track(args):
     watchlist = _load_watchlist()
     issues = watchlist.get("issues", [])
     if not issues:
-        print("Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123",
-              file=sys.stderr)
+        print(
+            "Watchlist is empty. Add issues with: reasonsforge project track add ISSUE-123",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     model = getattr(args, "model", "claude")
@@ -3262,18 +3573,30 @@ def cmd_track(args):
 
     if walk:
         issues, walk_added = _walk_watchlist(
-            issues, source, platform,
-            max_depth=walk_depth, allowed_projects=allowed_projects,
+            issues,
+            source,
+            platform,
+            max_depth=walk_depth,
+            allowed_projects=allowed_projects,
         )
         if walk_added:
             watchlist["issues"] = issues
             _save_watchlist(watchlist)
-            print(f"Walk added {walk_added} child issue(s) to watchlist",
-                  file=sys.stderr)
+            print(
+                f"Walk added {walk_added} child issue(s) to watchlist", file=sys.stderr
+            )
 
-    report = Report("project-track", [
-        "fetch", "analyze", "reconcile", "accept", "derive",
-    ], project_dir=_get_project_dir(args))
+    report = Report(
+        "project-track",
+        [
+            "fetch",
+            "analyze",
+            "reconcile",
+            "accept",
+            "derive",
+        ],
+        project_dir=_get_project_dir(args),
+    )
     pipeline_t0 = time.monotonic()
 
     # Phase 1: Fetch
@@ -3281,42 +3604,64 @@ def cmd_track(args):
     t0 = time.monotonic()
     print("Phase 1/5: Fetch — pulling tracked issues...", file=sys.stderr)
     changed, skipped, fetch_errors = _phase_fetch(
-        issues, source, platform, force,
+        issues,
+        source,
+        platform,
+        force,
     )
-    print(f"  {len(changed)} changed, {len(skipped)} unchanged, "
-          f"{len(fetch_errors)} errors", file=sys.stderr)
+    print(
+        f"  {len(changed)} changed, {len(skipped)} unchanged, "
+        f"{len(fetch_errors)} errors",
+        file=sys.stderr,
+    )
     report.complete_step(
         f"{len(changed)} changed, {len(skipped)} unchanged, {len(fetch_errors)} errors",
-        counts={"changed": len(changed), "unchanged": len(skipped),
-                "errors": len(fetch_errors)},
+        counts={
+            "changed": len(changed),
+            "unchanged": len(skipped),
+            "errors": len(fetch_errors),
+        },
         duration_seconds=round(time.monotonic() - t0, 2),
     )
 
     if not changed:
         print("\nNo issues need analysis.", file=sys.stderr)
-        report.complete(summary={
-            "changed": 0, "unchanged": len(skipped),
-            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
-        })
+        report.complete(
+            summary={
+                "changed": 0,
+                "unchanged": len(skipped),
+                "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+            }
+        )
         return
 
     # Phase 2: Analyze
     report.start_step("analyze")
     t0 = time.monotonic()
-    print("\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
-          file=sys.stderr)
+    print(
+        "\nPhase 2/5: Analyze — extracting beliefs from changed issues...",
+        file=sys.stderr,
+    )
     proposals_path = Path(proposals_output)
     with proposals_path.open("w") as f:
         f.write("# Proposed Beliefs\n\n")
         f.write(f"**Generated:** {date.today().isoformat()}\n")
         f.write(f"**Model:** {model}\n")
         f.write(f"**Issues:** {len(changed)}\n\n---\n\n")
-    all_proposals = _phase_analyze(changed, model, timeout, db_path,
-                                   parallel=parallel,
-                                   proposals_file=str(proposals_path))
+    all_proposals = _phase_analyze(
+        changed,
+        model,
+        timeout,
+        db_path,
+        parallel=parallel,
+        proposals_file=str(proposals_path),
+    )
     total_proposals = sum(len(p) for p in all_proposals.values())
-    print(f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)"
-          f" → {proposals_path}", file=sys.stderr)
+    print(
+        f"  {total_proposals} proposal(s) from {len(all_proposals)} issue(s)"
+        f" → {proposals_path}",
+        file=sys.stderr,
+    )
     report.complete_step(
         f"{total_proposals} proposals from {len(all_proposals)} issues",
         counts={"proposals": total_proposals, "issues": len(all_proposals)},
@@ -3325,10 +3670,13 @@ def cmd_track(args):
 
     if not total_proposals:
         print("\nNo proposals extracted.", file=sys.stderr)
-        report.complete(summary={
-            "changed": len(changed), "proposals": 0,
-            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
-        })
+        report.complete(
+            summary={
+                "changed": len(changed),
+                "proposals": 0,
+                "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+            }
+        )
         return
 
     # Split proposals by per-entry auto flag
@@ -3346,27 +3694,37 @@ def cmd_track(args):
 
     if manual_proposals:
         n_manual = sum(len(p) for p in manual_proposals.values())
-        print(f"  {n_manual} proposal(s) in {proposals_path} need manual review",
-              file=sys.stderr)
+        print(
+            f"  {n_manual} proposal(s) in {proposals_path} need manual review",
+            file=sys.stderr,
+        )
         print(f"  Run: reasonsforge project accept-beliefs", file=sys.stderr)
 
     if not auto_proposals:
-        print("\nNo auto-accept proposals. Skipping phases 3-5.",
-              file=sys.stderr)
-        report.complete(summary={
-            "changed": len(changed), "proposals": total_proposals,
-            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
-        })
+        print("\nNo auto-accept proposals. Skipping phases 3-5.", file=sys.stderr)
+        report.complete(
+            summary={
+                "changed": len(changed),
+                "proposals": total_proposals,
+                "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+            }
+        )
         return
 
     # Phase 3: Reconcile
     report.start_step("reconcile")
     t0 = time.monotonic()
-    print("\nPhase 3/5: Reconcile — reviewing existing beliefs against current issue state...",
-          file=sys.stderr)
+    print(
+        "\nPhase 3/5: Reconcile — reviewing existing beliefs against current issue state...",
+        file=sys.stderr,
+    )
     issue_map = {issue.id: issue for issue, _entry in changed}
     retracted, kept = _phase_reconcile(
-        auto_proposals, db_path, issues=issue_map, model=model, timeout=timeout,
+        auto_proposals,
+        db_path,
+        issues=issue_map,
+        model=model,
+        timeout=timeout,
     )
     print(f"  {retracted} retracted, {kept} kept", file=sys.stderr)
     report.complete_step(
@@ -3378,11 +3736,9 @@ def cmd_track(args):
     # Phase 4: Accept
     report.start_step("accept")
     t0 = time.monotonic()
-    print("\nPhase 4/5: Accept — writing new beliefs to database...",
-          file=sys.stderr)
+    print("\nPhase 4/5: Accept — writing new beliefs to database...", file=sys.stderr)
     added, existed, failed = _phase_accept(auto_proposals, db_path, model=model)
-    print(f"  {added} added, {existed} existing, {failed} failed",
-          file=sys.stderr)
+    print(f"  {added} added, {existed} existing, {failed} failed", file=sys.stderr)
     report.complete_step(
         f"{added} added, {existed} existing, {failed} failed",
         counts={"added": added, "existed": existed, "failed": failed},
@@ -3396,11 +3752,13 @@ def cmd_track(args):
     if no_derive:
         print("\nPhase 5/5: Derive — skipped (--no-derive)", file=sys.stderr)
         derived = 0
-        report.complete_step("skipped", counts={"derived": 0},
-                             duration_seconds=round(time.monotonic() - t0, 2))
+        report.complete_step(
+            "skipped",
+            counts={"derived": 0},
+            duration_seconds=round(time.monotonic() - t0, 2),
+        )
     else:
-        print("\nPhase 5/5: Derive — cross-issue reasoning...",
-              file=sys.stderr)
+        print("\nPhase 5/5: Derive — cross-issue reasoning...", file=sys.stderr)
         derived = _phase_derive(args, db_path)
         print(f"  {derived} derivation(s) added", file=sys.stderr)
         report.complete_step(
@@ -3409,19 +3767,24 @@ def cmd_track(args):
             duration_seconds=round(time.monotonic() - t0, 2),
         )
 
-    print(f"\nTrack complete: {len(changed)} analyzed, {len(skipped)} unchanged, "
-          f"{len(fetch_errors)} fetch errors, {retracted} retracted, "
-          f"{added} accepted, {derived} derived", file=sys.stderr)
+    print(
+        f"\nTrack complete: {len(changed)} analyzed, {len(skipped)} unchanged, "
+        f"{len(fetch_errors)} fetch errors, {retracted} retracted, "
+        f"{added} accepted, {derived} derived",
+        file=sys.stderr,
+    )
 
-    report.complete(summary={
-        "changed": len(changed),
-        "unchanged": len(skipped),
-        "proposals": total_proposals,
-        "retracted": retracted,
-        "added": added,
-        "derived": derived,
-        "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
-    })
+    report.complete(
+        summary={
+            "changed": len(changed),
+            "unchanged": len(skipped),
+            "proposals": total_proposals,
+            "retracted": retracted,
+            "added": added,
+            "derived": derived,
+            "duration_seconds": round(time.monotonic() - pipeline_t0, 2),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3438,8 +3801,14 @@ def cmd_derive(args):
     """
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke_sync
-    from reasonsforge.derive import apply_proposals, build_prompt, parse_proposals, validate_proposals
+    from reasonsforge.derive import (
+        apply_proposals,
+        build_prompt,
+        parse_proposals,
+        validate_proposals,
+    )
     from reasonsforge.api import export_network
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -3475,10 +3844,14 @@ def cmd_derive(args):
 
         if search_rounds > 0:
             from reasonsforge.derive_tools import derive_with_tools
+
             try:
                 proposals = derive_with_tools(
-                    prompt, model=model, db_path=db_path,
-                    max_rounds=search_rounds, timeout=timeout,
+                    prompt,
+                    model=model,
+                    db_path=db_path,
+                    max_rounds=search_rounds,
+                    timeout=timeout,
                 )
             except Exception as e:
                 print(f"Error: {e}", file=sys.stderr)
@@ -3493,16 +3866,20 @@ def cmd_derive(args):
         if not proposals:
             print("No proposals generated.", file=sys.stderr)
             if exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
+                print(
+                    f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                    file=sys.stderr,
+                )
             break
 
         valid, _skipped = validate_proposals(proposals, nodes)
         if not valid:
             print("No valid proposals after validation.", file=sys.stderr)
             if exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
+                print(
+                    f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                    file=sys.stderr,
+                )
             break
 
         print(f"Generated {len(valid)} valid derivation(s)", file=sys.stderr)
@@ -3513,8 +3890,10 @@ def cmd_derive(args):
             print(f"Added {added} derivation(s) to {db_path}", file=sys.stderr)
             total_added += added
             if added == 0 and exhaust:
-                print(f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
-                      file=sys.stderr)
+                print(
+                    f"Exhausted after {round_num} round(s), {total_added} total derivation(s).",
+                    file=sys.stderr,
+                )
                 break
         else:
             for v in valid:
@@ -3539,6 +3918,7 @@ def cmd_review_beliefs(args):
     Delegates to reasonsforge.api.review_beliefs() directly.
     """
     from ..caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -3570,7 +3950,10 @@ def cmd_review_beliefs(args):
         unnecessary = result.get("unnecessary", 0)
         total_derived = result.get("total_derived", 0)
 
-        print(f"\nReviewed {reviewed} of {total_derived} derived beliefs:", file=sys.stderr)
+        print(
+            f"\nReviewed {reviewed} of {total_derived} derived beliefs:",
+            file=sys.stderr,
+        )
         print(f"  Invalid: {invalid}", file=sys.stderr)
         print(f"  Insufficient: {insufficient}", file=sys.stderr)
         print(f"  Unnecessary: {unnecessary}", file=sys.stderr)
@@ -3618,6 +4001,7 @@ def cmd_repair(args):
     Delegates to reasonsforge.api.repair() directly.
     """
     from ..caffeinate import hold as _caffeinate
+
     _caffeinate()
 
     model = getattr(args, "model", "claude")
@@ -3667,6 +4051,7 @@ def cmd_summary(args):
     """Synthesize a project summary from beliefs."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     config = _load_config()
@@ -3692,6 +4077,7 @@ def cmd_summary(args):
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network
+
             network = export_network(db_path=db_path)
             nodes = network.get("nodes", {})
 
@@ -3756,7 +4142,9 @@ def cmd_summary(args):
 
     short_name = project_name.split("//")[-1] if "//" in project_name else project_name
     safe_name = short_name.replace("/", "-")
-    _create_entry(f"summary-{safe_name}", f"Summary: {project_name}", result, model=model)
+    _create_entry(
+        f"summary-{safe_name}", f"Summary: {project_name}", result, model=model
+    )
 
     print(result)
 
@@ -3770,6 +4158,7 @@ def cmd_sprint_plan(args):
     """Generate a prioritized sprint plan from beliefs and issues."""
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available, invoke
+
     _caffeinate()
 
     config = _load_config()
@@ -3805,10 +4194,16 @@ def cmd_sprint_plan(args):
     # Load cached issues and compute team signals
     project_dir = _get_project_dir(args)
     cached_issues = _load_cached_issues(project_dir)
-    team_signals = _compute_team_signals(cached_issues) if cached_issues else {
-        "team_members": [], "inferred_team_size": 0,
-        "total_open": 0, "unassigned_open": 0,
-    }
+    team_signals = (
+        _compute_team_signals(cached_issues)
+        if cached_issues
+        else {
+            "team_members": [],
+            "inferred_team_size": 0,
+            "total_open": 0,
+            "unassigned_open": 0,
+        }
+    )
 
     if cached_issues:
         print(
@@ -3828,6 +4223,7 @@ def cmd_sprint_plan(args):
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network
+
             net = export_network(db_path=db_path)
             net_nodes = net.get("nodes", {})
 
@@ -3845,8 +4241,10 @@ def cmd_sprint_plan(args):
                 lines.append(f"- `{nid}`: {text}{dep_suffix}")
             beliefs_section = "\n".join(lines)
             if in_nodes:
-                print(f"Beliefs: using top {min(len(in_nodes), max_beliefs)} of {len(in_nodes)} IN beliefs",
-                      file=sys.stderr)
+                print(
+                    f"Beliefs: using top {min(len(in_nodes), max_beliefs)} of {len(in_nodes)} IN beliefs",
+                    file=sys.stderr,
+                )
         except Exception:
             pass
 
@@ -3893,8 +4291,12 @@ def cmd_sprint_plan(args):
 
     short_name = project_name.split("//")[-1] if "//" in project_name else project_name
     safe_name = short_name.replace("/", "-")
-    _create_entry(f"sprint-plan-{safe_name}",
-                  f"Sprint Plan: {project_name} ({sprint_length})", result, model=model)
+    _create_entry(
+        f"sprint-plan-{safe_name}",
+        f"Sprint Plan: {project_name} ({sprint_length})",
+        result,
+        model=model,
+    )
 
     if output:
         Path(output).write_text(result)
@@ -3973,7 +4375,9 @@ def cmd_status(args):
 
     # Summaries
     summaries_dir = Path("summaries")
-    summary_count = len(list(summaries_dir.rglob("*.md"))) if summaries_dir.exists() else 0
+    summary_count = (
+        len(list(summaries_dir.rglob("*.md"))) if summaries_dir.exists() else 0
+    )
     print(f"Summaries: {summary_count}")
 
     # Beliefs
@@ -3981,8 +4385,11 @@ def cmd_status(args):
     if Path(db_path).exists():
         try:
             from reasonsforge.api import export_network, get_status
+
             status = get_status(db_path=db_path)
-            print(f"Beliefs:  {status['in_count']} IN, {status.get('out_count', status.get('total', 0) - status['in_count'])} OUT")
+            print(
+                f"Beliefs:  {status['in_count']} IN, {status.get('out_count', status.get('total', 0) - status['in_count'])} OUT"
+            )
             network = export_network(db_path=db_path)
             nogood_count = len(network.get("nogoods", []))
             if nogood_count:
@@ -4009,7 +4416,9 @@ def cmd_status(args):
     proposals_path = Path("proposed-beliefs.md")
     if proposals_path.exists():
         text = proposals_path.read_text()
-        total = len(re.findall(r"^### \[(?:ACCEPT|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE))
+        total = len(
+            re.findall(r"^### \[(?:ACCEPT|REJECT|ACCEPT/REJECT)\]", text, re.MULTILINE)
+        )
         accepted = len(re.findall(r"^### \[ACCEPT\]", text, re.MULTILINE))
         if total:
             print(f"Proposed: {total} candidates ({accepted} accepted)")
@@ -4029,6 +4438,7 @@ def cmd_update(args):
     """
     from ..caffeinate import hold as _caffeinate
     from ..llm import check_model_available
+
     _caffeinate()
 
     config = _load_config()
@@ -4057,7 +4467,10 @@ def cmd_update(args):
     if since_last:
         since = _load_update_checkpoint(project_dir)
         if not since:
-            print("No checkpoint found. Use --since <date> for the first run.", file=sys.stderr)
+            print(
+                "No checkpoint found. Use --since <date> for the first run.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         print(f"Resuming from checkpoint: since {since}", file=sys.stderr)
     elif not since:
@@ -4092,23 +4505,57 @@ def cmd_update(args):
             current_page = 1
             while True:
                 print(f"  Fetching page {current_page}...", file=sys.stderr)
-                issues = _fetch_issues(source, config, state=state, labels=label_list,
-                                       limit=limit, page=current_page, since=since)
+                issues = _fetch_issues(
+                    source,
+                    config,
+                    state=state,
+                    labels=label_list,
+                    limit=limit,
+                    page=current_page,
+                    since=since,
+                )
                 if not issues:
                     break
                 total_issues += len(issues)
-                _run_scan_step(config, source, issues, project_name,
-                               state, limit, current_page, project_dir, model, timeout)
+                _run_scan_step(
+                    config,
+                    source,
+                    issues,
+                    project_name,
+                    state,
+                    limit,
+                    current_page,
+                    project_dir,
+                    model,
+                    timeout,
+                )
                 if len(issues) < limit:
                     break
                 current_page += 1
         else:
-            issues = _fetch_issues(source, config, state=state, labels=label_list,
-                                   limit=limit, page=1, since=since)
+            issues = _fetch_issues(
+                source,
+                config,
+                state=state,
+                labels=label_list,
+                limit=limit,
+                page=1,
+                since=since,
+            )
             if issues:
                 total_issues = len(issues)
-                _run_scan_step(config, source, issues, project_name,
-                               state, limit, 1, project_dir, model, timeout)
+                _run_scan_step(
+                    config,
+                    source,
+                    issues,
+                    project_name,
+                    state,
+                    limit,
+                    1,
+                    project_dir,
+                    model,
+                    timeout,
+                )
 
         if total_issues == 0:
             print(f"No issues found since {since}.", file=sys.stderr)
@@ -4135,7 +4582,9 @@ def cmd_update(args):
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"explore exited with code {e.code}")
-            print(f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: explore failed (exit {e.code}), continuing...", file=sys.stderr
+            )
     except Exception as e:
         errors.append(f"explore: {e}")
         print(f"WARN: explore failed: {e}, continuing...", file=sys.stderr)
@@ -4148,16 +4597,27 @@ def cmd_update(args):
     try:
         # Create a synthetic args namespace for propose-beliefs
         import argparse
+
         propose_args = argparse.Namespace(
-            model=model, timeout=timeout, batch_size=5,
-            proposals_output="proposed-beliefs.md", output_file="proposed-beliefs.md",
-            all=False, auto=True, since=since, parallel=parallel, output=db_path,
+            model=model,
+            timeout=timeout,
+            batch_size=5,
+            proposals_output="proposed-beliefs.md",
+            output_file="proposed-beliefs.md",
+            all=False,
+            auto=True,
+            since=since,
+            parallel=parallel,
+            output=db_path,
         )
         cmd_propose_beliefs(propose_args)
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"propose-beliefs exited with code {e.code}")
-            print(f"WARN: propose-beliefs failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: propose-beliefs failed (exit {e.code}), continuing...",
+                file=sys.stderr,
+            )
     except Exception as e:
         errors.append(f"propose-beliefs: {e}")
         print(f"WARN: propose-beliefs failed: {e}, continuing...", file=sys.stderr)
@@ -4169,15 +4629,24 @@ def cmd_update(args):
 
     try:
         import argparse
+
         derive_args = argparse.Namespace(
-            model=model, timeout=timeout, auto=True, exhaust=True,
-            max_derive_rounds=5, budget=300, domain=None, output=db_path,
+            model=model,
+            timeout=timeout,
+            auto=True,
+            exhaust=True,
+            max_derive_rounds=5,
+            budget=300,
+            domain=None,
+            output=db_path,
         )
         cmd_derive(derive_args)
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"derive exited with code {e.code}")
-            print(f"WARN: derive failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: derive failed (exit {e.code}), continuing...", file=sys.stderr
+            )
     except Exception as e:
         errors.append(f"derive: {e}")
         print(f"WARN: derive failed: {e}, continuing...", file=sys.stderr)
@@ -4189,16 +4658,25 @@ def cmd_update(args):
 
     try:
         import argparse
+
         review_args = argparse.Namespace(
-            model=model, timeout=timeout, auto_retract=True,
-            sample=None, min_depth=None, dry_run=False,
-            review_output=None, output=db_path,
+            model=model,
+            timeout=timeout,
+            auto_retract=True,
+            sample=None,
+            min_depth=None,
+            dry_run=False,
+            review_output=None,
+            output=db_path,
         )
         cmd_review_beliefs(review_args)
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"review-beliefs exited with code {e.code}")
-            print(f"WARN: review-beliefs failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: review-beliefs failed (exit {e.code}), continuing...",
+                file=sys.stderr,
+            )
     except Exception as e:
         errors.append(f"review-beliefs: {e}")
         print(f"WARN: review-beliefs failed: {e}, continuing...", file=sys.stderr)
@@ -4210,15 +4688,21 @@ def cmd_update(args):
 
     try:
         import argparse
+
         repair_args = argparse.Namespace(
-            model=model, timeout=timeout, review_file=None,
-            dry_run=False, output=db_path,
+            model=model,
+            timeout=timeout,
+            review_file=None,
+            dry_run=False,
+            output=db_path,
         )
         cmd_repair(repair_args)
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"repair exited with code {e.code}")
-            print(f"WARN: repair failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: repair failed (exit {e.code}), continuing...", file=sys.stderr
+            )
     except Exception as e:
         errors.append(f"repair: {e}")
         print(f"WARN: repair failed: {e}, continuing...", file=sys.stderr)
@@ -4233,7 +4717,9 @@ def cmd_update(args):
     except SystemExit as e:
         if e.code and e.code != 0:
             errors.append(f"summary exited with code {e.code}")
-            print(f"WARN: summary failed (exit {e.code}), continuing...", file=sys.stderr)
+            print(
+                f"WARN: summary failed (exit {e.code}), continuing...", file=sys.stderr
+            )
     except Exception as e:
         errors.append(f"summary: {e}")
         print(f"WARN: summary failed: {e}, continuing...", file=sys.stderr)

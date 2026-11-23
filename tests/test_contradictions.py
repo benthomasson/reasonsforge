@@ -22,9 +22,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -58,19 +60,21 @@ def _make_nodes():
 
 
 class TestFormatBeliefsForContradictionCheck:
-
     def test_formats_beliefs_as_list(self):
         nodes = _make_nodes()
         result = format_beliefs_for_contradiction_check(
-            ["premise-a", "premise-b"], nodes)
+            ["premise-a", "premise-b"], nodes
+        )
         assert "- `premise-a`: A is true" in result
         assert "- `premise-b`: B is false" in result
 
     def test_truncates_long_text(self):
-        nodes = {"long": {
-            "text": "x" * 300,
-            "truth_value": "IN",
-        }}
+        nodes = {
+            "long": {
+                "text": "x" * 300,
+                "truth_value": "IN",
+            }
+        }
         result = format_beliefs_for_contradiction_check(["long"], nodes)
         assert len(result.split(": ", 1)[1]) == 200
         assert result.endswith("...")
@@ -78,13 +82,13 @@ class TestFormatBeliefsForContradictionCheck:
     def test_skips_missing_nodes(self):
         nodes = _make_nodes()
         result = format_beliefs_for_contradiction_check(
-            ["premise-a", "nonexistent"], nodes)
+            ["premise-a", "nonexistent"], nodes
+        )
         assert "premise-a" in result
         assert "nonexistent" not in result
 
 
 class TestParseContradictionResponse:
-
     def test_parses_nogood_sections(self):
         response = (
             "### NOGOOD scope-conflict\n"
@@ -178,16 +182,23 @@ class TestParseContradictionResponse:
 
 
 class TestDetectContradictions:
-
     def test_batches_beliefs(self):
         nodes = _make_nodes()
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
             detect_contradictions(nodes, batch_size=2)
         # 3 IN beliefs, batch_size=2 → 2 batches
         assert mock_run.call_count == 2
@@ -205,34 +216,55 @@ class TestDetectContradictions:
 
     def test_timeout_passed_through(self):
         nodes = _make_nodes()
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
-            detect_contradictions(nodes, belief_ids=["premise-a", "premise-b"],
-                                  timeout=600)
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
+            detect_contradictions(
+                nodes, belief_ids=["premise-a", "premise-b"], timeout=600
+            )
         assert mock_run.call_args[1]["timeout"] == 600
 
     def test_batch_failure_continues(self):
         nodes = _make_nodes()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run",
-                   side_effect=RuntimeError("LLM failed")):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run",
+                side_effect=RuntimeError("LLM failed"),
+            ),
+        ):
             results = detect_contradictions(nodes)
         assert results == []
 
     def test_filters_to_in_only(self):
         nodes = _make_nodes()
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
             detect_contradictions(nodes, batch_size=100)
         # Only 3 IN beliefs (premise-a, premise-b, premise-c), out-node excluded
         prompt = mock_run.call_args[1]["input"]
@@ -240,16 +272,24 @@ class TestDetectContradictions:
 
     def test_specific_ids_filtered(self):
         nodes = _make_nodes()
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
-            detect_contradictions(nodes,
-                                  belief_ids=["premise-a", "out-node"],
-                                  batch_size=100)
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
+            detect_contradictions(
+                nodes, belief_ids=["premise-a", "out-node"], batch_size=100
+            )
         # out-node is OUT, so only premise-a should be checked
         assert mock_run.call_count == 1
         prompt = mock_run.call_args[1]["input"]
@@ -258,7 +298,6 @@ class TestDetectContradictions:
 
 
 class TestDetectContradictionsApi:
-
     @pytest.fixture
     def db_path(self, tmp_path):
         db = str(tmp_path / "test.db")
@@ -275,23 +314,31 @@ class TestDetectContradictionsApi:
             "- Analysis: direct contradiction\n"
             "- Severity: High\n"
         )
-        mock_result = type("R", (), {
-            "returncode": 0, "stdout": nogood_response, "stderr": ""
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": nogood_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             result = api.detect_contradictions(db_path=db_path)
         assert result["checked"] == 2
         assert result["found"] == 1
 
     def test_sample_limits(self, db_path):
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             result = api.detect_contradictions(sample=2, db_path=db_path)
         assert result["checked"] == 2
 
@@ -302,18 +349,18 @@ class TestDetectContradictionsApi:
             "- Analysis: direct contradiction\n"
             "- Severity: High\n"
         )
-        mock_result = type("R", (), {
-            "returncode": 0, "stdout": nogood_response, "stderr": ""
-        })()
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": nogood_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             result = api.detect_contradictions(auto_apply=True, db_path=db_path)
         assert result["applied"] >= 1
 
 
-
 class TestCmdContradictions:
-
     @pytest.fixture
     def db_path(self, tmp_path):
         db = str(tmp_path / "test.db")
@@ -322,16 +369,15 @@ class TestCmdContradictions:
         return db
 
     def _mock_response(self, text):
-        return type("R", (), {
-            "returncode": 0, "stdout": text, "stderr": ""
-        })()
+        return type("R", (), {"returncode": 0, "stdout": text, "stderr": ""})()
 
     def test_no_contradictions_message(self, db_path):
         mock_result = self._mock_response("No contradictions detected.")
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
-            stdout, stderr, code = run_cli(
-                "contradictions", db_path=db_path)
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            stdout, stderr, code = run_cli("contradictions", db_path=db_path)
         assert "No contradictions detected" in stdout
 
     def test_displays_found_contradictions(self, db_path, tmp_path):
@@ -343,10 +389,13 @@ class TestCmdContradictions:
         )
         mock_result = self._mock_response(nogood_response)
         output_file = str(tmp_path / "plan.md")
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             stdout, stderr, code = run_cli(
-                "contradictions", "-o", output_file, db_path=db_path)
+                "contradictions", "-o", output_file, db_path=db_path
+            )
         assert "[NOGOOD] x-conflict (High)" in stdout
         assert "belief-a, belief-b" in stdout
         assert "direct negation" in stdout
@@ -360,10 +409,13 @@ class TestCmdContradictions:
             "- Severity: High\n"
         )
         mock_result = self._mock_response(nogood_response)
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             stdout, stderr, code = run_cli(
-                "contradictions", "-o", output_file, db_path=db_path)
+                "contradictions", "-o", output_file, db_path=db_path
+            )
         assert "--accept" in stdout
         with open(output_file) as f:
             content = f.read()
@@ -378,14 +430,12 @@ except ImportError:
     HAS_CLUSTER_DEPS = False
 
 skip_no_cluster = pytest.mark.skipif(
-    not HAS_CLUSTER_DEPS,
-    reason="sentence-transformers and scikit-learn not installed"
+    not HAS_CLUSTER_DEPS, reason="sentence-transformers and scikit-learn not installed"
 )
 
 
 @skip_no_cluster
 class TestDetectContradictionsSemantic:
-
     def test_semantic_groups_by_cluster(self):
         nodes = {
             "auth-login-validates": {
@@ -404,14 +454,23 @@ class TestDetectContradictionsSemantic:
                 "justifications": [],
             },
         }
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": "No contradictions detected.",
-            "stderr": "",
-        })()
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": "No contradictions detected.",
+                "stderr": "",
+            },
+        )()
         from reasonsforge.contradictions import detect_contradictions_semantic
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result) as mock_run:
+
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", return_value=mock_result
+            ) as mock_run,
+        ):
             detect_contradictions_semantic(nodes)
         assert mock_run.call_count >= 1
         all_prompts = " ".join(
@@ -444,28 +503,46 @@ class TestDetectContradictionsSemantic:
             "- Analysis: Cannot both validate and skip validation\n"
             "- Severity: High\n"
         )
-        mock_result = type("R", (), {
-            "returncode": 0,
-            "stdout": nogood_response,
-            "stderr": "",
-        })()
+        mock_result = type(
+            "R",
+            (),
+            {
+                "returncode": 0,
+                "stdout": nogood_response,
+                "stderr": "",
+            },
+        )()
         from reasonsforge.contradictions import detect_contradictions_semantic
-        with patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"), \
-             patch("reasonsforge.llm.subprocess.run", return_value=mock_result):
+
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
             results = detect_contradictions_semantic(nodes)
         assert len(results) == 1
         assert results[0]["id"] == "auth-contradiction"
-        assert set(results[0]["claims"]) == {"auth-login-validates", "auth-login-skips-validation"}
+        assert set(results[0]["claims"]) == {
+            "auth-login-validates",
+            "auth-login-skips-validation",
+        }
 
     def test_semantic_empty_network(self):
         from reasonsforge.contradictions import detect_contradictions_semantic
+
         nodes = {"out-only": {"text": "x", "truth_value": "OUT", "justifications": []}}
         results = detect_contradictions_semantic(nodes)
         assert results == []
 
     def test_semantic_single_belief_skips_llm(self):
         from reasonsforge.contradictions import detect_contradictions_semantic
-        nodes = {"only-one": {"text": "Single belief", "truth_value": "IN", "justifications": []}}
+
+        nodes = {
+            "only-one": {
+                "text": "Single belief",
+                "truth_value": "IN",
+                "justifications": [],
+            }
+        }
         with patch("reasonsforge.llm.subprocess.run") as mock_run:
             results = detect_contradictions_semantic(nodes)
         assert results == []
@@ -473,13 +550,20 @@ class TestDetectContradictionsSemantic:
 
 
 class TestContradictionPlan:
-
     def test_write_contradiction_plan_format(self, tmp_path):
         contradictions = [
-            {"id": "test-nogood", "claims": ["a", "b"],
-             "analysis": "They conflict", "severity": "High"},
-            {"id": "another-nogood", "claims": ["c", "d"],
-             "analysis": "Also conflict", "severity": "Medium"},
+            {
+                "id": "test-nogood",
+                "claims": ["a", "b"],
+                "analysis": "They conflict",
+                "severity": "High",
+            },
+            {
+                "id": "another-nogood",
+                "claims": ["c", "d"],
+                "analysis": "Also conflict",
+                "severity": "Medium",
+            },
         ]
         path = str(tmp_path / "plan.md")
         api.write_contradiction_plan(contradictions, path)
@@ -495,7 +579,9 @@ class TestContradictionPlan:
     def test_write_contradiction_plan_append(self, tmp_path):
         path = str(tmp_path / "plan.md")
         batch1 = [{"id": "first", "claims": ["a", "b"], "analysis": "", "severity": ""}]
-        batch2 = [{"id": "second", "claims": ["c", "d"], "analysis": "", "severity": ""}]
+        batch2 = [
+            {"id": "second", "claims": ["c", "d"], "analysis": "", "severity": ""}
+        ]
         api.write_contradiction_plan(batch1, path, append=False)
         api.write_contradiction_plan(batch2, path, append=True)
         text = open(path).read()
@@ -544,18 +630,17 @@ class TestContradictionPlan:
         run_cli("add", "x", "Belief X", db_path=db)
         run_cli("add", "y", "Belief Y", db_path=db)
         plan_file = tmp_path / "plan.md"
-        plan_file.write_text(
-            "### NOGOOD test [APPLY]\n"
-            "- Claims: x, y\n"
+        plan_file.write_text("### NOGOOD test [APPLY]\n- Claims: x, y\n")
+        out, err, code = run_cli(
+            "contradictions", "--accept", str(plan_file), db_path=db
         )
-        out, err, code = run_cli("contradictions", "--accept",
-                                  str(plan_file), db_path=db)
         assert code == 0
         assert "Applied 1 nogood" in out
 
     def test_accept_missing_file(self):
-        out, err, code = run_cli("contradictions", "--accept",
-                                  "/nonexistent.md", db_path="/tmp/dummy.db")
+        out, err, code = run_cli(
+            "contradictions", "--accept", "/nonexistent.md", db_path="/tmp/dummy.db"
+        )
         assert code == 1
 
     def test_accept_empty_plan(self, tmp_path):
@@ -563,7 +648,8 @@ class TestContradictionPlan:
         run_cli("init", db_path=db)
         plan_file = tmp_path / "empty.md"
         plan_file.write_text("")
-        out, err, code = run_cli("contradictions", "--accept",
-                                  str(plan_file), db_path=db)
+        out, err, code = run_cli(
+            "contradictions", "--accept", str(plan_file), db_path=db
+        )
         assert code == 0
         assert "No APPLY entries" in out

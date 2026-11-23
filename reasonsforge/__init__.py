@@ -16,6 +16,7 @@ class Justification:
     believed." If Y comes IN, the justification becomes invalid and X
     may go OUT (if no other justification supports it).
     """
+
     type: str  # "SL" or "CP"
     antecedents: list[str] = field(default_factory=list)  # inlist: must be IN
     outlist: list[str] = field(default_factory=list)  # must be OUT
@@ -30,6 +31,7 @@ class Node:
     A node is IN if ANY of its justifications is valid.
     A premise has no justifications and is IN by default.
     """
+
     id: str
     text: str
     truth_value: str = "IN"  # IN or OUT
@@ -53,6 +55,7 @@ class Node:
 @dataclass
 class Nogood:
     """A recorded contradiction — these node IDs cannot all be IN simultaneously."""
+
     id: str
     nodes: list[str] = field(default_factory=list)
     discovered: str = ""

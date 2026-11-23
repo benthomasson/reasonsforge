@@ -34,9 +34,13 @@ class TestDanglingDependentNoCrash:
         """Valid dependents still propagate even when a dangling ref is present."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         assert net.nodes["b"].truth_value == "IN"
         net.nodes["a"].dependents.add("ghost")
         net.retract("a")
@@ -102,9 +106,13 @@ class TestDanglingDependentPropagationContinues:
         """Dangling ref before valid dependent doesn't block cascade."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         net.nodes["a"].dependents.add("ghost")
         changed = net.retract("a")
         assert "b" in changed
@@ -114,9 +122,13 @@ class TestDanglingDependentPropagationContinues:
         """Dangling ref doesn't block restoration via assert_node."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         net.retract("a")
         assert net.nodes["b"].truth_value == "OUT"
         net.nodes["a"].dependents.add("ghost")
@@ -128,12 +140,20 @@ class TestDanglingDependentPropagationContinues:
         """A -> B -> C chain where B has a dangling ref. C still updates."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "derived C", justifications=[
-            Justification(type="SL", antecedents=["b"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["b"]),
+            ],
+        )
         net.nodes["b"].dependents.add("ghost")
         changed = net.retract("a")
         assert "b" in changed
@@ -144,15 +164,27 @@ class TestDanglingDependentPropagationContinues:
         """Diamond: A -> B, A -> C, B&C -> D. Dangling ref on A."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("c", "derived C", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
-        net.add_node("d", "derived D", justifications=[
-            Justification(type="SL", antecedents=["b", "c"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "c",
+            "derived C",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
+        net.add_node(
+            "d",
+            "derived D",
+            justifications=[
+                Justification(type="SL", antecedents=["b", "c"]),
+            ],
+        )
         net.nodes["a"].dependents.add("ghost")
         changed = net.retract("a")
         assert net.nodes["d"].truth_value == "OUT"
@@ -166,9 +198,13 @@ class TestDanglingDependentEdgeCases:
         """Same ghost ID in two different nodes' dependents — warns for each."""
         net = Network()
         net.add_node("a", "premise A")
-        net.add_node("b", "derived B", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "b",
+            "derived B",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         net.nodes["a"].dependents.add("ghost")
         net.nodes["b"].dependents.add("ghost")
         changed = net.retract("a")
@@ -214,9 +250,13 @@ class TestDanglingDependentEdgeCases:
         net.nodes["a"].dependents.add("ghost")
         net.retract("a")
         # Now add the previously-dangling node and verify it works normally
-        net.add_node("ghost", "now real", justifications=[
-            Justification(type="SL", antecedents=["a"]),
-        ])
+        net.add_node(
+            "ghost",
+            "now real",
+            justifications=[
+                Justification(type="SL", antecedents=["a"]),
+            ],
+        )
         assert net.nodes["ghost"].truth_value == "OUT"  # a is OUT
         net.assert_node("a")
         assert net.nodes["ghost"].truth_value == "IN"

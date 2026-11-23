@@ -134,7 +134,7 @@ def parse_extract_response(response):
         return ""
     for prefix in ("Smuggled claim:", "smuggled claim:"):
         if text.lower().startswith(prefix.lower()):
-            text = text[len(prefix):].strip()
+            text = text[len(prefix) :].strip()
     if len(text) > 2 and text[0] in ('"', "'") and text[-1] == text[0]:
         text = text[1:-1].strip()
     return text
@@ -167,8 +167,7 @@ def parse_match_response(response, valid_ids):
     return {"matched_ids": [], "rationale": ""}
 
 
-def extract_smuggled_claim(belief_context, review_comment, model="claude",
-                           timeout=300):
+def extract_smuggled_claim(belief_context, review_comment, model="claude", timeout=300):
     """LLM call 1: extract the smuggled claim from an invalid belief."""
     prompt = EXTRACT_PROMPT.format(
         belief_context=belief_context,
@@ -178,8 +177,7 @@ def extract_smuggled_claim(belief_context, review_comment, model="claude",
     return parse_extract_response(response)
 
 
-def find_matching_premises(smuggled_claim, candidates, model="claude",
-                           timeout=300):
+def find_matching_premises(smuggled_claim, candidates, model="claude", timeout=300):
     """LLM call 2: match smuggled claim against candidate premises.
 
     Args:
@@ -189,9 +187,7 @@ def find_matching_premises(smuggled_claim, candidates, model="claude",
     if not candidates:
         return {"matched_ids": [], "rationale": "no candidates found"}
 
-    candidate_lines = "\n".join(
-        f"- `{c['id']}`: {c['text']}" for c in candidates
-    )
+    candidate_lines = "\n".join(f"- `{c['id']}`: {c['text']}" for c in candidates)
     prompt = MATCH_PROMPT.format(
         smuggled_claim=smuggled_claim,
         candidates=candidate_lines,
@@ -244,8 +240,14 @@ def parse_soften_response(response):
     return {"softened_text": "", "rationale": ""}
 
 
-def triage_belief(belief_context, review_comment, depth=0,
-                  flagged_ancestors=0, model="claude", timeout=300):
+def triage_belief(
+    belief_context,
+    review_comment,
+    depth=0,
+    flagged_ancestors=0,
+    model="claude",
+    timeout=300,
+):
     """LLM call: triage an invalid belief into a repair pattern."""
     prompt = TRIAGE_PROMPT.format(
         belief_context=belief_context,
@@ -297,15 +299,17 @@ def _format_antecedents(node, nodes):
     return "\n".join(lines) if lines else "(no antecedents)"
 
 
-def _do_search_and_link(belief_id, node, nodes, comment, model, timeout,
-                        db_path, dry_run, search_fn):
+def _do_search_and_link(
+    belief_id, node, nodes, comment, model, timeout, db_path, dry_run, search_fn
+):
     """Execute Pattern 1: search-and-link for a single belief."""
     from . import api
 
     belief_context = format_belief_for_review(belief_id, nodes)
 
-    claim = extract_smuggled_claim(belief_context, comment,
-                                   model=model, timeout=timeout)
+    claim = extract_smuggled_claim(
+        belief_context, comment, model=model, timeout=timeout
+    )
     if not claim:
         return "extraction_failed", claim, [], ""
 
@@ -334,8 +338,7 @@ def _do_search_and_link(belief_id, node, nodes, comment, model, timeout,
     if not candidates:
         return "no_candidates", claim, [], ""
 
-    match = find_matching_premises(claim, candidates,
-                                   model=model, timeout=timeout)
+    match = find_matching_premises(claim, candidates, model=model, timeout=timeout)
     matched_ids = match.get("matched_ids", [])
 
     if not matched_ids:
@@ -357,9 +360,15 @@ def _do_search_and_link(belief_id, node, nodes, comment, model, timeout,
     return "linked", claim, matched_ids, match.get("rationale", "")
 
 
-def repair_beliefs(review_results, nodes, model="claude",
-                     timeout=300, db_path=None, dry_run=False,
-                     search_fn=None):
+def repair_beliefs(
+    review_results,
+    nodes,
+    model="claude",
+    timeout=300,
+    db_path=None,
+    dry_run=False,
+    search_fn=None,
+):
     """Orchestrate triage and repair for invalid beliefs.
 
     Triages each invalid belief into search_and_link, soften, abandon, or
@@ -407,12 +416,15 @@ def repair_beliefs(review_results, nodes, model="claude",
                     if ant_id in invalid_ids:
                         flagged_ancestors += 1
 
-            print(f"  Triaging {belief_id} (depth={depth})...",
-                  file=sys.stderr)
-            triage = triage_belief(belief_context, comment,
-                                   depth=depth,
-                                   flagged_ancestors=flagged_ancestors,
-                                   model=model, timeout=timeout)
+            print(f"  Triaging {belief_id} (depth={depth})...", file=sys.stderr)
+            triage = triage_belief(
+                belief_context,
+                comment,
+                depth=depth,
+                flagged_ancestors=flagged_ancestors,
+                model=model,
+                timeout=timeout,
+            )
             pattern = triage.get("pattern", "")
             result["pattern"] = pattern
             result["rationale"] = triage.get("rationale", "")
@@ -423,11 +435,17 @@ def repair_beliefs(review_results, nodes, model="claude",
                 continue
 
             if pattern == "search_and_link":
-                print(f"  Pattern: search-and-link for {belief_id}...",
-                      file=sys.stderr)
+                print(f"  Pattern: search-and-link for {belief_id}...", file=sys.stderr)
                 status, claim, matched, rationale = _do_search_and_link(
-                    belief_id, node, nodes, comment, model, timeout,
-                    db_path, dry_run, search_fn,
+                    belief_id,
+                    node,
+                    nodes,
+                    comment,
+                    model,
+                    timeout,
+                    db_path,
+                    dry_run,
+                    search_fn,
                 )
                 result["status"] = status
                 result["smuggled_claim"] = claim
@@ -435,15 +453,18 @@ def repair_beliefs(review_results, nodes, model="claude",
                 if rationale:
                     result["rationale"] = rationale
                 if not dry_run and status == "linked":
-                    api.set_metadata(belief_id, "repair_action", "search_and_link", db_path=db_path)
+                    api.set_metadata(
+                        belief_id, "repair_action", "search_and_link", db_path=db_path
+                    )
 
             elif pattern == "soften":
-                print(f"  Pattern: soften for {belief_id}...",
-                      file=sys.stderr)
+                print(f"  Pattern: soften for {belief_id}...", file=sys.stderr)
                 ant_text = _format_antecedents(node, nodes)
                 soften_result = soften_belief(
-                    node.get("text", ""), ant_text,
-                    model=model, timeout=timeout,
+                    node.get("text", ""),
+                    ant_text,
+                    model=model,
+                    timeout=timeout,
                 )
                 softened = soften_result.get("softened_text", "")
                 if not softened:
@@ -455,31 +476,36 @@ def repair_beliefs(review_results, nodes, model="claude",
                 if not dry_run:
                     sup = api.supersede_with_text(belief_id, softened, db_path=db_path)
                     result["new_id"] = sup["new_id"]
-                    api.set_metadata(sup["new_id"], "repair_action", "softened", db_path=db_path)
+                    api.set_metadata(
+                        sup["new_id"], "repair_action", "softened", db_path=db_path
+                    )
                 result["status"] = "softened"
 
             elif pattern == "abandon":
-                print(f"  Pattern: abandon for {belief_id}...",
-                      file=sys.stderr)
+                print(f"  Pattern: abandon for {belief_id}...", file=sys.stderr)
                 if not dry_run:
                     api.retract_node(
                         belief_id,
                         reason=f"repair: abandoned — {triage.get('rationale', '')}",
                         db_path=db_path,
                     )
-                    api.set_metadata(belief_id, "repair_action", "abandoned", db_path=db_path)
+                    api.set_metadata(
+                        belief_id, "repair_action", "abandoned", db_path=db_path
+                    )
                 result["status"] = "abandoned"
 
             elif pattern == "research":
-                print(f"  Pattern: research for {belief_id}...",
-                      file=sys.stderr)
+                print(f"  Pattern: research for {belief_id}...", file=sys.stderr)
                 if not dry_run:
                     api.set_metadata(
-                        belief_id, "repair_research",
+                        belief_id,
+                        "repair_research",
                         triage.get("rationale", ""),
                         db_path=db_path,
                     )
-                    api.set_metadata(belief_id, "repair_action", "research", db_path=db_path)
+                    api.set_metadata(
+                        belief_id, "repair_action", "research", db_path=db_path
+                    )
                 result["status"] = "needs_research"
 
         except Exception as exc:
@@ -493,9 +519,15 @@ def repair_beliefs(review_results, nodes, model="claude",
 research_beliefs = repair_beliefs
 
 
-def repair_smuggled_beliefs(review_results, nodes, model="claude",
-                            timeout=300, db_path=None, dry_run=False,
-                            search_fn=None):
+def repair_smuggled_beliefs(
+    review_results,
+    nodes,
+    model="claude",
+    timeout=300,
+    db_path=None,
+    dry_run=False,
+    search_fn=None,
+):
     """Orchestrate search-and-link repair for invalid beliefs.
 
     Args:
@@ -539,10 +571,10 @@ def repair_smuggled_beliefs(review_results, nodes, model="claude",
             belief_context = format_belief_for_review(belief_id, nodes)
             comment = r.get("comment", "")
 
-            print(f"  Extracting smuggled claim for {belief_id}...",
-                  file=sys.stderr)
-            claim = extract_smuggled_claim(belief_context, comment,
-                                           model=model, timeout=timeout)
+            print(f"  Extracting smuggled claim for {belief_id}...", file=sys.stderr)
+            claim = extract_smuggled_claim(
+                belief_context, comment, model=model, timeout=timeout
+            )
             result["smuggled_claim"] = claim
 
             if not claim:
@@ -580,10 +612,12 @@ def repair_smuggled_beliefs(review_results, nodes, model="claude",
                 repairs.append(result)
                 continue
 
-            print(f"  Matching against {len(candidates)} candidate(s)...",
-                  file=sys.stderr)
-            match = find_matching_premises(claim, candidates,
-                                           model=model, timeout=timeout)
+            print(
+                f"  Matching against {len(candidates)} candidate(s)...", file=sys.stderr
+            )
+            match = find_matching_premises(
+                claim, candidates, model=model, timeout=timeout
+            )
             matched_ids = match.get("matched_ids", [])
             result["rationale"] = match.get("rationale", "")
 

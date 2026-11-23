@@ -24,11 +24,13 @@ def find_disagreements(reviews: list[ModelReview]) -> list[dict]:
                 severity = "MEDIUM"
             else:
                 severity = "LOW"
-            disagreements.append({
-                "change_id": change_id,
-                "verdicts": {model: v.value for model, v in verdicts.items()},
-                "severity": severity,
-            })
+            disagreements.append(
+                {
+                    "change_id": change_id,
+                    "verdicts": {model: v.value for model, v in verdicts.items()},
+                    "severity": severity,
+                }
+            )
 
     severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
     disagreements.sort(key=lambda d: severity_order[d["severity"]])

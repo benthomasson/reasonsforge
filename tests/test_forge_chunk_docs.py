@@ -12,8 +12,8 @@ from reasonsforge.forge.chunk_docs import (
     cmd_chunk_docs,
 )
 
-
 # --- chunk_markdown ---
+
 
 def test_chunk_markdown_by_headings():
     text = "# Section 1\nContent one.\n\n# Section 2\nContent two.\n"
@@ -45,12 +45,9 @@ def test_chunk_markdown_no_headings_falls_back():
 
 # --- chunk_python ---
 
+
 def test_chunk_python_by_definitions():
-    text = (
-        "import os\n\n"
-        "def foo():\n    pass\n\n"
-        "def bar():\n    pass\n"
-    )
+    text = "import os\n\ndef foo():\n    pass\n\ndef bar():\n    pass\n"
     chunks = chunk_python(text, max_chars=40)
     assert len(chunks) == 2
     assert "def foo" in chunks[0]
@@ -59,9 +56,7 @@ def test_chunk_python_by_definitions():
 
 def test_chunk_python_keeps_imports():
     text = (
-        "import os\nimport sys\n\n"
-        "def first():\n    pass\n\n"
-        "def second():\n    pass\n"
+        "import os\nimport sys\n\ndef first():\n    pass\n\ndef second():\n    pass\n"
     )
     chunks = chunk_python(text, max_chars=60)
     assert len(chunks) == 2
@@ -70,11 +65,7 @@ def test_chunk_python_keeps_imports():
 
 
 def test_chunk_python_class_boundary():
-    text = (
-        "import x\n\n"
-        "class Foo:\n    pass\n\n"
-        "class Bar:\n    pass\n"
-    )
+    text = "import x\n\nclass Foo:\n    pass\n\nclass Bar:\n    pass\n"
     chunks = chunk_python(text, max_chars=40)
     assert len(chunks) == 2
     assert "class Foo" in chunks[0]
@@ -82,12 +73,7 @@ def test_chunk_python_class_boundary():
 
 
 def test_chunk_python_decorator_stays_with_function():
-    text = (
-        "import os\n\n"
-        "@decorator\n"
-        "def foo():\n    pass\n\n"
-        "def bar():\n    pass\n"
-    )
+    text = "import os\n\n@decorator\ndef foo():\n    pass\n\ndef bar():\n    pass\n"
     chunks = chunk_python(text, max_chars=60)
     assert len(chunks) == 2
     assert "@decorator" in chunks[0]
@@ -101,6 +87,7 @@ def test_chunk_python_no_defs_falls_back():
 
 
 # --- chunk_fixed ---
+
 
 def test_chunk_fixed_small_text_single_chunk():
     text = "Short text."
@@ -117,6 +104,7 @@ def test_chunk_fixed_with_overlap():
 
 
 # --- cmd_chunk_docs ---
+
 
 @pytest.fixture
 def source_dir(tmp_path):
@@ -160,7 +148,11 @@ def test_non_recursive_skips_nested_files(source_dir, work_dir, capsys):
     (subdir / "nested.md").write_text(text)
     args = make_args(source_dir, threshold=100, recursive=False)
     cmd_chunk_docs(args)
-    entries = list((work_dir / "sources" / "chunks").rglob("*.md")) if (work_dir / "sources" / "chunks").exists() else []
+    entries = (
+        list((work_dir / "sources" / "chunks").rglob("*.md"))
+        if (work_dir / "sources" / "chunks").exists()
+        else []
+    )
     assert len(entries) == 0
 
 
@@ -170,7 +162,11 @@ def test_skips_small_files(source_dir, work_dir, capsys):
     cmd_chunk_docs(args)
     captured = capsys.readouterr()
     assert "Chunked 0 files" in captured.out
-    entries = list((work_dir / "sources" / "chunks").rglob("*.md")) if (work_dir / "sources" / "chunks").exists() else []
+    entries = (
+        list((work_dir / "sources" / "chunks").rglob("*.md"))
+        if (work_dir / "sources" / "chunks").exists()
+        else []
+    )
     assert len(entries) == 0
 
 
@@ -187,7 +183,13 @@ def test_chunks_large_markdown(source_dir, work_dir):
 
 
 def test_chunks_large_python(source_dir, work_dir):
-    text = "import os\n\n" + "def foo():\n    " + "x = 1\n    " * 50 + "\n\ndef bar():\n    " + "y = 2\n    " * 50
+    text = (
+        "import os\n\n"
+        + "def foo():\n    "
+        + "x = 1\n    " * 50
+        + "\n\ndef bar():\n    "
+        + "y = 2\n    " * 50
+    )
     (source_dir / "big.py").write_text(text)
     args = make_args(source_dir, threshold=100)
     cmd_chunk_docs(args)

@@ -27,52 +27,60 @@ def build_diff_prompt(
     ]
 
     if commit_log:
-        sections.extend([
-            "## Commit History",
-            "",
-            "```",
-            commit_log,
-            "```",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Commit History",
+                "",
+                "```",
+                commit_log,
+                "```",
+                "",
+            ]
+        )
 
     if changed_files_summary:
-        sections.extend([
-            "## Changed Files",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Changed Files",
+                "",
+            ]
+        )
         for f in changed_files_summary:
             sections.append(f"- `{f}`")
         sections.append("")
 
-    sections.extend([
-        "## Diff",
-        "",
-        "```diff",
-        diff_content,
-        "```",
-        "",
-    ])
+    sections.extend(
+        [
+            "## Diff",
+            "",
+            "```diff",
+            diff_content,
+            "```",
+            "",
+        ]
+    )
 
     if m["explore_extra"]:
         sections.append(m["explore_extra"])
 
-    sections.extend([
-        "## Instructions",
-        "",
-        "Explain these changes covering:",
-        "",
-        "1. **Summary**: One-paragraph overview of what changed",
-        "2. **Motivation**: Why were these changes made? (infer from commit messages and code)",
-        "3. **File-by-File Breakdown**: For each changed file, explain what changed and why",
-        "4. **Impact**: What behavior changes as a result?",
-        "5. **Risks**: Any potential issues or things to watch out for",
-        "",
-        "Format your response as markdown.",
-        "Focus on the 'why' — don't just describe what lines were added/removed.",
-        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
-        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
-    ])
+    sections.extend(
+        [
+            "## Instructions",
+            "",
+            "Explain these changes covering:",
+            "",
+            "1. **Summary**: One-paragraph overview of what changed",
+            "2. **Motivation**: Why were these changes made? (infer from commit messages and code)",
+            "3. **File-by-File Breakdown**: For each changed file, explain what changed and why",
+            "4. **Impact**: What behavior changes as a result?",
+            "5. **Risks**: Any potential issues or things to watch out for",
+            "",
+            "Format your response as markdown.",
+            "Focus on the 'why' — don't just describe what lines were added/removed.",
+            TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+            BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
+        ]
+    )
 
     return "\n".join(sections)
 
@@ -99,42 +107,48 @@ def build_diff_summary_prompt(
     ]
 
     if commit_log:
-        sections.extend([
-            "## Commit History",
-            "",
-            "```",
-            commit_log,
-            "```",
-            "",
-        ])
+        sections.extend(
+            [
+                "## Commit History",
+                "",
+                "```",
+                commit_log,
+                "```",
+                "",
+            ]
+        )
 
     if changed_files:
-        sections.extend([
-            f"## Changed Files ({len(changed_files)} files)",
-            "",
-        ])
+        sections.extend(
+            [
+                f"## Changed Files ({len(changed_files)} files)",
+                "",
+            ]
+        )
         for f in changed_files:
             sections.append(f"- `{f}`")
         sections.append("")
 
-    sections.extend([
-        "## Instructions",
-        "",
-        "Based on the commit messages and file paths, explain:",
-        "",
-        "1. **Summary**: What was the overall thrust of these changes?",
-        "2. **Key Themes**: Group the changes by theme or feature area",
-        "3. **Notable Changes**: Which files or commits look most significant?",
-        "4. **Impact**: What behavior likely changed as a result?",
-        "",
-        "Format your response as markdown.",
-        "Since you don't have the actual diff content, focus on what you can infer",
-        "from commit messages and file paths. Be explicit about what you're inferring.",
-        "",
-        "IMPORTANT: Generate topics for the most interesting changed files so they",
-        "can be explored individually with full source context.",
-        TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
-        BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
-    ])
+    sections.extend(
+        [
+            "## Instructions",
+            "",
+            "Based on the commit messages and file paths, explain:",
+            "",
+            "1. **Summary**: What was the overall thrust of these changes?",
+            "2. **Key Themes**: Group the changes by theme or feature area",
+            "3. **Notable Changes**: Which files or commits look most significant?",
+            "4. **Impact**: What behavior likely changed as a result?",
+            "",
+            "Format your response as markdown.",
+            "Since you don't have the actual diff content, focus on what you can infer",
+            "from commit messages and file paths. Be explicit about what you're inferring.",
+            "",
+            "IMPORTANT: Generate topics for the most interesting changed files so they",
+            "can be explored individually with full source context.",
+            TOPICS_INSTRUCTIONS + (m["topics_extra"] or ""),
+            BELIEFS_INSTRUCTIONS + (m["beliefs_extra"] or ""),
+        ]
+    )
 
     return "\n".join(sections)

@@ -58,9 +58,9 @@ def _extract_brace_block(text: str, start: int) -> str:
         elif text[i] == "}":
             depth -= 1
             if depth == 0:
-                return text[start + 1:i]
+                return text[start + 1 : i]
         i += 1
-    return text[start + 1:]
+    return text[start + 1 :]
 
 
 def _parse_jsdoc_above(text: str, pos: int) -> str:
@@ -108,12 +108,14 @@ def _parse_props(body: str) -> list[PropInfo]:
             name = m.group(1)
             optional = m.group(2) == "?"
             prop_type = m.group(3).strip().rstrip(";").strip()
-            props.append(PropInfo(
-                name=name,
-                type=prop_type,
-                required=not optional,
-                description=jsdoc_buf,
-            ))
+            props.append(
+                PropInfo(
+                    name=name,
+                    type=prop_type,
+                    required=not optional,
+                    description=jsdoc_buf,
+                )
+            )
             jsdoc_buf = ""
         elif stripped and not stripped.startswith("//"):
             jsdoc_buf = ""
@@ -132,7 +134,6 @@ def _matches_component(iface_name: str, components: list[str]) -> bool:
 
 
 class TypeScriptExtractor(Extractor):
-
     @property
     def name(self) -> str:
         return "typescript"
@@ -141,7 +142,9 @@ class TypeScriptExtractor(Extractor):
         return (Path(repo_path) / "tsconfig.json").exists()
 
     def extract_interfaces(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[InterfaceInfo]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".ts", ".tsx"})
@@ -165,7 +168,7 @@ class TypeScriptExtractor(Extractor):
                     if not props:
                         continue
 
-                    line_number = text[:m.start()].count("\n") + 1
+                    line_number = text[: m.start()].count("\n") + 1
                     description = _parse_jsdoc_above(text, m.start())
 
                     comp_name = None
@@ -173,19 +176,23 @@ class TypeScriptExtractor(Extractor):
                         comp_name = iface_name[:-5]
 
                     rel_path = str(fpath.relative_to(repo))
-                    interfaces.append(InterfaceInfo(
-                        name=iface_name,
-                        file_path=rel_path,
-                        line_number=line_number,
-                        props=props,
-                        description=description,
-                        component_name=comp_name,
-                    ))
+                    interfaces.append(
+                        InterfaceInfo(
+                            name=iface_name,
+                            file_path=rel_path,
+                            line_number=line_number,
+                            props=props,
+                            description=description,
+                            component_name=comp_name,
+                        )
+                    )
 
         return interfaces
 
     def extract_config(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[ConfigValue]:
         repo = Path(repo_path)
         files = _iter_files(repo, {".css", ".scss"})
@@ -209,24 +216,31 @@ class TypeScriptExtractor(Extractor):
                 else:
                     category = "other"
 
-                values.append(ConfigValue(
-                    name=var_name,
-                    value=var_value,
-                    category=category,
-                    file_path=rel_path,
-                ))
+                values.append(
+                    ConfigValue(
+                        name=var_name,
+                        value=var_value,
+                        category=category,
+                        file_path=rel_path,
+                    )
+                )
 
         return values
 
     def extract_tests(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[TestPattern]:
         repo = Path(repo_path)
         all_files = _iter_files(repo, {".ts", ".tsx"})
         test_files = [
-            f for f in all_files
-            if ".test." in f.name or ".spec." in f.name
-            or f.name.startswith("test_") or "/test/" in str(f)
+            f
+            for f in all_files
+            if ".test." in f.name
+            or ".spec." in f.name
+            or f.name.startswith("test_")
+            or "/test/" in str(f)
             or "/__tests__/" in str(f)
         ]
 
@@ -250,29 +264,42 @@ class TypeScriptExtractor(Extractor):
 
             for m in _TEST_DESC_RE.finditer(text):
                 desc = m.group(1)
-                line_number = text[:m.start()].count("\n") + 1
+                line_number = text[: m.start()].count("\n") + 1
 
                 lower_desc = desc.lower()
-                if any(kw in lower_desc for kw in ("error", "disabled", "invalid", "fail", "throw")):
+                if any(
+                    kw in lower_desc
+                    for kw in ("error", "disabled", "invalid", "fail", "throw")
+                ):
                     ptype = "error_case"
-                elif any(kw in lower_desc for kw in ("should not", "must not", "cannot", "does not")):
+                elif any(
+                    kw in lower_desc
+                    for kw in ("should not", "must not", "cannot", "does not")
+                ):
                     ptype = "invalid_usage"
-                elif any(kw in lower_desc for kw in ("edge", "boundary", "empty", "null", "undefined")):
+                elif any(
+                    kw in lower_desc
+                    for kw in ("edge", "boundary", "empty", "null", "undefined")
+                ):
                     ptype = "edge_case"
                 else:
                     ptype = "valid_usage"
 
-                patterns.append(TestPattern(
-                    description=desc,
-                    file_path=rel_path,
-                    line_number=line_number,
-                    pattern_type=ptype,
-                ))
+                patterns.append(
+                    TestPattern(
+                        description=desc,
+                        file_path=rel_path,
+                        line_number=line_number,
+                        pattern_type=ptype,
+                    )
+                )
 
         return patterns
 
     def extract_examples(
-        self, repo_path: str, components: list[str] | None = None,
+        self,
+        repo_path: str,
+        components: list[str] | None = None,
     ) -> list[str]:
         repo = Path(repo_path)
         examples: list[str] = []

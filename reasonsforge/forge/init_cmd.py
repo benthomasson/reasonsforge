@@ -40,12 +40,7 @@ def cmd_init(args):
 
     gitignore = cwd / ".gitignore"
     if not gitignore.exists():
-        gitignore.write_text(
-            "reasons.db\n"
-            "rag_fts.db\n"
-            "logs/\n"
-            ".DS_Store\n"
-        )
+        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
         print("Created .gitignore")
 
     config_path = forge_dir / "config.json"
@@ -59,6 +54,7 @@ def cmd_init(args):
         print(f"Created {config_path}")
 
     from .claude_md import write_claude_md_if_missing
+
     if write_claude_md_if_missing(domain, expert_dir=str(cwd)):
         print("Created CLAUDE.md")
 
@@ -84,6 +80,7 @@ def cmd_status(args):
     if reasons_db.exists():
         try:
             from reasonsforge.api import export_network
+
             status = reasons_status(db_path=REASONS_DB)
             belief_count = status["in_count"]
             network = export_network(db_path=REASONS_DB)
@@ -96,6 +93,7 @@ def cmd_status(args):
     accepted = 0
     if proposed_file.exists():
         import re
+
         text = proposed_file.read_text()
         proposed = len(re.findall(r"^### \[", text, re.MULTILINE))
         accepted = len(re.findall(r"^### \[ACCEPT\]", text, re.MULTILINE))

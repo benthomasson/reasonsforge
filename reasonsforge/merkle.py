@@ -30,9 +30,7 @@ def _fresh_merkle_hash(node_id, net, cache, visiting):
     else:
         j = node.justifications[node.supporting_justification]
         ch = _fresh_content_hash(text_hash, j, net, cache, visiting)
-        result = hashlib.sha256(
-            (text_hash + "|" + ch).encode("utf-8")
-        ).hexdigest()
+        result = hashlib.sha256((text_hash + "|" + ch).encode("utf-8")).hexdigest()
 
     cache[node_id] = result
     return result

@@ -55,8 +55,12 @@ def _get_db() -> str:
 
 
 @mcp.tool()
-def search(query: str, output_format: str = "markdown", depth: int = 1,
-           include_out: bool = False) -> str:
+def search(
+    query: str,
+    output_format: str = "markdown",
+    depth: int = 1,
+    include_out: bool = False,
+) -> str:
     """Search beliefs by text with neighbor expansion.
 
     Args:
@@ -65,8 +69,13 @@ def search(query: str, output_format: str = "markdown", depth: int = 1,
         depth: Hops to expand along justification chains (default 1)
         include_out: Include OUT (retracted) beliefs in results (default: false)
     """
-    return api.search(query, db_path=_get_db(), format=output_format, depth=depth,
-                      include_out=include_out)
+    return api.search(
+        query,
+        db_path=_get_db(),
+        format=output_format,
+        depth=depth,
+        include_out=include_out,
+    )
 
 
 @mcp.tool()
@@ -96,8 +105,12 @@ def explain(node_id: str) -> str:
 
 
 @mcp.tool()
-def list_beliefs(status: str = "", premises_only: bool = False, namespace: str = "",
-                 output_format: str = "json") -> str:
+def list_beliefs(
+    status: str = "",
+    premises_only: bool = False,
+    namespace: str = "",
+    output_format: str = "json",
+) -> str:
     """List beliefs in the network with optional filters.
 
     Args:
@@ -118,7 +131,9 @@ def list_beliefs(status: str = "", premises_only: bool = False, namespace: str =
 
 
 @mcp.tool()
-def add(node_id: str, text: str, sl: str = "", unless: str = "", label: str = "") -> str:
+def add(
+    node_id: str, text: str, sl: str = "", unless: str = "", label: str = ""
+) -> str:
     """Add a belief to the network. Without sl, adds as a premise. With sl, adds as derived.
 
     Args:
@@ -129,7 +144,9 @@ def add(node_id: str, text: str, sl: str = "", unless: str = "", label: str = ""
         label: Optional justification label
     """
     try:
-        result = api.add_node(node_id, text, sl=sl, unless=unless, label=label, db_path=_get_db())
+        result = api.add_node(
+            node_id, text, sl=sl, unless=unless, label=label, db_path=_get_db()
+        )
         return json.dumps(result, indent=2)
     except (ValueError, KeyError) as e:
         return json.dumps({"error": str(e)})
@@ -144,7 +161,9 @@ def retract(node_id: str, reason: str = "") -> str:
         reason: Why this belief is being retracted
     """
     try:
-        return json.dumps(api.retract_node(node_id, reason=reason, db_path=_get_db()), indent=2)
+        return json.dumps(
+            api.retract_node(node_id, reason=reason, db_path=_get_db()), indent=2
+        )
     except KeyError:
         return json.dumps({"error": f"Node '{node_id}' not found"})
 
@@ -186,7 +205,9 @@ def what_if(node_id: str, action: str = "retract") -> str:
 
 
 @mcp.tool()
-def add_justification(node_id: str, sl: str = "", unless: str = "", label: str = "") -> str:
+def add_justification(
+    node_id: str, sl: str = "", unless: str = "", label: str = ""
+) -> str:
     """Add an additional justification to an existing belief.
 
     Can bring an OUT belief back to IN if the new justification is satisfied.
@@ -198,7 +219,9 @@ def add_justification(node_id: str, sl: str = "", unless: str = "", label: str =
         label: Optional justification label
     """
     try:
-        result = api.add_justification(node_id, sl=sl, unless=unless, label=label, db_path=_get_db())
+        result = api.add_justification(
+            node_id, sl=sl, unless=unless, label=label, db_path=_get_db()
+        )
         return json.dumps(result, indent=2)
     except (ValueError, KeyError) as e:
         return json.dumps({"error": str(e)})
@@ -233,8 +256,9 @@ def trace(node_id: str) -> str:
 
 
 @mcp.tool()
-def compact(budget: int = 500, include_out: bool = False,
-            output_format: str = "default") -> str:
+def compact(
+    budget: int = 500, include_out: bool = False, output_format: str = "default"
+) -> str:
     """Get a token-budgeted summary of the entire belief network.
 
     Args:
@@ -242,8 +266,9 @@ def compact(budget: int = 500, include_out: bool = False,
         include_out: Include OUT (retracted) beliefs in summary (default: false)
         output_format: "default" or "names-only" for bare IDs (900x compression)
     """
-    return api.compact(budget=budget, include_out=include_out, format=output_format,
-                       db_path=_get_db())
+    return api.compact(
+        budget=budget, include_out=include_out, format=output_format, db_path=_get_db()
+    )
 
 
 # --- Tier 3: Data management ---

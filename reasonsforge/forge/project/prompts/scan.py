@@ -15,7 +15,9 @@ def build_scan_prompt(
     """Build a prompt for scanning project issues and pull requests."""
     state_label = state or "open"
     if state_label in ("closed", "all"):
-        state_instructions = _CLOSED_INSTRUCTIONS if state_label == "closed" else _ALL_INSTRUCTIONS
+        state_instructions = (
+            _CLOSED_INSTRUCTIONS if state_label == "closed" else _ALL_INSTRUCTIONS
+        )
     else:
         state_instructions = _OPEN_INSTRUCTIONS
 

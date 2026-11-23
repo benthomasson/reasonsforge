@@ -98,12 +98,14 @@ def identify_sections(pages: list[str]) -> list[dict]:
                 title = line.title()
                 # Use "0" for abstract, "R" for references, etc.
                 number = "0" if "abstract" in title.lower() else title[0]
-                sections.append({
-                    "number": number,
-                    "title": title,
-                    "start_page": page_idx + 1,
-                    "line": line,
-                })
+                sections.append(
+                    {
+                        "number": number,
+                        "title": title,
+                        "start_page": page_idx + 1,
+                        "line": line,
+                    }
+                )
                 continue
 
             # Check numbered section patterns
@@ -114,19 +116,20 @@ def identify_sections(pages: list[str]) -> list[dict]:
                     title = m.group(2).strip().rstrip(".")
                     if not title:
                         title = f"Chapter {number}"
-                    sections.append({
-                        "number": number,
-                        "title": title,
-                        "start_page": page_idx + 1,
-                        "line": line,
-                    })
+                    sections.append(
+                        {
+                            "number": number,
+                            "title": title,
+                            "start_page": page_idx + 1,
+                            "line": line,
+                        }
+                    )
                     break
 
     # Filter out false positives: numbered items with implausibly high numbers
     # (real top-level sections rarely exceed 20)
     sections = [
-        s for s in sections
-        if not s["number"].isdigit() or int(s["number"]) <= 20
+        s for s in sections if not s["number"].isdigit() or int(s["number"]) <= 20
     ]
 
     # Compute end pages: each section ends where the next one starts
@@ -138,7 +141,9 @@ def identify_sections(pages: list[str]) -> list[dict]:
     return sections
 
 
-def fill_gaps(sections: list[dict], total_pages: int, pages_per_chunk: int = 5) -> list[dict]:
+def fill_gaps(
+    sections: list[dict], total_pages: int, pages_per_chunk: int = 5
+) -> list[dict]:
     """Add chunks for page ranges not covered by any detected section."""
     covered = set()
     for s in sections:
@@ -159,22 +164,26 @@ def fill_gaps(sections: list[dict], total_pages: int, pages_per_chunk: int = 5) 
         if p == prev + 1 and (p - chunk_start) < pages_per_chunk:
             prev = p
             continue
-        gap_sections.append({
-            "number": f"G{chunk_idx}",
-            "title": f"Pages {chunk_start}-{prev}",
-            "start_page": chunk_start,
-            "end_page": prev,
-        })
+        gap_sections.append(
+            {
+                "number": f"G{chunk_idx}",
+                "title": f"Pages {chunk_start}-{prev}",
+                "start_page": chunk_start,
+                "end_page": prev,
+            }
+        )
         chunk_idx += 1
         chunk_start = p
         prev = p
 
-    gap_sections.append({
-        "number": f"G{chunk_idx}",
-        "title": f"Pages {chunk_start}-{prev}",
-        "start_page": chunk_start,
-        "end_page": prev,
-    })
+    gap_sections.append(
+        {
+            "number": f"G{chunk_idx}",
+            "title": f"Pages {chunk_start}-{prev}",
+            "start_page": chunk_start,
+            "end_page": prev,
+        }
+    )
 
     combined = sections + gap_sections
     combined.sort(key=lambda s: s["start_page"])
@@ -200,9 +209,7 @@ def format_section_content(
     end = section["end_page"]
     raw_pages = pages[start:end]
 
-    header = (
-        f"**Source:** {source_label}, pp. {section['start_page']}-{section['end_page']}\n\n"
-    )
+    header = f"**Source:** {source_label}, pp. {section['start_page']}-{section['end_page']}\n\n"
 
     body = ""
     for i, page_text in enumerate(raw_pages):
@@ -261,7 +268,9 @@ def cmd_chunk_pdf(args):
 
     print(f"  Found {len(sections)} sections:")
     for s in sections:
-        print(f"    {s['number']}. {s['title']} (pp. {s['start_page']}-{s['end_page']})")
+        print(
+            f"    {s['number']}. {s['title']} (pp. {s['start_page']}-{s['end_page']})"
+        )
 
     if args.dry_run:
         print("\n(dry run — no entries created)")

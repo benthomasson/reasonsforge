@@ -19,9 +19,11 @@ def run_cli(*args, db_path=None):
         argv += ["--db", db_path]
     argv += list(args)
     stdout, stderr = StringIO(), StringIO()
-    with patch.object(sys, "argv", argv), \
-         patch.object(sys, "stdout", stdout), \
-         patch.object(sys, "stderr", stderr):
+    with (
+        patch.object(sys, "argv", argv),
+        patch.object(sys, "stdout", stdout),
+        patch.object(sys, "stderr", stderr),
+    ):
         try:
             main()
         except SystemExit as e:
@@ -30,25 +32,39 @@ def run_cli(*args, db_path=None):
 
 
 class TestBuildStructuredReport:
-
     def test_basic_report(self):
         node_detail = {"text": "Water boils at 100C", "truth_value": "IN"}
         explain_steps = [
-            {"node": "derived-boil", "truth_value": "IN",
-             "reason": "SL justification valid",
-             "antecedents": ["premise-a", "premise-b"], "label": ""},
+            {
+                "node": "derived-boil",
+                "truth_value": "IN",
+                "reason": "SL justification valid",
+                "antecedents": ["premise-a", "premise-b"],
+                "label": "",
+            },
             {"node": "premise-a", "truth_value": "IN", "reason": "premise"},
             {"node": "premise-b", "truth_value": "IN", "reason": "premise"},
         ]
         premises_data = [
-            {"id": "premise-a", "text": "Water is H2O", "truth_value": "IN",
-             "source": "chem.md"},
-            {"id": "premise-b", "text": "Pressure is 1 atm", "truth_value": "IN",
-             "source": "env.md"},
+            {
+                "id": "premise-a",
+                "text": "Water is H2O",
+                "truth_value": "IN",
+                "source": "chem.md",
+            },
+            {
+                "id": "premise-b",
+                "text": "Pressure is 1 atm",
+                "truth_value": "IN",
+                "source": "env.md",
+            },
         ]
 
         report = _build_structured_report(
-            "derived-boil", node_detail, explain_steps, premises_data,
+            "derived-boil",
+            node_detail,
+            explain_steps,
+            premises_data,
             source_chunks={},
         )
 
@@ -66,18 +82,29 @@ class TestBuildStructuredReport:
             {"node": "p1", "truth_value": "IN", "reason": "premise"},
         ]
         premises_data = [
-            {"id": "p1", "text": "Evidence from source", "truth_value": "IN",
-             "source": "doc.md"},
+            {
+                "id": "p1",
+                "text": "Evidence from source",
+                "truth_value": "IN",
+                "source": "doc.md",
+            },
         ]
         chunks = {
             "p1": [
-                {"filename": "doc.md", "section": "Chapter 1",
-                 "text": "The relevant evidence text.", "cluster": ""},
+                {
+                    "filename": "doc.md",
+                    "section": "Chapter 1",
+                    "text": "The relevant evidence text.",
+                    "cluster": "",
+                },
             ],
         }
 
         report = _build_structured_report(
-            "test-belief", node_detail, explain_steps, premises_data,
+            "test-belief",
+            node_detail,
+            explain_steps,
+            premises_data,
             source_chunks=chunks,
         )
 
@@ -92,7 +119,10 @@ class TestBuildStructuredReport:
         ]
 
         report = _build_structured_report(
-            "p1", node_detail, explain_steps, premises_data=[],
+            "p1",
+            node_detail,
+            explain_steps,
+            premises_data=[],
             source_chunks={},
         )
 
@@ -102,16 +132,26 @@ class TestBuildStructuredReport:
     def test_out_belief(self):
         node_detail = {"text": "Retracted claim", "truth_value": "OUT"}
         explain_steps = [
-            {"node": "d1", "truth_value": "OUT",
-             "reason": "all justifications invalid"},
+            {
+                "node": "d1",
+                "truth_value": "OUT",
+                "reason": "all justifications invalid",
+            },
         ]
         premises_data = [
-            {"id": "p1", "text": "Retracted evidence", "truth_value": "OUT",
-             "source": ""},
+            {
+                "id": "p1",
+                "text": "Retracted evidence",
+                "truth_value": "OUT",
+                "source": "",
+            },
         ]
 
         report = _build_structured_report(
-            "d1", node_detail, explain_steps, premises_data,
+            "d1",
+            node_detail,
+            explain_steps,
+            premises_data,
             source_chunks={},
         )
 
@@ -121,14 +161,21 @@ class TestBuildStructuredReport:
     def test_outlist_shown(self):
         node_detail = {"text": "Gated belief", "truth_value": "OUT"}
         explain_steps = [
-            {"node": "g1", "truth_value": "OUT",
-             "reason": "SL justification invalid",
-             "antecedents": ["p1"], "outlist": ["blocker-1"],
-             "label": "gate"},
+            {
+                "node": "g1",
+                "truth_value": "OUT",
+                "reason": "SL justification invalid",
+                "antecedents": ["p1"],
+                "outlist": ["blocker-1"],
+                "label": "gate",
+            },
         ]
 
         report = _build_structured_report(
-            "g1", node_detail, explain_steps, premises_data=[],
+            "g1",
+            node_detail,
+            explain_steps,
+            premises_data=[],
             source_chunks={},
         )
 
@@ -137,13 +184,13 @@ class TestBuildStructuredReport:
 
 
 class TestApiReportBelief:
-
     def test_basic_report(self, tmp_path):
         db = str(tmp_path / "test.db")
         api.add_node("premise-a", "Water is H2O", db_path=db)
         api.add_node("premise-b", "Pressure is 1 atm", db_path=db)
-        api.add_node("derived-boil", "Water boils at 100C",
-                     sl="premise-a,premise-b", db_path=db)
+        api.add_node(
+            "derived-boil", "Water boils at 100C", sl="premise-a,premise-b", db_path=db
+        )
 
         result = api.report_belief("derived-boil", db_path=db)
 
@@ -168,17 +215,27 @@ class TestApiReportBelief:
 
         sources_db = str(tmp_path / "sources.db")
         conn = sqlite3.connect(sources_db)
-        conn.execute("CREATE TABLE chunks (id INTEGER PRIMARY KEY, text TEXT, cluster TEXT, filename TEXT, section TEXT)")
-        conn.execute("CREATE VIRTUAL TABLE chunks_fts USING fts5(text, content=chunks, content_rowid=id)")
-        conn.execute("INSERT INTO chunks VALUES (1, 'PostgreSQL is the primary database for persistent storage', '', 'arch.md', 'Storage Layer')")
-        conn.execute("INSERT INTO chunks_fts(rowid, text) VALUES (1, 'PostgreSQL is the primary database for persistent storage')")
+        conn.execute(
+            "CREATE TABLE chunks (id INTEGER PRIMARY KEY, text TEXT, cluster TEXT, filename TEXT, section TEXT)"
+        )
+        conn.execute(
+            "CREATE VIRTUAL TABLE chunks_fts USING fts5(text, content=chunks, content_rowid=id)"
+        )
+        conn.execute(
+            "INSERT INTO chunks VALUES (1, 'PostgreSQL is the primary database for persistent storage', '', 'arch.md', 'Storage Layer')"
+        )
+        conn.execute(
+            "INSERT INTO chunks_fts(rowid, text) VALUES (1, 'PostgreSQL is the primary database for persistent storage')"
+        )
         conn.commit()
         conn.close()
 
         result = api.report_belief("d1", sources_db=sources_db, db_path=db)
 
         assert result["premise_count"] == 1
-        assert "Source Evidence:" in result["report"] or "PostgreSQL" in result["report"]
+        assert (
+            "Source Evidence:" in result["report"] or "PostgreSQL" in result["report"]
+        )
 
     def test_missing_node_raises(self, tmp_path):
         db = str(tmp_path / "test.db")
@@ -189,7 +246,6 @@ class TestApiReportBelief:
 
 
 class TestCliReport:
-
     def test_help(self):
         stdout, stderr, code = run_cli("report", "--help")
         assert code == 0
@@ -213,7 +269,11 @@ class TestCliReport:
 
         out_file = str(tmp_path / "report.md")
         stdout, stderr, code = run_cli(
-            "report", "p1", "-o", out_file, db_path=db,
+            "report",
+            "p1",
+            "-o",
+            out_file,
+            db_path=db,
         )
 
         assert code == 0

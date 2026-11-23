@@ -108,9 +108,21 @@ class JiraSource:
             jql = " AND ".join(parts) + " ORDER BY updated DESC"
 
         fields = [
-            "summary", "description", "status", "labels", "assignee",
-            "reporter", "priority", "issuetype", "parent", "issuelinks",
-            "created", "updated", "resolutiondate", "comment", "fixVersions",
+            "summary",
+            "description",
+            "status",
+            "labels",
+            "assignee",
+            "reporter",
+            "priority",
+            "issuetype",
+            "parent",
+            "issuelinks",
+            "created",
+            "updated",
+            "resolutiondate",
+            "comment",
+            "fixVersions",
         ]
 
         # Use POST /search/jql with cursor-based pagination
@@ -135,12 +147,15 @@ class JiraSource:
 
     def get_issue(self, key: str) -> Issue:
         """Get a single issue with full details."""
-        data = self._get(f"issue/{key}", params={
-            "fields": "summary,description,status,labels,assignee,reporter,"
-                      "priority,issuetype,parent,issuelinks,created,updated,"
-                      "resolutiondate,comment,fixVersions,subtasks",
-            "expand": "renderedFields",
-        })
+        data = self._get(
+            f"issue/{key}",
+            params={
+                "fields": "summary,description,status,labels,assignee,reporter,"
+                "priority,issuetype,parent,issuelinks,created,updated,"
+                "resolutiondate,comment,fixVersions,subtasks",
+                "expand": "renderedFields",
+            },
+        )
         issue = self._normalize(data)
         # Subtasks field only covers literal sub-tasks; epics/stories use
         # parent linkage.  Query for children-by-parent to catch both.
@@ -242,11 +257,15 @@ class JiraSource:
             if isinstance(c_body, dict):
                 c_body = self._extract_adf_text(c_body)
             c_author = c.get("author", {})
-            comments.append(IssueComment(
-                author=c_author.get("displayName", c_author.get("emailAddress", "")),
-                body=c_body,
-                created=c.get("created", ""),
-            ))
+            comments.append(
+                IssueComment(
+                    author=c_author.get(
+                        "displayName", c_author.get("emailAddress", "")
+                    ),
+                    body=c_body,
+                    created=c.get("created", ""),
+                )
+            )
 
         return Issue(
             id=key,

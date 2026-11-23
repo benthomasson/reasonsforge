@@ -13,7 +13,7 @@ class GitHubSource:
 
     def __init__(self, repo: str):
         """Args:
-            repo: owner/repo slug (e.g., "benthomasson/ftl-code-expert")
+        repo: owner/repo slug (e.g., "benthomasson/ftl-code-expert")
         """
         self.repo = repo
         self.platform = "github"
@@ -27,12 +27,18 @@ class GitHubSource:
     ) -> list[Issue]:
         """List issues from the repository."""
         cmd = [
-            "gh", "issue", "list",
-            "--repo", self.repo,
-            "--state", state,
-            "--json", "number,title,url,body,state,labels,assignees,"
-                      "milestone,author,createdAt,updatedAt,closedAt,comments",
-            "--limit", str(limit),
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            self.repo,
+            "--state",
+            state,
+            "--json",
+            "number,title,url,body,state,labels,assignees,"
+            "milestone,author,createdAt,updatedAt,closedAt,comments",
+            "--limit",
+            str(limit),
         ]
         if labels:
             for label in labels:
@@ -50,10 +56,15 @@ class GitHubSource:
     def get_issue(self, number: int) -> Issue:
         """Get a single issue with full details and comments."""
         cmd = [
-            "gh", "issue", "view", str(number),
-            "--repo", self.repo,
-            "--json", "number,title,url,body,state,labels,assignees,"
-                      "milestone,author,createdAt,updatedAt,closedAt,comments",
+            "gh",
+            "issue",
+            "view",
+            str(number),
+            "--repo",
+            self.repo,
+            "--json",
+            "number,title,url,body,state,labels,assignees,"
+            "milestone,author,createdAt,updatedAt,closedAt,comments",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -65,12 +76,17 @@ class GitHubSource:
     def get_pr(self, number: int) -> PullRequest:
         """Get a single pull request with full details."""
         cmd = [
-            "gh", "pr", "view", str(number),
-            "--repo", self.repo,
-            "--json", "number,title,url,body,state,labels,author,"
-                      "createdAt,updatedAt,mergedAt,mergedBy,"
-                      "files,additions,deletions,changedFiles,"
-                      "reviews,comments,closingIssuesReferences",
+            "gh",
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            self.repo,
+            "--json",
+            "number,title,url,body,state,labels,author,"
+            "createdAt,updatedAt,mergedAt,mergedBy,"
+            "files,additions,deletions,changedFiles,"
+            "reviews,comments,closingIssuesReferences",
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -91,14 +107,20 @@ class GitHubSource:
         if state == "closed":
             pr_state = "merged"
         cmd = [
-            "gh", "pr", "list",
-            "--repo", self.repo,
-            "--state", pr_state,
-            "--json", "number,title,url,body,state,labels,author,"
-                      "createdAt,updatedAt,mergedAt,mergedBy,"
-                      "files,additions,deletions,changedFiles,"
-                      "reviews,comments,closingIssuesReferences",
-            "--limit", str(limit),
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            self.repo,
+            "--state",
+            pr_state,
+            "--json",
+            "number,title,url,body,state,labels,author,"
+            "createdAt,updatedAt,mergedAt,mergedBy,"
+            "files,additions,deletions,changedFiles,"
+            "reviews,comments,closingIssuesReferences",
+            "--limit",
+            str(limit),
         ]
         if since:
             cmd.extend(["--search", f"updated:>={since}"])
@@ -128,21 +150,25 @@ class GitHubSource:
         # Extract reviews
         reviews = []
         for r in raw.get("reviews", []):
-            reviews.append({
-                "author": r.get("author", {}).get("login", ""),
-                "state": r.get("state", ""),
-                "body": r.get("body", ""),
-            })
+            reviews.append(
+                {
+                    "author": r.get("author", {}).get("login", ""),
+                    "state": r.get("state", ""),
+                    "body": r.get("body", ""),
+                }
+            )
 
         # Extract comments
         comments = []
         for c in raw.get("comments", []):
-            comments.append(IssueComment(
-                author=c.get("author", {}).get("login", ""),
-                body=c.get("body", ""),
-                created=c.get("createdAt", ""),
-                url=c.get("url", ""),
-            ))
+            comments.append(
+                IssueComment(
+                    author=c.get("author", {}).get("login", ""),
+                    body=c.get("body", ""),
+                    created=c.get("createdAt", ""),
+                    url=c.get("url", ""),
+                )
+            )
 
         merged_by = ""
         mb = raw.get("mergedBy")
@@ -178,12 +204,14 @@ class GitHubSource:
         number = raw.get("number", 0)
         comments = []
         for c in raw.get("comments", []):
-            comments.append(IssueComment(
-                author=c.get("author", {}).get("login", ""),
-                body=c.get("body", ""),
-                created=c.get("createdAt", ""),
-                url=c.get("url", ""),
-            ))
+            comments.append(
+                IssueComment(
+                    author=c.get("author", {}).get("login", ""),
+                    body=c.get("body", ""),
+                    created=c.get("createdAt", ""),
+                    url=c.get("url", ""),
+                )
+            )
 
         labels = [l.get("name", "") for l in raw.get("labels", [])]
         assignees = [a.get("login", "") for a in raw.get("assignees", [])]

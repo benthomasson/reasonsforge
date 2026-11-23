@@ -61,6 +61,7 @@ def make_drr_args(**overrides):
 
 # --- auto_accept_proposals ---
 
+
 class TestAutoAcceptProposals:
     def test_replaces_markers(self, tmp_path):
         f = tmp_path / "proposals.md"
@@ -78,10 +79,7 @@ class TestAutoAcceptProposals:
     def test_preserves_already_accepted(self, tmp_path):
         f = tmp_path / "proposals.md"
         f.write_text(
-            "### [ACCEPT] already-good\n"
-            "Text\n"
-            "### [ACCEPT/REJECT] needs-accept\n"
-            "Text\n"
+            "### [ACCEPT] already-good\nText\n### [ACCEPT/REJECT] needs-accept\nText\n"
         )
         auto_accept_proposals(str(f))
         text = f.read_text()
@@ -90,12 +88,7 @@ class TestAutoAcceptProposals:
 
     def test_converts_reject_to_accept(self, tmp_path):
         f = tmp_path / "proposals.md"
-        f.write_text(
-            "### [ACCEPT] good-belief\n"
-            "Text\n"
-            "### [REJECT] weak-belief\n"
-            "Text\n"
-        )
+        f.write_text("### [ACCEPT] good-belief\nText\n### [REJECT] weak-belief\nText\n")
         auto_accept_proposals(str(f))
         text = f.read_text()
         assert text.count("[ACCEPT]") == 2
@@ -111,6 +104,7 @@ class TestAutoAcceptProposals:
 
 # --- Stage: Extract ---
 
+
 class TestStageExtract:
     def test_stops_on_no_auto_accept(self, work_dir, capsys):
         args = make_pipeline_args(no_auto_accept=True)
@@ -125,8 +119,10 @@ class TestStageExtract:
         proposals.write_text("### [ACCEPT/REJECT] test-belief\nText\n- Source: test\n")
         args = make_pipeline_args()
 
-        with patch("reasonsforge.forge.propose.cmd_propose_beliefs"), \
-             patch("reasonsforge.forge.propose.cmd_accept_beliefs") as mock_accept:
+        with (
+            patch("reasonsforge.forge.propose.cmd_propose_beliefs"),
+            patch("reasonsforge.forge.propose.cmd_accept_beliefs") as mock_accept,
+        ):
             result = _stage_extract(args)
 
         assert result is True
@@ -138,6 +134,7 @@ class TestStageExtract:
 
 # --- Stage: Derive ---
 
+
 class TestStageDerive:
     def test_returns_zero_on_empty_network(self, work_dir):
         args = make_pipeline_args()
@@ -147,35 +144,56 @@ class TestStageDerive:
 
     def test_saturates_on_no_proposals(self, work_dir):
         args = make_pipeline_args()
-        nodes = {"belief-1": {"text": "Test", "truth_value": "IN", "justifications": []}}
+        nodes = {
+            "belief-1": {"text": "Test", "truth_value": "IN", "justifications": []}
+        }
         stats = {"total_in": 1, "total_derived": 0, "max_depth": 0, "agents": 0}
-        with patch("reasonsforge.api.export_network", return_value={"nodes": nodes}), \
-             patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)), \
-             patch("reasonsforge.forge.pipeline.invoke_sync", return_value="No proposals"), \
-             patch("reasonsforge.derive.parse_proposals", return_value=[]):
+        with (
+            patch("reasonsforge.api.export_network", return_value={"nodes": nodes}),
+            patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)),
+            patch(
+                "reasonsforge.forge.pipeline.invoke_sync", return_value="No proposals"
+            ),
+            patch("reasonsforge.derive.parse_proposals", return_value=[]),
+        ):
             added, _ = _stage_derive(args)
         assert added == 0
 
     def test_applies_valid_proposals(self, work_dir):
         args = make_pipeline_args(max_derive_rounds=1)
-        nodes = {"belief-1": {"text": "Test", "truth_value": "IN", "justifications": []}}
+        nodes = {
+            "belief-1": {"text": "Test", "truth_value": "IN", "justifications": []}
+        }
         stats = {"total_in": 1, "total_derived": 0, "max_depth": 0, "agents": 0}
         proposal = {
-            "id": "derived-1", "text": "Derived",
-            "antecedents": ["belief-1"], "unless": [],
-            "label": "test", "kind": "derive",
+            "id": "derived-1",
+            "text": "Derived",
+            "antecedents": ["belief-1"],
+            "unless": [],
+            "label": "test",
+            "kind": "derive",
         }
-        with patch("reasonsforge.api.export_network", return_value={"nodes": nodes}), \
-             patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)), \
-             patch("reasonsforge.forge.pipeline.invoke_sync", return_value="proposal text"), \
-             patch("reasonsforge.derive.parse_proposals", return_value=[proposal]), \
-             patch("reasonsforge.derive.validate_proposals", return_value=([proposal], [])), \
-             patch("reasonsforge.derive.apply_proposals", return_value=[(proposal, {"truth_value": "IN"})]):
+        with (
+            patch("reasonsforge.api.export_network", return_value={"nodes": nodes}),
+            patch("reasonsforge.derive.build_prompt", return_value=("prompt", stats)),
+            patch(
+                "reasonsforge.forge.pipeline.invoke_sync", return_value="proposal text"
+            ),
+            patch("reasonsforge.derive.parse_proposals", return_value=[proposal]),
+            patch(
+                "reasonsforge.derive.validate_proposals", return_value=([proposal], [])
+            ),
+            patch(
+                "reasonsforge.derive.apply_proposals",
+                return_value=[(proposal, {"truth_value": "IN"})],
+            ),
+        ):
             added, _ = _stage_derive(args)
         assert added == 1
 
 
 # --- Stage: Review ---
+
 
 class TestStageReview:
     def test_returns_review_result(self, work_dir):
@@ -189,6 +207,7 @@ class TestStageReview:
 
 # --- Stage: Repair ---
 
+
 class TestStageRepair:
     def test_skips_when_no_invalids(self, work_dir, capsys):
         args = make_pipeline_args()
@@ -200,16 +219,22 @@ class TestStageRepair:
 
     def test_calls_research_with_invalid_ids(self, work_dir):
         args = make_pipeline_args()
-        review_result = {"results": [
-            {"belief_id": "b1", "valid": False},
-            {"belief_id": "b2", "valid": True},
-            {"belief_id": "b3", "valid": False},
-        ]}
-        research_result = {
-            "total_invalid": 2, "linked": 1,
-            "softened": 1, "abandoned": 0,
+        review_result = {
+            "results": [
+                {"belief_id": "b1", "valid": False},
+                {"belief_id": "b2", "valid": True},
+                {"belief_id": "b3", "valid": False},
+            ]
         }
-        with patch("reasonsforge.api.research", return_value=research_result) as mock_research:
+        research_result = {
+            "total_invalid": 2,
+            "linked": 1,
+            "softened": 1,
+            "abandoned": 0,
+        }
+        with patch(
+            "reasonsforge.api.research", return_value=research_result
+        ) as mock_research:
             result = _stage_repair(args, review_result)
         assert mock_research.called
         call_kwargs = mock_research.call_args[1]
@@ -218,16 +243,22 @@ class TestStageRepair:
     def test_handles_id_key_from_review(self, work_dir):
         """review_beliefs returns 'id' not 'belief_id' — repair must handle both."""
         args = make_pipeline_args()
-        review_result = {"results": [
-            {"id": "b1", "valid": False},
-            {"id": "b2", "valid": True},
-            {"id": "b3", "valid": False},
-        ]}
-        research_result = {
-            "total_invalid": 2, "linked": 1,
-            "softened": 0, "abandoned": 1,
+        review_result = {
+            "results": [
+                {"id": "b1", "valid": False},
+                {"id": "b2", "valid": True},
+                {"id": "b3", "valid": False},
+            ]
         }
-        with patch("reasonsforge.api.research", return_value=research_result) as mock_research:
+        research_result = {
+            "total_invalid": 2,
+            "linked": 1,
+            "softened": 0,
+            "abandoned": 1,
+        }
+        with patch(
+            "reasonsforge.api.research", return_value=research_result
+        ) as mock_research:
             result = _stage_repair(args, review_result)
         assert mock_research.called
         call_kwargs = mock_research.call_args[1]
@@ -238,10 +269,14 @@ class TestStageRepair:
 
 # --- Stage: Deduplicate ---
 
+
 class TestStageDeduplicate:
     def test_reports_no_duplicates(self, work_dir, capsys):
         args = make_pipeline_args()
-        with patch("reasonsforge.api.deduplicate", return_value={"clusters": [], "retracted": []}):
+        with patch(
+            "reasonsforge.api.deduplicate",
+            return_value={"clusters": [], "retracted": []},
+        ):
             _stage_deduplicate(args)
         captured = capsys.readouterr()
         assert "No duplicates found" in captured.err
@@ -249,25 +284,36 @@ class TestStageDeduplicate:
 
 # --- Full Pipeline ---
 
+
 class TestCmdPipeline:
     def test_model_not_available_exits(self, work_dir):
         args = make_pipeline_args(model="nonexistent")
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=False), \
-             pytest.raises(SystemExit):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=False
+            ),
+            pytest.raises(SystemExit),
+        ):
             cmd_pipeline(args)
 
     def test_converges_early_on_zero_invalids_and_zero_added(self, work_dir, capsys):
         args = make_pipeline_args(rounds=3, url=None, pdf=None)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.pipeline._stage_export"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=True),
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.pipeline._stage_export"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         captured = capsys.readouterr()
@@ -275,19 +321,32 @@ class TestCmdPipeline:
 
     def test_runs_all_rounds_without_convergence(self, work_dir, capsys):
         args = make_pipeline_args(rounds=2, url=None, pdf=None)
-        review_result = {"reviewed": 5, "invalid": 1, "results": [
-            {"belief_id": "b1", "valid": False},
-        ]}
+        review_result = {
+            "reviewed": 5,
+            "invalid": 1,
+            "results": [
+                {"belief_id": "b1", "valid": False},
+            ],
+        }
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_repair"), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.pipeline._stage_export"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=True),
+            patch(
+                "reasonsforge.forge.pipeline._stage_derive",
+                return_value=(1, ["derived-1"]),
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_repair"),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.pipeline._stage_export"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         captured = capsys.readouterr()
@@ -297,12 +356,16 @@ class TestCmdPipeline:
     def test_no_auto_accept_stops_early(self, work_dir, capsys):
         args = make_pipeline_args(no_auto_accept=True, url=None, pdf=None)
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=False), \
-             patch("reasonsforge.forge.pipeline._stage_derive") as mock_derive, \
-             patch("reasonsforge.forge.pipeline._stage_export") as mock_export, \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=False),
+            patch("reasonsforge.forge.pipeline._stage_derive") as mock_derive,
+            patch("reasonsforge.forge.pipeline._stage_export") as mock_export,
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         assert not mock_derive.called
@@ -311,19 +374,26 @@ class TestCmdPipeline:
 
 # --- Pipeline State ---
 
+
 class TestPipelineState:
     def test_state_file_created_on_run(self, work_dir):
         args = make_pipeline_args(rounds=1, url=None, pdf=None)
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.pipeline._stage_export"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=True),
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.pipeline._stage_export"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         state = _load_state()
@@ -334,11 +404,17 @@ class TestPipelineState:
     def test_state_records_failure(self, work_dir):
         args = make_pipeline_args(url=None, pdf=None)
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize",
-                   side_effect=RuntimeError("LLM exploded")), \
-             patch("reasonsforge.forge.caffeinate.hold"), \
-             pytest.raises(RuntimeError, match="LLM exploded"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_summarize",
+                side_effect=RuntimeError("LLM exploded"),
+            ),
+            patch("reasonsforge.forge.caffeinate.hold"),
+            pytest.raises(RuntimeError, match="LLM exploded"),
+        ):
             cmd_pipeline(args)
 
         state = _load_state()
@@ -351,12 +427,18 @@ class TestPipelineState:
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
         # First run: complete through summarize, then fail at extract
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract",
-                   side_effect=RuntimeError("crash")), \
-             patch("reasonsforge.forge.caffeinate.hold"), \
-             pytest.raises(RuntimeError):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch(
+                "reasonsforge.forge.pipeline._stage_extract",
+                side_effect=RuntimeError("crash"),
+            ),
+            patch("reasonsforge.forge.caffeinate.hold"),
+            pytest.raises(RuntimeError),
+        ):
             cmd_pipeline(args)
 
         state = _load_state()
@@ -367,14 +449,20 @@ class TestPipelineState:
         # Resume: should skip ingest and summarize
         resume_args = make_pipeline_args(rounds=1, url=None, pdf=None, resume=True)
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize") as mock_summarize, \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.pipeline._stage_export"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize") as mock_summarize,
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=True),
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.pipeline._stage_export"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(resume_args)
 
         assert not mock_summarize.called
@@ -387,18 +475,26 @@ class TestPipelineState:
     def test_resume_without_state_exits(self, work_dir):
         args = make_pipeline_args(resume=True)
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.caffeinate.hold"), \
-             pytest.raises(SystemExit):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.caffeinate.hold"),
+            pytest.raises(SystemExit),
+        ):
             cmd_pipeline(args)
 
     def test_no_auto_accept_sets_paused(self, work_dir):
         args = make_pipeline_args(no_auto_accept=True, url=None, pdf=None)
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=False), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=False),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         state = _load_state()
@@ -410,14 +506,20 @@ class TestPipelineState:
         args = make_pipeline_args(rounds=1, url=None, pdf=None)
         review_result = {"reviewed": 0, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_summarize"), \
-             patch("reasonsforge.forge.pipeline._stage_extract", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.pipeline._stage_export"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_summarize"),
+            patch("reasonsforge.forge.pipeline._stage_extract", return_value=True),
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.pipeline._stage_export"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(args)
 
         state = _load_state()
@@ -425,9 +527,13 @@ class TestPipelineState:
 
         # Now resume — should return early
         resume_args = make_pipeline_args(resume=True)
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_export") as mock_export, \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_export") as mock_export,
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_pipeline(resume_args)
 
         assert not mock_export.called
@@ -441,22 +547,31 @@ class TestPipelineState:
         sf.write_text("{truncated")
 
         args = make_pipeline_args(resume=True)
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.caffeinate.hold"), \
-             pytest.raises(SystemExit):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.caffeinate.hold"),
+            pytest.raises(SystemExit),
+        ):
             cmd_pipeline(args)
 
 
 # --- Derive-Review-Repair ---
+
 
 class TestConvergenceLoop:
     def test_converges_on_zero_invalids_and_zero_derived(self, work_dir):
         args = make_drr_args(rounds=3)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"):
+        with (
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+        ):
             summary = _run_convergence_loop(args, rounds=3)
 
         assert summary["converged"] is True
@@ -464,15 +579,28 @@ class TestConvergenceLoop:
 
     def test_runs_max_rounds_without_convergence(self, work_dir):
         args = make_drr_args(rounds=2)
-        review_result = {"reviewed": 5, "invalid": 1, "results": [
-            {"belief_id": "b1", "valid": False},
-        ]}
+        review_result = {
+            "reviewed": 5,
+            "invalid": 1,
+            "results": [
+                {"belief_id": "b1", "valid": False},
+            ],
+        }
         repair_result = {"linked": 1, "softened": 0, "abandoned": 0}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_repair", return_value=repair_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline._stage_derive",
+                return_value=(1, ["derived-1"]),
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_repair", return_value=repair_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+        ):
             summary = _run_convergence_loop(args, rounds=2)
 
         assert summary["converged"] is False
@@ -484,10 +612,17 @@ class TestConvergenceLoop:
         args = make_drr_args(rounds=1)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(1, ["derived-1"])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_repair") as mock_repair, \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline._stage_derive",
+                return_value=(1, ["derived-1"]),
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_repair") as mock_repair,
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+        ):
             summary = _run_convergence_loop(args, rounds=1)
 
         assert not mock_repair.called
@@ -495,15 +630,28 @@ class TestConvergenceLoop:
 
     def test_summary_accumulates_across_cycles(self, work_dir):
         args = make_drr_args(rounds=2)
-        review_result = {"reviewed": 3, "invalid": 1, "results": [
-            {"belief_id": "b1", "valid": False},
-        ]}
+        review_result = {
+            "reviewed": 3,
+            "invalid": 1,
+            "results": [
+                {"belief_id": "b1", "valid": False},
+            ],
+        }
         repair_result = {"linked": 0, "softened": 1, "abandoned": 0}
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(2, ["d-1", "d-2"])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_repair", return_value=repair_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline._stage_derive",
+                return_value=(2, ["d-1", "d-2"]),
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch(
+                "reasonsforge.forge.pipeline._stage_repair", return_value=repair_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+        ):
             summary = _run_convergence_loop(args, rounds=2)
 
         assert summary["total_derived"] == 4
@@ -519,9 +667,13 @@ class TestConvergenceLoop:
         def on_stage(cycle, stage_num, event, **kwargs):
             events.append((cycle, stage_num, event))
 
-        with patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"):
+        with (
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+        ):
             _run_convergence_loop(args, rounds=1, on_stage=on_stage)
 
         assert (1, 4, "start") in events
@@ -536,27 +688,41 @@ class TestConvergenceLoop:
 class TestCmdDeriveReviewRepair:
     def test_model_not_available_exits(self, work_dir):
         args = make_drr_args(model="nonexistent")
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=False), \
-             pytest.raises(SystemExit):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=False
+            ),
+            pytest.raises(SystemExit),
+        ):
             cmd_derive_review_repair(args)
 
     def test_missing_db_exits(self, work_dir):
         (work_dir / "reasons.db").unlink()
         args = make_drr_args()
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.caffeinate.hold"), \
-             pytest.raises(SystemExit):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.caffeinate.hold"),
+            pytest.raises(SystemExit),
+        ):
             cmd_derive_review_repair(args)
 
     def test_prints_summary(self, work_dir, capsys):
         args = make_drr_args(rounds=1)
         review_result = {"reviewed": 5, "invalid": 0, "results": []}
 
-        with patch("reasonsforge.forge.pipeline.check_model_available", return_value=True), \
-             patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])), \
-             patch("reasonsforge.forge.pipeline._stage_review", return_value=review_result), \
-             patch("reasonsforge.forge.pipeline._stage_deduplicate"), \
-             patch("reasonsforge.forge.caffeinate.hold"):
+        with (
+            patch(
+                "reasonsforge.forge.pipeline.check_model_available", return_value=True
+            ),
+            patch("reasonsforge.forge.pipeline._stage_derive", return_value=(0, [])),
+            patch(
+                "reasonsforge.forge.pipeline._stage_review", return_value=review_result
+            ),
+            patch("reasonsforge.forge.pipeline._stage_deduplicate"),
+            patch("reasonsforge.forge.caffeinate.hold"),
+        ):
             cmd_derive_review_repair(args)
 
         captured = capsys.readouterr()

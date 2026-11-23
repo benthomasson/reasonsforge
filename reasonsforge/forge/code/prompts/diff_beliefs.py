@@ -2,7 +2,6 @@
 
 from .common import BELIEFS_INSTRUCTIONS
 
-
 DIFF_OBSERVE_PROMPT = """\
 You are analyzing a code change to extract knowledge about the codebase.
 
@@ -156,6 +155,7 @@ def build_diff_observe_prompt(
     )
     if existing_observations:
         import json
+
         prompt = prompt.rstrip()
         prompt += (
             "\n\n## Observations Already Gathered\n\n"
@@ -179,6 +179,7 @@ def build_diff_extract_prompt(
 ) -> str:
     if observations:
         import json
+
         obs_section = (
             "\n## Observations\n\n"
             "The following information was gathered from the codebase:\n\n"
@@ -203,10 +204,7 @@ def build_diff_extract_prompt(
         )
     else:
         file_section = (
-            "\n## Current File Content\n\n"
-            "```\n"
-            f"{current_file_content}\n"
-            "```\n\n"
+            f"\n## Current File Content\n\n```\n{current_file_content}\n```\n\n"
         )
 
     return DIFF_EXTRACT_PROMPT.format(
