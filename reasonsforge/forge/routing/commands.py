@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .. import REASONS_DB
-
 
 def cmd_extract(args):
     """Extract routing beliefs from a domain EEM."""

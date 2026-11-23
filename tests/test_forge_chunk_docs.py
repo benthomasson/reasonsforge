@@ -1,7 +1,6 @@
 """Tests for reasonsforge.forge.chunk_docs — document chunking."""
 
 import types
-from pathlib import Path
 
 import pytest
 

@@ -1,7 +1,6 @@
 """Tests for project scan resume functionality."""
 
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 from reasonsforge.forge.project.commands import (

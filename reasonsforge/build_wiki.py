@@ -677,7 +677,7 @@ def build_wiki(
     for label, nids in groups.items():
         page_file = label_to_file[label]
         page_lines = [f"# {label}", ""]
-        page_lines.append(f"[Back to index](index.md)")
+        page_lines.append("[Back to index](index.md)")
         page_lines.append("")
         if label in generated_content:
             page_lines.append(generated_content[label])

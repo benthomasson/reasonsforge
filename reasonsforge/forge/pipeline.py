@@ -120,7 +120,7 @@ def _stage_ingest(args):
                 cmd_chunk_pdf(chunk_args)
             except KeyboardInterrupt:
                 print(
-                    f"\n  Ending ingest early — partial results saved", file=sys.stderr
+                    "\n  Ending ingest early — partial results saved", file=sys.stderr
                 )
                 break
 
@@ -890,7 +890,7 @@ def cmd_derive_review_repair(args):
 
     rounds = getattr(args, "rounds", 1)
     ns = getattr(args, "namespace", None)
-    print(f"=== Derive-Review-Repair ===", file=sys.stderr)
+    print("=== Derive-Review-Repair ===", file=sys.stderr)
     print(f"Model: {args.model}", file=sys.stderr)
     print(f"Max rounds: {rounds}", file=sys.stderr)
     print(f"Max derive rounds per cycle: {args.max_derive_rounds}", file=sys.stderr)
@@ -939,7 +939,7 @@ def cmd_derive_review_repair(args):
     summary = _run_convergence_loop(args, rounds, on_stage=_on_stage)
     total_elapsed = time.monotonic() - t0
 
-    print(f"\n=== Summary ===", file=sys.stderr)
+    print("\n=== Summary ===", file=sys.stderr)
     print(f"Duration: {_fmt_duration(total_elapsed)}", file=sys.stderr)
     print(f"Cycles: {summary['cycles']}", file=sys.stderr)
     print(f"Derived: {summary['total_derived']}", file=sys.stderr)

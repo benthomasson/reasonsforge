@@ -5,7 +5,6 @@ import sys
 from io import StringIO
 from unittest.mock import patch
 
-import pytest
 
 from reasonsforge.repair import (
     parse_triage_response,

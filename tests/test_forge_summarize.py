@@ -1,8 +1,6 @@
 """Tests for reasonsforge.forge.summarize."""
 
-import asyncio
 import types
-from pathlib import Path
 from unittest.mock import patch, AsyncMock
 
 import pytest

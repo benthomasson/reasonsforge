@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from reasonsforge import api, Nogood
+from reasonsforge import api
 from reasonsforge.network import Network
 from reasonsforge.storage import Storage
 

@@ -1,7 +1,6 @@
 """Tests for lesson_plan module."""
 
 import json
-import pytest
 
 from reasonsforge.lesson_plan import (
     build_lesson_plan,

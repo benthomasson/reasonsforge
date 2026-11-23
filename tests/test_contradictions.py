@@ -10,7 +10,6 @@ from reasonsforge.contradictions import (
     format_beliefs_for_contradiction_check,
     parse_contradiction_response,
     detect_contradictions,
-    CONTRADICTION_BATCH_SIZE,
 )
 from reasonsforge import api
 from reasonsforge.cli import main

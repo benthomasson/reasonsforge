@@ -4,8 +4,6 @@ Doyle's key innovation: SL justifications have both an inlist (must be IN)
 and an outlist (must be OUT). "Believe X unless Y is believed."
 """
 
-import pytest
-
 from reasonsforge import Justification
 from reasonsforge.network import Network
 from reasonsforge.storage import Storage

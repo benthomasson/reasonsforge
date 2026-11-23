@@ -1,7 +1,6 @@
 """Tests for MCP server integration in ask."""
 
 import json
-import sqlite3
 import sys
 from io import StringIO
 from unittest.mock import patch

@@ -7,16 +7,12 @@ import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from types import SimpleNamespace
 
-from . import PROJECT_DIR
 from ..report import Report
 from .commands import (
     REASONS_DB,
     _get_project_dir,
-    _get_repo,
-    _load_config,
     cmd_accept_beliefs,
     cmd_derive,
     cmd_explore,
@@ -24,7 +20,6 @@ from .commands import (
     cmd_propose_beliefs,
     cmd_review_proposals,
     cmd_scan,
-    cmd_status,
     cmd_walk_commits,
 )
 from .topics import pending_count
@@ -190,7 +185,7 @@ def _run_review_beliefs(
                 detail, duration_seconds=round(time.monotonic() - t0, 2)
             )
     except KeyboardInterrupt:
-        print(f"\n  Ending review early", file=sys.stderr)
+        print("\n  Ending review early", file=sys.stderr)
         if report:
             report.complete_step(
                 "ended early", duration_seconds=round(time.monotonic() - t0, 2)
@@ -266,7 +261,7 @@ def _run_repair(db_path, model, project_dir, errors, report=None, step_key="repa
                 detail, duration_seconds=round(time.monotonic() - t0, 2)
             )
     except KeyboardInterrupt:
-        print(f"\n  Ending repair early", file=sys.stderr)
+        print("\n  Ending repair early", file=sys.stderr)
         if report:
             report.complete_step(
                 "ended early", duration_seconds=round(time.monotonic() - t0, 2)
@@ -374,7 +369,7 @@ def _run_deduplicate(
             )
 
     except KeyboardInterrupt:
-        print(f"\n  Ending deduplicate early — partial results saved", file=sys.stderr)
+        print("\n  Ending deduplicate early — partial results saved", file=sys.stderr)
         if report:
             report.complete_step(
                 "ended early", duration_seconds=round(time.monotonic() - t0, 2)
@@ -420,7 +415,7 @@ def _run_contradictions(db_path, model, errors, report=None, step_key="contradic
                 detail, duration_seconds=round(time.monotonic() - t0, 2)
             )
     except KeyboardInterrupt:
-        print(f"\n  Ending contradiction detection early", file=sys.stderr)
+        print("\n  Ending contradiction detection early", file=sys.stderr)
         if report:
             report.complete_step(
                 "ended early", duration_seconds=round(time.monotonic() - t0, 2)
@@ -702,7 +697,7 @@ def cmd_analyze(args):
         try:
             cmd_explore(explore_args)
         except KeyboardInterrupt:
-            print(f"\n  Ending explore early — partial results saved", file=sys.stderr)
+            print("\n  Ending explore early — partial results saved", file=sys.stderr)
         except SystemExit as e:
             if e.code and e.code != 0:
                 errors.append(f"explore exited with code {e.code}")
@@ -1197,7 +1192,7 @@ def cmd_refine(args):
         }
     )
 
-    print(f"\n=== Refinement complete ===\n", file=sys.stderr)
+    print("\n=== Refinement complete ===\n", file=sys.stderr)
     print(
         f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr
     )
@@ -1395,7 +1390,7 @@ def cmd_explore_propose_accept(args):
         }
     )
 
-    print(f"\n=== Explore-Propose-Accept complete ===\n", file=sys.stderr)
+    print("\n=== Explore-Propose-Accept complete ===\n", file=sys.stderr)
     print(
         f"Total time: {_fmt_duration(time.monotonic() - pipeline_t0)}", file=sys.stderr
     )

@@ -59,7 +59,7 @@ def cmd_init(args):
         print("Created CLAUDE.md")
 
     print(f"\nForge project initialized: {name}")
-    print(f"Next: add documents to sources/ and run reasonsforge forge summarize")
+    print("Next: add documents to sources/ and run reasonsforge forge summarize")
 
 
 def cmd_status(args):

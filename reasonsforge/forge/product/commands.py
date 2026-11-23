@@ -11,13 +11,11 @@ import json
 import os
 import re
 import sys
-from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import PRODUCT_DIR
 from .prompts import (
-    DERIVE_BELIEFS_PROMPT,
     PROPOSE_BELIEFS_PRODUCT,
     REVIEW_PROPOSALS_PROMPT,
     build_explore_prompt,
@@ -926,11 +924,11 @@ def cmd_init(args):
     if write_claude_md_if_missing(domain):
         print("Created CLAUDE.md")
 
-    print(f"\nProduct forge initialized")
+    print("\nProduct forge initialized")
     print(f"  Platform: {platform}")
     print(f"  Target:   {target}")
     print(f"  Domain:   {domain}")
-    print(f"\nNext: reasonsforge product scan")
+    print("\nNext: reasonsforge product scan")
 
 
 # ---------------------------------------------------------------------------
@@ -941,7 +939,7 @@ def cmd_init(args):
 def cmd_scan(args):
     """Scan product issues and create a product-focused overview."""
     from ..caffeinate import hold as _caffeinate
-    from ..llm import check_model_available, invoke
+    from ..llm import check_model_available
 
     _caffeinate()
 
@@ -1202,7 +1200,7 @@ def cmd_ingest(args):
 
         content = file_path.read_text()
         if not content.strip():
-            print(f"  Skipping empty file", file=sys.stderr)
+            print("  Skipping empty file", file=sys.stderr)
             continue
 
         if len(content) > 50000:
@@ -1552,7 +1550,7 @@ def cmd_propose_beliefs(args):
     output_path = Path(output)
     if output_path.exists() and output_path.stat().st_size > 0:
         with output_path.open("a") as f:
-            f.write(f"\n---\n\n")
+            f.write("\n---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
             f.write(f"**Source:** {source_desc}\n")
             f.write(f"**Model:** {model}\n\n")

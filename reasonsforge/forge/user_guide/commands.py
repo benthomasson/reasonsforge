@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from . import PROJECT_DIR
 from .. import REASONS_DB
 
 

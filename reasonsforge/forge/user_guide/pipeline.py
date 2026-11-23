@@ -7,7 +7,6 @@ import sys
 import time
 from pathlib import Path
 
-from . import PROJECT_DIR
 
 REASONS_DB = "reasons.db"
 

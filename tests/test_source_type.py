@@ -1,9 +1,5 @@
 """Tests for source_type metadata field."""
 
-import json
-import subprocess
-from pathlib import Path
-
 import pytest
 
 from reasonsforge import api

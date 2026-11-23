@@ -1,6 +1,5 @@
 """Tests for the report belief command."""
 
-import json
 import sqlite3
 import sys
 from io import StringIO

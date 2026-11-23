@@ -39,7 +39,6 @@ from .git_utils import (
 from .language import PYTHON, detect_language, language_for_file
 from .observations import parse_observation_requests, run_observations
 from .prompts import (
-    PROPOSE_BELIEFS_CODE,
     RESEARCH_INFER_FILES_PROMPT,
     REVIEW_PROMPT,
     VERIFY_INFER_FILE_PROMPT,
@@ -58,7 +57,6 @@ from .prompts import (
     build_verify_fix_prompt,
 )
 from .topics import (
-    TOPIC_KINDS,
     Topic,
     add_topics,
     load_queue,
@@ -319,7 +317,7 @@ def cmd_init(args):
     print(f"  Domain: {domain}")
     if description:
         print(f"  Description: {description}")
-    print(f"\nNext: reasonsforge code scan")
+    print("\nNext: reasonsforge code scan")
 
 
 # ---------------------------------------------------------------------------
@@ -1465,7 +1463,7 @@ def _retract_beliefs_for_deleted_files(
                 break
 
     if not to_retract:
-        print(f"  No beliefs found sourced from deleted files", file=sys.stderr)
+        print("  No beliefs found sourced from deleted files", file=sys.stderr)
         return
 
     deleted_names = ", ".join(sorted(deleted_files))
@@ -1770,7 +1768,7 @@ def _parse_beliefs_from_entries(
 def cmd_propose_beliefs(args):
     """Extract candidate beliefs from entries."""
     from ..caffeinate import hold as _caffeinate
-    from ..llm import check_model_available, invoke, invoke_sync
+    from ..llm import check_model_available, invoke
 
     _caffeinate()
 
@@ -1940,7 +1938,7 @@ def cmd_propose_beliefs(args):
             )
         else:
             with output_path.open("a") as f:
-                f.write(f"\n---\n\n")
+                f.write("\n---\n\n")
                 f.write(
                     f"**Generated:** {date.today().isoformat()} (parsed from ## Beliefs sections)\n"
                 )
@@ -1999,7 +1997,7 @@ def cmd_propose_beliefs(args):
                         )
                 else:
                     with output_path.open("a") as f:
-                        f.write(f"\n---\n\n")
+                        f.write("\n---\n\n")
                         f.write(
                             f"**Generated:** {date.today().isoformat()} (batch {i + 1}/{len(batches)})\n"
                         )
@@ -2014,7 +2012,7 @@ def cmd_propose_beliefs(args):
                 processed = _load_processed(processed_path)
         except KeyboardInterrupt:
             print(
-                f"\n  Ending extraction early — partial results saved", file=sys.stderr
+                "\n  Ending extraction early — partial results saved", file=sys.stderr
             )
 
     if total_dup_skipped:
@@ -2027,7 +2025,7 @@ def cmd_propose_beliefs(args):
         return
 
     if auto_accept:
-        print(f"\nAll batches processed.", file=sys.stderr)
+        print("\nAll batches processed.", file=sys.stderr)
     else:
         print(f"\nWrote {output_path}")
         if parsed_count:
@@ -3269,16 +3267,16 @@ def cmd_verify_fix(args):
                 break
 
     elif verdict == "PARTIAL":
-        print(f"\n  Fix is partial — belief not retracted.", file=sys.stderr)
+        print("\n  Fix is partial — belief not retracted.", file=sys.stderr)
         gap = verdict_data.get("gap_description", "")
         affected = verdict_data.get("affected_files", [])
         if gap:
             print(f"  Gap: {gap}", file=sys.stderr)
         if affected:
             print(f"  Affected files: {', '.join(affected)}", file=sys.stderr)
-        print(f"  Consider updating the belief or filing a follow-up.", file=sys.stderr)
+        print("  Consider updating the belief or filing a follow-up.", file=sys.stderr)
     else:
-        print(f"\n  Belief not retracted.", file=sys.stderr)
+        print("\n  Belief not retracted.", file=sys.stderr)
 
     output_json = getattr(args, "output_json", None)
     if output_json:

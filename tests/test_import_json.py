@@ -5,8 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from reasonsforge import Justification
-from reasonsforge.network import Network
 from reasonsforge import api
 
 

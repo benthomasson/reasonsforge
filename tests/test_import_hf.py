@@ -1,7 +1,6 @@
 """Tests for import-hf — importing belief networks from HuggingFace."""
 
 import json
-import os
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch

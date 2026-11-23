@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import Node, Justification, Nogood
-from .metadata import SCHEMA_VERSION, build_meta
+from .metadata import SCHEMA_VERSION
 from .network import Network
 
 SCHEMA = """

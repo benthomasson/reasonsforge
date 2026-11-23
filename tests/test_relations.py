@@ -3,7 +3,6 @@
 from reasonsforge.relations import (
     Relation,
     apply_relations_to_network,
-    build_subject_index,
     ensure_relations,
     extract_all_relations,
     extract_triple,

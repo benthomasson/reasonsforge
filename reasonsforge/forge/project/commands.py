@@ -1477,11 +1477,11 @@ def cmd_init(args):
     if write_claude_md_if_missing(domain):
         print("Created CLAUDE.md")
 
-    print(f"\nProject forge initialized")
+    print("\nProject forge initialized")
     print(f"  Platform: {platform}")
     print(f"  Target:   {target}")
     print(f"  Domain:   {domain}")
-    print(f"\nNext: reasonsforge project scan")
+    print("\nNext: reasonsforge project scan")
 
 
 # ---------------------------------------------------------------------------
@@ -2082,7 +2082,7 @@ def cmd_propose_beliefs(args):
         """Write or append the run header to the output file."""
         if output_path.exists() and output_path.stat().st_size > 0:
             with output_path.open("a") as f:
-                f.write(f"\n---\n\n")
+                f.write("\n---\n\n")
                 f.write(f"**Generated:** {date.today().isoformat()}\n")
                 f.write(f"**Source:** {source_desc}\n")
                 f.write(f"**Model:** {model}\n\n")
@@ -2770,7 +2770,7 @@ def _analyze_one_issue(issue, model, timeout, db_path, auto_accept, proposals_ou
     output_path = Path(proposals_output)
     if output_path.exists() and output_path.stat().st_size > 0:
         with output_path.open("a") as f:
-            f.write(f"\n---\n\n")
+            f.write("\n---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
             f.write(f"**Source:** {issue.id}\n")
             f.write(f"**URL:** {issue.url}\n")
@@ -3136,7 +3136,7 @@ def _phase_fetch(entries, source, platform, force):
             if _issue_needs_analysis(issue.id, issue.updated, force):
                 changed.append((issue, entry))
             else:
-                print(f"    Unchanged", file=sys.stderr)
+                print("    Unchanged", file=sys.stderr)
                 skipped.append(issue_key)
 
         if entry.get("walk") and (issue.children or issue.linked):
@@ -3698,7 +3698,7 @@ def cmd_track(args):
             f"  {n_manual} proposal(s) in {proposals_path} need manual review",
             file=sys.stderr,
         )
-        print(f"  Run: reasonsforge project accept-beliefs", file=sys.stderr)
+        print("  Run: reasonsforge project accept-beliefs", file=sys.stderr)
 
     if not auto_proposals:
         print("\nNo auto-accept proposals. Skipping phases 3-5.", file=sys.stderr)
@@ -4028,7 +4028,7 @@ def cmd_repair(args):
         retracted = result.get("retracted", 0)
         failed = result.get("failed", 0)
 
-        print(f"\nRepair complete:", file=sys.stderr)
+        print("\nRepair complete:", file=sys.stderr)
         print(f"  Total flagged: {total}", file=sys.stderr)
         print(f"  Rewritten: {rewritten}", file=sys.stderr)
         print(f"  Retracted: {retracted}", file=sys.stderr)

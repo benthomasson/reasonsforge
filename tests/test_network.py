@@ -2,7 +2,7 @@
 
 import pytest
 
-from reasonsforge import Node, Justification, Nogood
+from reasonsforge import Justification
 from reasonsforge.network import Network
 
 

@@ -403,8 +403,6 @@ class TestCliDispatch:
         assert hasattr(cli, "cmd_review_premises")
 
     def test_dispatch_table(self):
-        from reasonsforge.cli import main
-        import argparse
         from reasonsforge import cli
 
         assert callable(cli.cmd_review_premises)

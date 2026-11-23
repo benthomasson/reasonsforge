@@ -11,7 +11,6 @@ GitHub: reasonsforge#40
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 RELATION_TYPES = [
     "maps-to",

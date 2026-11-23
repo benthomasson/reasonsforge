@@ -38,7 +38,7 @@ def _warn_multi_premise(premise_count, any_mode):
         print(
             f"  Tip: This SL requires ALL {premise_count} premises to be IN. If any single"
         )
-        print(f"  premise is sufficient, use --any to create separate justifications.")
+        print("  premise is sufficient, use --any to create separate justifications.")
 
 
 def cmd_add(args):
@@ -140,7 +140,7 @@ def _print_restoration_hints(hints):
         )
         print(f"    {hint['all_premises']}")
         print(f"    Surviving premises still IN: {surviving}")
-        print(f"    If any single premise is sufficient, restore with:")
+        print("    If any single premise is sufficient, restore with:")
         print(
             f"      reasons add-justification {hint['node_id']} --sl {surviving} --any"
         )
@@ -1314,12 +1314,12 @@ def cmd_merge(args):
                     else:
                         print(f"    {field} differs")
             if not args.dry_run:
-                print(f"\nRe-run with --strategy ours|theirs|newest to resolve")
+                print("\nRe-run with --strategy ours|theirs|newest to resolve")
     elif not result["added"] and not result["only_ours"]:
         print("Already in sync — nothing to merge")
 
     if not args.dry_run and (result["added"] or result["resolved"]):
-        print(f"\nDone. Run `reasonsforge export` to update network.json")
+        print("\nDone. Run `reasonsforge export` to update network.json")
 
 
 def cmd_export(args):
@@ -3968,7 +3968,7 @@ def cmd_lesson_plan(args):
 
 def cmd_generate_lesson(args):
     _require_sqlite(args, "generate-lesson")
-    from .llm import invoke_model, reset_cost_tracker, format_cost_summary
+    from .llm import reset_cost_tracker, format_cost_summary
 
     reset_cost_tracker()
     from .lesson_plan import (

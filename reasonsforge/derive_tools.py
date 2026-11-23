@@ -241,7 +241,7 @@ def derive_with_tools(seed_prompt, model, db_path, max_rounds=3, timeout=600):
 
         calls = parse_tool_calls(response)
         if not calls:
-            print(f"    No tool calls — done", file=sys.stderr)
+            print("    No tool calls — done", file=sys.stderr)
             break
 
         print(

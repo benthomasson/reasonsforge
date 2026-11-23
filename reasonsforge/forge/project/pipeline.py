@@ -8,18 +8,15 @@ import sys
 from datetime import datetime
 from types import SimpleNamespace
 
-from . import PROJECT_DIR
 from .commands import (
     REASONS_DB,
     _get_project_dir,
-    _load_config,
     cmd_derive,
     cmd_explore,
     cmd_init,
     cmd_propose_beliefs,
     cmd_review_proposals,
     cmd_scan,
-    cmd_status,
 )
 from .topics import pending_count
 from ..step_log import step_log

@@ -6,7 +6,6 @@ directory, matching the per-step cost reports in costs/.
 
 from __future__ import annotations
 
-import os
 import sys
 from contextlib import contextmanager
 from datetime import datetime

@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
 import sys
 import time
 from pathlib import Path
 
-from . import PROJECT_DIR
 from .prompts import ENRICH_SCHEMA_PROMPT, PROFILE_INTERPRET_PROMPT
 from .schema_parser import Schema, schema_to_text
 
@@ -214,7 +212,7 @@ def stage_enrich(args, schema: Schema, profile_text: str | None = None) -> list[
     )
 
     if profile_text:
-        print(f"  Interpreting statistical profile...", file=sys.stderr)
+        print("  Interpreting statistical profile...", file=sys.stderr)
         profile_prompt = PROFILE_INTERPRET_PROMPT.format(
             schema_text=schema_text,
             profile_text=profile_text,

@@ -1,14 +1,11 @@
 """Tests for requeue_topics in the code forge topics queue."""
 
-import json
-
 from reasonsforge.forge.code.topics import (
     Topic,
     add_topics,
     load_queue,
     pop_batch,
     requeue_topics,
-    save_queue,
 )
 
 

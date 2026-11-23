@@ -8,7 +8,6 @@ _rebuild_dependents() repairs it.
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from reasonsforge import Justification
 from reasonsforge.network import Network

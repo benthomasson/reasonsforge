@@ -481,7 +481,6 @@ def _extract_enclosing_function(
         Dict with ``context_function`` (name or None) and ``context_snippet``
         (surrounding lines as a string).
     """
-    import re
 
     idx = match_line - 1  # convert to 0-based
     if idx < 0 or idx >= len(file_lines):

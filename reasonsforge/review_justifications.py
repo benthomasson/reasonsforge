@@ -104,7 +104,7 @@ def _process_batch(batch, nodes, model, timeout):
     response = invoke_model(prompt, model=model, timeout=timeout)
     results = parse_justification_review(response)
     if not results and batch:
-        print(f"  WARN: batch returned no parseable results", file=sys.stderr)
+        print("  WARN: batch returned no parseable results", file=sys.stderr)
     return results
 
 

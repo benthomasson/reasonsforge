@@ -11,8 +11,6 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .schema_parser import Schema
-
 
 @dataclass
 class ColumnProfile:

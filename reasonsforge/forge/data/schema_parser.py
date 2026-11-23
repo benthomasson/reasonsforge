@@ -412,7 +412,7 @@ def schema_to_text(schema: Schema) -> str:
         lines = [f"Table: {table.name}"]
         if table.comment:
             lines.append(f"  Description: {table.comment}")
-        lines.append(f"  Columns:")
+        lines.append("  Columns:")
         for col in table.columns:
             attrs = []
             if col.primary_key:
@@ -426,7 +426,7 @@ def schema_to_text(schema: Schema) -> str:
             lines.append(f"    - {col.name}: {col.type}{attr_str}{comment_str}")
 
         if table.foreign_keys:
-            lines.append(f"  Foreign Keys:")
+            lines.append("  Foreign Keys:")
             for fk in table.foreign_keys:
                 lines.append(
                     f"    - {', '.join(fk.columns)} → "
@@ -434,7 +434,7 @@ def schema_to_text(schema: Schema) -> str:
                 )
 
         if table.unique_constraints:
-            lines.append(f"  Unique Constraints:")
+            lines.append("  Unique Constraints:")
             for uc in table.unique_constraints:
                 lines.append(f"    - ({', '.join(uc)})")
 

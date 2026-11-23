@@ -1,8 +1,5 @@
 """Tests for SQLite persistence."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from reasonsforge import Justification

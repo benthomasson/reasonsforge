@@ -2,7 +2,7 @@
 
 import json
 from io import BytesIO
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
 import pytest
@@ -234,7 +234,7 @@ class TestPullCommand:
 
 class TestCLIDispatch:
     def test_pull_dispatches(self):
-        from reasonsforge.cli import cmd_pull, cmd_import_hf
+        from reasonsforge.cli import cmd_pull
 
         # cmd_pull delegates to cmd_import_hf — verify it's callable
         assert callable(cmd_pull)
@@ -247,7 +247,6 @@ class TestCLIDispatch:
     def test_commands_registered(self):
         """pull and publish are in the CLI dispatch table."""
         import argparse
-        from reasonsforge.cli import main
 
         # Just verify the subparser accepts the commands
         from reasonsforge import cli

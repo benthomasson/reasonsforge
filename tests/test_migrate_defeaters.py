@@ -1,6 +1,5 @@
 """Tests for migrate-defeaters command."""
 
-import pytest
 from reasonsforge import api
 
 

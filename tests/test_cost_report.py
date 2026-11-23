@@ -1,7 +1,6 @@
 """Tests for cost_report module."""
 
 import json
-from pathlib import Path
 
 from reasonsforge.cost_report import (
     load_cost_reports,

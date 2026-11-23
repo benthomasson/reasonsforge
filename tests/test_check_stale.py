@@ -1,9 +1,7 @@
 """Tests for check-stale."""
 
 import hashlib
-from pathlib import Path
 
-import pytest
 
 from reasonsforge.network import Network
 from reasonsforge.check_stale import (

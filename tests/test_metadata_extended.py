@@ -16,13 +16,12 @@ import json
 import sqlite3
 from pathlib import Path
 
-import pytest
 
 from reasonsforge import api
 from reasonsforge.metadata import build_meta, SCHEMA_VERSION, _get_generator
 from reasonsforge.network import Network
 from reasonsforge.export_markdown import export_markdown
-from reasonsforge.import_beliefs import strip_frontmatter, import_into_network
+from reasonsforge.import_beliefs import strip_frontmatter
 from reasonsforge.storage import Storage
 
 

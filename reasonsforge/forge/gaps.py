@@ -6,10 +6,10 @@ import re
 import sys
 from pathlib import Path
 
-from reasonsforge.api import compact, export_network
+from reasonsforge.api import compact
 
 from .llm import check_model_available, extract_json, invoke, RETRY_JSON
-from .prompts import GAP_ANALYSIS, GAP_EXTRACT, PROPOSE_BELIEFS
+from .prompts import GAP_ANALYSIS, GAP_EXTRACT
 
 from . import REASONS_DB
 

@@ -26,7 +26,6 @@ from pathlib import Path
 from . import Justification
 from . import pubsub
 from .metadata import build_meta
-from .network import Network
 from .storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -4927,7 +4926,6 @@ def list_negative(
             model=model,
             skip_llm=skip_llm,
         )
-    from . import ask
 
     with _with_network(db_path) as net:
         in_nodes = []

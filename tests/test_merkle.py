@@ -6,10 +6,6 @@ import pytest
 from reasonsforge import api
 from reasonsforge.merkle import (
     compute_text_hash,
-    compute_merkle_hash,
-    compute_content_hash,
-    verify_all,
-    backfill_hashes,
 )
 
 
@@ -44,7 +40,6 @@ def test_content_hash_incorporates_antecedents(tmp_path):
 
     # Simulate unauthorized text mutation via Storage layer
     from reasonsforge.storage import Storage
-    from reasonsforge.merkle import compute_text_hash
 
     store = Storage(str(db))
     net = store.load()
@@ -73,7 +68,6 @@ def test_merkle_transitive(tmp_path):
 
     # Simulate unauthorized text mutation via Storage layer
     from reasonsforge.storage import Storage
-    from reasonsforge.merkle import compute_text_hash
 
     store = Storage(str(db))
     net = store.load()
@@ -126,7 +120,6 @@ def test_verify_chain_mutation(tmp_path):
 
     # Simulate text mutation with updated text_hash (e.g. direct SQL)
     from reasonsforge.storage import Storage
-    from reasonsforge.merkle import compute_text_hash
 
     store = Storage(str(db))
     net = store.load()

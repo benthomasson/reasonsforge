@@ -197,7 +197,7 @@ def cmd_status(args):
         except Exception:
             pass
 
-    print(f"Diary forge status:")
+    print("Diary forge status:")
     print(f"  Entries directory: {input_dir}/")
     print(f"  Total entries:     {len(entries)}")
     print(f"  Processed:         {processed_count}")

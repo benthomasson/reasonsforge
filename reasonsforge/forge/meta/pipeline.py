@@ -8,11 +8,9 @@ import sys
 from datetime import datetime
 from types import SimpleNamespace
 
-from . import META_DIR
 from .commands import (
     REASONS_DB,
     _get_meta_dir,
-    _load_config,
     cmd_contradictions,
     cmd_derive,
     cmd_import_beliefs,

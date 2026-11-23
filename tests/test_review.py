@@ -3,7 +3,7 @@
 import json
 import sys
 from io import StringIO
-from unittest.mock import patch, call
+from unittest.mock import patch
 
 import pytest
 
@@ -11,7 +11,6 @@ from reasonsforge.review import (
     format_belief_for_review,
     parse_review_response,
     review_beliefs,
-    REVIEW_BATCH_SIZE,
 )
 from reasonsforge import api
 from reasonsforge.cli import main

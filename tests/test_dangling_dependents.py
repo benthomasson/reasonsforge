@@ -4,7 +4,7 @@ Validates that propagation skips dangling dependent references with a warning
 instead of crashing with KeyError.
 """
 
-from reasonsforge import Justification, Node
+from reasonsforge import Justification
 from reasonsforge.network import Network
 
 

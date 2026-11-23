@@ -12,9 +12,8 @@ Mapping:
 """
 
 import re
-from pathlib import Path
 
-from . import Justification, Node, Nogood
+from . import Justification, Nogood
 from .network import Network
 
 

@@ -10,7 +10,6 @@ import time
 from datetime import date
 from pathlib import Path
 
-from reasonsforge.api import add_node, list_nodes
 from reasonsforge.storage import Storage
 
 from .llm import check_model_available, extract_json, invoke, RETRY_JSON
@@ -300,7 +299,7 @@ def cmd_propose_beliefs(args):
         entries = sorted(input_dir.rglob("*.md"))
 
     if not entries:
-        print(f"No .md files found.")
+        print("No .md files found.")
         return
 
     # Filter out already-processed entries (unless --all or --entry)
@@ -401,7 +400,7 @@ def cmd_propose_beliefs(args):
             f.write(f"**Model:** {args.model}\n\n")
     else:
         with output.open("a") as f:
-            f.write(f"\n---\n\n")
+            f.write("\n---\n\n")
             f.write(f"**Generated:** {date.today().isoformat()}\n")
             f.write(f"**Source:** {source_desc}\n")
             f.write(f"**Model:** {args.model}\n\n")
@@ -496,7 +495,7 @@ def cmd_propose_beliefs(args):
     try:
         asyncio.run(run_batches())
     except KeyboardInterrupt:
-        print(f"\n  Ending extraction early — partial results saved", file=sys.stderr)
+        print("\n  Ending extraction early — partial results saved", file=sys.stderr)
 
     if total_skipped:
         print(f"  Filtered {total_skipped} already-accepted beliefs")

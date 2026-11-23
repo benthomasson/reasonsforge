@@ -5,12 +5,10 @@ silently skipping nodes whose source files no longer exist on disk.
 """
 
 import hashlib
-from pathlib import Path
 
-import pytest
 
 from reasonsforge.network import Network
-from reasonsforge.check_stale import check_stale, hash_file
+from reasonsforge.check_stale import check_stale
 
 
 def _hash(content: str) -> str:

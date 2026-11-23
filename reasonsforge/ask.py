@@ -591,7 +591,7 @@ def ask(
             return response.strip()
 
         if iteration == max_iters - 1:
-            print(f"Synthesizing (final)...", file=sys.stderr)
+            print("Synthesizing (final)...", file=sys.stderr)
             ctx = _full_context()
             prompt = build_final_prompt(question, ctx, tool_history, natural=natural)
             try:
@@ -794,7 +794,7 @@ def elevate_prompt(
         tool_calls = _parse_elevate_tool_calls(response)
         if not tool_calls:
             print(
-                f"Elevate: model produced output without tools or ELEVATED tag",
+                "Elevate: model produced output without tools or ELEVATED tag",
                 file=sys.stderr,
             )
             return question, 0

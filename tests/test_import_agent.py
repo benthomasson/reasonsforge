@@ -1,8 +1,5 @@
 """Tests for import-agent: multi-agent belief tracking."""
 
-import os
-import tempfile
-
 import pytest
 
 from reasonsforge import api

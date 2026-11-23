@@ -21,10 +21,7 @@ from .prompts import (
     build_summary_prompt,
 )
 from .topics import (
-    Topic,
-    add_topics,
     load_queue,
-    parse_topics_from_response,
     pending_count,
 )
 
@@ -396,7 +393,7 @@ def cmd_init(args) -> None:
         for name, path in experts.items():
             add_repo(name, path, db_path=REASONS_DB)
 
-    print(f"Initialized meta forge knowledge base")
+    print("Initialized meta forge knowledge base")
     print(f"  Domain: {domain}")
     if experts:
         print(f"  Experts: {', '.join(experts.keys())}")

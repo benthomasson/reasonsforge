@@ -3,13 +3,12 @@
 import json
 from pathlib import Path
 
-import pytest
 
-from reasonsforge import api, Justification
+from reasonsforge import api
 from reasonsforge.metadata import build_meta, SCHEMA_VERSION
 from reasonsforge.network import Network
 from reasonsforge.export_markdown import export_markdown
-from reasonsforge.import_beliefs import strip_frontmatter, import_into_network
+from reasonsforge.import_beliefs import strip_frontmatter
 
 
 class TestBuildMeta:

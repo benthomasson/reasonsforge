@@ -179,7 +179,7 @@ def cmd_summarize(args):
     try:
         results = asyncio.run(run_all())
     except KeyboardInterrupt:
-        print(f"\n  Ending summarize early — partial results saved", file=sys.stderr)
+        print("\n  Ending summarize early — partial results saved", file=sys.stderr)
         results = []
     processed = sum(1 for r in results if r)
 
