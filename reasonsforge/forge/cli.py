@@ -662,6 +662,13 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument(
         "--reasons-db", default=None, help="Path to reasons.db for belief lookup"
     )
+    cs.add_argument(
+        "--fixing-belief",
+        action="append",
+        default=None,
+        dest="fixing_beliefs",
+        help="Belief ID being fixed (repeatable). Contradictions with these beliefs are expected, not violations.",
+    )
 
     # product — product data from issue trackers
     p = parent_subparsers.add_parser(

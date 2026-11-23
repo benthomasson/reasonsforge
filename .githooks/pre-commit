@@ -19,4 +19,12 @@ fi
 # Re-stage formatted files
 git add $STAGED_FILES
 
+echo "Running ruff check..."
+uv run ruff check --quiet $STAGED_FILES
+
+if [ $? -ne 0 ]; then
+    echo "Lint check failed. Fix issues with: uv run ruff check --fix"
+    exit 1
+fi
+
 exit 0

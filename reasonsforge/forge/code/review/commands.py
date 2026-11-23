@@ -170,6 +170,13 @@ def cmd_review(args) -> None:
     run_tests_flag = getattr(args, "run_tests", False)
     use_coverage_map = getattr(args, "coverage_map", False)
     reasons_db = getattr(args, "reasons_db", None)
+    fixing_beliefs = getattr(args, "fixing_beliefs", None) or []
+
+    if fixing_beliefs:
+        print(
+            f"Fixing belief(s): {', '.join(fixing_beliefs)} — contradictions expected",
+            file=sys.stderr,
+        )
 
     if comment and not pr:
         print("Error: --comment requires --pr", file=sys.stderr)
@@ -488,6 +495,7 @@ def cmd_review(args) -> None:
             observations=all_observations if all_observations else None,
             beliefs_content=beliefs_content,
             issue_content=issue_content,
+            fixing_beliefs=fixing_beliefs,
         )
         with open(
             os.path.join(output_dir, f"{iter_prefix}-review-prompt.txt"), "w"

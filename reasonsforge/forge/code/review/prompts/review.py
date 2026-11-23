@@ -27,7 +27,7 @@ VERDICT: PASS | CONCERN | BLOCK
 CORRECTNESS: VALID | QUESTIONABLE | BROKEN
 SPEC_COMPLIANCE: MEETS | PARTIAL | VIOLATES | N/A
 ISSUE_COMPLIANCE: ADDRESSES | PARTIAL | UNRELATED | N/A
-BELIEF_COMPLIANCE: CONSISTENT | VIOLATES | N/A
+BELIEF_COMPLIANCE: CONSISTENT | VIOLATES | FIXES | N/A
 TEST_COVERAGE: COVERED | PARTIAL | UNTESTED
 INTEGRATION: WIRED | PARTIAL | MISSING
 REASONING: <brief explanation of your assessment>
@@ -65,6 +65,7 @@ REASONING: <brief explanation of your assessment>
 6. **BELIEF_COMPLIANCE** (only when beliefs are provided): Do the changes respect known architectural invariants, contracts, and rules?
    - CONSISTENT: Changes align with or reinforce known beliefs
    - VIOLATES: Changes contradict a specific belief — cite the belief ID
+   - FIXES: Changes intentionally contradict a belief marked as "BEING FIXED" — this is the success condition, not a violation. Cite the belief ID.
    - N/A: No beliefs provided or no relevant beliefs apply
 
 ## Verdict Guidelines
@@ -110,6 +111,7 @@ def build_review_prompt(
     observations: dict | None = None,
     beliefs_content: str | None = None,
     issue_content: str | None = None,
+    fixing_beliefs: list[str] | None = None,
 ) -> str:
     import json
 
@@ -126,12 +128,23 @@ Review the code against this specification. Flag any MUST requirements that are 
         spec_section = "## Specification\n\nNo specification provided. Focus on correctness, tests, and integration."
 
     if beliefs_content:
+        if fixing_beliefs:
+            fixing_ids = ", ".join(f"`{bid}`" for bid in fixing_beliefs)
+            fixing_instruction = f"""
+
+**IMPORTANT — Beliefs Being Fixed:** The following belief(s) are being intentionally fixed by this change: {fixing_ids}.
+Contradictions with these beliefs are the **success condition**, not a violation. Use BELIEF_COMPLIANCE: FIXES (not VIOLATES) when the code contradicts a belief marked as being fixed.
+Only flag BELIEF_COMPLIANCE: VIOLATES for beliefs that are NOT in the fixing list.
+"""
+        else:
+            fixing_instruction = ""
+
         beliefs_section = f"""## Known Beliefs (Architecture & Contracts)
 
 The following beliefs are established facts about this codebase, extracted from expert analysis.
 Check each code change against these beliefs. If a change VIOLATES a belief, flag it with BELIEF_COMPLIANCE: VIOLATES and cite the belief ID.
 If a change is CONSISTENT with a belief, note it briefly. If no beliefs are relevant to a change, use BELIEF_COMPLIANCE: N/A.
-
+{fixing_instruction}
 ```markdown
 {beliefs_content}
 ```
