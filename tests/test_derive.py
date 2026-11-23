@@ -1,10 +1,15 @@
 """Tests for derive: reasoning chain derivation."""
 
+import json
+import sys
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from reasonsforge import api
+from reasonsforge.cli import main
 from reasonsforge.derive import (
     build_prompt,
     parse_proposals,
@@ -1077,12 +1082,6 @@ def test_dedup_plan_user_can_edit_kept(db):
 
 
 # --- Derive report tests ---
-
-import json
-import sys
-from io import StringIO
-from unittest.mock import patch
-from reasonsforge.cli import main
 
 
 def _run_cli(*args, db_path=None):

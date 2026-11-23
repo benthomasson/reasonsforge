@@ -14,6 +14,8 @@ import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
+from . import PROJECT_DIR
+
 
 @dataclass
 class Topic:
@@ -36,8 +38,6 @@ class Topic:
 
 
 TOPIC_KINDS = {"file", "function", "repo", "diff", "general"}
-
-from . import PROJECT_DIR
 
 
 def _queue_path(project_dir: str | None = None) -> str:

@@ -135,7 +135,7 @@ class GitHubSource:
     def _normalize_pr(self, raw: dict) -> PullRequest:
         """Convert gh PR JSON to normalized PullRequest."""
         number = raw.get("number", 0)
-        labels = [l.get("name", "") for l in raw.get("labels", [])]
+        labels = [lbl.get("name", "") for lbl in raw.get("labels", [])]
 
         # Extract linked issues
         linked_issues = []
@@ -213,7 +213,7 @@ class GitHubSource:
                 )
             )
 
-        labels = [l.get("name", "") for l in raw.get("labels", [])]
+        labels = [lbl.get("name", "") for lbl in raw.get("labels", [])]
         assignees = [a.get("login", "") for a in raw.get("assignees", [])]
 
         milestone = ""

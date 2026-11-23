@@ -137,7 +137,7 @@ class TestAskNoSynth:
         run_cli("add", "prop-cascade", "Propagation cascades", db_path=db_path)
 
         result = ask("propagation", db_path=db_path, no_synth=True)
-        lines = [l for l in result.strip().split("\n") if l.strip()]
+        lines = [line for line in result.strip().split("\n") if line.strip()]
         for line in lines:
             assert line.startswith("[IN]") or line.startswith("[OUT]")
 

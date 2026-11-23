@@ -214,7 +214,7 @@ class TestMarkdownExportMetaExtended:
         net.add_node("a", "A")
         md = export_markdown(net)
         lines = md.split("\n")
-        sep_indices = [i for i, l in enumerate(lines) if l.strip() == "---"]
+        sep_indices = [i for i, line in enumerate(lines) if line.strip() == "---"]
         assert len(sep_indices) >= 2
         assert sep_indices[0] == 0
 

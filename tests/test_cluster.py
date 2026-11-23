@@ -11,7 +11,6 @@ try:
         cluster_beliefs,
         list_clusters,
         ClusterCache,
-        _require_cluster_deps,
         _auto_k,
         HAS_CLUSTER_DEPS,
     )

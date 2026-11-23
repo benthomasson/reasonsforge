@@ -959,7 +959,9 @@ def cmd_scan(args):
     source = _get_source(config)
     labels_raw = getattr(args, "labels", None)
     label_list = (
-        [l.strip() for l in labels_raw.split(",") if l.strip()] if labels_raw else None
+        [lbl.strip() for lbl in labels_raw.split(",") if lbl.strip()]
+        if labels_raw
+        else None
     )
 
     state = getattr(args, "state", None)

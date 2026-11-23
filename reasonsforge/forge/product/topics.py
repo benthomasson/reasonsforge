@@ -8,6 +8,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
+from . import PRODUCT_DIR
+
 
 @dataclass
 class Topic:
@@ -24,8 +26,6 @@ class Topic:
 
 
 TOPIC_KINDS = {"feature", "epic", "roadmap", "user-story", "feedback", "general"}
-
-from . import PRODUCT_DIR
 
 
 def _queue_path(product_dir: str | None = None) -> str:

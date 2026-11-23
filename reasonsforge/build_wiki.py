@@ -622,7 +622,7 @@ def build_wiki(
     index_lines = ["# Belief Wiki", ""]
     index_lines.append("| Topic | Beliefs |")
     index_lines.append("|-------|---------|")
-    for label in sorted(groups, key=lambda l: (-len(groups[l]), l)):
+    for label in sorted(groups, key=lambda g: (-len(groups[g]), g)):
         page_file = label_to_file[label]
         count = len(groups[label])
         index_lines.append(f"| [{label}]({page_file}) | {count} |")

@@ -282,8 +282,8 @@ class TestFullRoundTrip:
         import_into_network(net2, md1)
         md2 = export_markdown(net2)
 
-        lines1 = [l for l in md1.split("\n") if not l.startswith("updated_at")]
-        lines2 = [l for l in md2.split("\n") if not l.startswith("updated_at")]
+        lines1 = [line for line in md1.split("\n") if not line.startswith("updated_at")]
+        lines2 = [line for line in md2.split("\n") if not line.startswith("updated_at")]
         assert lines1 == lines2
 
     def test_repos_preserved(self, db):

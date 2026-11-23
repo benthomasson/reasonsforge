@@ -174,7 +174,7 @@ class GitLabSource:
         iid = raw.get("iid", raw.get("id", 0))
         labels = raw.get("labels", [])
         if isinstance(labels, str):
-            labels = [l.strip() for l in labels.split(",") if l.strip()]
+            labels = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
 
         author = ""
         auth = raw.get("author")
@@ -241,7 +241,7 @@ class GitLabSource:
         iid = raw.get("iid", raw.get("id", 0))
         labels = raw.get("labels", [])
         if isinstance(labels, str):
-            labels = [l.strip() for l in labels.split(",") if l.strip()]
+            labels = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
 
         assignees = []
         for a in raw.get("assignees", []):

@@ -4354,7 +4354,7 @@ def _ensure_labels(platform: str, repo_slug: str, labels: set[str]):
             text=True,
         )
         if result.returncode == 0 and result.stdout.strip():
-            existing = {l["name"] for l in json.loads(result.stdout)}
+            existing = {lbl["name"] for lbl in json.loads(result.stdout)}
         else:
             existing = set()
         for label in labels - existing:

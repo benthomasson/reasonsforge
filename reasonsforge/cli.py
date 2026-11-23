@@ -4003,7 +4003,9 @@ def cmd_generate_lesson(args):
         except Exception as e:
             print(f"Error loading plan from {from_plan}: {e}", file=sys.stderr)
             sys.exit(1)
-        has_subtopics = any(l.get("subtopics") for l in plan.get("lessons", []))
+        has_subtopics = any(
+            lesson.get("subtopics") for lesson in plan.get("lessons", [])
+        )
         if has_subtopics:
             use_survey = True
         print(
@@ -4031,12 +4033,14 @@ def cmd_generate_lesson(args):
             plan = base_plan
 
     if args.concept:
-        targets = [l for l in plan["lessons"] if l["concept"] == args.concept]
+        targets = [
+            lesson for lesson in plan["lessons"] if lesson["concept"] == args.concept
+        ]
         if not targets:
             print(
                 f"Concept '{args.concept}' not found in lesson plan.", file=sys.stderr
             )
-            concepts = [l["concept"] for l in plan["lessons"]]
+            concepts = [lesson["concept"] for lesson in plan["lessons"]]
             close = [c for c in concepts if args.concept in c]
             if close:
                 print(f"  Did you mean: {', '.join(close[:5])}?", file=sys.stderr)
@@ -4159,11 +4163,13 @@ def cmd_consolidate_lessons(args):
 
     if args.dry_run:
         print(f"\nStandalone concepts ({len(standalone)}):")
-        for l in standalone:
-            print(f"  {l['concept']}")
+        for lesson in standalone:
+            print(f"  {lesson['concept']}")
         print(f"\nConnected concepts ({len(connected)}):")
-        for l in connected:
-            print(f"  {l['concept']} ({', '.join(l['prerequisites']) or 'root'})")
+        for lesson in connected:
+            print(
+                f"  {lesson['concept']} ({', '.join(lesson['prerequisites']) or 'root'})"
+            )
         return
 
     reset_cost_tracker()
@@ -4238,8 +4244,8 @@ def cmd_survey_lessons(args):
 
     if args.dry_run:
         print(f"\nAll concepts ({len(plan['lessons'])}):")
-        for l in plan["lessons"]:
-            print(f"  {l['concept']}")
+        for lesson in plan["lessons"]:
+            print(f"  {lesson['concept']}")
         return
 
     reset_cost_tracker()

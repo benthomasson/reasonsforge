@@ -63,7 +63,7 @@ def compact(
 
     footer_tokens = estimate_tokens(f"Token count: ~{budget} / {budget} budget")
     # Track total chars to derive tokens in O(1) instead of rejoining
-    _char_count = sum(len(l) for l in lines) + len(lines) - 1  # +newlines
+    _char_count = sum(len(line) for line in lines) + len(lines) - 1  # +newlines
 
     def _add_line(line):
         nonlocal _char_count

@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 
 try:
     import psycopg
-    from psycopg.rows import dict_row
 except ImportError:
     psycopg = None  # type: ignore[assignment]
 
@@ -2102,7 +2101,7 @@ class PgApi:
             return max(1, len(text) // 4)
 
         footer_tokens = _estimate_tokens(f"Token count: ~{budget} / {budget} budget")
-        _char_count = sum(len(l) for l in lines) + len(lines) - 1
+        _char_count = sum(len(line) for line in lines) + len(lines) - 1
 
         def _add_line(line):
             nonlocal _char_count

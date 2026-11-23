@@ -101,7 +101,7 @@ class JiraSource:
                 else:
                     parts.append(f'statusCategory = "{state}"')
             if labels:
-                label_clause = " AND ".join(f'labels = "{l}"' for l in labels)
+                label_clause = " AND ".join(f'labels = "{lbl}"' for lbl in labels)
                 parts.append(f"({label_clause})")
             if since:
                 parts.append(f'updated >= "{since}"')

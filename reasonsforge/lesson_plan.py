@@ -583,25 +583,33 @@ def _parse_lesson_response(content: str) -> dict:
 
 def _identify_standalone_lessons(plan: dict) -> tuple[list[dict], list[dict]]:
     """Split lessons into connected (have prereqs/dependents/motivation) and standalone."""
-    has_prereqs = {l["concept"] for l in plan["lessons"] if l["prerequisites"]}
+    has_prereqs = {
+        lesson["concept"] for lesson in plan["lessons"] if lesson["prerequisites"]
+    }
     is_prereq_of = set()
-    for l in plan["lessons"]:
-        is_prereq_of.update(l["prerequisites"])
-    has_motivation = {l["concept"] for l in plan["lessons"] if l["motivation"]}
-    has_examples = {l["concept"] for l in plan["lessons"] if l["examples"]}
-    has_crossrefs = {l["concept"] for l in plan["lessons"] if l["cross_references"]}
+    for lesson in plan["lessons"]:
+        is_prereq_of.update(lesson["prerequisites"])
+    has_motivation = {
+        lesson["concept"] for lesson in plan["lessons"] if lesson["motivation"]
+    }
+    has_examples = {
+        lesson["concept"] for lesson in plan["lessons"] if lesson["examples"]
+    }
+    has_crossrefs = {
+        lesson["concept"] for lesson in plan["lessons"] if lesson["cross_references"]
+    }
     mentioned_in_motivation = set()
-    for l in plan["lessons"]:
-        if l["motivation"]:
-            for c in l["motivation"].replace("Unlocks: ", "").split(", "):
+    for lesson in plan["lessons"]:
+        if lesson["motivation"]:
+            for c in lesson["motivation"].replace("Unlocks: ", "").split(", "):
                 mentioned_in_motivation.add(c.strip())
     mentioned_in_examples = set()
-    for l in plan["lessons"]:
-        for e in l["examples"]:
+    for lesson in plan["lessons"]:
+        for e in lesson["examples"]:
             mentioned_in_examples.add(e)
     mentioned_in_crossrefs = set()
-    for l in plan["lessons"]:
-        for x in l["cross_references"]:
+    for lesson in plan["lessons"]:
+        for x in lesson["cross_references"]:
             mentioned_in_crossrefs.add(x)
 
     connected_concepts = (
@@ -617,11 +625,11 @@ def _identify_standalone_lessons(plan: dict) -> tuple[list[dict], list[dict]]:
 
     standalone = []
     connected = []
-    for l in plan["lessons"]:
-        if l["concept"] in connected_concepts:
-            connected.append(l)
+    for lesson in plan["lessons"]:
+        if lesson["concept"] in connected_concepts:
+            connected.append(lesson)
         else:
-            standalone.append(l)
+            standalone.append(lesson)
 
     return connected, standalone
 
@@ -690,7 +698,7 @@ def consolidate_lessons(
             return invoke_model(prompt, model=model, timeout=timeout)
 
     all_groups: list[dict] = []
-    standalone_concepts = [l["concept"] for l in standalone]
+    standalone_concepts = [lesson["concept"] for lesson in standalone]
 
     for i in range(0, len(standalone_concepts), batch_size):
         batch = standalone_concepts[i : i + batch_size]
@@ -708,7 +716,7 @@ def consolidate_lessons(
                 }
             )
 
-    standalone_by_concept = {l["concept"]: l for l in standalone}
+    standalone_by_concept = {lesson["concept"]: lesson for lesson in standalone}
 
     consolidated_lessons = []
     lesson_num = 1
@@ -748,8 +756,8 @@ def consolidate_lessons(
         lesson_num += 1
 
     modules: dict[str, list[dict]] = defaultdict(list)
-    for l in consolidated_lessons:
-        modules[l["module"]].append(l)
+    for lesson in consolidated_lessons:
+        modules[lesson["module"]].append(lesson)
 
     stats = {
         "total_lessons": len(consolidated_lessons),
@@ -877,7 +885,7 @@ def survey_lessons(
         def invoke_fn(prompt, model):
             return invoke_model(prompt, model=model, timeout=timeout)
 
-    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_concepts = [lesson["concept"] for lesson in plan["lessons"]]
     all_groups: list[dict] = []
 
     for i in range(0, len(all_concepts), batch_size):

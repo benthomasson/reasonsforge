@@ -8,6 +8,8 @@ import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
+from . import META_DIR
+
 
 @dataclass
 class Topic:
@@ -24,8 +26,6 @@ class Topic:
 
 
 TOPIC_KINDS = {"cross-domain", "contradiction", "derivation", "general"}
-
-from . import META_DIR
 
 
 def _queue_path(meta_dir: str | None = None) -> str:

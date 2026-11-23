@@ -1,5 +1,7 @@
 """Tests for the derive_relations module."""
 
+import pytest
+
 from reasonsforge.derive_relations import (
     _build_justification_graph,
     _filter_existing_relations,
@@ -394,7 +396,6 @@ try:
 except ImportError:
     HAS_CLUSTER_DEPS = False
 
-import pytest
 
 EMBEDDING_NODES = {
     "group-definition": {

@@ -912,15 +912,13 @@ def _function_body_ast(
     return result
 
 
-import re as _re
-
-_FUNCTION_DEF_RE = _re.compile(
+_FUNCTION_DEF_RE = re.compile(
     r"^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?"
     r"(?:pub(?:\s*\(crate\))?\s+)?(?:static\s+)?"
     r"(?:function\s+|fn\s+|func\s+|def\s+|(?:const|let|var)\s+)"
     r"(\w+)",
 )
-_CLASS_DEF_RE = _re.compile(
+_CLASS_DEF_RE = re.compile(
     r"^\s*(?:export\s+)?(?:class|struct|enum|interface|type|trait|impl)\s+(\w+)",
 )
 
@@ -943,7 +941,7 @@ def _function_body_brace(
                 start_idx = i
                 break
     elif function_name:
-        pat = _re.compile(r"\b" + _re.escape(function_name) + r"\b")
+        pat = re.compile(r"\b" + re.escape(function_name) + r"\b")
         for i, line in enumerate(source_lines):
             if pat.search(line) and (
                 _FUNCTION_DEF_RE.match(line) or _CLASS_DEF_RE.match(line)

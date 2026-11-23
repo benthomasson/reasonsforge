@@ -114,7 +114,7 @@ def test_build_lesson_plan_basic():
 def test_topological_order():
     plan = build_lesson_plan(NODES)
     lessons = plan["lessons"]
-    concept_order = {l["concept"]: l["number"] for l in lessons}
+    concept_order = {lesson["concept"]: lesson["number"] for lesson in lessons}
 
     assert concept_order["group"] < concept_order["ring"]
     assert concept_order["ring"] < concept_order["field"]
@@ -123,7 +123,7 @@ def test_topological_order():
 
 def test_prerequisites_populated():
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     assert "group" in lessons_by_concept["ring"]["prerequisites"]
     assert "ring" in lessons_by_concept["field"]["prerequisites"]
     assert "field" in lessons_by_concept["vector-space"]["prerequisites"]
@@ -131,7 +131,7 @@ def test_prerequisites_populated():
 
 def test_motivation_from_enables():
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     group_lesson = lessons_by_concept["group"]
     assert group_lesson["motivation"] is not None
     assert "ring" in group_lesson["motivation"].lower()
@@ -139,14 +139,14 @@ def test_motivation_from_enables():
 
 def test_cross_references():
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     group_lesson = lessons_by_concept["group"]
     assert "symmetry" in group_lesson["cross_references"]
 
 
 def test_out_beliefs_ignored():
     plan = build_lesson_plan(NODES)
-    concepts = {l["concept"] for l in plan["lessons"]}
+    concepts = {lesson["concept"] for lesson in plan["lessons"]}
     assert "retracted" not in concepts
     assert "something" not in concepts
 
@@ -302,7 +302,7 @@ def test_build_lesson_prompt_no_prereqs():
 
 def test_select_beliefs_for_lesson():
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     ring_lesson = lessons_by_concept["ring"]
     beliefs = select_beliefs_for_lesson(ring_lesson, NODES)
     ids = [b["id"] for b in beliefs]
@@ -311,7 +311,7 @@ def test_select_beliefs_for_lesson():
 
 def test_select_beliefs_respects_max():
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     group_lesson = lessons_by_concept["group"]
     beliefs = select_beliefs_for_lesson(group_lesson, NODES, max_beliefs=2)
     assert len(beliefs) <= 2
@@ -361,7 +361,7 @@ def test_generate_lesson_with_mock():
     from reasonsforge.lesson_plan import generate_lesson
 
     plan = build_lesson_plan(NODES)
-    lessons_by_concept = {l["concept"]: l for l in plan["lessons"]}
+    lessons_by_concept = {lesson["concept"]: lesson for lesson in plan["lessons"]}
     ring_lesson = lessons_by_concept["ring"]
 
     mock_response = """TITLE: Understanding Rings
@@ -430,15 +430,15 @@ STANDALONE_NODES = {
 def test_identify_standalone_lessons():
     plan = build_lesson_plan(STANDALONE_NODES)
     connected, standalone = _identify_standalone_lessons(plan)
-    connected_concepts = {l["concept"] for l in connected}
-    standalone_concepts = {l["concept"] for l in standalone}
+    connected_concepts = {lesson["concept"] for lesson in connected}
+    standalone_concepts = {lesson["concept"] for lesson in standalone}
     assert "alpha" in connected_concepts
     assert "beta" in connected_concepts
     assert "gamma" in connected_concepts
     assert "delta" in connected_concepts
     assert len(standalone) > 0
-    for l in standalone:
-        assert l["concept"] in standalone_concepts
+    for lesson in standalone:
+        assert lesson["concept"] in standalone_concepts
 
 
 def test_identify_standalone_all_connected():
@@ -487,7 +487,7 @@ def test_parse_consolidation_response_invalid():
 def test_consolidate_lessons_with_mock():
     plan = build_lesson_plan(STANDALONE_NODES)
     _, standalone = _identify_standalone_lessons(plan)
-    standalone_concepts = [l["concept"] for l in standalone]
+    standalone_concepts = [lesson["concept"] for lesson in standalone]
 
     mock_response = '[{"title": "Misc Topics", "concepts": '
     import json as _json
@@ -503,9 +503,9 @@ def test_consolidate_lessons_with_mock():
     assert "consolidated_from" in consolidated["stats"]
 
     concept_or_subtopic = set()
-    for l in consolidated["lessons"]:
-        concept_or_subtopic.add(l["concept"])
-        concept_or_subtopic.update(l.get("subtopics", []))
+    for lesson in consolidated["lessons"]:
+        concept_or_subtopic.add(lesson["concept"])
+        concept_or_subtopic.update(lesson.get("subtopics", []))
     for c in standalone_concepts:
         assert c in concept_or_subtopic
 
@@ -521,7 +521,7 @@ def test_consolidate_no_standalone():
 def test_format_consolidated_markdown():
     plan = build_lesson_plan(STANDALONE_NODES)
     _, standalone = _identify_standalone_lessons(plan)
-    standalone_concepts = [l["concept"] for l in standalone]
+    standalone_concepts = [lesson["concept"] for lesson in standalone]
 
     import json as _json
 
@@ -576,7 +576,7 @@ def test_parse_survey_response_invalid():
 
 def test_survey_lessons_with_mock():
     plan = build_lesson_plan(NODES)
-    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_concepts = [lesson["concept"] for lesson in plan["lessons"]]
 
     import json as _json
 
@@ -615,7 +615,7 @@ def test_survey_empty_plan():
 
 def test_format_survey_markdown():
     plan = build_lesson_plan(NODES)
-    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_concepts = [lesson["concept"] for lesson in plan["lessons"]]
 
     import json as _json
 
@@ -642,7 +642,7 @@ def test_format_survey_markdown():
 
 def test_select_beliefs_for_survey_lesson():
     plan = build_lesson_plan(NODES)
-    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_concepts = [lesson["concept"] for lesson in plan["lessons"]]
     survey_lesson = {
         "concept": "algebra-overview",
         "subtopics": all_concepts,
@@ -717,7 +717,7 @@ def test_generate_lesson_survey_mode():
     from reasonsforge.lesson_plan import generate_lesson
 
     plan = build_lesson_plan(NODES)
-    all_concepts = [l["concept"] for l in plan["lessons"]]
+    all_concepts = [lesson["concept"] for lesson in plan["lessons"]]
     survey_lesson = {
         "concept": "algebra-overview",
         "subtopics": all_concepts,
