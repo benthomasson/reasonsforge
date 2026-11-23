@@ -131,6 +131,14 @@ reasonsforge review-beliefs                # LLM review of beliefs
 reasonsforge verify --all                  # verify against sources
 ```
 
+## Setup After Clone
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This enables the pre-commit hook that runs `ruff format` on staged Python files.
+
 ## Running Tests
 
 ```bash
