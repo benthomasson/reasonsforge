@@ -677,9 +677,7 @@ class TestListNegative:
         api.add_node(
             "real-neg", "There is a known issue in the auth module", db_path=db_path
         )
-        with patch(
-            "reasonsforge.llm.invoke_model", return_value='["real-neg"]'
-        ) as mock_llm:
+        with patch("reasonsforge.llm.invoke_model", return_value='["real-neg"]'):
             result = api.list_negative(db_path=db_path)
             assert result["candidates"] == 1
             assert result["negative"][0]["id"] == "real-neg"

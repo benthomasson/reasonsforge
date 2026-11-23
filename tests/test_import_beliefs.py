@@ -148,7 +148,7 @@ class TestParseNogoods:
 class TestImportIntoNetwork:
     def test_imports_premises(self):
         net = Network()
-        result = import_into_network(net, SAMPLE_BELIEFS)
+        import_into_network(net, SAMPLE_BELIEFS)
         assert "premise-a" in net.nodes
         assert "premise-b" in net.nodes
         assert net.nodes["premise-a"].truth_value == "IN"
@@ -221,7 +221,7 @@ class TestImportIntoNetwork:
         """Retract premise-a → derived-c and chain-e go OUT."""
         net = Network()
         import_into_network(net, SAMPLE_BELIEFS)
-        changed = net.retract("premise-a")
+        net.retract("premise-a")
         assert net.nodes["derived-c"].truth_value == "OUT"
         assert net.nodes["chain-e"].truth_value == "OUT"
 

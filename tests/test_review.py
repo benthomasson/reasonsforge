@@ -333,7 +333,7 @@ class TestReviewBeliefs:
                 "reasonsforge.llm.subprocess.run", return_value=mock_result
             ) as mock_run,
         ):
-            results = review_beliefs(nodes, batch_size=1)
+            review_beliefs(nodes, batch_size=1)
         # 2 derived IN beliefs (derived-ab, derived-deep) = 2 batches
         assert mock_run.call_count == 2
 
@@ -821,7 +821,7 @@ class TestCmdReviewBeliefs:
 
     def test_partial_report_on_batch(self, db_path, tmp_path):
         """on_batch callback writes partial report after each batch."""
-        report_dir = str(tmp_path / "reports")
+        str(tmp_path / "reports")
         batch_results = []
 
         def capture_on_batch(results):

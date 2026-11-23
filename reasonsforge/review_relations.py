@@ -318,7 +318,7 @@ def build_fixed_id(original_id, review):
     if new_id == original_id:
         return None
 
-    new_triple = Relation(subject=subject, relation=relation, object=obj)
+    Relation(subject=subject, relation=relation, object=obj)
     display_subject = subject.replace("-", " ").title()
     display_object = obj.replace("-", " ").title()
     new_text = f"{display_subject} {relation} {display_object}"

@@ -193,7 +193,7 @@ class TestRestoration:
         net.retract("a")
         assert net.nodes["c"].truth_value == "OUT"
 
-        changed = net.assert_node("a")
+        net.assert_node("a")
         assert net.nodes["b"].truth_value == "IN"
         assert net.nodes["c"].truth_value == "IN"
 
@@ -239,7 +239,7 @@ class TestNogood:
         net = Network()
         net.add_node("a", "Premise A")
         net.add_node("d", "Premise D")
-        changed = net.add_nogood(["a", "d"])
+        net.add_nogood(["a", "d"])
         # One of them should be OUT
         values = {net.nodes["a"].truth_value, net.nodes["d"].truth_value}
         assert "OUT" in values

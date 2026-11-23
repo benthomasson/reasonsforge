@@ -318,7 +318,7 @@ def test_select_beliefs_respects_max():
 
 
 def test_select_beliefs_ignores_out():
-    plan = build_lesson_plan(NODES)
+    build_lesson_plan(NODES)
     lesson = {
         "concept": "retracted",
         "number": 1,

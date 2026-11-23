@@ -1307,7 +1307,7 @@ class PgApi:
             # For has_dependents filter, we need the reverse lookup
             if has_dependents:
                 all_ids = [r[0] for r in rows]
-                dep_set = self._find_dependents(cur, all_ids) if all_ids else set()
+                self._find_dependents(cur, all_ids) if all_ids else set()
                 # dep_set contains nodes that ARE dependents, not nodes that HAVE dependents
                 # We need nodes that appear in others' justifications
                 ids_with_deps = set()
@@ -2302,14 +2302,12 @@ class PgApi:
         return {"culprits": culprits}
 
     def explain_node(self, node_id, visible_to=None):
-        pid = self.project_id
 
         with self.conn.cursor() as cur:
             steps = self._explain_recursive(cur, node_id, visible_to, set())
         return {"steps": steps}
 
     def trace_assumptions(self, node_id, visible_to=None):
-        pid = self.project_id
         premises = []
         visited = set()
 

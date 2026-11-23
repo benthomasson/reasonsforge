@@ -104,7 +104,7 @@ def _run_document_forge(
     work_dir: Path, task: dict, base_url: str, token: str, model: str
 ):
     task_id = task["id"]
-    tenant_id = task.get("tenant_id", "")
+    task.get("tenant_id", "")
     domain_id = task.get("domain_id", "")
     config = task.get("config", {})
 
@@ -191,7 +191,7 @@ def _run_derive_review_repair(
     work_dir: Path, task: dict, base_url: str, token: str, model: str
 ):
     task_id = task["id"]
-    tenant_id = task.get("tenant_id", "")
+    task.get("tenant_id", "")
     domain_id = task.get("domain_id", "")
     config = task.get("config", {})
 

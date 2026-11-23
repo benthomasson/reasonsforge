@@ -709,7 +709,7 @@ class TestAskNatural:
         with patch(
             "reasonsforge.ask.invoke_model", return_value="Natural answer."
         ) as mock_llm:
-            result = ask("propagation", db_path=db_path, simple=True, natural=True)
+            ask("propagation", db_path=db_path, simple=True, natural=True)
         prompt = mock_llm.call_args[0][0]
         assert "**Status:**" not in prompt
         assert "### " not in prompt
@@ -743,7 +743,7 @@ class TestAskNatural:
         with patch(
             "reasonsforge.ask.invoke_model", return_value="Answer from full mode."
         ) as mock_llm:
-            result = ask("alpha", db_path=db_path, natural=True)
+            ask("alpha", db_path=db_path, natural=True)
         prompt = mock_llm.call_args[0][0]
         assert "**Status:**" not in prompt
         assert "### " not in prompt
@@ -780,7 +780,7 @@ class TestAskWithSources:
         with patch(
             "reasonsforge.ask.invoke_model", return_value="Answer with sources."
         ) as mock_llm:
-            result = ask("Summit", db_path=db_path, simple=True, sources_db=sources_db)
+            ask("Summit", db_path=db_path, simple=True, sources_db=sources_db)
         prompt = mock_llm.call_args[0][0]
         assert "Source Documents" in prompt
         assert "Summit is in June 2025" in prompt
@@ -791,7 +791,7 @@ class TestAskWithSources:
 
         with patch(
             "reasonsforge.ask.invoke_model", return_value="Answer from sources only."
-        ) as mock_llm:
+        ):
             result = ask("Summit", db_path=db_path, simple=True, sources_db=sources_db)
         assert result == "Answer from sources only."
 
@@ -872,7 +872,7 @@ class TestAskDual:
                 return "Merged answer."
 
         with patch("reasonsforge.ask.invoke_model", side_effect=mock_invoke):
-            result = ask(
+            ask(
                 "alpha",
                 db_path=db_path,
                 simple=True,

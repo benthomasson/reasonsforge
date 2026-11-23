@@ -2698,8 +2698,8 @@ def cmd_review_beliefs(args):
         return
 
     invalid = [r for r in reviews if not r.get("valid", True)]
-    insufficient = [r for r in reviews if not r.get("sufficient", True)]
-    unnecessary = [r for r in reviews if not r.get("necessary", True)]
+    [r for r in reviews if not r.get("sufficient", True)]
+    [r for r in reviews if not r.get("necessary", True)]
 
     for r in reviews:
         flags = []
@@ -2972,9 +2972,7 @@ def cmd_review_premises(args):
         return
 
     inaccurate = [r for r in reviews if not r.get("accurate", True)]
-    overgeneralized = [
-        r for r in reviews if r.get("accurate", True) and not r.get("well_scoped", True)
-    ]
+    [r for r in reviews if r.get("accurate", True) and not r.get("well_scoped", True)]
 
     for r in reviews:
         flags = []

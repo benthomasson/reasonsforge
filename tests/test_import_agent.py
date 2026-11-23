@@ -183,7 +183,7 @@ Derived but marked OUT in source snapshot
     p = tmp_path / "propagate_beliefs.md"
     p.write_text(beliefs_text)
 
-    result = api.import_agent("prop-agent", str(p), db_path=db)
+    api.import_agent("prop-agent", str(p), db_path=db)
 
     node = api.show_node("prop-agent:derived-out", db_path=db)
     assert node["truth_value"] == "OUT"

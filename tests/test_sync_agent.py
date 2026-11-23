@@ -138,7 +138,7 @@ class TestSyncTruthValueChanges:
         p = tmp_path / "beliefs.md"
         p.write_text(updated)
 
-        result = api.sync_agent("test-agent", str(p), db_path=db)
+        api.sync_agent("test-agent", str(p), db_path=db)
 
         node = api.show_node("test-agent:alpha-fact", db_path=db)
         assert node["truth_value"] == "OUT"
@@ -162,7 +162,7 @@ class TestSyncTruthValueChanges:
         p = tmp_path / "beliefs.md"
         p.write_text(updated)
 
-        result = api.sync_agent("test-agent", str(p), db_path=db)
+        api.sync_agent("test-agent", str(p), db_path=db)
 
         node = api.show_node("test-agent:gamma-stale", db_path=db)
         assert node["truth_value"] == "IN"
@@ -182,7 +182,7 @@ class TestSyncRetractedCleared:
         p = tmp_path / "beliefs.md"
         p.write_text(INITIAL_BELIEFS)
 
-        result = api.sync_agent("test-agent", str(p), db_path=db)
+        api.sync_agent("test-agent", str(p), db_path=db)
 
         node = api.show_node("test-agent:alpha-fact", db_path=db)
         assert node["truth_value"] == "IN"
@@ -220,7 +220,7 @@ Gamma is the third letter (corrected)
         p = tmp_path / "beliefs.md"
         p.write_text(updated)
 
-        result = api.sync_agent("test-agent", str(p), db_path=db)
+        api.sync_agent("test-agent", str(p), db_path=db)
 
         node = api.show_node("test-agent:beta-depends-alpha", db_path=db)
         j = node["justifications"][0]
@@ -364,7 +364,7 @@ class TestSyncJson:
         assert node["truth_value"] == "OUT"
 
         # Sync with remote still saying IN
-        result = api.sync_agent("clr-agent", str(p), db_path=db)
+        api.sync_agent("clr-agent", str(p), db_path=db)
 
         node = api.show_node("clr-agent:fact-x", db_path=db)
         assert node["truth_value"] == "IN"
@@ -561,7 +561,7 @@ class TestSyncOutWithJustifications:
             "nogoods": [],
         }
         p.write_text(json.dumps(updated))
-        result = api.sync_agent("owj-agent", str(p), db_path=db)
+        api.sync_agent("owj-agent", str(p), db_path=db)
 
         node = api.show_node("owj-agent:derived", db_path=db)
         assert node["truth_value"] == "OUT"
@@ -599,7 +599,7 @@ class TestSyncOutWithJustifications:
             "nogoods": [],
         }
         p.write_text(json.dumps(updated))
-        result = api.sync_agent("res-agent", str(p), db_path=db)
+        api.sync_agent("res-agent", str(p), db_path=db)
 
         node = api.show_node("res-agent:gated", db_path=db)
         assert node["truth_value"] == "IN"
@@ -621,7 +621,7 @@ class TestSyncOutWithJustifications:
         p.write_text(json.dumps(data))
         api.import_agent("idem-agent", str(p), db_path=db)
 
-        result1 = api.sync_agent("idem-agent", str(p), db_path=db)
+        api.sync_agent("idem-agent", str(p), db_path=db)
         result2 = api.sync_agent("idem-agent", str(p), db_path=db)
 
         assert result2["beliefs_updated"] == 0

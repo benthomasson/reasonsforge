@@ -1221,7 +1221,7 @@ def cmd_explore_propose_accept(args):
     _caffeinate()
 
     db_path = getattr(args, "output", REASONS_DB)
-    model = getattr(args, "model", None) or "claude"
+    getattr(args, "model", None) or "claude"
     rounds = getattr(args, "rounds", 1)
     explore_limit = getattr(args, "limit", 0)
     project_dir = _get_project_dir(args)

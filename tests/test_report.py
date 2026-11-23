@@ -8,7 +8,7 @@ from reasonsforge.forge.report import Report
 
 def test_report_writes_to_reports_dir(tmp_path):
     project_dir = str(tmp_path / ".forge")
-    report = Report("my-pipeline", ["a"], project_dir=project_dir)
+    Report("my-pipeline", ["a"], project_dir=project_dir)
 
     reports_dir = os.path.join(project_dir, "reports")
     assert os.path.isdir(reports_dir)
@@ -25,7 +25,7 @@ def test_report_writes_to_reports_dir(tmp_path):
 
 def test_report_creates_file(tmp_path):
     path = str(tmp_path / "report.json")
-    report = Report("test-pipeline", ["step-a", "step-b"], path=path)
+    Report("test-pipeline", ["step-a", "step-b"], path=path)
 
     with open(path) as f:
         data = json.load(f)

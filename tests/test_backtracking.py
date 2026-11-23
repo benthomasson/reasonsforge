@@ -203,7 +203,7 @@ class TestBacktrackingInNogood:
                 Justification(type="SL", antecedents=["a"]),
             ],
         )
-        changed = net.add_nogood(["b", "c"])
+        net.add_nogood(["b", "c"])
         # Should have retracted a premise (a or b), not c
         # B has fewer dependents than A, so B is the victim
         assert net.nodes["b"].truth_value == "OUT"
@@ -230,7 +230,7 @@ class TestBacktrackingInNogood:
             ],
         )
         # D has 0 dependents, A has 1 (b). D should be retracted.
-        changed = net.add_nogood(["c", "d"])
+        net.add_nogood(["c", "d"])
         assert net.nodes["d"].truth_value == "OUT"
         # C and B stay IN
         assert net.nodes["c"].truth_value == "IN"
@@ -263,7 +263,7 @@ class TestBacktrackingInNogood:
                 Justification(type="SL", antecedents=["a"]),
             ],
         )
-        changed = net.add_nogood(["b", "c"])
+        net.add_nogood(["b", "c"])
         # A is the only premise — retracting it resolves both
         assert net.nodes["a"].truth_value == "OUT"
         assert net.nodes["b"].truth_value == "OUT"
@@ -323,7 +323,7 @@ class TestEntrenchment:
         )
 
         # These two contradict each other
-        changed = net.add_nogood(["tree-as-genealogy", "finite-tree-gap-closes"])
+        net.add_nogood(["tree-as-genealogy", "finite-tree-gap-closes"])
 
         # Evidence should survive — speculation's premise should be retracted
         assert net.nodes["finite-tree-gap-closes"].truth_value == "IN"

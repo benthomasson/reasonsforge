@@ -253,7 +253,7 @@ def test_cascade_through_scope_defeat(tmp_path):
 
     assert api.show_node("d2", db_path=str(db))["truth_value"] == "IN"
 
-    result = api.defeat_with_scope(
+    api.defeat_with_scope(
         "d1",
         0,
         scope_findings=[

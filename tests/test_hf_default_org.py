@@ -252,7 +252,7 @@ class TestCLIDispatch:
         from reasonsforge import cli
 
         parser = argparse.ArgumentParser()
-        sub = parser.add_subparsers(dest="command")
+        parser.add_subparsers(dest="command")
         # Smoke test: the commands exist by checking the dispatch dict
         # We access it indirectly by verifying the module defines the handlers
         assert hasattr(cli, "cmd_pull")

@@ -309,8 +309,8 @@ def _explore_loop(
         _explore_loop_parallel(args, project_dir, max_topics, max_parallel, kinds=kinds)
         return
 
-    model = getattr(args, "model", "claude")
-    timeout = getattr(args, "timeout", 300)
+    getattr(args, "model", "claude")
+    getattr(args, "timeout", 300)
 
     explored = 0
     while explored < max_topics:

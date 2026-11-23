@@ -39,9 +39,7 @@ class TestPgDispatch:
         with patch("reasonsforge.pg.PgApi") as MockPgApi:
             MockPgApi.return_value.__enter__ = MagicMock(return_value=mock_pg)
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
-            result = _pg_dispatch(
-                "postgresql://...", "proj-1", "show_node", node_id="a"
-            )
+            _pg_dispatch("postgresql://...", "proj-1", "show_node", node_id="a")
         mock_pg.show_node.assert_called_once_with(node_id="a")
 
 
@@ -366,7 +364,7 @@ class TestImportAgentDispatch:
         with patch("reasonsforge.pg.PgApi") as MockPgApi:
             MockPgApi.return_value.__enter__ = MagicMock(return_value=mock_pg)
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
-            result = import_agent(
+            import_agent(
                 "remote",
                 str(json_file),
                 pg_conninfo="postgresql://...",
@@ -530,7 +528,7 @@ class TestLookupDispatch:
         with patch("reasonsforge.pg.PgApi") as MockPgApi:
             MockPgApi.return_value.__enter__ = MagicMock(return_value=mock_pg)
             MockPgApi.return_value.__exit__ = MagicMock(return_value=False)
-            result = lookup(
+            lookup(
                 "secret",
                 visible_to=["admin"],
                 pg_conninfo="postgresql://...",

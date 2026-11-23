@@ -939,7 +939,7 @@ def cmd_explore(args):
     abs_repo = os.path.abspath(repo_path)
     model = getattr(args, "model", "claude")
     timeout = getattr(args, "timeout", 300)
-    parallel = getattr(args, "parallel", 1)
+    getattr(args, "parallel", 1)
     loop_max = getattr(args, "loop", None)
 
     if not check_model_available(model):
@@ -1779,7 +1779,7 @@ def cmd_propose_beliefs(args):
     process_all = getattr(args, "all", False)
     auto_accept = getattr(args, "auto", False)
     since = getattr(args, "since", None)
-    parallel = getattr(args, "parallel", 1)
+    getattr(args, "parallel", 1)
     db_path = _get_db_path(args)
     parse_only = getattr(args, "parse_only", False)
     no_embeddings = getattr(args, "no_embeddings", False)

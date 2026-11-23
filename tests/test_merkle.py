@@ -36,7 +36,7 @@ def test_content_hash_incorporates_antecedents(tmp_path):
     api.add_node("d1", "D1 text", sl="p1,p2", db_path=str(db))
 
     d1 = api.show_node("d1", db_path=str(db))
-    original_hash = d1["justifications"][0]["content_hash"]
+    d1["justifications"][0]["content_hash"]
 
     # Simulate unauthorized text mutation via Storage layer
     from reasonsforge.storage import Storage

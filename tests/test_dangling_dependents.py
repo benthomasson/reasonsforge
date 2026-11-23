@@ -207,7 +207,7 @@ class TestDanglingDependentEdgeCases:
         )
         net.nodes["a"].dependents.add("ghost")
         net.nodes["b"].dependents.add("ghost")
-        changed = net.retract("a")
+        net.retract("a")
         warnings = [e for e in net.log if e["action"] == "warn"]
         ghost_warnings = [w for w in warnings if w["target"] == "ghost"]
         assert len(ghost_warnings) >= 1

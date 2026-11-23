@@ -145,7 +145,7 @@ class TestOutlistCascading:
         )
         assert net.nodes["z"].truth_value == "IN"
 
-        changed = net.assert_node("y")
+        net.assert_node("y")
         assert net.nodes["x"].truth_value == "OUT"
         assert net.nodes["z"].truth_value == "OUT"
 

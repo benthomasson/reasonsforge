@@ -238,7 +238,7 @@ class TestPinUpdate:
         net.add_node(
             "belief-1", "Test belief", source="source.md", source_hash="stale-hash"
         )
-        results = pin_update(net, ["belief-1"], db_dir=git_repo)
+        pin_update(net, ["belief-1"], db_dir=git_repo)
         expected_hash = hash_file(git_repo / "source.md")
         assert net.nodes["belief-1"].source_hash == expected_hash
 
@@ -535,7 +535,7 @@ class TestCheckStaleLineRange:
         lines[4] = "CHANGED"
         _commit_change(git_repo, "source.md", "\n".join(lines))
         _commit_change(git_repo, "source.md", content)
-        new_head = _get_head_sha(git_repo)
+        _get_head_sha(git_repo)
         results, upgraded, sha_bumped = check_stale(
             net, db_dir=git_repo, git_aware=True
         )

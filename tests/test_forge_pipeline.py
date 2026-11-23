@@ -234,7 +234,7 @@ class TestStageRepair:
         with patch(
             "reasonsforge.api.research", return_value=research_result
         ) as mock_research:
-            result = _stage_repair(args, review_result)
+            _stage_repair(args, review_result)
         assert mock_research.called
         call_kwargs = mock_research.call_args[1]
         assert set(call_kwargs["belief_ids"]) == {"b1", "b3"}

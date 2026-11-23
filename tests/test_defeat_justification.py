@@ -131,14 +131,14 @@ def test_defeat_multiple_justifications(tmp_path):
     assert node["truth_value"] == "IN"
 
     # Defeat first justification
-    result = api.defeat_justification("b", 0, "First is invalid", db_path=str(db))
+    api.defeat_justification("b", 0, "First is invalid", db_path=str(db))
 
     # Belief should still be IN (second justification is still valid)
     node = api.show_node("b", db_path=str(db))
     assert node["truth_value"] == "IN"
 
     # Defeat second justification
-    result2 = api.defeat_justification("b", 1, "Second is invalid", db_path=str(db))
+    api.defeat_justification("b", 1, "Second is invalid", db_path=str(db))
 
     # Now belief should be OUT (no valid justifications)
     node = api.show_node("b", db_path=str(db))

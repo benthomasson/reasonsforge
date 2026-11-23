@@ -686,9 +686,8 @@ def consolidate_lessons(
     if invoke_fn is None:
         from .llm import invoke_model
 
-        invoke_fn = lambda prompt, model: invoke_model(
-            prompt, model=model, timeout=timeout
-        )
+        def invoke_fn(prompt, model):
+            return invoke_model(prompt, model=model, timeout=timeout)
 
     all_groups: list[dict] = []
     standalone_concepts = [l["concept"] for l in standalone]
@@ -875,9 +874,8 @@ def survey_lessons(
     if invoke_fn is None:
         from .llm import invoke_model
 
-        invoke_fn = lambda prompt, model: invoke_model(
-            prompt, model=model, timeout=timeout
-        )
+        def invoke_fn(prompt, model):
+            return invoke_model(prompt, model=model, timeout=timeout)
 
     all_concepts = [l["concept"] for l in plan["lessons"]]
     all_groups: list[dict] = []

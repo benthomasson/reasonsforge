@@ -36,7 +36,7 @@ class TestChallenge:
                 Justification(type="SL", antecedents=["p"]),
             ],
         )
-        result = net.challenge("a", "A is wrong")
+        net.challenge("a", "A is wrong")
         assert net.nodes["a"].truth_value == "OUT"
 
     def test_challenge_cascades(self):
