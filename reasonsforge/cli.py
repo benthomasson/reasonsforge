@@ -1140,9 +1140,11 @@ def cmd_sync_status(args):
 
     print(f"Summary: +{len(only_in_db)} new, -{len(only_in_file)} removed, ~{len(changed)} changed")
     if not short:
-        if only_in_db or changed:
+        if only_in_db and only_in_file or changed:
+            print(f"Run `reasonsforge merge {network_file} --strategy newest` to reconcile both sides")
+        if only_in_db and not only_in_file and not changed:
             print("Run `reasonsforge export` to update network.json")
-        if only_in_file:
+        if only_in_file and not only_in_db and not changed:
             print(f"Run `reasonsforge import-json {network_file}` to import upstream changes")
 
 
