@@ -3326,9 +3326,18 @@ def _phase_reconcile(
         if not existing:
             continue
 
+        proposal_ids = {p["belief_id"] for p in all_proposals[issue_id]}
+
         issue = issues.get(issue_id)
         if not issue:
-            kept += len(existing)
+            # No issue context for LLM — fall back to ID-based reconciliation
+            for nid, _text in existing:
+                if nid in proposal_ids:
+                    kept += 1
+                else:
+                    retract_decisions.append(
+                        (nid, f"Not in current proposals for {issue_id}")
+                    )
             continue
 
         issue_text = issue.to_prompt_text()
