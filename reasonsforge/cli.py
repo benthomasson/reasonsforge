@@ -2346,10 +2346,9 @@ def cmd_list_gated(args):
     fmt = getattr(args, "format", "full")
     only_blockers = getattr(args, "blockers", False)
     only_blocked = getattr(args, "blocked", False)
-    result = api.list_gated(
-        visible_to=_parse_visible_to(args),
-        **_backend_kwargs(args),
-    )
+    vis = _parse_visible_to(args)
+    backend = _backend_kwargs(args)
+    result = api.list_gated(visible_to=vis, **backend)
 
     if not result["blockers"]:
         print("No active gates found. All gated beliefs are satisfied.")
@@ -2362,6 +2361,50 @@ def cmd_list_gated(args):
             if not only_blockers:
                 for gated in info["gated"]:
                     print(gated["id"])
+        return
+
+    if fmt == "summary":
+        top_n = getattr(args, "top", 10)
+        ranked = sorted(
+            result["blockers"].items(),
+            key=lambda kv: len(kv[1]["gated"]),
+            reverse=True,
+        )
+        print(
+            f"{result['blocker_count']} blocker(s) gating "
+            f"{result['gated_count']} belief(s)\n"
+        )
+        shown = ranked[:top_n]
+        for blocker_id, info in shown:
+            count = len(info["gated"])
+            try:
+                detail = api.show_node(blocker_id, visible_to=vis, **backend)
+                justs = detail.get("justifications", [])
+                if justs:
+                    in_count = 0
+                    total_ante = 0
+                    for j in justs:
+                        for aid in j.get("antecedents", []):
+                            total_ante += 1
+                            try:
+                                a = api.show_node(aid, visible_to=vis, **backend)
+                                if a.get("truth_value") == "IN":
+                                    in_count += 1
+                            except (KeyError, PermissionError):
+                                pass
+                    kind = f"derived, {total_ante} antecedents: {in_count} IN"
+                else:
+                    kind = "premise"
+            except (KeyError, PermissionError):
+                kind = "?"
+            text = info["text"]
+            if len(text) > 72:
+                text = text[:69] + "…"
+            print(f"  {count:3d}  {blocker_id}  ({kind})")
+            print(f"       {text}")
+        rest = len(ranked) - len(shown)
+        if rest > 0:
+            print(f"\n  {rest} more blocker(s) (use --format full for complete output)")
         return
 
     for blocker_id, info in sorted(result["blockers"].items()):
@@ -5604,7 +5647,7 @@ def main():
     p = sub.add_parser("list-gated", help="List OUT nodes blocked by IN outlist nodes")
     p.add_argument(
         "--format",
-        choices=["full", "names-only"],
+        choices=["full", "names-only", "summary"],
         default="full",
         help="Output format (default: full)",
     )
@@ -5617,6 +5660,12 @@ def main():
         "--blocked",
         action="store_true",
         help="With --format names-only, show only blocked (gated) IDs",
+    )
+    p.add_argument(
+        "--top",
+        type=int,
+        default=10,
+        help="With --format summary, how many blockers to show (default: 10)",
     )
     p.add_argument(
         "--visible-to",
