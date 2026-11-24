@@ -2344,6 +2344,8 @@ def cmd_list(args):
 
 def cmd_list_gated(args):
     fmt = getattr(args, "format", "full")
+    only_blockers = getattr(args, "blockers", False)
+    only_blocked = getattr(args, "blocked", False)
     result = api.list_gated(
         visible_to=_parse_visible_to(args),
         **_backend_kwargs(args),
@@ -2355,9 +2357,11 @@ def cmd_list_gated(args):
 
     if fmt == "names-only":
         for blocker_id, info in sorted(result["blockers"].items()):
-            print(blocker_id)
-            for gated in info["gated"]:
-                print(gated["id"])
+            if not only_blocked:
+                print(blocker_id)
+            if not only_blockers:
+                for gated in info["gated"]:
+                    print(gated["id"])
         return
 
     for blocker_id, info in sorted(result["blockers"].items()):
@@ -5603,6 +5607,16 @@ def main():
         choices=["full", "names-only"],
         default="full",
         help="Output format (default: full)",
+    )
+    p.add_argument(
+        "--blockers",
+        action="store_true",
+        help="With --format names-only, show only blocker IDs",
+    )
+    p.add_argument(
+        "--blocked",
+        action="store_true",
+        help="With --format names-only, show only blocked (gated) IDs",
     )
     p.add_argument(
         "--visible-to",
