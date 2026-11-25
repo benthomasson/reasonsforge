@@ -85,6 +85,11 @@ class TestSearchTool:
         data = json.loads(result)
         assert isinstance(data, (list, dict))
 
+    def test_search_failure_returns_error(self, db):
+        with patch.object(api, "search", side_effect=RuntimeError("search failed")):
+            result = json.loads(mcp_server.search("true"))
+        assert result == {"error": "search failed"}
+
 
 class TestShowTool:
     def test_show_existing(self, db):
@@ -229,6 +234,11 @@ class TestCompactTool:
         assert isinstance(result, str)
         assert len(result) > 0
 
+    def test_compact_failure_returns_error(self, db):
+        with patch.object(api, "compact", side_effect=RuntimeError("compact failed")):
+            result = json.loads(mcp_server.compact())
+        assert result == {"error": "compact failed"}
+
 
 class TestStatusTool:
     def test_status(self, db):
@@ -250,11 +260,23 @@ class TestExportMarkdownTool:
         assert isinstance(result, str)
         assert "premise-a" in result or "A is true" in result
 
+    def test_export_markdown_failure_returns_error(self, db):
+        with patch.object(
+            api, "export_markdown", side_effect=RuntimeError("export failed")
+        ):
+            result = json.loads(mcp_server.export_markdown())
+        assert result == {"error": "export failed"}
+
 
 class TestTopicsTool:
     def test_topics(self, db):
         result = json.loads(mcp_server.topics(limit=10))
         assert "topics" in result
+
+    def test_topics_failure_returns_error(self, db):
+        with patch.object(api, "topics", side_effect=RuntimeError("topics failed")):
+            result = json.loads(mcp_server.topics())
+        assert result == {"error": "topics failed"}
 
 
 class TestNamesOnlyFormat:

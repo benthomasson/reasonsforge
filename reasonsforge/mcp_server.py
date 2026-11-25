@@ -69,13 +69,16 @@ def search(
         depth: Hops to expand along justification chains (default 1)
         include_out: Include OUT (retracted) beliefs in results (default: false)
     """
-    return api.search(
-        query,
-        db_path=_get_db(),
-        format=output_format,
-        depth=depth,
-        include_out=include_out,
-    )
+    try:
+        return api.search(
+            query,
+            db_path=_get_db(),
+            format=output_format,
+            depth=depth,
+            include_out=include_out,
+        )
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -266,9 +269,15 @@ def compact(
         include_out: Include OUT (retracted) beliefs in summary (default: false)
         output_format: "default" or "names-only" for bare IDs (900x compression)
     """
-    return api.compact(
-        budget=budget, include_out=include_out, format=output_format, db_path=_get_db()
-    )
+    try:
+        return api.compact(
+            budget=budget,
+            include_out=include_out,
+            format=output_format,
+            db_path=_get_db(),
+        )
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 # --- Tier 3: Data management ---
@@ -310,7 +319,10 @@ def list_gated(output_format: str = "json") -> str:
 @mcp.tool()
 def export_markdown() -> str:
     """Export the entire belief network as markdown (beliefs.md format)."""
-    return api.export_markdown(db_path=_get_db())
+    try:
+        return api.export_markdown(db_path=_get_db())
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @mcp.tool()
@@ -320,7 +332,10 @@ def topics(limit: int = 20) -> str:
     Args:
         limit: Maximum number of topics to return
     """
-    return json.dumps(api.topics(limit=limit, db_path=_get_db()), indent=2)
+    try:
+        return json.dumps(api.topics(limit=limit, db_path=_get_db()), indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 def main():
