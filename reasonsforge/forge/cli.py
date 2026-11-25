@@ -75,6 +75,7 @@ def register_forge_type_commands(parent_subparsers):
     cs.add_argument("--repo", default=".", help="Path to git repository")
     cs.add_argument("--domain", help="Domain name")
     cs.add_argument("--description", help="What this domain covers")
+    cs.add_argument("--test-command", help="Shell command to run tests (e.g. 'pytest')")
 
     # code scan
     cs = code_sub.add_parser(

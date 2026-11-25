@@ -281,6 +281,11 @@ def cmd_init(args):
         config["description"] = description
     elif existing.get("description"):
         config["description"] = existing["description"]
+    test_command = getattr(args, "test_command", None)
+    if test_command:
+        config["test_command"] = test_command
+    elif existing.get("test_command"):
+        config["test_command"] = existing["test_command"]
     _save_config(config)
 
     Path("summaries").mkdir(exist_ok=True)
