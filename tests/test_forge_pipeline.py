@@ -350,7 +350,7 @@ class TestCmdPipeline:
 
         captured = capsys.readouterr()
         assert "Converged" not in captured.err
-        assert "Pipeline complete" in captured.err
+        assert "Convergence loop took" in captured.err
 
     def test_no_auto_accept_stops_early(self, work_dir, capsys):
         args = make_pipeline_args(no_auto_accept=True, url=None, pdf=None)
