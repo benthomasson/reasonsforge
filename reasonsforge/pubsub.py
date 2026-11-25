@@ -10,6 +10,7 @@ cascade_root metadata are not available at this level.
 """
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Callable
 
@@ -33,7 +34,10 @@ class ChangeEvent:
 
 Subscriber = Callable[[list[ChangeEvent]], None]
 
+# The registry is process-wide; guard it because API transactions may run in
+# different threads. Callbacks are still invoked outside this lock (see publish).
 _subscribers: dict[str | None, list[Subscriber]] = {}
+_subscribers_lock = threading.RLock()
 
 
 def subscribe(callback: Subscriber, db_path: str | None = None) -> None:
@@ -45,27 +49,30 @@ def subscribe(callback: Subscriber, db_path: str | None = None) -> None:
         db_path: If provided, only receive events for this database.
                  If None, receive events from all databases.
     """
-    _subscribers.setdefault(db_path, []).append(callback)
+    with _subscribers_lock:
+        _subscribers.setdefault(db_path, []).append(callback)
 
 
 def unsubscribe(callback: Subscriber, db_path: str | None = None) -> None:
     """Remove a previously registered callback."""
-    subs = _subscribers.get(db_path, [])
-    try:
-        subs.remove(callback)
-    except ValueError:
-        pass
-    if not subs:
-        _subscribers.pop(db_path, None)
+    with _subscribers_lock:
+        subs = _subscribers.get(db_path, [])
+        try:
+            subs.remove(callback)
+        except ValueError:
+            pass
+        if not subs:
+            _subscribers.pop(db_path, None)
 
 
 def has_subscribers(db_path: str | None = None) -> bool:
     """Check if any subscribers exist (global or for this db_path)."""
-    if _subscribers.get(None):
-        return True
-    if db_path is not None and _subscribers.get(db_path):
-        return True
-    return False
+    with _subscribers_lock:
+        if _subscribers.get(None):
+            return True
+        if db_path is not None and _subscribers.get(db_path):
+            return True
+        return False
 
 
 def publish(events: list[ChangeEvent], db_path: str) -> None:
@@ -77,8 +84,9 @@ def publish(events: list[ChangeEvent], db_path: str) -> None:
     if not events:
         return
 
-    targets = list(_subscribers.get(None, []))
-    targets.extend(_subscribers.get(db_path, []))
+    with _subscribers_lock:
+        targets = list(_subscribers.get(None, []))
+        targets.extend(_subscribers.get(db_path, []))
 
     for subscriber in targets:
         try:
@@ -125,4 +133,5 @@ def compute_changes(
 
 def clear() -> None:
     """Remove all subscribers. Intended for test teardown."""
-    _subscribers.clear()
+    with _subscribers_lock:
+        _subscribers.clear()
