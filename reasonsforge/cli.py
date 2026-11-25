@@ -7,6 +7,7 @@ and formats the result dict for terminal output.
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1266,8 +1267,81 @@ def cmd_sync_status(args):
             )
 
 
+def _is_in_rebase():
+    """Check if we're in the middle of a git rebase."""
+    git_dir = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        capture_output=True, text=True
+    )
+    if git_dir.returncode != 0:
+        return False
+    gd = Path(git_dir.stdout.strip())
+    return (gd / "rebase-merge").is_dir() or (gd / "rebase-apply").is_dir()
+
+
+def _cmd_merge_rebase(args):
+    """Resolve network.json conflict during git rebase.
+
+    During a rebase, --ours is the remote (upstream) and --theirs is the
+    local commit being replayed.  This takes the remote's network.json,
+    imports any new beliefs into the local DB, re-exports, stages, and
+    continues the rebase.
+    """
+    network_json = getattr(args, "theirs_file", "network.json")
+
+    if not _is_in_rebase():
+        print("Error: not in a git rebase — use 'merge' without --rebase", file=sys.stderr)
+        sys.exit(1)
+
+    # Step 1: checkout the remote's version (--ours in rebase = upstream)
+    print(f"Checking out upstream version of {network_json}...")
+    r = subprocess.run(["git", "checkout", "--ours", network_json])
+    if r.returncode != 0:
+        print(f"Error: git checkout --ours {network_json} failed", file=sys.stderr)
+        sys.exit(1)
+
+    # Step 2: merge upstream beliefs — newest wins for conflicts
+    print(f"Merging beliefs from {network_json}...")
+    result = api.merge_networks(
+        network_json,
+        strategy="newest",
+        **_backend_kwargs(args),
+    )
+    if result.get("added"):
+        print(f"  Added {result['added']} new belief(s) from upstream")
+    if result.get("conflicts"):
+        print(f"  Resolved {result['resolved']} conflict(s) (newest wins)")
+        if result.get("kept_ours"):
+            print(f"    Kept ours: {result['kept_ours']}")
+        if result.get("kept_theirs"):
+            print(f"    Kept theirs: {result['kept_theirs']}")
+    if not result.get("added") and not result.get("conflicts"):
+        print("  No new beliefs to merge")
+
+    # Step 3: re-export the merged DB state
+    print(f"Exporting merged state to {network_json}...")
+    data = api.export_network(**_backend_kwargs(args))
+    Path(network_json).write_text(json.dumps(data, indent=2) + "\n")
+
+    # Step 4: stage and continue
+    r = subprocess.run(["git", "add", network_json])
+    if r.returncode != 0:
+        print(f"Error: git add {network_json} failed", file=sys.stderr)
+        sys.exit(1)
+
+    print("Continuing rebase...")
+    r = subprocess.run(["git", "rebase", "--continue"])
+    if r.returncode != 0:
+        print("Rebase continue failed — you may need to resolve other conflicts", file=sys.stderr)
+        sys.exit(r.returncode)
+
+    print("Done.")
+
+
 def cmd_merge(args):
     """Merge a remote network.json into the local reasons.db."""
+    if getattr(args, "rebase", False):
+        return _cmd_merge_rebase(args)
     try:
         result = api.merge_networks(
             args.theirs_file,
@@ -5275,7 +5349,7 @@ def main():
     p = sub.add_parser(
         "merge", help="Merge a remote network.json into local reasons.db"
     )
-    p.add_argument("theirs_file", help="Path to remote network.json to merge in")
+    p.add_argument("theirs_file", nargs="?", default="network.json", help="Path to remote network.json to merge in (default: network.json)")
     p.add_argument(
         "--strategy",
         choices=["ours", "theirs", "newest", "interactive"],
@@ -5284,6 +5358,11 @@ def main():
     )
     p.add_argument(
         "--dry-run", action="store_true", help="Show what would change without applying"
+    )
+    p.add_argument(
+        "--rebase",
+        action="store_true",
+        help="Resolve network.json conflict during git rebase: checkout remote version, import new beliefs, re-export, stage, and continue rebase",
     )
 
     p = sub.add_parser("export", help="Export network as JSON")
