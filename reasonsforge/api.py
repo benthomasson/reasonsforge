@@ -1053,6 +1053,26 @@ def remove_justification(
         return net.remove_justification(node_id, index)
 
 
+def remove_outlist(
+    node_id: str,
+    outlist_id: str,
+    db_path: str = DEFAULT_DB,
+    pg_conninfo=None,
+    project_id=None,
+) -> dict:
+    """Remove a node ID from every justification's outlist and propagate."""
+    if pg_conninfo:
+        return _pg_dispatch(
+            pg_conninfo,
+            project_id,
+            "remove_outlist",
+            node_id=node_id,
+            outlist_id=outlist_id,
+        )
+    with _with_network(db_path, write=True) as net:
+        return net.remove_outlist(node_id, outlist_id)
+
+
 def summarize(
     summary_id: str,
     text: str,

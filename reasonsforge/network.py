@@ -782,6 +782,52 @@ class Network:
             "changed": changed,
         }
 
+    def remove_outlist(self, node_id: str, outlist_id: str) -> dict:
+        """Remove a node ID from every justification's outlist and propagate."""
+        if node_id not in self.nodes:
+            raise KeyError(f"Node '{node_id}' not found")
+
+        node = self.nodes[node_id]
+        if not node.justifications:
+            raise ValueError(f"Node '{node_id}' is a premise (no justifications)")
+
+        found = False
+        for j in node.justifications:
+            if outlist_id in j.outlist:
+                j.outlist.remove(outlist_id)
+                found = True
+
+        if not found:
+            raise ValueError(
+                f"'{outlist_id}' not in any outlist of '{node_id}'"
+            )
+
+        still_referenced = any(
+            outlist_id in j.antecedents or outlist_id in j.outlist
+            for j in node.justifications
+        )
+        if not still_referenced and outlist_id in self.nodes:
+            self.nodes[outlist_id].dependents.discard(node_id)
+
+        old_value = node.truth_value
+        new_value = self._compute_truth(node)
+        changed = []
+
+        if old_value != new_value:
+            node.truth_value = new_value
+            changed.append(node_id)
+            changed.extend(self._propagate(node_id))
+
+        self._log("remove-outlist", node_id, new_value)
+
+        return {
+            "node_id": node_id,
+            "removed_outlist": outlist_id,
+            "old_truth_value": old_value,
+            "new_truth_value": new_value,
+            "changed": changed,
+        }
+
     def summarize(
         self,
         summary_id: str,

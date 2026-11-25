@@ -118,6 +118,24 @@ def cmd_remove_justification(args):
         sys.exit(1)
 
 
+def cmd_remove_outlist(args):
+    try:
+        result = api.remove_outlist(
+            node_id=args.node_id,
+            outlist_id=args.outlist_id,
+            **_backend_kwargs(args),
+        )
+        print(f"Removed {result['removed_outlist']} from outlist of {result['node_id']}")
+        print(
+            f"  Truth value: {result['old_truth_value']} → {result['new_truth_value']}"
+        )
+        if result["changed"]:
+            print(f"  Cascade: {', '.join(result['changed'])}")
+    except (KeyError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def _print_cascade(result):
     """Print cascade results, splitting went_out from went_in."""
     went_out = result.get("went_out", [])
@@ -4734,6 +4752,13 @@ def main():
         "index", type=int, help="0-based justification index (see 'show' output)"
     )
 
+    # remove-outlist
+    p = sub.add_parser(
+        "remove-outlist", help="Remove a node from all outlist (unless) clauses"
+    )
+    p.add_argument("node_id", help="Node whose outlist to modify")
+    p.add_argument("outlist_id", help="Node ID to remove from outlist")
+
     # retract
     p = sub.add_parser("retract", help="Retract a node (mark OUT + cascade)")
     p.add_argument("node_id", help="Node to retract")
@@ -6637,6 +6662,7 @@ def main():
         "add": cmd_add,
         "add-justification": cmd_add_justification,
         "remove-justification": cmd_remove_justification,
+        "remove-outlist": cmd_remove_outlist,
         "retract": cmd_retract,
         "assert": cmd_assert,
         "mark-duplicate": cmd_mark_duplicate,
