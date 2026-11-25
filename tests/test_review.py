@@ -607,7 +607,9 @@ class TestReviewBeliefsApi:
             patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
             patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
         ):
-            result = api.review_beliefs(sample=1, db_path=db_path)
+            result = api.review_beliefs(
+                belief_ids=["derived-ab"], db_path=db_path
+            )
         assert result["reviewed"] == 1
 
     def test_depends_on_filter(self, db_path):
