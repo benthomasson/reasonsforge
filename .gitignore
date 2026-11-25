@@ -19,5 +19,6 @@ logs/
 proposed-beliefs.md
 proposed-dedup.md
 costs/
+.worker-bee/
 reasons.db*
 .DS_Store

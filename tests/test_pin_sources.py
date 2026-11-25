@@ -7,6 +7,7 @@ import pytest
 from reasonsforge.network import Network
 from reasonsforge.check_stale import (
     check_stale,
+    _git_file_context,
     get_file_commit_sha,
     file_changed_since,
     file_lines_changed_since,
@@ -66,6 +67,40 @@ def _commit_change(repo_path, filename, content, message="change"):
     )
 
 
+class TestGitFileContext:
+    def test_returns_none_when_repository_discovery_fails(self, tmp_path):
+        missing = tmp_path / "missing" / "source.md"
+        assert _git_file_context(missing) is None
+
+    def test_returns_none_for_directory_that_is_not_a_repository(self, tmp_path):
+        source = tmp_path / "source.md"
+        source.write_text("content")
+        assert _git_file_context(source) is None
+
+    def test_returns_none_when_path_resolution_fails(self, monkeypatch, tmp_path):
+        def fail_resolve(self):
+            raise OSError("resolution failed")
+
+        monkeypatch.setattr(type(tmp_path), "resolve", fail_resolve)
+        assert _git_file_context(tmp_path / "source.md") is None
+
+    def test_returns_none_when_repository_root_resolution_fails(
+        self, monkeypatch, git_repo
+    ):
+        original_resolve = type(git_repo).resolve
+        calls = 0
+
+        def fail_second_resolve(path):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("symlink loop")
+            return original_resolve(path)
+
+        monkeypatch.setattr(type(git_repo), "resolve", fail_second_resolve)
+        assert _git_file_context(git_repo / "source.md") is None
+
+
 class TestGetFileCommitSha:
     def test_returns_sha_for_tracked_file(self, git_repo):
         sha = get_file_commit_sha(git_repo / "source.md")
@@ -89,6 +124,31 @@ class TestGetFileCommitSha:
         sha2 = get_file_commit_sha(git_repo / "source.md")
         assert sha1 != sha2
 
+    def test_same_basename_in_different_directories_is_unambiguous(self, git_repo):
+        first = git_repo / "one" / "source.md"
+        second = git_repo / "two" / "source.md"
+        first.parent.mkdir()
+        second.parent.mkdir()
+        first.write_text("first")
+        second.write_text("second")
+        subprocess.run(
+            ["git", "add", "one/source.md", "two/source.md"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add duplicate basenames"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        first_sha = get_file_commit_sha(first)
+        second_sha = get_file_commit_sha(second)
+        _commit_change(git_repo, "one/source.md", "first changed")
+        assert get_file_commit_sha(first) != first_sha
+        assert get_file_commit_sha(second) == second_sha
+
 
 class TestFileChangedSince:
     def test_no_change_since_head(self, git_repo):
@@ -104,6 +164,30 @@ class TestFileChangedSince:
         sha = _get_head_sha(git_repo)
         _commit_change(git_repo, "other.md", "other content")
         assert not file_changed_since(git_repo / "source.md", sha)
+
+    def test_same_basename_in_different_directories_is_unambiguous(self, git_repo):
+        first = git_repo / "one" / "source.md"
+        second = git_repo / "two" / "source.md"
+        first.parent.mkdir()
+        second.parent.mkdir()
+        first.write_text("first")
+        second.write_text("second")
+        subprocess.run(
+            ["git", "add", "one/source.md", "two/source.md"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add duplicate basenames"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        sha = _get_head_sha(git_repo)
+        _commit_change(git_repo, "one/source.md", "first changed")
+        assert file_changed_since(first, sha)
+        assert not file_changed_since(second, sha)
 
 
 class TestPinSourceUrl:
@@ -408,6 +492,39 @@ class TestFileLinesChangedSince:
 
     def test_fails_open_on_bad_sha(self, git_repo):
         assert file_lines_changed_since(git_repo / "source.md", "0" * 40, 1, 5)
+
+    def test_same_basename_in_different_directories_is_unambiguous(self, git_repo):
+        first = git_repo / "one" / "source.md"
+        second = git_repo / "two" / "source.md"
+        first.parent.mkdir()
+        second.parent.mkdir()
+        first.write_text("line1\nline2\n")
+        second.write_text("line1\nline2\n")
+        subprocess.run(
+            ["git", "add", "one/source.md", "two/source.md"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add duplicate basenames"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        sha = _get_head_sha(git_repo)
+        first.write_text("line1\nfirst changed\n")
+        subprocess.run(
+            ["git", "add", "one/source.md"], cwd=git_repo, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "change first duplicate"],
+            cwd=git_repo,
+            capture_output=True,
+            check=True,
+        )
+        assert file_lines_changed_since(first, sha, 2, 2)
+        assert not file_lines_changed_since(second, sha, 1, 2)
 
 
 class TestPinLines:

@@ -213,15 +213,47 @@ def hash_sources(
 # --- Git-aware pinning ---
 
 
+def _git_file_context(filepath: Path) -> tuple[Path, Path] | None:
+    """Return the repository root and repo-relative path for *filepath*.
+
+    Git pathspecs are interpreted relative to the command's working directory.
+    Use the repository root rather than the file's parent so nested files with
+    the same basename cannot be confused with one another.
+    """
+    try:
+        filepath = filepath.resolve()
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            cwd=str(filepath.parent),
+            timeout=30,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        repo_root = Path(result.stdout.strip()).resolve()
+        relative_path = filepath.relative_to(repo_root)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired, ValueError):
+        return None
+    return repo_root, relative_path
+
+
 def get_file_commit_sha(filepath: Path) -> str | None:
     """Get the last commit SHA that touched this file."""
-    result = subprocess.run(
-        ["git", "log", "-1", "--format=%H", "--", str(filepath.name)],
-        capture_output=True,
-        text=True,
-        cwd=str(filepath.parent),
-        timeout=30,
-    )
+    context = _git_file_context(filepath)
+    if context is None:
+        return None
+    repo_root, relative_path = context
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%H", "--", str(relative_path)],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
     if result.returncode == 0 and result.stdout.strip():
         return result.stdout.strip()
     return None
@@ -232,6 +264,10 @@ def file_changed_since(filepath: Path, since_sha: str) -> bool:
 
     Returns True on git errors to force fallback to content hashing.
     """
+    context = _git_file_context(filepath)
+    if context is None:
+        return True
+    repo_root, relative_path = context
     try:
         # Check committed changes
         result = subprocess.run(
@@ -241,11 +277,11 @@ def file_changed_since(filepath: Path, since_sha: str) -> bool:
                 "--format=%H",
                 f"{since_sha}..HEAD",
                 "--",
-                str(filepath.name),
+                str(relative_path),
             ],
             capture_output=True,
             text=True,
-            cwd=str(filepath.parent),
+            cwd=str(repo_root),
             timeout=30,
         )
         if result.returncode != 0:
@@ -254,16 +290,16 @@ def file_changed_since(filepath: Path, since_sha: str) -> bool:
             return True
         # Check uncommitted changes (staged + unstaged)
         result = subprocess.run(
-            ["git", "diff", "--quiet", "HEAD", "--", str(filepath.name)],
+            ["git", "diff", "--quiet", "HEAD", "--", str(relative_path)],
             capture_output=True,
             text=True,
-            cwd=str(filepath.parent),
+            cwd=str(repo_root),
             timeout=30,
         )
         if result.returncode != 0:
             return True
         return False
-    except subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):
         return True
 
 
@@ -296,12 +332,16 @@ def file_lines_changed_since(
     a single call. Uses the OLD side of the diff (stored lines reference the
     file at pinned_sha). Returns True on git errors to force content hash fallback.
     """
+    context = _git_file_context(filepath)
+    if context is None:
+        return True
+    repo_root, relative_path = context
     try:
         result = subprocess.run(
-            ["git", "diff", "-U0", since_sha, "--", str(filepath.name)],
+            ["git", "diff", "-U0", since_sha, "--", str(relative_path)],
             capture_output=True,
             text=True,
-            cwd=str(filepath.parent),
+            cwd=str(repo_root),
             timeout=30,
         )
         if result.returncode != 0:
@@ -310,7 +350,7 @@ def file_lines_changed_since(
             if hunk_end >= line_start and hunk_start <= line_end:
                 return True
         return False
-    except subprocess.TimeoutExpired:
+    except (OSError, subprocess.TimeoutExpired):
         return True
 
 
