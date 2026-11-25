@@ -285,6 +285,138 @@ class TestReviewBeliefs:
         assert len(results) == 1
         assert results[0]["id"] == "derived-ab"
 
+    def test_discards_batch_with_invented_id_and_suppresses_callback(self):
+        nodes = _make_nodes()
+        mock_response = json.dumps(
+            [
+                {"id": "derived-ab", "valid": True},
+                {"id": "invented", "valid": True},
+            ]
+        )
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        batches = []
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            results = review_beliefs(
+                nodes,
+                belief_ids=["derived-ab", "derived-deep"],
+                model="claude",
+                on_batch=batches.append,
+            )
+        assert results == []
+        assert batches == []
+
+    def test_accepts_complete_reordered_batch_in_requested_order(self):
+        nodes = _make_nodes()
+        mock_response = json.dumps(
+            [
+                {"id": "derived-deep", "valid": False},
+                {"id": "derived-ab", "valid": True},
+            ]
+        )
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            results = review_beliefs(
+                nodes, belief_ids=["derived-ab", "derived-deep"], model="claude"
+            )
+        assert [result["id"] for result in results] == [
+            "derived-ab",
+            "derived-deep",
+        ]
+        assert [result["valid"] for result in results] == [True, False]
+
+    def test_discards_batch_with_duplicate_id(self):
+        nodes = _make_nodes()
+        mock_response = json.dumps(
+            [
+                {"id": "derived-ab", "valid": True},
+                {"id": "derived-ab", "valid": False},
+            ]
+        )
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            results = review_beliefs(
+                nodes, belief_ids=["derived-ab", "derived-deep"], model="claude"
+            )
+        assert results == []
+
+    def test_reviews_duplicate_requested_ids_independently(self):
+        nodes = _make_nodes()
+        mock_response = json.dumps(
+            [
+                {"id": "derived-ab", "valid": True},
+                {"id": "derived-ab", "valid": False},
+            ]
+        )
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            results = review_beliefs(
+                nodes, belief_ids=["derived-ab", "derived-ab"], model="claude"
+            )
+        assert [result["valid"] for result in results] == [True, False]
+
+    def test_discards_batch_with_missing_id(self):
+        nodes = _make_nodes()
+        mock_response = json.dumps(
+            [
+                {"id": "derived-deep", "valid": True},
+            ]
+        )
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            results = review_beliefs(
+                nodes, belief_ids=["derived-ab", "derived-deep"], model="claude"
+            )
+        assert results == []
+
+    def test_mismatched_batch_does_not_block_later_batch(self):
+        nodes = _make_nodes()
+        responses = [
+            json.dumps([{"id": "invented", "valid": True}]),
+            json.dumps([{"id": "derived-deep", "valid": True}]),
+        ]
+        mock_results = [
+            type("R", (), {"returncode": 0, "stdout": response, "stderr": ""})()
+            for response in responses
+        ]
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch(
+                "reasonsforge.llm.subprocess.run", side_effect=mock_results
+            ),
+        ):
+            results = review_beliefs(
+                nodes,
+                belief_ids=["derived-ab", "derived-deep"],
+                model="claude",
+                batch_size=1,
+            )
+        assert [result["id"] for result in results] == ["derived-deep"]
+
     def test_empty_derived_returns_empty(self):
         nodes = {
             "premise-a": {
@@ -939,6 +1071,25 @@ class TestReviewBeliefsMetadata:
             db_path=db,
         )
         return db
+
+    def test_mismatched_batch_is_not_persisted(self, db_path):
+        mock_response = json.dumps([{"id": "invented", "valid": False}])
+        mock_result = type(
+            "R", (), {"returncode": 0, "stdout": mock_response, "stderr": ""}
+        )()
+        with (
+            patch("reasonsforge.llm.shutil.which", return_value="/usr/bin/claude"),
+            patch("reasonsforge.llm.subprocess.run", return_value=mock_result),
+        ):
+            result = api.review_beliefs(db_path=db_path)
+
+        assert result["reviewed"] == 0
+        assert result["complete"] is False
+        assert result["failed"] is True
+        for node_id in ("derived-ab", "derived-abc"):
+            node = api.show_node(node_id, db_path=db_path)
+            assert not node["reviewed_at"]
+            assert "review_result" not in node["metadata"]
 
     def test_metadata_written_after_review(self, db_path):
         mock_response = json.dumps(

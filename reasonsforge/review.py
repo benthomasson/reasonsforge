@@ -7,6 +7,7 @@ structurally valid.
 
 import json
 import sys
+from collections import Counter
 
 from .llm import invoke_model
 
@@ -274,6 +275,22 @@ def review_beliefs(
         try:
             response = invoke_model(prompt, model=model, timeout=timeout)
             results = parse_review_response(response)
+            returned_ids = [result["id"] for result in results]
+            if Counter(returned_ids) != Counter(batch):
+                missing = list((Counter(batch) - Counter(returned_ids)).elements())
+                unexpected = list((Counter(returned_ids) - Counter(batch)).elements())
+                print(
+                    "  WARN: batch %d returned mismatched belief IDs "
+                    "(expected %d, got %d; missing=%s, unexpected=%s); "
+                    "discarding batch"
+                    % (batch_num, len(batch), len(returned_ids), missing, unexpected),
+                    file=sys.stderr,
+                )
+                continue
+            results_by_id = {}
+            for result in results:
+                results_by_id.setdefault(result["id"], []).append(result)
+            results = [results_by_id[nid].pop(0) for nid in batch]
             all_results.extend(results)
             if on_batch is not None:
                 on_batch(all_results)
