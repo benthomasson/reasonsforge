@@ -24,6 +24,16 @@ STAGE_NAMES = {
 }
 
 
+class _StageDeriveResult(tuple):
+    """Tuple-compatible derive result with completion status."""
+
+    def __new__(cls, added, derived_ids, *, failed=False, interrupted=False):
+        result = super().__new__(cls, (added, derived_ids))
+        result.failed = failed
+        result.interrupted = interrupted
+        return result
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -194,6 +204,8 @@ def _stage_derive(args, round_label=""):
 
     total_added = 0
     all_derived_ids = []
+    failed = False
+    interrupted = False
     prefix = f"[{round_label}] " if round_label else ""
     search_rounds = getattr(args, "search_rounds", 0)
 
@@ -237,41 +249,60 @@ def _stage_derive(args, round_label=""):
                     )
                 except Exception as e:
                     print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                    failed = True
                     break
             else:
                 try:
                     response = invoke_sync(
                         prompt, model=args.model, timeout=args.timeout
                     )
+                    proposals = parse_proposals(response)
+                except KeyboardInterrupt:
+                    interrupted = True
+                    print(f"\n{prefix}  Ending derive early", file=sys.stderr)
+                    break
                 except Exception as e:
                     print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                    failed = True
                     break
-                proposals = parse_proposals(response)
 
             if not proposals:
                 print(f"{prefix}  Saturated (no proposals)", file=sys.stderr)
                 break
 
-            valid, skipped = validate_proposals(proposals, nodes)
-            for p, reason in skipped:
-                print(f"{prefix}  SKIP {p['id']}: {reason}", file=sys.stderr)
+            try:
+                valid, skipped = validate_proposals(proposals, nodes)
+                for p, reason in skipped:
+                    print(f"{prefix}  SKIP {p['id']}: {reason}", file=sys.stderr)
 
-            if not valid:
-                print(f"{prefix}  Saturated (no valid proposals)", file=sys.stderr)
+                if not valid:
+                    print(f"{prefix}  Saturated (no valid proposals)", file=sys.stderr)
+                    break
+
+                results = apply_proposals(valid, db_path=REASONS_DB, model=args.model)
+            except KeyboardInterrupt:
+                interrupted = True
+                print(f"\n{prefix}  Ending derive early", file=sys.stderr)
+                break
+            except Exception as e:
+                print(f"{prefix}  Derive error: {e}", file=sys.stderr)
+                failed = True
                 break
 
-            results = apply_proposals(valid, db_path=REASONS_DB, model=args.model)
             added_ids = [p["id"] for p, r in results if isinstance(r, dict)]
             total_added += len(added_ids)
             all_derived_ids.extend(added_ids)
             print(f"{prefix}  Added {len(added_ids)} beliefs", file=sys.stderr)
     except KeyboardInterrupt:
+        interrupted = True
         print(
             f"\n{prefix}  Ending derive early — {total_added} beliefs saved",
             file=sys.stderr,
         )
 
-    return total_added, all_derived_ids
+    return _StageDeriveResult(
+        total_added, all_derived_ids, failed=failed, interrupted=interrupted
+    )
 
 
 def _stage_review(args, round_label="", belief_ids=None):
@@ -304,9 +335,27 @@ def _stage_review(args, round_label="", belief_ids=None):
         )
     except KeyboardInterrupt:
         print(f"\n{prefix}  Ending review early", file=sys.stderr)
-        return {"reviewed": 0, "invalid": 0, "results": []}
+        return {
+            "reviewed": 0,
+            "invalid": 0,
+            "results": [],
+            "complete": False,
+            "failed": True,
+            "interrupted": True,
+        }
+    except Exception as e:
+        print(f"{prefix}  Review error: {e}", file=sys.stderr)
+        return {
+            "reviewed": 0,
+            "invalid": 0,
+            "results": [],
+            "complete": False,
+            "failed": True,
+        }
 
     reviewed = result.get("reviewed", 0)
+    if result.get("failed") or result.get("complete") is False:
+        result["failed"] = True
     invalid = result.get("invalid", 0)
     print(f"{prefix}  Reviewed {reviewed}, invalid {invalid}", file=sys.stderr)
 
@@ -349,6 +398,17 @@ def _stage_repair(args, review_result, round_label=""):
             "linked": 0,
             "softened": 0,
             "abandoned": 0,
+            "failed": True,
+            "interrupted": True,
+        }
+    except Exception as e:
+        print(f"{prefix}  Repair error: {e}", file=sys.stderr)
+        return {
+            "total_invalid": len(invalid_ids),
+            "linked": 0,
+            "softened": 0,
+            "abandoned": 0,
+            "failed": True,
         }
 
     print(
@@ -382,7 +442,10 @@ def _stage_deduplicate(args, round_label=""):
         result = deduplicate(auto=not verify, db_path=REASONS_DB)
     except KeyboardInterrupt:
         print(f"\n{prefix}  Ending dedup early", file=sys.stderr)
-        return {}
+        return {"failed": True, "interrupted": True}
+    except Exception as e:
+        print(f"{prefix}  Deduplication error: {e}", file=sys.stderr)
+        return {"failed": True}
     clusters = result.get("clusters", [])
 
     if not clusters:
@@ -403,8 +466,19 @@ def _stage_deduplicate(args, round_label=""):
     )
     try:
         vresult = verify_dedup_clusters(clusters, model=model)
+        if not isinstance(vresult, dict):
+            raise ValueError("invalid dedup verification result")
+        for key in ("verified", "rejected", "contradictions"):
+            if not isinstance(vresult.get(key), list):
+                raise ValueError(f"invalid dedup verification field: {key}")
     except KeyboardInterrupt:
         print(f"\n{prefix}  Ending dedup verification early", file=sys.stderr)
+        result["failed"] = True
+        result["interrupted"] = True
+        return result
+    except Exception as e:
+        print(f"{prefix}  Dedup verification error: {e}", file=sys.stderr)
+        result["failed"] = True
         return result
 
     total_retracted = []
@@ -416,8 +490,18 @@ def _stage_deduplicate(args, round_label=""):
             }
             for c in vresult["verified"]
         ]
-        apply_result = apply_dedup_plan(plan, db_path=REASONS_DB)
-        total_retracted = apply_result.get("retracted", [])
+        try:
+            apply_result = apply_dedup_plan(plan, db_path=REASONS_DB)
+            total_retracted = apply_result.get("retracted", [])
+        except KeyboardInterrupt:
+            print(f"\n{prefix}  Ending deduplication early", file=sys.stderr)
+            result["failed"] = True
+            result["interrupted"] = True
+            return result
+        except Exception as e:
+            print(f"{prefix}  Deduplication error: {e}", file=sys.stderr)
+            result["failed"] = True
+            return result
         print(
             f"{prefix}  Verified {len(vresult['verified'])} cluster(s), "
             f"retracted {len(total_retracted)}",
@@ -451,6 +535,18 @@ def _stage_deduplicate(args, round_label=""):
 
 def _stage_rederive_superseded(args, round_label=""):
     """Re-derive beliefs that went OUT because an antecedent was superseded."""
+    try:
+        return _stage_rederive_superseded_impl(args, round_label=round_label)
+    except KeyboardInterrupt:
+        print("\n  Ending re-derive early", file=sys.stderr)
+        return {"rederived": 0, "failed": True, "interrupted": True}
+    except Exception as e:
+        print(f"  Re-derive error: {e}", file=sys.stderr)
+        return {"rederived": 0, "failed": True}
+
+
+def _stage_rederive_superseded_impl(args, round_label=""):
+    """Implementation for superseded-belief re-derivation."""
     from reasonsforge.api import add_node, add_justification, propagate
     from reasonsforge.storage import Storage
     from .llm import extract_json
@@ -538,6 +634,8 @@ def _stage_rederive_superseded(args, round_label=""):
     )
 
     total_rederived = 0
+    failed = False
+    interrupted = False
     batch_size = 10
     round_num = round_label.split("/")[0].replace("cycle ", "") if round_label else "1"
 
@@ -586,18 +684,43 @@ def _stage_rederive_superseded(args, round_label=""):
         try:
             response = invoke_sync(prompt, model=args.model, timeout=args.timeout)
         except KeyboardInterrupt:
+            interrupted = True
             print(f"\n{prefix}  Ending re-derive early", file=sys.stderr)
             break
         except Exception as e:
+            failed = True
             print(f"{prefix}  LLM error: {e}", file=sys.stderr)
             continue
 
-        decisions = extract_json(response)
+        try:
+            decisions = extract_json(response)
+        except Exception as e:
+            failed = True
+            print(f"{prefix}  Failed to parse re-derive response: {e}", file=sys.stderr)
+            continue
         if not isinstance(decisions, list):
+            failed = True
             print(f"{prefix}  Failed to parse re-derive response", file=sys.stderr)
             continue
 
+        decision_ids = [
+            d.get("id") for d in decisions if isinstance(d, dict) and d.get("id")
+        ]
+        casualty_ids = {c["node_id"] for c in batch}
+        if set(decision_ids) != casualty_ids or len(decision_ids) != len(casualty_ids):
+            failed = True
+            print(
+                f"{prefix}  Incomplete re-derive response: expected "
+                f"{len(casualty_ids)} decisions, got {len(decision_ids)}",
+                file=sys.stderr,
+            )
+            continue
+
         for decision in decisions:
+            if not isinstance(decision, dict):
+                failed = True
+                print(f"{prefix}  Invalid re-derive decision", file=sys.stderr)
+                continue
             dep_id = decision.get("id", "")
             action = decision.get("action", "drop")
             reason = decision.get("reason", "")
@@ -680,7 +803,11 @@ def _stage_rederive_superseded(args, round_label=""):
         propagate(db_path=REASONS_DB)
 
     print(f"{prefix}Re-derived {total_rederived} casualties", file=sys.stderr)
-    return {"rederived": total_rederived}
+    return {
+        "rederived": total_rederived,
+        "failed": failed,
+        "interrupted": interrupted,
+    }
 
 
 def _stage_export(args):
@@ -765,6 +892,8 @@ def _run_convergence_loop(
         "total_softened": 0,
         "total_abandoned": 0,
         "converged": False,
+        "failed": False,
+        "interrupted": False,
     }
 
     for i in range(rounds):
@@ -775,7 +904,10 @@ def _run_convergence_loop(
         if on_stage:
             on_stage(cycle, 4, "start")
         t0 = time.monotonic()
-        added, derived_ids = _stage_derive(args, round_label=label)
+        derive_result = _stage_derive(args, round_label=label)
+        added, derived_ids = derive_result
+        derive_failed = getattr(derive_result, "failed", False)
+        derive_interrupted = getattr(derive_result, "interrupted", False)
         elapsed = time.monotonic() - t0
         summary["total_derived"] += added
         print(f"  DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
@@ -790,6 +922,8 @@ def _run_convergence_loop(
         )
         elapsed = time.monotonic() - t0
         invalid_count = review_result.get("invalid", 0)
+        review_failed = review_result.get("failed", False)
+        review_interrupted = review_result.get("interrupted", False)
         summary["total_reviewed"] += review_result.get("reviewed", 0)
         summary["total_invalid"] += invalid_count
         print(f"  REVIEW took {_fmt_duration(elapsed)}", file=sys.stderr)
@@ -809,6 +943,13 @@ def _run_convergence_loop(
                 on_stage(cycle, 6, "start")
             t0 = time.monotonic()
             repair_result = _stage_repair(args, review_result, round_label=label)
+            repair_failed = (
+                isinstance(repair_result, dict) and repair_result.get("failed", False)
+            )
+            repair_interrupted = (
+                isinstance(repair_result, dict)
+                and repair_result.get("interrupted", False)
+            )
             elapsed = time.monotonic() - t0
             linked = (
                 repair_result.get("linked", 0) if isinstance(repair_result, dict) else 0
@@ -837,13 +978,22 @@ def _run_convergence_loop(
                     abandoned=abandoned,
                     duration_seconds=round(elapsed, 2),
                 )
-        elif on_stage:
-            on_stage(cycle, 6, "end", skipped=True)
+        else:
+            repair_failed = False
+            repair_interrupted = False
+            if on_stage:
+                on_stage(cycle, 6, "end", skipped=True)
 
         if on_stage:
             on_stage(cycle, 7, "start")
         t0 = time.monotonic()
-        _stage_deduplicate(args, round_label=label)
+        dedup_result = _stage_deduplicate(args, round_label=label)
+        dedup_failed = (
+            isinstance(dedup_result, dict) and dedup_result.get("failed", False)
+        )
+        dedup_interrupted = (
+            isinstance(dedup_result, dict) and dedup_result.get("interrupted", False)
+        )
         elapsed = time.monotonic() - t0
         print(f"  DEDUPLICATE took {_fmt_duration(elapsed)}", file=sys.stderr)
         if on_stage:
@@ -853,11 +1003,31 @@ def _run_convergence_loop(
         rederive_result = _stage_rederive_superseded(args, round_label=label)
         elapsed = time.monotonic() - t0
         rederived = rederive_result.get("rederived", 0)
+        rederive_failed = rederive_result.get("failed", False)
+        rederive_interrupted = rederive_result.get("interrupted", False)
         summary["total_rederived"] = summary.get("total_rederived", 0) + rederived
         if rederived > 0:
             print(f"  RE-DERIVE took {_fmt_duration(elapsed)}", file=sys.stderr)
 
-        if invalid_count == 0 and added == 0 and rederived == 0:
+        cycle_incomplete = (
+            derive_failed
+            or derive_interrupted
+            or review_failed
+            or review_interrupted
+            or dedup_failed
+            or dedup_interrupted
+            or rederive_failed
+            or rederive_interrupted
+        )
+        summary["failed"] = summary["failed"] or cycle_incomplete
+        summary["interrupted"] = summary["interrupted"] or (
+            derive_interrupted
+            or review_interrupted
+            or repair_interrupted
+            or dedup_interrupted
+            or rederive_interrupted
+        )
+        if not cycle_incomplete and invalid_count == 0 and added == 0 and rederived == 0:
             print(
                 f"\nConverged after {cycle} cycles "
                 f"(0 invalids, 0 new derivations, 0 re-derived)",
@@ -1125,8 +1295,9 @@ def cmd_pipeline(args):
                     )
 
             t0 = time.monotonic()
+            loop_summary = None
             try:
-                _run_convergence_loop(
+                loop_summary = _run_convergence_loop(
                     args,
                     remaining_rounds,
                     start_cycle=start_cycle,
@@ -1144,7 +1315,17 @@ def cmd_pipeline(args):
                     file=sys.stderr,
                 )
 
-            state["loop_completed"] = True
+            loop_complete = bool(loop_summary and loop_summary.get("converged"))
+            state["loop_completed"] = loop_complete
+            if not loop_complete:
+                state["status"] = "paused"
+                state["loop_summary"] = loop_summary or {
+                    "interrupted": True,
+                    "converged": False,
+                }
+                _save_state(state)
+                report.complete(summary=state["loop_summary"])
+                return
             _save_state(state)
         else:
             print("Convergence loop already completed, skipping", file=sys.stderr)

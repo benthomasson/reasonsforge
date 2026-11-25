@@ -5081,6 +5081,11 @@ def _classify_review_result(result: dict) -> str:
     return "pass"
 
 
+def _review_result_id(result: dict):
+    """Return the normalized belief ID from either review result schema."""
+    return result.get("belief_id") or result.get("id")
+
+
 def review_beliefs(
     belief_ids: list[str] | None = None,
     model: str = "claude",
@@ -5102,8 +5107,9 @@ def review_beliefs(
     timestamps and writes review_result metadata to each reviewed node
     (unless dry_run=True).
 
-    Returns: {"results": [...], "reviewed": int, "invalid": int,
-              "insufficient": int, "unnecessary": int, "total_derived": int}
+    Returns: {"results": [...], "reviewed": int, "complete": bool,
+              "failed": bool, "invalid": int, "insufficient": int,
+              "unnecessary": int, "total_derived": int}
     """
     from .derive import _get_depth
     from .review import review_beliefs as _review
@@ -5181,7 +5187,11 @@ def review_beliefs(
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     if not dry_run and results:
-        result_map = {r["id"]: r for r in results}
+        result_map = {
+            result_id: r
+            for r in results
+            if (result_id := _review_result_id(r)) is not None
+        }
         with _with_network(db_path, write=True) as net:
             for nid in review_ids:
                 if nid in net.nodes and nid in result_map:
@@ -5194,10 +5204,18 @@ def review_beliefs(
     invalid = sum(1 for r in results if not r.get("valid", True))
     insufficient = sum(1 for r in results if not r.get("sufficient", True))
     unnecessary = sum(1 for r in results if not r.get("necessary", True))
+    reviewed_ids = {
+        result_id
+        for r in results
+        if (result_id := _review_result_id(r)) is not None
+    }
+    complete = reviewed_ids >= set(review_ids)
 
     return {
         "results": results,
-        "reviewed": len(review_ids),
+        "reviewed": len(reviewed_ids),
+        "complete": complete,
+        "failed": not complete,
         "invalid": invalid,
         "insufficient": insufficient,
         "unnecessary": unnecessary,
