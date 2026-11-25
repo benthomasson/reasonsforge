@@ -43,6 +43,28 @@ class TestPgDispatch:
         mock_pg.show_node.assert_called_once_with(node_id="a")
 
 
+class TestInvalidImportJsonDispatch:
+    def test_invalid_payload_is_rejected_before_pg_dispatch(self, tmp_path):
+        json_file = tmp_path / "invalid.json"
+        json_file.write_text(json.dumps({
+            "nodes": {"new": {"truth_value": "MAYBE", "justifications": []}}
+        }))
+        with patch("reasonsforge.pg.PgApi") as MockPgApi:
+            with pytest.raises(ValueError, match="truth value"):
+                import_json(str(json_file), pg_conninfo="postgresql://...", project_id="p")
+        MockPgApi.assert_not_called()
+
+    def test_malformed_justification_is_rejected_before_pg_dispatch(self, tmp_path):
+        json_file = tmp_path / "invalid.json"
+        json_file.write_text(json.dumps({
+            "nodes": {"new": {"justifications": [{"type": "SL", "outlist": [3]}]}}
+        }))
+        with patch("reasonsforge.pg.PgApi") as MockPgApi:
+            with pytest.raises(ValueError, match="outlist"):
+                import_json(str(json_file), pg_conninfo="postgresql://...", project_id="p")
+        MockPgApi.assert_not_called()
+
+
 class TestBackendKwargs:
     def test_sqlite_default(self):
         args = argparse.Namespace(db="reasons.db", pg=None, project_id=None)
@@ -275,6 +297,21 @@ class TestImportJsonDispatch:
             )
         mock_pg.import_json.assert_called_once_with(data=data, only_new=False)
         assert result["nodes_imported"] == 1
+
+    def test_import_json_validates_before_pg_dispatch(self, tmp_path):
+        json_file = tmp_path / "invalid.json"
+        json_file.write_text(json.dumps({
+            "nodes": {
+                "bad": {"truth_value": "MAYBE", "justifications": []}
+            }
+        }))
+
+        with patch("reasonsforge.pg.PgApi") as MockPgApi:
+            with pytest.raises(ValueError, match="truth value"):
+                import_json(
+                    str(json_file), pg_conninfo="postgresql://...", project_id="test"
+                )
+        MockPgApi.assert_not_called()
 
     def test_file_not_found(self):
         with pytest.raises(FileNotFoundError):

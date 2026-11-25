@@ -94,6 +94,8 @@ class Network:
         if id in self.nodes:
             raise ValueError(f"Node '{id}' already exists")
 
+        justifications = justifications or []
+
         if not created_at:
             now = datetime.now(timezone.utc).isoformat(timespec="seconds")
             created_at = now
@@ -103,7 +105,7 @@ class Network:
         node = Node(
             id=id,
             text=text,
-            justifications=justifications or [],
+            justifications=justifications,
             source=source,
             source_url=source_url,
             source_hash=source_hash,

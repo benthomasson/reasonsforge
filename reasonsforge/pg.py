@@ -2420,6 +2420,11 @@ class PgApi:
         Uses topological sort to add nodes in dependency order,
         then propagates truth values and applies overrides.
         """
+        # This method is also a backend entry point; do not rely on api.py's
+        # facade having validated data before reaching it.
+        from .api import _validate_import_data
+
+        _validate_import_data(data)
         pid = self.project_id
         remaining = dict(data.get("nodes", {}))
         nodes_imported = 0

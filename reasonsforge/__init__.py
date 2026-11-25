@@ -23,6 +23,15 @@ class Justification:
     label: str = ""
     content_hash: str = ""
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.type, str) or self.type not in {"SL", "CP"}:
+            raise ValueError(f"Invalid justification type: {self.type!r}; expected 'SL' or 'CP'")
+        for name, references in (("antecedents", self.antecedents), ("outlist", self.outlist)):
+            if not isinstance(references, list) or not all(
+                isinstance(reference, str) and reference for reference in references
+            ):
+                raise ValueError(f"{name} must be a list of non-empty node IDs")
+
 
 @dataclass
 class Node:
@@ -50,6 +59,12 @@ class Node:
     reviewed_at: str = ""
     verified_at: str = ""
     retracted_at: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.truth_value, str) or self.truth_value not in {"IN", "OUT"}:
+            raise ValueError(
+                f"Invalid truth value: {self.truth_value!r}; expected 'IN' or 'OUT'"
+            )
 
 
 @dataclass

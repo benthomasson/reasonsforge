@@ -2161,6 +2161,69 @@ def sync_agent(
         )
 
 
+def _validate_import_data(data: object) -> dict:
+    """Validate the serialized network shape before importing it."""
+    if not isinstance(data, dict):
+        raise ValueError("Imported JSON must contain an object")
+
+    metadata = data.get("meta", {})
+    if metadata is not None and not isinstance(metadata, dict):
+        raise ValueError("Imported 'meta' must be an object")
+
+    nodes = data.get("nodes", {})
+    if not isinstance(nodes, dict):
+        raise ValueError("Imported 'nodes' must be an object")
+    for node_id, node_data in nodes.items():
+        if not isinstance(node_id, str) or not node_id:
+            raise ValueError("Imported node IDs must be non-empty strings")
+        if not isinstance(node_data, dict):
+            raise ValueError(f"Imported node {node_id!r} must be an object")
+        truth_value = node_data.get("truth_value", "IN")
+        if not isinstance(truth_value, str) or truth_value not in {"IN", "OUT"}:
+            raise ValueError(
+                f"Invalid truth value for imported node {node_id!r}: {truth_value!r}; "
+                "expected 'IN' or 'OUT'"
+            )
+        metadata = node_data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Metadata for imported node {node_id!r} must be an object")
+        justifications = node_data.get("justifications", [])
+        if not isinstance(justifications, list):
+            raise ValueError(f"Justifications for imported node {node_id!r} must be a list")
+        for justification in justifications:
+            if not isinstance(justification, dict):
+                raise ValueError(
+                    f"Justification for imported node {node_id!r} must be an object"
+                )
+            if not isinstance(justification.get("label", ""), str):
+                raise ValueError("Justification label must be a string")
+            if not isinstance(justification.get("content_hash", ""), str):
+                raise ValueError("Justification content_hash must be a string")
+            if "type" not in justification:
+                raise ValueError(f"Justification for imported node {node_id!r} has no type")
+            Justification(
+                type=justification["type"],
+                antecedents=justification.get("antecedents", []),
+                outlist=justification.get("outlist", []),
+            )
+
+    nogoods = data.get("nogoods", [])
+    if not isinstance(nogoods, list):
+        raise ValueError("Imported 'nogoods' must be a list")
+    for nogood in nogoods:
+        if not isinstance(nogood, dict):
+            raise ValueError("Imported nogoods must be objects")
+        nogood_id = nogood.get("id", "")
+        if not isinstance(nogood_id, str) or not nogood_id:
+            raise ValueError("Imported nogood IDs must be non-empty strings")
+        nogood_nodes = nogood.get("nodes", [])
+        if not isinstance(nogood_nodes, list) or not all(
+            isinstance(node, str) and node for node in nogood_nodes
+        ):
+            raise ValueError("Imported nogood nodes must be a list of non-empty strings")
+    return data
+
+
 def import_json(
     json_file: str,
     db_path: str = DEFAULT_DB,
@@ -2182,6 +2245,10 @@ def import_json(
         raise FileNotFoundError(f"File not found: {json_file}")
 
     data = json_mod.loads(json_path.read_text())
+
+    # Validate before mutating SQLite or dispatching to PostgreSQL.  The PG
+    # backend stores justification dictionaries directly.
+    _validate_import_data(data)
 
     if pg_conninfo:
         return _pg_dispatch(
