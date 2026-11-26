@@ -11,6 +11,18 @@ from reasonsforge.api import init_db, get_status as reasons_status
 
 from . import PROJECT_DIR, REASONS_DB
 
+GITIGNORE_CONTENT = "reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n"
+
+
+def write_gitignore(directory):
+    """Write .gitignore if it doesn't exist. Returns True if created."""
+    gitignore = Path(directory) / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(GITIGNORE_CONTENT)
+        print("Created .gitignore")
+        return True
+    return False
+
 
 def cmd_init(args):
     """Bootstrap a new forge project directory."""
@@ -38,10 +50,7 @@ def cmd_init(args):
     else:
         print(f"{REASONS_DB} already exists, skipping reasons init")
 
-    gitignore = cwd / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
-        print("Created .gitignore")
+    write_gitignore(cwd)
 
     config_path = forge_dir / "config.json"
     if not config_path.exists():

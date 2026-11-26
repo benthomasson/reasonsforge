@@ -307,10 +307,8 @@ def cmd_init(args):
     except Exception:
         pass
 
-    gitignore = Path.cwd() / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
-        print("Created .gitignore")
+    from ..init_cmd import write_gitignore
+    write_gitignore(Path.cwd())
 
     from ..claude_md import write_claude_md_if_missing
 

@@ -913,11 +913,8 @@ def cmd_init(args):
     else:
         print(f"{db_path} already exists, skipping init")
 
-    # Create .gitignore
-    gitignore = Path.cwd() / ".gitignore"
-    if not gitignore.exists():
-        gitignore.write_text("reasons.db\nrag_fts.db\nlogs/\n.DS_Store\n")
-        print("Created .gitignore")
+    from ..init_cmd import write_gitignore
+    write_gitignore(Path.cwd())
 
     from ..claude_md import write_claude_md_if_missing
 
