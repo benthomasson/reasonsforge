@@ -136,11 +136,11 @@ class TestReadSource:
 
     def test_truncation(self, tmp_path):
         source_file = tmp_path / "big.md"
-        source_file.write_text("x" * 40_000)
+        source_file.write_text("x" * 150_000)
         db_path = str(tmp_path / "reasons.db")
 
         content = read_source("big.md", db_path=db_path)
-        assert len(content) < 35_000
+        assert len(content) < 135_000
         assert "[... truncated ...]" in content
 
 

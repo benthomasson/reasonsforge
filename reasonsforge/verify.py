@@ -7,10 +7,13 @@ synthesis (see report_belief.py for that).
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 
-MAX_SOURCE_CHARS = 30_000
+logger = logging.getLogger(__name__)
+
+MAX_SOURCE_CHARS = 128_000
 
 VERIFY_PROMPT = """\
 You are verifying whether beliefs in a knowledge base are supported by their \
@@ -67,6 +70,7 @@ def read_source(source, db_path=None):
         return None
 
     if len(content) > MAX_SOURCE_CHARS:
+        logger.warning("Source %s truncated from %d to %d chars", source, len(content), MAX_SOURCE_CHARS)
         content = content[:MAX_SOURCE_CHARS] + "\n\n[... truncated ...]"
     return content
 
