@@ -330,9 +330,6 @@ def _do_search_and_link(
             continue
         if sr.get("truth_value") != "IN":
             continue
-        sr_node = nodes.get(sid)
-        if sr_node and sr_node.get("justifications"):
-            continue
         candidates.append({"id": sid, "text": sr.get("text", "")})
 
     if not candidates:
