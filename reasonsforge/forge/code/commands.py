@@ -308,7 +308,7 @@ def cmd_init(args):
         pass
 
     from ..init_cmd import write_gitignore
-    write_gitignore(Path.cwd())
+    write_gitignore(repo_path)
 
     from ..claude_md import write_claude_md_if_missing
 
