@@ -1308,6 +1308,104 @@ class TestNamespaceAddNode:
         assert "agent1:active" in antecedents
 
 
+class TestImportBeliefs:
+    def test_schema_versions_and_rejected_import(self, pg_api):
+        from reasonsforge.metadata import SCHEMA_VERSION
+
+        current = f"---\nschema_version: {SCHEMA_VERSION}\n---\n\n### current [IN]\nCurrent\n"
+        missing = "---\nproject_name: legacy\n---\n\n### missing [IN]\nMissing\n"
+        empty = "---\nschema_version:\n---\n\n### empty [IN]\nEmpty\n"
+        unsupported = (
+            "---\nschema_version: 999\nproject_name: rejected\n---\n\n"
+            "### rejected [IN]\nRejected\n"
+        )
+
+        assert pg_api.import_beliefs(current)["claims_imported"] == 1
+        assert pg_api.show_node("current")["text"] == "Current"
+        assert pg_api.import_beliefs(missing)["claims_imported"] == 1
+        assert pg_api.import_beliefs(empty)["claims_imported"] == 1
+
+        with pg_api.conn.cursor() as cur:
+            cur.execute(
+                "SELECT value FROM rms_network_meta "
+                "WHERE project_id = %s AND key = 'schema_version'",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchone()[0] == SCHEMA_VERSION
+
+        with pg_api.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, text, truth_value FROM rms_nodes "
+                "WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            before_nodes = cur.fetchall()
+            cur.execute(
+                "SELECT key, value FROM rms_network_meta "
+                "WHERE project_id = %s ORDER BY key",
+                (pg_api.project_id,),
+            )
+            before_meta = cur.fetchall()
+            cur.execute(
+                "SELECT node_id, type, antecedents, outlist, label "
+                "FROM rms_justifications WHERE project_id = %s "
+                "ORDER BY id",
+                (pg_api.project_id,),
+            )
+            before_justifications = cur.fetchall()
+            cur.execute(
+                "SELECT id, nodes, discovered, resolution FROM rms_nogoods "
+                "WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            before_nogoods = cur.fetchall()
+            cur.execute(
+                "SELECT timestamp, action, target, value "
+                "FROM rms_propagation_log WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            before_log = cur.fetchall()
+
+        result = pg_api.import_beliefs(unsupported)
+        assert result["claims_imported"] == 0
+        assert "error" in result
+        with pg_api.conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, text, truth_value FROM rms_nodes "
+                "WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchall() == before_nodes
+            cur.execute(
+                "SELECT key, value FROM rms_network_meta "
+                "WHERE project_id = %s ORDER BY key",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchall() == before_meta
+            cur.execute(
+                "SELECT node_id, type, antecedents, outlist, label "
+                "FROM rms_justifications WHERE project_id = %s "
+                "ORDER BY id",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchall() == before_justifications
+            cur.execute(
+                "SELECT id, nodes, discovered, resolution FROM rms_nogoods "
+                "WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchall() == before_nogoods
+            cur.execute(
+                "SELECT timestamp, action, target, value "
+                "FROM rms_propagation_log WHERE project_id = %s ORDER BY id",
+                (pg_api.project_id,),
+            )
+            assert cur.fetchall() == before_log
+
+        # The rejected call must not leave the transaction aborted.
+        assert pg_api.show_node("current")["text"] == "Current"
+
+
 class TestNamespaceAddJustification:
     def test_prefixes_ids(self, pg_api):
         pg_api.add_node("a", "A", namespace="ns1")

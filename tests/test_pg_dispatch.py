@@ -21,6 +21,7 @@ from reasonsforge.api import (
     list_negative,
 )
 from reasonsforge.cli import _backend_kwargs, _require_sqlite
+from reasonsforge.pg import PgApi
 
 
 class TestPgDispatch:
@@ -321,6 +322,21 @@ class TestImportJsonDispatch:
 
 
 class TestImportBeliefsDispatch:
+    def test_pg_rejects_unsupported_schema_before_database_access(self):
+        pg = object.__new__(PgApi)
+        pg.project_id = "test"
+        pg.conn = MagicMock()
+
+        result = pg.import_beliefs(
+            "---\nschema_version: 0.9\nproject_name: changed\n---\n"
+            "### alpha [IN] premise\nAlpha belief\n"
+        )
+
+        assert result["claims_imported"] == 0
+        assert "Unsupported schema_version" in result["error"]
+        pg.conn.cursor.assert_not_called()
+        pg.conn.commit.assert_not_called()
+
     def test_dispatches_text(self, tmp_path):
         beliefs_file = tmp_path / "beliefs.md"
         beliefs_file.write_text("### alpha [IN] premise\nAlpha belief\n")

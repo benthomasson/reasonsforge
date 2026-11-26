@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from reasonsforge.network import Network
+from reasonsforge.metadata import SCHEMA_VERSION
 from reasonsforge.import_beliefs import (
     parse_beliefs,
     parse_nogoods,
@@ -146,6 +147,53 @@ class TestParseNogoods:
 
 
 class TestImportIntoNetwork:
+    def test_accepts_current_schema_version(self):
+        net = Network()
+        beliefs = """---
+schema_version: "1.0"
+project_name: demo
+---
+""" + SAMPLE_BELIEFS
+        import_into_network(net, beliefs)
+        assert net.meta["schema_version"] == "1.0"
+        assert net.meta["project_name"] == "demo"
+
+    def test_reports_unsupported_schema_version_before_import(self):
+        net = Network()
+        net.meta["project_name"] = "existing"
+        net.repos["existing"] = "/tmp/existing"
+        beliefs = """---
+schema_version: 0.9
+project_name: imported
+---
+""" + SAMPLE_BELIEFS
+
+        result = import_into_network(net, beliefs)
+
+        assert result["claims_imported"] == 0
+        assert "Unsupported schema_version" in result["error"]
+        assert net.meta == {"project_name": "existing"}
+        assert net.repos == {"existing": "/tmp/existing"}
+        assert net.nodes == {}
+
+    @pytest.mark.parametrize("schema_line", ["", "schema_version:"])
+    def test_accepts_missing_or_empty_schema_version(self, schema_line):
+        net = Network()
+        frontmatter = f"---\n{schema_line}\nproject_name: demo\n---\n"
+
+        result = import_into_network(net, frontmatter + SAMPLE_BELIEFS)
+
+        assert result["claims_imported"] == 5
+        assert net.meta["project_name"] == "demo"
+        assert net.meta["schema_version"] == SCHEMA_VERSION
+
+    def test_defaults_schema_version_without_frontmatter(self):
+        net = Network()
+
+        import_into_network(net, SAMPLE_BELIEFS)
+
+        assert net.meta["schema_version"] == SCHEMA_VERSION
+
     def test_imports_premises(self):
         net = Network()
         import_into_network(net, SAMPLE_BELIEFS)

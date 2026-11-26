@@ -14,6 +14,7 @@ Mapping:
 import re
 
 from . import Justification, Nogood
+from .metadata import SCHEMA_VERSION
 from .network import Network
 
 
@@ -174,14 +175,32 @@ def import_into_network(
 ) -> dict:
     """Import parsed beliefs and nogoods into an existing network.
 
-    Returns a summary dict with counts of what was imported.
+    Returns a summary dict with counts of what was imported. Unsupported
+    schema versions are reported in the summary without mutating the network.
     """
     beliefs_text, frontmatter = strip_frontmatter(beliefs_text)
 
     if frontmatter:
+        schema_version = frontmatter.get("schema_version", "")
+        if schema_version and schema_version != SCHEMA_VERSION:
+            return {
+                "claims_imported": 0,
+                "claims_skipped": 0,
+                "claims_retracted": 0,
+                "nogoods_imported": 0,
+                "error": (
+                    f"Unsupported schema_version {schema_version!r}; "
+                    f"expected {SCHEMA_VERSION!r}"
+                ),
+            }
         for key in ("schema_version", "project_name", "created_at"):
             if key in frontmatter and frontmatter[key]:
                 network.meta[key] = frontmatter[key]
+
+    # Imports without frontmatter still represent the current format. Keep the
+    # in-memory network metadata consistent with persisted networks, where the
+    # storage layer supplies this default on save.
+    network.meta.setdefault("schema_version", SCHEMA_VERSION)
 
     # Parse and store repos
     repos = parse_repos(beliefs_text)

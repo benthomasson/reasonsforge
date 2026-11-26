@@ -2606,21 +2606,41 @@ class PgApi:
         return {"nodes_imported": nodes_imported, "nogoods_imported": nogoods_imported}
 
     def import_beliefs(self, beliefs_text, nogoods_text=None):
-        """Import beliefs from markdown text."""
+        """Import beliefs from markdown text.
+
+        Unsupported schema versions are reported without changing the
+        project, matching the in-memory import contract.
+        """
         from .import_beliefs import parse_beliefs, parse_nogoods, strip_frontmatter
+        from .metadata import SCHEMA_VERSION
 
         beliefs_text, frontmatter = strip_frontmatter(beliefs_text)
-        if frontmatter:
-            with self.conn.cursor() as cur:
-                for key in ("schema_version", "project_name", "created_at"):
-                    if key in frontmatter and frontmatter[key]:
-                        cur.execute(
-                            "INSERT INTO rms_network_meta (key, project_id, value) "
-                            "VALUES (%s, %s, %s) "
-                            "ON CONFLICT (key, project_id) DO UPDATE SET value = EXCLUDED.value",
-                            (key, self.project_id, frontmatter[key]),
-                        )
-            self.conn.commit()
+        schema_version = frontmatter.get("schema_version", "")
+        if schema_version and schema_version != SCHEMA_VERSION:
+            return {
+                "claims_imported": 0,
+                "claims_skipped": 0,
+                "claims_retracted": 0,
+                "nogoods_imported": 0,
+                "error": (
+                    f"Unsupported schema_version {schema_version!r}; "
+                    f"expected {SCHEMA_VERSION!r}"
+                ),
+            }
+        # Match the in-memory importer: a missing or empty schema version is
+        # treated as the current format, including for legacy projects whose
+        # metadata predates schema_version.
+        frontmatter["schema_version"] = frontmatter.get("schema_version") or SCHEMA_VERSION
+        with self.conn.cursor() as cur:
+            for key in ("schema_version", "project_name", "created_at"):
+                if frontmatter.get(key):
+                    cur.execute(
+                        "INSERT INTO rms_network_meta (key, project_id, value) "
+                        "VALUES (%s, %s, %s) "
+                        "ON CONFLICT (key, project_id) DO UPDATE SET value = EXCLUDED.value",
+                        (key, self.project_id, frontmatter[key]),
+                    )
+        self.conn.commit()
 
         pid = self.project_id
         claims = parse_beliefs(beliefs_text)

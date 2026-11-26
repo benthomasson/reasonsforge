@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 
 from reasonsforge import api
 from reasonsforge.metadata import build_meta, SCHEMA_VERSION
@@ -168,6 +170,28 @@ class TestMarkdownRoundTrip:
         api.init_db(db_path=db)
         result = api.import_beliefs(md_file, db_path=db)
         assert result["claims_imported"] == 1
+
+    def test_unsupported_schema_returns_summary_without_mutation(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        md_file = str(tmp_path / "unsupported.md")
+        Path(md_file).write_text(
+            "---\nschema_version: 0.9\nproject_name: imported\n---\n"
+            "### a [IN] OBSERVATION\nPremise A\n"
+        )
+
+        api.init_db(db_path=db, project_name="existing")
+        api.add_node("existing", "Existing premise", db_path=db)
+        api.add_repo("existing", "/tmp/existing", db_path=db)
+        before = api.export_markdown(db_path=db)
+
+        result = api.import_beliefs(md_file, db_path=db)
+
+        assert result["claims_imported"] == 0
+        assert "Unsupported schema_version" in result["error"]
+        assert api.export_markdown(db_path=db) == before
+        with pytest.raises(KeyError):
+            api.show_node("a", db_path=db)
+        assert api.export_network(db_path=db)["meta"]["project_name"] == "existing"
 
 
 class TestSqliteMeta:

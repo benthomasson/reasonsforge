@@ -74,7 +74,7 @@ def _with_network(db_path: str, write: bool = False):
             return self.network
 
         def __exit__(self, exc_type, exc_val, exc_tb):
-            if write and exc_type is None:
+            if write and exc_type is None and not getattr(self, "_skip_save", False):
                 self.store.save(self.network)
                 if self._before is not None:
                     after = {
@@ -1975,8 +1975,14 @@ def import_beliefs(
 
     from .import_beliefs import import_into_network
 
-    with _with_network(db_path, write=True) as net:
-        return import_into_network(net, beliefs_text, nogoods_text)
+    # A rejected schema is a no-op: do not persist even incidental metadata
+    # changes from loading/saving the network.
+    ctx = _with_network(db_path, write=True)
+    with ctx as net:
+        result = import_into_network(net, beliefs_text, nogoods_text)
+        if "error" in result:
+            ctx._skip_save = True
+        return result
 
 
 def import_agent(
